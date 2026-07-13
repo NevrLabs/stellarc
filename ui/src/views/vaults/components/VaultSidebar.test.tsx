@@ -44,7 +44,10 @@ describe("VaultSidebar vault details", () => {
     expect(screen.getByRole("dialog", { name: "Vault details" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Synchronization" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Backups" })).toBeInTheDocument();
-    expect(screen.getAllByText("Not configured")).toHaveLength(2);
+    expect(screen.getByText("No synchronization bindings")).toBeInTheDocument();
+    expect(screen.getByText(/No editable replica or external merge transport is configured/i)).toBeInTheDocument();
+    expect(screen.getByText("No backup bindings")).toBeInTheDocument();
+    expect(screen.getByText(/No snapshot target or retention policy is configured/i)).toBeInTheDocument();
     expect(screen.getByText("Olympus authoritative copy")).toBeInTheDocument();
     expect(screen.queryByText(/backend store/i)).not.toBeInTheDocument();
 
@@ -75,8 +78,37 @@ describe("VaultSidebar vault details", () => {
     await user.click(screen.getByRole("menuitem", { name: /Vault details/i }));
 
     expect(screen.getByText("GitHub origin")).toBeInTheDocument();
-    expect(screen.getByText("IEatCodeDaily/engineering · main")).toBeInTheDocument();
+    expect(screen.getByText("GitHub · IEatCodeDaily/engineering · main")).toBeInTheDocument();
+    expect(screen.getByText("Bidirectional synchronization · no attempt recorded")).toBeInTheDocument();
     expect(screen.getByText("Daily R2")).toBeInTheDocument();
-    expect(screen.getByText("olympus-backups/engineering")).toBeInTheDocument();
+    expect(screen.getByText("S3-compatible · olympus-backups/engineering · https://example.r2.cloudflarestorage.com")).toBeInTheDocument();
+    expect(screen.getByText("S3-compatible snapshot target · no snapshot recorded")).toBeInTheDocument();
+    expect(screen.getAllByText("Not run")).toHaveLength(2);
+  });
+
+  it("renders Olympus sync providers and binding status details without treating them as backups", async () => {
+    const user = userEvent.setup();
+    renderSidebar({
+      ...localVault,
+      syncBindings: [{
+        id: "olympus-peer",
+        name: "Lab peer",
+        direction: "pull",
+        adapter: { kind: "olympus", peerId: "hall-west", vaultId: "runbooks" },
+        status: { state: "failed", lastAttemptAt: 1_700_000_000, error: "Remote lease expired", conflict: { localRevision: "a", remoteRevision: "b", paths: ["ops.md"] } },
+      }],
+      backupBindings: [],
+    });
+
+    await user.click(screen.getByRole("button", { name: /Engineering/i }));
+    await user.click(screen.getByRole("menuitem", { name: /Vault details/i }));
+
+    expect(screen.getByText("Olympus · hall-west · runbooks")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText(/Pull synchronization · last attempt/i)).toBeInTheDocument();
+    expect(screen.getByText("Remote lease expired")).toBeInTheDocument();
+    expect(screen.getByText("Conflict on 1 path")).toBeInTheDocument();
+    expect(screen.getByText("No backup bindings")).toBeInTheDocument();
+    expect(screen.queryByText(/S3-compatible snapshot target/i)).not.toBeInTheDocument();
   });
 });

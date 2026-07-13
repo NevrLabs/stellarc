@@ -748,9 +748,12 @@ input[type=range] { accent-color: var(--silver); height: 14px; cursor: pointer; 
   .vault-storage-section-head > span { min-width: 20px; border-radius: 999px; background: var(--surface); font: var(--fs-10)/20px var(--font-mono); text-align: center; }
   .vault-binding-card, .vault-binding-empty { padding: var(--space-4); border: var(--border-w) solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
   .vault-binding-card { display: flex; flex-direction: column; gap: var(--space-2); }
+  .vault-binding-empty { display: flex; flex-direction: column; gap: var(--space-2); }
+  .vault-binding-empty strong { color: var(--text); font-size: var(--fs-12); }
   .vault-binding-card > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-  .vault-binding-card > span, .vault-binding-card > small, .vault-binding-empty { color: var(--faint); font-size: var(--fs-11); overflow-wrap: anywhere; }
+  .vault-binding-card > span, .vault-binding-card > small, .vault-binding-empty span { color: var(--faint); font-size: var(--fs-11); overflow-wrap: anywhere; }
   .vault-binding-card > small { font-family: var(--font-mono); text-transform: capitalize; }
+  .vault-binding-error { color: var(--danger) !important; }
   .vault-dialog { width: min(520px, 92vw); }
   .vault-dialog-title { display: flex; align-items: center; gap: var(--space-4); font-weight: 600; }
   .vault-form { display: flex; flex-direction: column; gap: var(--space-5); }

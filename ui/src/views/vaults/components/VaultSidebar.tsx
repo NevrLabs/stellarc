@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Icon } from "../../../components/Icon";
-import type { NoteTreeEntry, VaultSummary } from "../../../types";
+import type { NoteTreeEntry, VaultBackupBinding, VaultSummary, VaultSyncBinding } from "../../../types";
 import { findFolderIndex } from "../vaultWorkspace";
 
 interface EntryMenu {
@@ -185,23 +185,15 @@ function VaultDetailsDialog({ vault, onClose }: { vault: VaultSummary; onClose: 
           </section>
           <section>
             <div className="vault-storage-section-head"><h3>Synchronization</h3><span>{vault.syncBindings.length}</span></div>
-            {vault.syncBindings.length === 0 ? <div className="vault-binding-empty">Not configured</div> : vault.syncBindings.map((binding) => (
-              <div className="vault-binding-card" key={binding.id}>
-                <div><strong>{binding.name}</strong><span className="gtag">{binding.status.state}</span></div>
-                <span>{binding.adapter.kind === "github" ? `${binding.adapter.repository} · ${binding.adapter.branch}` : `${binding.adapter.peerId} · ${binding.adapter.vaultId}`}</span>
-                <small>{binding.direction}</small>
-              </div>
-            ))}
+            {vault.syncBindings.length === 0 ? (
+              <div className="vault-binding-empty"><strong>No synchronization bindings</strong><span>This vault is Olympus-only. No editable replica or external merge transport is configured.</span></div>
+            ) : vault.syncBindings.map((binding) => <SyncBindingCard binding={binding} key={binding.id} />)}
           </section>
           <section>
             <div className="vault-storage-section-head"><h3>Backups</h3><span>{vault.backupBindings.length}</span></div>
-            {vault.backupBindings.length === 0 ? <div className="vault-binding-empty">Not configured</div> : vault.backupBindings.map((binding) => (
-              <div className="vault-binding-card" key={binding.id}>
-                <div><strong>{binding.name}</strong><span className="gtag">{binding.status.state}</span></div>
-                <span>{binding.target.prefix ? `${binding.target.bucket}/${binding.target.prefix}` : binding.target.bucket}</span>
-                <small>S3-compatible immutable snapshots</small>
-              </div>
-            ))}
+            {vault.backupBindings.length === 0 ? (
+              <div className="vault-binding-empty"><strong>No backup bindings</strong><span>No snapshot target or retention policy is configured. Local vault edits continue normally.</span></div>
+            ) : vault.backupBindings.map((binding) => <BackupBindingCard binding={binding} key={binding.id} />)}
           </section>
         </div>
         <div className="ol-dialog-foot">
@@ -210,6 +202,71 @@ function VaultDetailsDialog({ vault, onClose }: { vault: VaultSummary; onClose: 
       </div>
     </div>
   );
+}
+
+function SyncBindingCard({ binding }: { binding: VaultSyncBinding }) {
+  return (
+    <div className="vault-binding-card">
+      <div><strong>{binding.name}</strong><span className="gtag">{statusLabel(binding.status.state)}</span></div>
+      <span>{syncAdapterLabel(binding)}</span>
+      <small>{directionLabel(binding.direction)} synchronization · {syncStatusDetail(binding)}</small>
+      {binding.status.error && <span className="vault-binding-error">{binding.status.error}</span>}
+      {binding.status.conflict && <span className="vault-binding-error">Conflict on {binding.status.conflict.paths.length} path{binding.status.conflict.paths.length === 1 ? "" : "s"}</span>}
+    </div>
+  );
+}
+
+function BackupBindingCard({ binding }: { binding: VaultBackupBinding }) {
+  return (
+    <div className="vault-binding-card">
+      <div><strong>{binding.name}</strong><span className="gtag">{statusLabel(binding.status.state)}</span></div>
+      <span>{backupTargetLabel(binding)}</span>
+      <small>S3-compatible snapshot target · {backupStatusDetail(binding)}</small>
+      {binding.status.error && <span className="vault-binding-error">{binding.status.error}</span>}
+    </div>
+  );
+}
+
+function syncAdapterLabel(binding: VaultSyncBinding): string {
+  if (binding.adapter.kind === "github") return `GitHub · ${binding.adapter.repository} · ${binding.adapter.branch}`;
+  return `Olympus · ${binding.adapter.peerId} · ${binding.adapter.vaultId}`;
+}
+
+function backupTargetLabel(binding: VaultBackupBinding): string {
+  const target = binding.target;
+  const location = target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket;
+  const region = target.region ? ` · ${target.region}` : "";
+  const endpoint = target.endpoint ? ` · ${target.endpoint}` : "";
+  return `S3-compatible · ${location}${region}${endpoint}`;
+}
+
+function statusLabel(state: VaultSyncBinding["status"]["state"] | VaultBackupBinding["status"]["state"]): string {
+  switch (state) {
+    case "not-run": return "Not run";
+    case "idle": return "Idle";
+    case "running": return "Running";
+    case "succeeded": return "Succeeded";
+    case "failed": return "Failed";
+  }
+}
+
+function directionLabel(direction: VaultSyncBinding["direction"]): string {
+  switch (direction) {
+    case "pull": return "Pull";
+    case "push": return "Push";
+    case "bidirectional": return "Bidirectional";
+  }
+}
+
+function syncStatusDetail(binding: VaultSyncBinding): string {
+  if (binding.status.lastAttemptAt === null) return "no attempt recorded";
+  return `last attempt ${new Date(binding.status.lastAttemptAt * 1000).toLocaleString()}`;
+}
+
+function backupStatusDetail(binding: VaultBackupBinding): string {
+  if (binding.status.lastSuccessAt !== null) return `last success ${new Date(binding.status.lastSuccessAt * 1000).toLocaleString()}`;
+  if (binding.status.lastAttemptAt !== null) return `last attempt ${new Date(binding.status.lastAttemptAt * 1000).toLocaleString()}`;
+  return "no snapshot recorded";
 }
 
 function FileTreeEntry({
