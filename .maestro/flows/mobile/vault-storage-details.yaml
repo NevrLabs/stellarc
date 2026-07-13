@@ -1,0 +1,17 @@
+url: ${MAESTRO_BASE_URL}/vaults
+name: Vault storage details mobile
+properties:
+  junitId: olympus-vault-storage-details-mobile
+  junitClassname: ui.mobile
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "New Note"
+    timeout: 15000
+- tapOn: "Engineering"
+- tapOn: "Vault details…"
+- assertVisible: "Olympus authoritative copy"
+- assertVisible: "Synchronization"
+- assertVisible: "Backups"
+- takeScreenshot:
+    path: screenshots/vault-storage-details-mobile

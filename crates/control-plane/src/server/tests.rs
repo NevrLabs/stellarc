@@ -1175,16 +1175,7 @@ async fn vault_routes_create_write_read_and_list_notes() {
                 .header("authorization", "Bearer testtoken")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    serde_json::json!({
-                        "name": "Ops Vault",
-                        "backend": {
-                            "kind": "github",
-                            "repository": "IEatCodeDaily/ops-vault",
-                            "branch": "main",
-                            "syncEngine": "jj-git"
-                        }
-                    })
-                    .to_string(),
+                    serde_json::json!({ "name": "Ops Vault" }).to_string(),
                 ))
                 .unwrap(),
         )
@@ -1196,8 +1187,10 @@ async fn vault_routes_create_write_read_and_list_notes() {
         .unwrap();
     let created: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(created["id"], "ops-vault");
-    assert_eq!(created["backend"]["kind"], "github");
-    assert_eq!(created["backend"]["repository"], "IEatCodeDaily/ops-vault");
+    assert_eq!(created["authority"]["kind"], "olympus");
+    assert_eq!(created["syncBindings"], serde_json::json!([]));
+    assert_eq!(created["backupBindings"], serde_json::json!([]));
+    assert!(created.get("backend").is_none());
 
     let res = app
         .clone()

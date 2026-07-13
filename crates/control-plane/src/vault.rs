@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,35 +37,106 @@ pub struct VaultSummary {
     pub name: String,
     pub note_count: usize,
     pub updated_at: f64,
-    pub backend: Option<VaultBackend>,
+    pub authority: VaultAuthority,
+    pub sync_bindings: Vec<VaultSyncBinding>,
+    pub backup_bindings: Vec<VaultBackupBinding>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum VaultAuthority {
+    Olympus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultSyncBinding {
+    pub id: String,
+    pub name: String,
+    pub direction: VaultSyncDirection,
+    pub adapter: VaultSyncAdapter,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VaultSyncDirection {
+    Pull,
+    Push,
+    Bidirectional,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
-pub enum VaultBackend {
+pub enum VaultSyncAdapter {
     #[serde(rename_all = "camelCase")]
-    Github {
-        repository: String,
-        branch: String,
-        sync_engine: VaultSyncEngine,
+    Github { repository: String, branch: String },
+    #[serde(rename_all = "camelCase")]
+    Olympus { peer_id: String, vault_id: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultBackupBinding {
+    pub id: String,
+    pub name: String,
+    pub target: VaultBackupTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum VaultBackupTarget {
+    #[serde(rename_all = "camelCase")]
+    S3 {
+        bucket: String,
+        prefix: String,
+        endpoint: Option<String>,
+        region: Option<String>,
+        credential_id: String,
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum VaultSyncEngine {
-    #[serde(rename = "jj-git")]
-    JjGit,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultMetadata {
+    schema_version: u8,
+    name: String,
+    authority: VaultAuthority,
+    sync_bindings: Vec<VaultSyncBinding>,
+    backup_bindings: Vec<VaultBackupBinding>,
 }
 
-impl VaultBackend {
+impl VaultMetadata {
+    fn olympus_only(name: &str) -> Self {
+        Self {
+            schema_version: 2,
+            name: name.to_string(),
+            authority: VaultAuthority::Olympus,
+            sync_bindings: Vec::new(),
+            backup_bindings: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LegacyVaultMetadata {
+    name: Option<String>,
+    backend: Option<LegacyVaultBackend>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+enum LegacyVaultBackend {
+    Github { repository: String, branch: String },
+}
+
+impl VaultSyncAdapter {
     pub fn github(repository: &str, branch: &str) -> Result<Self> {
-        let backend = Self::Github {
+        let adapter = Self::Github {
             repository: repository.to_string(),
             branch: branch.to_string(),
-            sync_engine: VaultSyncEngine::JjGit,
         };
-        backend.validate()?;
-        Ok(backend)
+        adapter.validate()?;
+        Ok(adapter)
     }
 
     fn validate(&self) -> Result<()> {
@@ -76,12 +147,12 @@ impl VaultBackend {
                 validate_github_repository(repository)?;
                 validate_branch(branch)
             }
-        }
-    }
-
-    fn remote_url(&self) -> String {
-        match self {
-            Self::Github { repository, .. } => format!("https://github.com/{repository}.git"),
+            Self::Olympus { peer_id, vault_id } => {
+                if peer_id.trim().is_empty() || vault_id.trim().is_empty() {
+                    bail!("Olympus sync peer and vault ids are required");
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -179,21 +250,29 @@ impl VaultStore {
             let metadata = read_vault_metadata(&path);
             let name = metadata
                 .as_ref()
-                .and_then(|value| value.get("name"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned)
+                .map(|metadata| metadata.name.clone())
                 .unwrap_or_else(|| id.clone());
-            let backend = metadata
+            let authority = metadata
                 .as_ref()
-                .and_then(|value| value.get("backend"))
-                .and_then(|value| serde_json::from_value(value.clone()).ok());
+                .map(|metadata| metadata.authority)
+                .unwrap_or(VaultAuthority::Olympus);
+            let sync_bindings = metadata
+                .as_ref()
+                .map(|metadata| metadata.sync_bindings.clone())
+                .unwrap_or_default();
+            let backup_bindings = metadata
+                .as_ref()
+                .map(|metadata| metadata.backup_bindings.clone())
+                .unwrap_or_default();
             let (note_count, updated_at) = vault_stats(&path)?;
             vaults.push(VaultSummary {
                 id,
                 name,
                 note_count,
                 updated_at,
-                backend,
+                authority,
+                sync_bindings,
+                backup_bindings,
             });
         }
         vaults.sort_by(|a, b| {
@@ -205,12 +284,11 @@ impl VaultStore {
         Ok(vaults)
     }
 
-    pub fn create_vault(&self, name: &str, backend: VaultBackend) -> Result<VaultSummary> {
+    pub fn create_vault(&self, name: &str) -> Result<VaultSummary> {
         let name = name.trim();
         if name.is_empty() {
             bail!("vault name is required");
         }
-        backend.validate()?;
         fs::create_dir_all(&self.root)
             .with_context(|| format!("creating vault root {}", self.root.display()))?;
 
@@ -220,10 +298,9 @@ impl VaultStore {
             fs::create_dir_all(path.join(".vault"))?;
             fs::write(
                 path.join(".vault").join("metadata.json"),
-                serde_json::to_vec_pretty(&json!({ "name": name, "backend": backend }))?,
+                serde_json::to_vec_pretty(&VaultMetadata::olympus_only(name))?,
             )?;
             self.jj_init(&path)?;
-            self.configure_backend(&path, &backend)?;
             self.jj_snapshot(&path, "vault: create")
         })();
         if let Err(err) = setup {
@@ -236,7 +313,9 @@ impl VaultStore {
             name: name.to_string(),
             note_count: 0,
             updated_at: now_secs(),
-            backend: Some(backend),
+            authority: VaultAuthority::Olympus,
+            sync_bindings: Vec::new(),
+            backup_bindings: Vec::new(),
         })
     }
 
@@ -412,18 +491,6 @@ impl VaultStore {
         }
         run_jj(path, &["describe", "-m", message], "jj describe")
     }
-
-    fn configure_backend(&self, path: &Path, backend: &VaultBackend) -> Result<()> {
-        if self.jj_mode == JjMode::Disabled {
-            return Ok(());
-        }
-        let url = backend.remote_url();
-        run_jj(
-            path,
-            &["git", "remote", "add", "origin", &url],
-            "jj git remote add",
-        )
-    }
 }
 
 fn run_jj(path: &Path, args: &[&str], label: &str) -> Result<()> {
@@ -443,9 +510,33 @@ fn run_jj(path: &Path, args: &[&str], label: &str) -> Result<()> {
     Ok(())
 }
 
-fn read_vault_metadata(path: &Path) -> Option<Value> {
+fn read_vault_metadata(path: &Path) -> Option<VaultMetadata> {
     let bytes = fs::read(path.join(".vault").join("metadata.json")).ok()?;
-    serde_json::from_slice(&bytes).ok()
+    let value: Value = serde_json::from_slice(&bytes).ok()?;
+    if value.get("schemaVersion").and_then(Value::as_u64) == Some(2) {
+        let metadata: VaultMetadata = serde_json::from_value(value).ok()?;
+        if metadata
+            .sync_bindings
+            .iter()
+            .any(|binding| binding.adapter.validate().is_err())
+        {
+            return None;
+        }
+        return Some(metadata);
+    }
+
+    let legacy: LegacyVaultMetadata = serde_json::from_value(value).ok()?;
+    let mut metadata = VaultMetadata::olympus_only(legacy.name.as_deref().unwrap_or_default());
+    if let Some(LegacyVaultBackend::Github { repository, branch }) = legacy.backend {
+        let adapter = VaultSyncAdapter::github(&repository, &branch).ok()?;
+        metadata.sync_bindings.push(VaultSyncBinding {
+            id: "github-origin".to_string(),
+            name: "GitHub origin".to_string(),
+            direction: VaultSyncDirection::Bidirectional,
+            adapter,
+        });
+    }
+    Some(metadata)
 }
 
 fn validate_github_repository(repository: &str) -> Result<()> {
@@ -1074,12 +1165,22 @@ mod tests {
     fn create_write_read_and_tree_roundtrip_without_jj() {
         let tmp = tempfile::tempdir().unwrap();
         let store = store(&tmp);
-        let backend = VaultBackend::github("IEatCodeDaily/engineering-notes", "main").unwrap();
-        let vault = store
-            .create_vault("Engineering Notes", backend.clone())
-            .unwrap();
+        let vault = store.create_vault("Engineering Notes").unwrap();
         assert_eq!(vault.id, "engineering-notes");
-        assert_eq!(vault.backend, Some(backend));
+        assert_eq!(vault.authority, VaultAuthority::Olympus);
+        assert!(vault.sync_bindings.is_empty());
+        assert!(vault.backup_bindings.is_empty());
+
+        let metadata: Value = serde_json::from_slice(
+            &fs::read(store.vault_path(&vault.id).join(".vault/metadata.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metadata["schemaVersion"], 2);
+        assert_eq!(metadata["name"], "Engineering Notes");
+        assert_eq!(metadata["authority"]["kind"], "olympus");
+        assert_eq!(metadata["syncBindings"], serde_json::json!([]));
+        assert_eq!(metadata["backupBindings"], serde_json::json!([]));
+        assert!(metadata.get("backend").is_none());
 
         let doc = store
             .write_note(
@@ -1109,7 +1210,9 @@ mod tests {
         assert_eq!(tree[0].children[0].path, "runbooks/boot.md");
 
         let listed = store.list_vaults().unwrap();
-        assert_eq!(listed[0].backend, vault.backend);
+        assert_eq!(listed[0].authority, vault.authority);
+        assert_eq!(listed[0].sync_bindings, vault.sync_bindings);
+        assert_eq!(listed[0].backup_bindings, vault.backup_bindings);
 
         let documents = store.list_documents(&vault.id).unwrap();
         assert_eq!(documents.len(), 1);
@@ -1134,12 +1237,7 @@ mod tests {
 
         let tmp = tempfile::tempdir().unwrap();
         let store = Arc::new(store(&tmp));
-        let vault = store
-            .create_vault(
-                "Notes",
-                VaultBackend::github("IEatCodeDaily/notes", "main").unwrap(),
-            )
-            .unwrap();
+        let vault = store.create_vault("Notes").unwrap();
         let barrier = Arc::new(Barrier::new(2));
         let handles = (0..2)
             .map(|index| {
@@ -1182,10 +1280,7 @@ mod tests {
                 let barrier = Arc::clone(&barrier);
                 std::thread::spawn(move || {
                     barrier.wait();
-                    store.create_vault(
-                        "Shared Name",
-                        VaultBackend::github("IEatCodeDaily/shared", "main").unwrap(),
-                    )
+                    store.create_vault("Shared Name")
                 })
             })
             .collect::<Vec<_>>();
@@ -1200,30 +1295,27 @@ mod tests {
     }
 
     #[test]
-    fn github_backend_requires_canonical_repository_and_branch() {
-        assert!(VaultBackend::github("IEatCodeDaily/olympus", "main").is_ok());
-        assert!(VaultBackend::github("https://github.com/IEatCodeDaily/olympus", "main").is_err());
-        assert!(VaultBackend::github("missing-owner", "main").is_err());
-        assert!(VaultBackend::github("owner/repo", "").is_err());
-        assert!(VaultBackend::github("owner/repo", "../main").is_err());
+    fn github_sync_adapter_requires_canonical_repository_and_branch() {
+        assert!(VaultSyncAdapter::github("IEatCodeDaily/olympus", "main").is_ok());
+        assert!(
+            VaultSyncAdapter::github("https://github.com/IEatCodeDaily/olympus", "main").is_err()
+        );
+        assert!(VaultSyncAdapter::github("missing-owner", "main").is_err());
+        assert!(VaultSyncAdapter::github("owner/repo", "").is_err());
+        assert!(VaultSyncAdapter::github("owner/repo", "../main").is_err());
     }
 
     #[test]
-    fn create_vault_revalidates_deserialized_backend_values() {
-        let tmp = tempfile::tempdir().unwrap();
-        let store = store(&tmp);
-        let invalid = VaultBackend::Github {
+    fn github_sync_adapter_revalidates_deserialized_values() {
+        let invalid = VaultSyncAdapter::Github {
             repository: "https://github.com/IEatCodeDaily/olympus".into(),
             branch: "main".into(),
-            sync_engine: VaultSyncEngine::JjGit,
         };
-
-        assert!(store.create_vault("Invalid", invalid).is_err());
-        assert!(!store.root().join("invalid").exists());
+        assert!(invalid.validate().is_err());
     }
 
     #[test]
-    fn legacy_vault_without_backend_remains_listable() {
+    fn schema_v1_vault_without_backend_migrates_to_olympus_only() {
         let tmp = tempfile::tempdir().unwrap();
         let store = store(&tmp);
         let path = store.root().join("legacy");
@@ -1232,19 +1324,100 @@ mod tests {
 
         let listed = store.list_vaults().unwrap();
         assert_eq!(listed[0].name, "Legacy");
-        assert_eq!(listed[0].backend, None);
+        assert_eq!(listed[0].authority, VaultAuthority::Olympus);
+        assert!(listed[0].sync_bindings.is_empty());
+        assert!(listed[0].backup_bindings.is_empty());
+    }
+
+    #[test]
+    fn schema_v1_github_backend_migrates_to_sync_binding() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store(&tmp);
+        let path = store.root().join("legacy-github");
+        fs::create_dir_all(path.join(".vault")).unwrap();
+        fs::write(
+            path.join(".vault/metadata.json"),
+            r#"{"name":"Legacy GitHub","backend":{"kind":"github","repository":"IEatCodeDaily/legacy","branch":"main","syncEngine":"jj-git"}}"#,
+        )
+        .unwrap();
+
+        let listed = store.list_vaults().unwrap();
+        let vault = &listed[0];
+        assert_eq!(vault.authority, VaultAuthority::Olympus);
+        assert!(vault.backup_bindings.is_empty());
+        assert_eq!(vault.sync_bindings.len(), 1);
+        assert_eq!(vault.sync_bindings[0].id, "github-origin");
+        assert_eq!(vault.sync_bindings[0].name, "GitHub origin");
+        assert_eq!(
+            vault.sync_bindings[0].direction,
+            VaultSyncDirection::Bidirectional
+        );
+        assert_eq!(
+            vault.sync_bindings[0].adapter,
+            VaultSyncAdapter::Github {
+                repository: "IEatCodeDaily/legacy".into(),
+                branch: "main".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn schema_v2_reads_provider_neutral_sync_and_backup_bindings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store(&tmp);
+        let path = store.root().join("configured");
+        fs::create_dir_all(path.join(".vault")).unwrap();
+        fs::write(
+            path.join(".vault/metadata.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schemaVersion": 2,
+                "name": "Configured",
+                "authority": { "kind": "olympus" },
+                "syncBindings": [{
+                    "id": "github-origin",
+                    "name": "GitHub origin",
+                    "direction": "bidirectional",
+                    "adapter": { "kind": "github", "repository": "owner/repo", "branch": "main" }
+                }],
+                "backupBindings": [{
+                    "id": "daily-s3",
+                    "name": "Daily S3",
+                    "target": {
+                        "kind": "s3",
+                        "bucket": "olympus-backups",
+                        "prefix": "configured",
+                        "endpoint": null,
+                        "region": "us-east-1",
+                        "credentialId": "cred-s3"
+                    }
+                }]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let vault = store.list_vaults().unwrap().remove(0);
+        assert_eq!(vault.authority, VaultAuthority::Olympus);
+        assert_eq!(vault.sync_bindings.len(), 1);
+        assert_eq!(vault.backup_bindings.len(), 1);
+        assert_eq!(vault.backup_bindings[0].id, "daily-s3");
+        assert_eq!(
+            vault.backup_bindings[0].target,
+            VaultBackupTarget::S3 {
+                bucket: "olympus-backups".into(),
+                prefix: "configured".into(),
+                endpoint: None,
+                region: Some("us-east-1".into()),
+                credential_id: "cred-s3".into(),
+            }
+        );
     }
 
     #[test]
     fn rename_via_write_moves_existing_note() {
         let tmp = tempfile::tempdir().unwrap();
         let store = store(&tmp);
-        let vault = store
-            .create_vault(
-                "Notes",
-                VaultBackend::github("IEatCodeDaily/notes", "main").unwrap(),
-            )
-            .unwrap();
+        let vault = store.create_vault("Notes").unwrap();
         store
             .write_note(
                 &vault.id,
@@ -1279,12 +1452,7 @@ mod tests {
     fn rename_refuses_to_overwrite_an_existing_note() {
         let tmp = tempfile::tempdir().unwrap();
         let store = store(&tmp);
-        let vault = store
-            .create_vault(
-                "Notes",
-                VaultBackend::github("IEatCodeDaily/notes", "main").unwrap(),
-            )
-            .unwrap();
+        let vault = store.create_vault("Notes").unwrap();
         for (path, markdown) in [("source.md", "# Source\n"), ("target.md", "# Target\n")] {
             store
                 .write_note(
@@ -1328,12 +1496,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         let store = store(&tmp);
-        let vault = store
-            .create_vault(
-                "Notes",
-                VaultBackend::github("IEatCodeDaily/notes", "main").unwrap(),
-            )
-            .unwrap();
+        let vault = store.create_vault("Notes").unwrap();
         symlink(outside.path(), store.vault_path(&vault.id).join("escape")).unwrap();
 
         let result = store.write_note(
@@ -1362,12 +1525,7 @@ mod tests {
     fn jj_snapshot_lands_for_write() {
         let tmp = tempfile::tempdir().unwrap();
         let store = VaultStore::with_jj_mode(tmp.path().join("default"), JjMode::Required);
-        let vault = store
-            .create_vault(
-                "Jj Notes",
-                VaultBackend::github("IEatCodeDaily/jj-notes", "main").unwrap(),
-            )
-            .unwrap();
+        let vault = store.create_vault("Jj Notes").unwrap();
         store
             .write_note(
                 &vault.id,

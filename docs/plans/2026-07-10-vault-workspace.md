@@ -12,9 +12,9 @@ The Vault surface currently has a static `VaultsView` shell with separate VAULTS
 
 ### Hall storage boundary
 
-`VaultBackend` is a provider-neutral tagged descriptor persisted in `.vault/metadata.json`. The initial variant is GitHub (`repository`, `branch`). `VaultSyncEngine` is represented separately and initially supports `jj-git`. Credentials are never persisted. Hall configures the local jj working copy's `origin`; future sync transports can replace GitHub and/or jj-git without changing note APIs.
+Per ADR 0016, Olympus owns the authoritative jj working copy. Optional provider-neutral `syncBindings` exchange editable history through the jj merge boundary, while separate `backupBindings` describe immutable recovery targets. GitHub is a sync adapter rather than required storage, and credentials are never persisted in portable vault metadata.
 
-Vault list responses expose backend metadata. A vault-wide document-index endpoint returns path, title, updated time, and parsed frontmatter without sending every Markdown body.
+Vault list responses expose authority, synchronization, and backup summaries. A vault-wide document-index endpoint returns path, title, updated time, and parsed frontmatter without sending every Markdown body.
 
 ### Client workspace boundary
 
@@ -38,11 +38,16 @@ Table View is a vault-wide note index. Fixed columns are title and path; all fro
 
 ## Migration
 
-Existing vault metadata without a backend remains readable and is reported as unconfigured. New vault creation requires a backend. No existing note bytes move. Routes remain compatible with `/vaults/:id?note=...`, `/graph`, and `/tables` while the workspace uses them as active-target deep links.
+Existing schema-v1 metadata without a backend becomes an Olympus-only vault; a
+GitHub backend becomes an optional GitHub synchronization binding. New vault
+creation requires only a name and writes schema-v2 metadata. No existing note
+bytes move. Routes remain compatible with `/vaults/:id?note=...`, `/graph`, and
+`/tables` while the workspace uses them as active-target deep links.
 
 ## Verification gates
 
-- Rust storage and route tests for backend validation/persistence and document index.
+- Rust storage and route tests for schema-v2 metadata, schema-v1 compatibility,
+  provider-neutral binding DTOs, and document index.
 - Reducer/tree unit tests with red-green evidence.
 - UI typecheck, full Vitest, production build.
 - Vault Playwright coverage for configured creation, new note, folder index, menus, tabs, and layout.

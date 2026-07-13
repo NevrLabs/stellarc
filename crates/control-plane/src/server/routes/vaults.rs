@@ -38,9 +38,9 @@ pub(crate) struct VaultNoteQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct CreateVaultBody {
     name: String,
-    backend: crate::vault::VaultBackend,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -72,7 +72,7 @@ pub(crate) async fn create_vault(
     State(state): State<AppState>,
     Json(body): Json<CreateVaultBody>,
 ) -> Response {
-    match state.vaults.create_vault(&body.name, body.backend) {
+    match state.vaults.create_vault(&body.name) {
         Ok(vault) => (
             StatusCode::CREATED,
             Json(serde_json::to_value(VaultSummaryDto::from(vault)).unwrap()),

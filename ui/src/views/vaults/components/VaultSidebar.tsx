@@ -41,6 +41,7 @@ export function VaultSidebar({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(notes.filter((entry) => entry.kind === "folder").map((entry) => entry.path)));
   const [entryMenu, setEntryMenu] = useState<EntryMenu | null>(null);
   const [details, setDetails] = useState<NoteTreeEntry | null>(null);
+  const [vaultDetailsOpen, setVaultDetailsOpen] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
   const activeVault = vaults.find((vault) => vault.id === activeVaultId) ?? null;
 
@@ -90,6 +91,9 @@ export function VaultSidebar({
                 </button>
               ))}
               <div className="vault-menu-divider" />
+              <button type="button" className="mi" role="menuitem" disabled={!activeVault} onClick={() => { setVaultOpen(false); setVaultDetailsOpen(true); }}>
+                <Icon name="settings-2" size={13} /><span>Vault details…</span>
+              </button>
               <button type="button" className="mi" role="menuitem" onClick={() => { setVaultOpen(false); onCreateVault(); }}>
                 <Icon name="plus" size={13} /><span>Create vault…</span>
               </button>
@@ -158,7 +162,53 @@ export function VaultSidebar({
           </div>
         </div>
       )}
+
+      {vaultDetailsOpen && activeVault && (
+        <VaultDetailsDialog vault={activeVault} onClose={() => setVaultDetailsOpen(false)} />
+      )}
     </aside>
+  );
+}
+
+function VaultDetailsDialog({ vault, onClose }: { vault: VaultSummary; onClose: () => void }) {
+  return (
+    <div className="ol-overlay" role="dialog" aria-modal="true" aria-label="Vault details" onClick={onClose}>
+      <div className="ol-dialog vault-details vault-storage-details" onClick={(event) => event.stopPropagation()}>
+        <div className="ol-dialog-head">
+          <div className="vault-dialog-title"><Icon name="book" size={18} /><span>{vault.name}</span></div>
+          <button type="button" className="ibtn" aria-label="Close" onClick={onClose}><Icon name="x" size={14} /></button>
+        </div>
+        <div className="ol-dialog-body vault-storage-body">
+          <section>
+            <div className="vault-storage-section-head"><h3>Authority</h3></div>
+            <div className="vault-binding-card"><strong>Olympus authoritative copy</strong><span>Local jj history and editable Markdown remain available without network services.</span></div>
+          </section>
+          <section>
+            <div className="vault-storage-section-head"><h3>Synchronization</h3><span>{vault.syncBindings.length}</span></div>
+            {vault.syncBindings.length === 0 ? <div className="vault-binding-empty">Not configured</div> : vault.syncBindings.map((binding) => (
+              <div className="vault-binding-card" key={binding.id}>
+                <div><strong>{binding.name}</strong><span className="gtag">{binding.status.state}</span></div>
+                <span>{binding.adapter.kind === "github" ? `${binding.adapter.repository} · ${binding.adapter.branch}` : `${binding.adapter.peerId} · ${binding.adapter.vaultId}`}</span>
+                <small>{binding.direction}</small>
+              </div>
+            ))}
+          </section>
+          <section>
+            <div className="vault-storage-section-head"><h3>Backups</h3><span>{vault.backupBindings.length}</span></div>
+            {vault.backupBindings.length === 0 ? <div className="vault-binding-empty">Not configured</div> : vault.backupBindings.map((binding) => (
+              <div className="vault-binding-card" key={binding.id}>
+                <div><strong>{binding.name}</strong><span className="gtag">{binding.status.state}</span></div>
+                <span>{binding.target.prefix ? `${binding.target.bucket}/${binding.target.prefix}` : binding.target.bucket}</span>
+                <small>S3-compatible immutable snapshots</small>
+              </div>
+            ))}
+          </section>
+        </div>
+        <div className="ol-dialog-foot">
+          <button type="button" className="btn primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -376,21 +376,77 @@ export interface VaultSummary {
   name: string;
   noteCount: number;
   updatedAt: number;
-  backend: VaultBackend | null;
+  authority: VaultAuthority;
+  syncBindings: VaultSyncBinding[];
+  backupBindings: VaultBackupBinding[];
 }
 
-export interface GithubVaultBackend {
+export interface VaultAuthority {
+  kind: "olympus";
+}
+
+export type VaultSyncDirection = "pull" | "push" | "bidirectional";
+
+export interface GithubVaultSyncAdapter {
   kind: "github";
   repository: string;
   branch: string;
-  syncEngine: "jj-git";
 }
 
-export type VaultBackend = GithubVaultBackend;
+export interface OlympusVaultSyncAdapter {
+  kind: "olympus";
+  peerId: string;
+  vaultId: string;
+}
+
+export type VaultSyncAdapter = GithubVaultSyncAdapter | OlympusVaultSyncAdapter;
+
+export interface VaultSyncStatus {
+  state: "not-run" | "idle" | "running" | "succeeded" | "failed";
+  lastAttemptAt: number | null;
+  error: string | null;
+  conflict: {
+    localRevision: string;
+    remoteRevision: string;
+    paths: string[];
+  } | null;
+}
+
+export interface VaultSyncBinding {
+  id: string;
+  name: string;
+  direction: VaultSyncDirection;
+  adapter: VaultSyncAdapter;
+  status: VaultSyncStatus;
+}
+
+export interface S3VaultBackupTarget {
+  kind: "s3";
+  bucket: string;
+  prefix: string;
+  endpoint: string | null;
+  region: string | null;
+  credentialId: string;
+}
+
+export type VaultBackupTarget = S3VaultBackupTarget;
+
+export interface VaultBackupStatus {
+  state: "not-run" | "idle" | "running" | "succeeded" | "failed";
+  lastAttemptAt: number | null;
+  lastSuccessAt: number | null;
+  error: string | null;
+}
+
+export interface VaultBackupBinding {
+  id: string;
+  name: string;
+  target: VaultBackupTarget;
+  status: VaultBackupStatus;
+}
 
 export interface CreateVaultBody {
   name: string;
-  backend: VaultBackend;
 }
 
 export interface VaultsResponse {

@@ -174,7 +174,7 @@ export function VaultWorkspaceView() {
             onLayout={(layout: VaultWorkspaceLayout) => setWorkspace((current) => setWorkspaceLayout(current, layout))}
           />
         ) : (
-          <div className="empty-state"><div className="empty-state-title">Create your first vault</div><div className="empty-state-msg">Connect a GitHub repository to begin.</div><button type="button" className="btn primary" onClick={() => setCreateVaultOpen(true)}>Create vault</button></div>
+          <div className="empty-state"><div className="empty-state-title">Create your first vault</div><div className="empty-state-msg">Start with an Olympus-managed vault. Synchronization and backups are optional.</div><button type="button" className="btn primary" onClick={() => setCreateVaultOpen(true)}>Create vault</button></div>
         )}
       </div>
       {createVaultOpen && <CreateVaultDialog busy={busy} error={mutationError} onClose={() => setCreateVaultOpen(false)} onCreate={handleCreateVault} />}
