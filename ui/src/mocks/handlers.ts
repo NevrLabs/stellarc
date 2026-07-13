@@ -357,13 +357,10 @@ export const handlers = [
 
   // POST /api/vaults
   http.post("http://127.0.0.1:8787/api/organizations/:organizationId/vaults", async ({ request }) => {
-    const body = (await request.json()) as {
-      name: string;
-      backend: { kind: "github"; repository: string; branch: string; syncEngine: "jj-git" };
-    };
-    if (!body.name?.trim() || !body.backend?.repository?.includes("/")) {
+    const body = (await request.json()) as { name: string };
+    if (!body.name?.trim()) {
       return HttpResponse.json(
-        { message: "Name and GitHub owner/repository are required" },
+        { message: "Vault name is required" },
         { status: 400 },
       );
     }
@@ -373,7 +370,9 @@ export const handlers = [
       name: body.name,
       noteCount: 0,
       updatedAt: Math.floor(Date.now() / 1000),
-      backend: body.backend,
+      authority: { kind: "olympus" as const },
+      syncBindings: [],
+      backupBindings: [],
     };
     VAULTS.push(vault);
     VAULT_NOTES_MUTABLE[id] = {};

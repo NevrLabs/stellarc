@@ -140,12 +140,33 @@ export interface VaultSummary {
   name: string;
   noteCount: number;
   updatedAt: number; // epoch seconds
-  backend: {
-    kind: "github";
-    repository: string; // canonical owner/repository, never credentials
-    branch: string;
-    syncEngine: "jj-git";
-  } | null;          // null only for legacy/unconfigured vaults
+  authority: { kind: "olympus" };
+  syncBindings: Array<{
+    id: string;
+    name: string;
+    direction: "pull" | "push" | "bidirectional";
+    adapter:
+      | { kind: "github"; repository: string; branch: string }
+      | { kind: "olympus"; peerId: string; vaultId: string };
+    status: {
+      state: "not-run" | "idle" | "running" | "succeeded" | "failed";
+      lastAttemptAt: number | null;
+      error: string | null;
+      conflict: { localRevision: string; remoteRevision: string; paths: string[] } | null;
+    };
+  }>;
+  backupBindings: Array<{
+    id: string;
+    name: string;
+    target: { kind: "s3"; bucket: string; prefix: string; endpoint: string | null;
+              region: string | null; credentialId: string };
+    status: {
+      state: "not-run" | "idle" | "running" | "succeeded" | "failed";
+      lastAttemptAt: number | null;
+      lastSuccessAt: number | null;
+      error: string | null;
+    };
+  }>;
 }
 
 export interface NoteTreeEntry {
@@ -265,9 +286,7 @@ PUT /api/setup                         # declare (set/replace) a scope's agent s
   → 400 if scope is not "org:<slug>" or "project:<org>/<project>"
 
 POST /api/vaults                       # create a jj-colocated markdown vault
-  body { name: string,
-         backend: { kind: "github", repository: "owner/repository",
-                    branch: "main", syncEngine: "jj-git" } }
+  body { name: string }                 # defaults to Olympus-only authority
   → 201 VaultSummary
 
 PUT /api/vaults/:id/note?path=<relative-markdown-path>

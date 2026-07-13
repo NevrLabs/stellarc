@@ -37,20 +37,10 @@ export function CreateVaultDialog({
   onCreate: (body: CreateVaultBody) => Promise<void>;
 }) {
   const [name, setName] = useState("");
-  const [repository, setRepository] = useState("");
-  const [branch, setBranch] = useState("main");
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void onCreate({
-      name: name.trim(),
-      backend: {
-        kind: "github",
-        repository: repository.trim(),
-        branch: branch.trim(),
-        syncEngine: "jj-git",
-      },
-    });
+    void onCreate({ name: name.trim() });
   };
 
   return (
@@ -58,15 +48,12 @@ export function CreateVaultDialog({
       <form onSubmit={submit}>
         <div className="ol-dialog-body vault-form">
           <label><span>Vault name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Engineering" required /></label>
-          <label><span>Backend store</span><select value="github" disabled><option value="github">GitHub repository</option></select></label>
-          <label><span>Repository</span><input value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="owner/repository" pattern="[^/\s]+/[^/\s]+" required /></label>
-          <label><span>Default branch</span><input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="main" required /></label>
-          <div className="vault-form-note">Hall creates a local jj working copy and configures this existing GitHub repository as its durable remote. Credentials stay in Hall's Git environment.</div>
+          <div className="vault-form-note">Olympus manages the authoritative working copy and its local jj history. Synchronization and backups are optional and can be configured after creation.</div>
           {error && <div className="vault-form-error" role="alert">{error}</div>}
         </div>
         <div className="ol-dialog-foot">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={busy || !name.trim() || !repository.trim() || !branch.trim()}>{busy ? "Creating…" : "Create vault"}</button>
+          <button type="submit" className="btn primary" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create vault"}</button>
         </div>
       </form>
     </DialogShell>

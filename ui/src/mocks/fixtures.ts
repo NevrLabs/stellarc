@@ -547,9 +547,22 @@ export function generateSearchHits(query: string): SearchHit[] {
 // ── Vaults ─────────────────────────────────────────────
 
 export const VAULTS: VaultSummary[] = [
-  { id: "engineering", name: "Engineering", noteCount: 6, updatedAt: NOW - 7200, backend: { kind: "github", repository: "IEatCodeDaily/engineering-vault", branch: "main", syncEngine: "jj-git" } },
-  { id: "ops-runbooks", name: "Ops runbooks", noteCount: 2, updatedAt: NOW - 86400, backend: { kind: "github", repository: "IEatCodeDaily/ops-runbooks", branch: "main", syncEngine: "jj-git" } },
-  { id: "personal", name: "Personal", noteCount: 1, updatedAt: NOW - 172800, backend: { kind: "github", repository: "IEatCodeDaily/personal-vault", branch: "main", syncEngine: "jj-git" } },
+  {
+    id: "engineering", name: "Engineering", noteCount: 6, updatedAt: NOW - 7200,
+    authority: { kind: "olympus" },
+    syncBindings: [{ id: "github-origin", name: "GitHub origin", direction: "bidirectional", adapter: { kind: "github", repository: "IEatCodeDaily/engineering-vault", branch: "main" }, status: { state: "idle", lastAttemptAt: NOW - 3600, error: null, conflict: null } }],
+    backupBindings: [],
+  },
+  {
+    id: "ops-runbooks", name: "Ops runbooks", noteCount: 2, updatedAt: NOW - 86400,
+    authority: { kind: "olympus" },
+    syncBindings: [],
+    backupBindings: [{ id: "daily-r2", name: "Daily R2", target: { kind: "s3", bucket: "olympus-backups", prefix: "ops-runbooks", endpoint: "https://example.r2.cloudflarestorage.com", region: null, credentialId: "cred-r2" }, status: { state: "succeeded", lastAttemptAt: NOW - 7200, lastSuccessAt: NOW - 7200, error: null } }],
+  },
+  {
+    id: "personal", name: "Personal", noteCount: 1, updatedAt: NOW - 172800,
+    authority: { kind: "olympus" }, syncBindings: [], backupBindings: [],
+  },
 ];
 
 export const VAULT_NOTES: Record<string, NoteTreeEntry[]> = {

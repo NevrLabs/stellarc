@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Icon } from "../../../components/Icon";
-import type { NoteTreeEntry, VaultSummary } from "../../../types";
+import type { NoteTreeEntry, VaultBackupBinding, VaultSummary, VaultSyncBinding } from "../../../types";
 import { findFolderIndex } from "../vaultWorkspace";
 
 interface EntryMenu {
@@ -41,6 +41,7 @@ export function VaultSidebar({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(notes.filter((entry) => entry.kind === "folder").map((entry) => entry.path)));
   const [entryMenu, setEntryMenu] = useState<EntryMenu | null>(null);
   const [details, setDetails] = useState<NoteTreeEntry | null>(null);
+  const [vaultDetailsOpen, setVaultDetailsOpen] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
   const activeVault = vaults.find((vault) => vault.id === activeVaultId) ?? null;
 
@@ -90,6 +91,9 @@ export function VaultSidebar({
                 </button>
               ))}
               <div className="vault-menu-divider" />
+              <button type="button" className="mi" role="menuitem" disabled={!activeVault} onClick={() => { setVaultOpen(false); setVaultDetailsOpen(true); }}>
+                <Icon name="settings-2" size={13} /><span>Vault details…</span>
+              </button>
               <button type="button" className="mi" role="menuitem" onClick={() => { setVaultOpen(false); onCreateVault(); }}>
                 <Icon name="plus" size={13} /><span>Create vault…</span>
               </button>
@@ -158,8 +162,111 @@ export function VaultSidebar({
           </div>
         </div>
       )}
+
+      {vaultDetailsOpen && activeVault && (
+        <VaultDetailsDialog vault={activeVault} onClose={() => setVaultDetailsOpen(false)} />
+      )}
     </aside>
   );
+}
+
+function VaultDetailsDialog({ vault, onClose }: { vault: VaultSummary; onClose: () => void }) {
+  return (
+    <div className="ol-overlay" role="dialog" aria-modal="true" aria-label="Vault details" onClick={onClose}>
+      <div className="ol-dialog vault-details vault-storage-details" onClick={(event) => event.stopPropagation()}>
+        <div className="ol-dialog-head">
+          <div className="vault-dialog-title"><Icon name="book" size={18} /><span>{vault.name}</span></div>
+          <button type="button" className="ibtn" aria-label="Close" onClick={onClose}><Icon name="x" size={14} /></button>
+        </div>
+        <div className="ol-dialog-body vault-storage-body">
+          <section>
+            <div className="vault-storage-section-head"><h3>Authority</h3></div>
+            <div className="vault-binding-card"><strong>Olympus authoritative copy</strong><span>Local jj history and editable Markdown remain available without network services.</span></div>
+          </section>
+          <section>
+            <div className="vault-storage-section-head"><h3>Synchronization</h3><span>{vault.syncBindings.length}</span></div>
+            {vault.syncBindings.length === 0 ? (
+              <div className="vault-binding-empty"><strong>No synchronization bindings</strong><span>This vault is Olympus-only. No editable replica or external merge transport is configured.</span></div>
+            ) : vault.syncBindings.map((binding) => <SyncBindingCard binding={binding} key={binding.id} />)}
+          </section>
+          <section>
+            <div className="vault-storage-section-head"><h3>Backups</h3><span>{vault.backupBindings.length}</span></div>
+            {vault.backupBindings.length === 0 ? (
+              <div className="vault-binding-empty"><strong>No backup bindings</strong><span>No snapshot target or retention policy is configured. Local vault edits continue normally.</span></div>
+            ) : vault.backupBindings.map((binding) => <BackupBindingCard binding={binding} key={binding.id} />)}
+          </section>
+        </div>
+        <div className="ol-dialog-foot">
+          <button type="button" className="btn primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SyncBindingCard({ binding }: { binding: VaultSyncBinding }) {
+  return (
+    <div className="vault-binding-card">
+      <div><strong>{binding.name}</strong><span className="gtag">{statusLabel(binding.status.state)}</span></div>
+      <span>{syncAdapterLabel(binding)}</span>
+      <small>{directionLabel(binding.direction)} synchronization · {syncStatusDetail(binding)}</small>
+      {binding.status.error && <span className="vault-binding-error">{binding.status.error}</span>}
+      {binding.status.conflict && <span className="vault-binding-error">Conflict on {binding.status.conflict.paths.length} path{binding.status.conflict.paths.length === 1 ? "" : "s"}</span>}
+    </div>
+  );
+}
+
+function BackupBindingCard({ binding }: { binding: VaultBackupBinding }) {
+  return (
+    <div className="vault-binding-card">
+      <div><strong>{binding.name}</strong><span className="gtag">{statusLabel(binding.status.state)}</span></div>
+      <span>{backupTargetLabel(binding)}</span>
+      <small>S3-compatible snapshot target · {backupStatusDetail(binding)}</small>
+      {binding.status.error && <span className="vault-binding-error">{binding.status.error}</span>}
+    </div>
+  );
+}
+
+function syncAdapterLabel(binding: VaultSyncBinding): string {
+  if (binding.adapter.kind === "github") return `GitHub · ${binding.adapter.repository} · ${binding.adapter.branch}`;
+  return `Olympus · ${binding.adapter.peerId} · ${binding.adapter.vaultId}`;
+}
+
+function backupTargetLabel(binding: VaultBackupBinding): string {
+  const target = binding.target;
+  const location = target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket;
+  const region = target.region ? ` · ${target.region}` : "";
+  const endpoint = target.endpoint ? ` · ${target.endpoint}` : "";
+  return `S3-compatible · ${location}${region}${endpoint}`;
+}
+
+function statusLabel(state: VaultSyncBinding["status"]["state"] | VaultBackupBinding["status"]["state"]): string {
+  switch (state) {
+    case "not-run": return "Not run";
+    case "idle": return "Idle";
+    case "running": return "Running";
+    case "succeeded": return "Succeeded";
+    case "failed": return "Failed";
+  }
+}
+
+function directionLabel(direction: VaultSyncBinding["direction"]): string {
+  switch (direction) {
+    case "pull": return "Pull";
+    case "push": return "Push";
+    case "bidirectional": return "Bidirectional";
+  }
+}
+
+function syncStatusDetail(binding: VaultSyncBinding): string {
+  if (binding.status.lastAttemptAt === null) return "no attempt recorded";
+  return `last attempt ${new Date(binding.status.lastAttemptAt * 1000).toLocaleString()}`;
+}
+
+function backupStatusDetail(binding: VaultBackupBinding): string {
+  if (binding.status.lastSuccessAt !== null) return `last success ${new Date(binding.status.lastSuccessAt * 1000).toLocaleString()}`;
+  if (binding.status.lastAttemptAt !== null) return `last attempt ${new Date(binding.status.lastAttemptAt * 1000).toLocaleString()}`;
+  return "no snapshot recorded";
 }
 
 function FileTreeEntry({

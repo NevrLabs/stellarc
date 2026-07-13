@@ -10,7 +10,9 @@ use serde::Serialize;
 use crate::search::SearchHit as IndexHit;
 use crate::server::capability::CapabilitySet;
 use crate::vault::{
-    NoteDocument, NoteIndexEntry, NoteTreeEntry, NoteTreeEntryKind, VaultBackend, VaultSummary,
+    NoteDocument, NoteIndexEntry, NoteTreeEntry, NoteTreeEntryKind, VaultAuthority,
+    VaultBackupBinding, VaultBackupTarget, VaultSummary, VaultSyncAdapter, VaultSyncBinding,
+    VaultSyncDirection,
 };
 use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, SessionRow, SetupRow};
 
@@ -402,7 +404,81 @@ pub struct VaultSummaryDto {
     pub name: String,
     pub note_count: usize,
     pub updated_at: f64,
-    pub backend: Option<VaultBackend>,
+    pub authority: VaultAuthorityDto,
+    pub sync_bindings: Vec<VaultSyncBindingDto>,
+    pub backup_bindings: Vec<VaultBackupBindingDto>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct VaultAuthorityDto {
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultSyncBindingDto {
+    pub id: String,
+    pub name: String,
+    pub direction: String,
+    pub adapter: VaultSyncAdapterDto,
+    pub status: VaultSyncStatusDto,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum VaultSyncAdapterDto {
+    #[serde(rename_all = "camelCase")]
+    Github { repository: String, branch: String },
+    #[serde(rename_all = "camelCase")]
+    Olympus { peer_id: String, vault_id: String },
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultSyncStatusDto {
+    pub state: String,
+    pub last_attempt_at: Option<f64>,
+    pub error: Option<String>,
+    pub conflict: Option<VaultSyncConflictDto>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultSyncConflictDto {
+    pub local_revision: String,
+    pub remote_revision: String,
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultBackupBindingDto {
+    pub id: String,
+    pub name: String,
+    pub target: VaultBackupTargetDto,
+    pub status: VaultBackupStatusDto,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum VaultBackupTargetDto {
+    #[serde(rename_all = "camelCase")]
+    S3 {
+        bucket: String,
+        prefix: String,
+        endpoint: Option<String>,
+        region: Option<String>,
+        credential_id: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultBackupStatusDto {
+    pub state: String,
+    pub last_attempt_at: Option<f64>,
+    pub last_success_at: Option<f64>,
+    pub error: Option<String>,
 }
 
 impl From<VaultSummary> for VaultSummaryDto {
@@ -412,7 +488,86 @@ impl From<VaultSummary> for VaultSummaryDto {
             name: vault.name,
             note_count: vault.note_count,
             updated_at: vault.updated_at,
-            backend: vault.backend,
+            authority: vault.authority.into(),
+            sync_bindings: vault.sync_bindings.into_iter().map(Into::into).collect(),
+            backup_bindings: vault.backup_bindings.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<VaultAuthority> for VaultAuthorityDto {
+    fn from(authority: VaultAuthority) -> Self {
+        match authority {
+            VaultAuthority::Olympus => Self {
+                kind: "olympus".to_string(),
+            },
+        }
+    }
+}
+
+impl From<VaultSyncBinding> for VaultSyncBindingDto {
+    fn from(binding: VaultSyncBinding) -> Self {
+        Self {
+            id: binding.id,
+            name: binding.name,
+            direction: match binding.direction {
+                VaultSyncDirection::Pull => "pull",
+                VaultSyncDirection::Push => "push",
+                VaultSyncDirection::Bidirectional => "bidirectional",
+            }
+            .to_string(),
+            adapter: binding.adapter.into(),
+            status: VaultSyncStatusDto {
+                state: "not-run".to_string(),
+                last_attempt_at: None,
+                error: None,
+                conflict: None,
+            },
+        }
+    }
+}
+
+impl From<VaultSyncAdapter> for VaultSyncAdapterDto {
+    fn from(adapter: VaultSyncAdapter) -> Self {
+        match adapter {
+            VaultSyncAdapter::Github { repository, branch } => Self::Github { repository, branch },
+            VaultSyncAdapter::Olympus { peer_id, vault_id } => Self::Olympus { peer_id, vault_id },
+        }
+    }
+}
+
+impl From<VaultBackupBinding> for VaultBackupBindingDto {
+    fn from(binding: VaultBackupBinding) -> Self {
+        Self {
+            id: binding.id,
+            name: binding.name,
+            target: binding.target.into(),
+            status: VaultBackupStatusDto {
+                state: "not-run".to_string(),
+                last_attempt_at: None,
+                last_success_at: None,
+                error: None,
+            },
+        }
+    }
+}
+
+impl From<VaultBackupTarget> for VaultBackupTargetDto {
+    fn from(target: VaultBackupTarget) -> Self {
+        match target {
+            VaultBackupTarget::S3 {
+                bucket,
+                prefix,
+                endpoint,
+                region,
+                credential_id,
+            } => Self::S3 {
+                bucket,
+                prefix,
+                endpoint,
+                region,
+                credential_id,
+            },
         }
     }
 }
@@ -715,5 +870,48 @@ mod tests {
         row.source = "olympus".into();
         let dto = SessionDto::from_row(&row);
         assert!(dto.managed);
+    }
+
+    #[test]
+    fn vault_summary_dto_separates_sync_and_backup_status() {
+        let dto = VaultSummaryDto::from(VaultSummary {
+            id: "engineering".into(),
+            name: "Engineering".into(),
+            note_count: 3,
+            updated_at: 42.0,
+            authority: VaultAuthority::Olympus,
+            sync_bindings: vec![VaultSyncBinding {
+                id: "github-origin".into(),
+                name: "GitHub origin".into(),
+                direction: VaultSyncDirection::Bidirectional,
+                adapter: VaultSyncAdapter::Github {
+                    repository: "IEatCodeDaily/engineering".into(),
+                    branch: "main".into(),
+                },
+            }],
+            backup_bindings: vec![VaultBackupBinding {
+                id: "daily-r2".into(),
+                name: "Daily R2".into(),
+                target: VaultBackupTarget::S3 {
+                    bucket: "olympus-backups".into(),
+                    prefix: "engineering".into(),
+                    endpoint: None,
+                    region: None,
+                    credential_id: "cred-r2".into(),
+                },
+            }],
+        });
+
+        let json = serde_json::to_value(dto).unwrap();
+        assert_eq!(json["authority"]["kind"], "olympus");
+        assert_eq!(json["syncBindings"][0]["adapter"]["kind"], "github");
+        assert_eq!(json["syncBindings"][0]["status"]["state"], "not-run");
+        assert_eq!(
+            json["syncBindings"][0]["status"]["conflict"],
+            serde_json::Value::Null
+        );
+        assert_eq!(json["backupBindings"][0]["target"]["kind"], "s3");
+        assert_eq!(json["backupBindings"][0]["status"]["state"], "not-run");
+        assert!(json.get("backend").is_none());
     }
 }

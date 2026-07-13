@@ -19,12 +19,21 @@ properties:
     path: ../../baselines/vault-menu-open.png
     thresholdPercentage: 98
     label: Vault menu opens below the selector and stays compact
+- tapOn: "Vault details…"
+- assertVisible: "Olympus authoritative copy"
+- assertVisible: "Synchronization"
+- assertVisible: "Backups"
+- assertVisible: "IEatCodeDaily/engineering-vault · main"
+- takeScreenshot:
+    path: screenshots/vault-storage-details-desktop
+- tapOn: "Done"
+- tapOn: "Engineering"
 - tapOn: "Create vault…"
 - assertVisible: "Create vault"
+- assertVisible: ".*authoritative working copy.*"
+- assertNotVisible: "Repository"
 - tapOn: "Vault name"
 - inputText: "Maestro Vault"
-- tapOn: "Repository"
-- inputText: "IEatCodeDaily/maestro-vault"
 - tapOn:
     text: "Create vault"
     index: 1
