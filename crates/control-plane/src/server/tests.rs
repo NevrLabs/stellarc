@@ -1309,6 +1309,224 @@ async fn vault_routes_create_write_read_and_list_notes() {
     assert_eq!(list["vaults"][0]["noteCount"], 1);
 }
 
+// ── ADR 0016 coverage ─────────────────────────────────────────────────────────
+
+/// Vault creation returns a schema-v2 DTO: `authority.kind=olympus`,
+/// `syncBindings=[]`, `backupBindings=[]`, no `backend` key.
+/// Satisfies acceptance criterion: name-only creation + absence of fake transfer.
+#[tokio::test]
+async fn vault_create_name_only_returns_schema_v2_dto_without_backend() {
+    let (state, _d) = test_state();
+    let app = build_router(state);
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/vaults")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "name": "Research Notes" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let dto: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(dto["id"], "research-notes");
+    assert_eq!(dto["authority"]["kind"], "olympus");
+    assert_eq!(dto["syncBindings"], serde_json::json!([]));
+    assert_eq!(dto["backupBindings"], serde_json::json!([]));
+    // no legacy field
+    assert!(dto.get("backend").is_none());
+    // no sync execution side-effects
+    assert!(dto.get("syncStatus").is_none());
+    assert!(dto.get("syncResult").is_none());
+}
+
+/// A pre-existing schema-v2 vault with sync + backup bindings in
+/// `.vault/metadata.json` is served through the list-vaults HTTP route
+/// with the correct camelCase DTO shapes and independent runtime-stub
+/// statuses for both binding classes.
+/// Satisfies acceptance criterion: schema-v2 reads + independent sync/backup states.
+#[tokio::test]
+async fn vault_list_reads_schema_v2_fixture_with_sync_and_backup_bindings() {
+    let (state, dir) = test_state();
+
+    // Plant a v2 fixture the handler will pick up on list.
+    let vault_dir = dir.path().join("default").join("vaults").join("configured");
+    std::fs::create_dir_all(vault_dir.join(".vault")).unwrap();
+    std::fs::write(
+        vault_dir.join(".vault/metadata.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "schemaVersion": 2,
+            "name": "Configured",
+            "authority": { "kind": "olympus" },
+            "syncBindings": [{
+                "id": "github-origin",
+                "name": "GitHub origin",
+                "direction": "bidirectional",
+                "adapter": {
+                    "kind": "github",
+                    "repository": "IEatCodeDaily/configured",
+                    "branch": "main"
+                }
+            }],
+            "backupBindings": [{
+                "id": "daily-s3",
+                "name": "Daily S3",
+                "target": {
+                    "kind": "s3",
+                    "bucket": "olympus-backups",
+                    "prefix": "configured",
+                    "endpoint": null,
+                    "region": "us-east-1",
+                    "credentialId": "cred-s3"
+                }
+            }]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let app = build_router(state);
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/vaults")
+                .header("authorization", "Bearer testtoken")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let vault = &list["vaults"][0];
+
+    // Schema-v2 top-level shape
+    assert_eq!(vault["authority"]["kind"], "olympus");
+    assert!(vault.get("backend").is_none());
+
+    // Sync binding — github adapter, runtime status is stub
+    assert_eq!(vault["syncBindings"].as_array().unwrap().len(), 1);
+    let sb = &vault["syncBindings"][0];
+    assert_eq!(sb["id"], "github-origin");
+    assert_eq!(sb["direction"], "bidirectional");
+    assert_eq!(sb["adapter"]["kind"], "github");
+    assert_eq!(sb["adapter"]["repository"], "IEatCodeDaily/configured");
+    assert_eq!(sb["adapter"]["branch"], "main");
+    assert_eq!(sb["status"]["state"], "not-run");
+    assert!(sb["status"]["lastAttemptAt"].is_null());
+    assert!(sb["status"]["error"].is_null());
+
+    // Backup binding — independent runtime status
+    assert_eq!(vault["backupBindings"].as_array().unwrap().len(), 1);
+    let bb = &vault["backupBindings"][0];
+    assert_eq!(bb["id"], "daily-s3");
+    assert_eq!(bb["target"]["kind"], "s3");
+    assert_eq!(bb["target"]["bucket"], "olympus-backups");
+    assert_eq!(bb["target"]["credentialId"], "cred-s3");
+    assert_eq!(bb["status"]["state"], "not-run");
+    assert!(bb["status"]["lastAttemptAt"].is_null());
+    assert!(bb["status"]["lastSuccessAt"].is_null());
+}
+
+/// A v1 `metadata.json` with a `backend.kind=github` entry is upgraded by
+/// the compatibility reader and served as a sync binding on the HTTP response.
+/// No `backend` key leaks into the wire DTO; no sync execution occurs.
+/// Satisfies acceptance criterion: v1 GitHub compatibility conversion.
+#[tokio::test]
+async fn vault_list_upgrades_v1_github_backend_to_sync_binding_via_http() {
+    let (state, dir) = test_state();
+
+    let vault_dir = dir.path().join("default").join("vaults").join("legacy-gh");
+    std::fs::create_dir_all(vault_dir.join(".vault")).unwrap();
+    std::fs::write(
+        vault_dir.join(".vault/metadata.json"),
+        r#"{"name":"Legacy GitHub Vault","backend":{"kind":"github","repository":"IEatCodeDaily/legacy","branch":"main"}}"#,
+    )
+    .unwrap();
+
+    let app = build_router(state);
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/vaults")
+                .header("authorization", "Bearer testtoken")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let vault = &list["vaults"][0];
+
+    assert_eq!(vault["name"], "Legacy GitHub Vault");
+    assert_eq!(vault["authority"]["kind"], "olympus");
+    assert!(vault.get("backend").is_none());
+    assert_eq!(vault["backupBindings"].as_array().unwrap().len(), 0);
+    assert_eq!(vault["syncBindings"].as_array().unwrap().len(), 1);
+    let sb = &vault["syncBindings"][0];
+    assert_eq!(sb["id"], "github-origin");
+    assert_eq!(sb["name"], "GitHub origin");
+    assert_eq!(sb["direction"], "bidirectional");
+    assert_eq!(sb["adapter"]["kind"], "github");
+    assert_eq!(sb["adapter"]["repository"], "IEatCodeDaily/legacy");
+    assert_eq!(sb["adapter"]["branch"], "main");
+    assert_eq!(sb["status"]["state"], "not-run");
+    assert!(sb["status"]["lastAttemptAt"].is_null());
+}
+
+/// The create-vault route uses `deny_unknown_fields`.  A body that includes a
+/// legacy `backend` key must be rejected (422) at the route boundary rather
+/// than silently ignored, so callers discover the API shape change immediately.
+#[tokio::test]
+async fn vault_create_rejects_body_with_unknown_backend_field() {
+    let (state, _d) = test_state();
+    let app = build_router(state);
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/vaults")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "name": "Bad Vault",
+                        "backend": { "kind": "github", "repository": "owner/repo" }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // deny_unknown_fields causes axum to return 422 Unprocessable Entity
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 #[tokio::test]
 async fn create_card_returns_camelcase_dto() {
     let (state, _d) = test_state();
