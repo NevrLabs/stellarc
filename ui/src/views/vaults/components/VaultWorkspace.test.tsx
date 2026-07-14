@@ -54,4 +54,68 @@ describe("VaultWorkspace", () => {
     expect(screen.getByRole("tab")).toHaveTextContent("One *");
     expect(screen.queryByText("Unsaved")).not.toBeInTheDocument();
   });
+
+  it("exposes draggable tabs and reports a tab drop position", () => {
+    let state = createInitialWorkspace(noteTab("one.md", "One"));
+    state = { ...state, panes: [{ ...state.panes[0], tabs: [noteTab("one.md", "One"), noteTab("two.md", "Two")] }] };
+    const onMoveTab = vi.fn();
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: "all",
+      dropEffect: "move",
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+    };
+    render(
+      <VaultWorkspace vaultId="vault-1" state={state} onActivatePane={vi.fn()} onActivateTab={vi.fn()} onCloseTab={vi.fn()} onMoveTab={onMoveTab} onDropNote={vi.fn()} onOpenNote={vi.fn()} onLayout={vi.fn()} />,
+    );
+
+    const one = screen.getByRole("tab", { name: "One" }).closest(".vault-tab") as HTMLElement;
+    const two = screen.getByRole("tab", { name: "Two" }).closest(".vault-tab") as HTMLElement;
+    expect(one).toHaveAttribute("draggable", "true");
+    fireEvent.dragStart(one, { dataTransfer });
+    fireEvent.dragOver(two, { dataTransfer, clientX: 1000 });
+    fireEvent.drop(two, { dataTransfer, clientX: 1000 });
+
+    expect(onMoveTab).toHaveBeenCalledWith("pane-1", "note:one.md", "pane-1", 2);
+  });
+
+  it("opens a sidebar note dropped on an editor group as a new tab", () => {
+    const state = createInitialWorkspace(noteTab("one.md", "One"));
+    const onDropNote = vi.fn();
+    const dataTransfer = {
+      effectAllowed: "all",
+      dropEffect: "copy",
+      setData: vi.fn(),
+      getData: (type: string) => type === "application/x-olympus-vault-note"
+        ? JSON.stringify({ path: "docs/new.md", title: "New" })
+        : "",
+    };
+    const { container } = render(
+      <VaultWorkspace vaultId="vault-1" state={state} onActivatePane={vi.fn()} onActivateTab={vi.fn()} onCloseTab={vi.fn()} onMoveTab={vi.fn()} onDropNote={onDropNote} onOpenNote={vi.fn()} onLayout={vi.fn()} />,
+    );
+
+    fireEvent.drop(container.querySelector(".vault-tabs") as HTMLElement, { dataTransfer });
+
+    expect(onDropNote).toHaveBeenCalledWith("pane-1", "docs/new.md", "New", 1);
+  });
+
+  it("offers VS Code-style tab management from the context menu", () => {
+    let state = createInitialWorkspace(noteTab("one.md", "One"));
+    state = { ...state, panes: [{ ...state.panes[0], tabs: [noteTab("one.md", "One"), noteTab("two.md", "Two")] }] };
+    const onTabMenuAction = vi.fn();
+    render(
+      <VaultWorkspace vaultId="vault-1" state={state} onActivatePane={vi.fn()} onActivateTab={vi.fn()} onCloseTab={vi.fn()} onTabMenuAction={onTabMenuAction} onOpenNote={vi.fn()} onLayout={vi.fn()} />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: "One" }).closest(".vault-tab") as HTMLElement, { clientX: 2000, clientY: 2000 });
+    const menu = screen.getByRole("menuitem", { name: "Close Others" }).closest(".vault-tab-menu") as HTMLElement;
+    expect(menu).toHaveClass("on");
+    expect(parseFloat(menu.style.left)).toBeLessThanOrEqual(window.innerWidth - 188);
+    expect(parseFloat(menu.style.top)).toBeLessThanOrEqual(window.innerHeight - 158);
+    expect(screen.getByRole("menuitem", { name: "Close to the Right" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Close Others" }));
+
+    expect(onTabMenuAction).toHaveBeenCalledWith("pane-1", "note:one.md", "closeOthers");
+  });
 });

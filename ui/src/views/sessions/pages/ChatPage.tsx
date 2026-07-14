@@ -18,11 +18,12 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Icon } from "../../../components/Icon";
-import { useSession, useMessages } from "../../../hooks/queries";
+import { useSession, useMessages, qk } from "../../../hooks/queries";
 import {
   sendMessage,
   cancelSession,
@@ -85,6 +86,7 @@ export function ChatPage({
   const { data: session } = useSession(sessionId);
   const { data: msgData, isLoading } = useMessages(sessionId);
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   // streaming + status — ALL session-scoped, reset on session change.
   // streamParts preserves arrival order so text, tool calls, and reasoning
@@ -148,10 +150,15 @@ export function ChatPage({
   // server still delivers session-list-level frames regardless.)
   useEffect(() => {
     sendFrame({ kind: "subscribe", sessionIds: [sessionId] });
+    // ADR 0020 v2 §4.2 — deliver-on-(re)subscribe. Navigating away drops this
+    // session's frames (should_deliver); on return we force a refetch of the
+    // durable transcript so a turn completed while we were gone is reconstructed
+    // (with durable-first done, the assistant row is guaranteed committed).
+    void qc.invalidateQueries({ queryKey: qk.messages(sessionId) });
     return () => {
       sendFrame({ kind: "unsubscribe", sessionIds: [sessionId] });
     };
-  }, [sessionId]);
+  }, [sessionId, qc]);
 
   // ── S8: TTL sweep for expired typers ──────────────────────────────────
   // A cheap interval that prunes any typer whose expiresAt has passed.
@@ -193,8 +200,19 @@ export function ChatPage({
   const hasServerEcho = serverMessages.some(
     (m) => m.role === "user" && m.content === optimisticMsg?.content && m.messageId >= 0,
   );
-  const messages =
-    optimisticMsg && !hasServerEcho ? [...serverMessages, optimisticMsg] : serverMessages;
+  // ADR 0020 v2 §4.3 — render strictly by the existing per-session `message_id`
+  // (server truth), with the optimistic user bubble (messageId -1) always last.
+  // This is what prevents the reported reorder: a durable assistant row (higher
+  // message_id) can never sort above a newer, not-yet-committed user message.
+  const messages = (
+    optimisticMsg && !hasServerEcho ? [...serverMessages, optimisticMsg] : serverMessages
+  )
+    .slice()
+    .sort((a, b) => {
+      const ai = a.messageId < 0 ? Number.MAX_SAFE_INTEGER : a.messageId;
+      const bi = b.messageId < 0 ? Number.MAX_SAFE_INTEGER : b.messageId;
+      return ai - bi;
+    });
 
   // Clear the optimistic copy as soon as the server echo lands.
   useEffect(() => {

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { NoteTreeEntry } from "../../types";
 import {
+  activateWorkspaceTab,
+  closeOtherWorkspaceTabs,
+  closeWorkspaceTabsToRight,
   createInitialWorkspace,
   deriveFrontmatterColumns,
   findFolderIndex,
+  moveWorkspaceTab,
   openWorkspaceTab,
   setWorkspaceLayout,
   type WorkspaceTab,
@@ -55,6 +59,52 @@ describe("vault workspace", () => {
     expect(workspace.panes).toHaveLength(2);
     expect(workspace.panes[1].tabs).toEqual([note("one.md")]);
     expect(workspace.panes[1].activeTabId).toBe("note:one.md");
+  });
+
+  it("reorders tabs within an editor group", () => {
+    let workspace = createInitialWorkspace(note("one.md"));
+    workspace = openWorkspaceTab(workspace, note("two.md"));
+    workspace = openWorkspaceTab(workspace, note("three.md"));
+
+    workspace = moveWorkspaceTab(workspace, "pane-1", "note:three.md", "pane-1", 1);
+
+    expect(workspace.panes[0].tabs.map((tab) => tab.id)).toEqual([
+      "note:one.md",
+      "note:three.md",
+      "note:two.md",
+    ]);
+    expect(workspace.panes[0].activeTabId).toBe("note:three.md");
+  });
+
+  it("moves a tab between editor groups and selects a nearby source tab", () => {
+    let workspace = createInitialWorkspace(note("one.md"));
+    workspace = openWorkspaceTab(workspace, note("two.md"));
+    workspace = activateWorkspaceTab(workspace, "pane-1", "note:one.md");
+    workspace = setWorkspaceLayout(workspace, "columns");
+
+    workspace = moveWorkspaceTab(workspace, "pane-1", "note:two.md", "pane-2", 0);
+
+    expect(workspace.panes[0].tabs.map((tab) => tab.id)).toEqual(["note:one.md"]);
+    expect(workspace.panes[0].activeTabId).toBe("note:one.md");
+    expect(workspace.panes[1].tabs.map((tab) => tab.id)).toEqual([
+      "note:two.md",
+      "note:one.md",
+    ]);
+    expect(workspace.panes[1].activeTabId).toBe("note:two.md");
+    expect(workspace.activePaneId).toBe("pane-2");
+  });
+
+  it("supports VS Code-style close others and close to the right actions", () => {
+    let workspace = createInitialWorkspace(note("one.md"));
+    workspace = openWorkspaceTab(workspace, note("two.md"));
+    workspace = openWorkspaceTab(workspace, note("three.md"));
+
+    const rightClosed = closeWorkspaceTabsToRight(workspace, "pane-1", "note:two.md");
+    expect(rightClosed.panes[0].tabs.map((tab) => tab.id)).toEqual(["note:one.md", "note:two.md"]);
+
+    const othersClosed = closeOtherWorkspaceTabs(workspace, "pane-1", "note:two.md");
+    expect(othersClosed.panes[0].tabs.map((tab) => tab.id)).toEqual(["note:two.md"]);
+    expect(othersClosed.panes[0].activeTabId).toBe("note:two.md");
   });
 
   it("derives unique frontmatter columns without duplicating built-in columns", () => {

@@ -76,11 +76,13 @@ pub fn route_class(path: &str) -> RouteClass<'_> {
         return RouteClass::Admin;
     }
     if path == "/ws"
+        || path.starts_with("/ws/operator/terminals/")
         || path == "/api/auth/session"
         || path == "/api/auth/logout"
         || path == "/api/organizations"
         || path == "/api/models"
         || path == "/api/agents"
+        || path == "/api/terminal/targets"
         || path == "/api/edge/static"
         || (path.starts_with("/api/agents/") && path.ends_with("/models"))
         || path == "/api/nodes/hall-identity"

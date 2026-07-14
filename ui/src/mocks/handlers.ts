@@ -313,7 +313,7 @@ export const handlers = [
   }),
   http.post("http://127.0.0.1:8787/api/enroll", () => HttpResponse.json({
     token: "maestro-enroll-token",
-    command: "curl -fsSL http://hall.test/api/enroll/maestro-enroll-token/install.sh | bash",
+    command: "curl -fsSL --max-redirs 0 http://hall.test/api/enroll/maestro-enroll-token/install.sh | bash",
     expiresInSecs: 900,
     hallIrohId: "maestro-hall-iroh-id",
   })),

@@ -12,11 +12,16 @@ import { VaultSidebar } from "./vaults/components/VaultSidebar";
 import { VaultWorkspace } from "./vaults/components/VaultWorkspace";
 import {
   activateWorkspaceTab,
+  closeAllWorkspaceTabs,
+  closeOtherWorkspaceTabs,
   closeWorkspaceTab,
+  closeWorkspaceTabsToRight,
   createInitialWorkspace,
   graphTab,
+  moveWorkspaceTab,
   noteTab,
   openWorkspaceTab,
+  openWorkspaceTabInPane,
   setWorkspaceLayout,
   tableTab,
   type VaultWorkspaceLayout,
@@ -170,6 +175,18 @@ export function VaultWorkspaceView() {
             onActivatePane={(paneId) => setWorkspace((current) => ({ ...current, activePaneId: paneId }))}
             onActivateTab={(paneId, tab) => { setWorkspace((current) => activateWorkspaceTab(current, paneId, tab.id)); navigateTab(tab); }}
             onCloseTab={(paneId, tabId) => setWorkspace((current) => closeWorkspaceTab(current, paneId, tabId))}
+            onMoveTab={(sourcePaneId, tabId, targetPaneId, targetIndex) => setWorkspace((current) => moveWorkspaceTab(current, sourcePaneId, tabId, targetPaneId, targetIndex))}
+            onDropNote={(paneId, path, title, targetIndex) => {
+              const tab = noteTab(path, title);
+              setWorkspace((current) => openWorkspaceTabInPane(current, paneId, tab, targetIndex));
+              navigateTab(tab);
+            }}
+            onTabMenuAction={(paneId, tabId, action) => setWorkspace((current) => {
+              if (action === "closeOthers") return closeOtherWorkspaceTabs(current, paneId, tabId);
+              if (action === "closeRight") return closeWorkspaceTabsToRight(current, paneId, tabId);
+              if (action === "closeAll") return closeAllWorkspaceTabs(current, paneId);
+              return closeWorkspaceTab(current, paneId, tabId);
+            })}
             onOpenNote={(path, title) => openTab(noteTab(path, title))}
             onLayout={(layout: VaultWorkspaceLayout) => setWorkspace((current) => setWorkspaceLayout(current, layout))}
           />

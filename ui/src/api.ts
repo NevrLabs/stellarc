@@ -519,6 +519,36 @@ export function getDisplayName(): string | null {
   }
 }
 
+// ── Operator cockpit terminals (ADR 0021) ──────────────────────────────
+
+export interface TerminalTarget {
+  id: string;
+  label: string;
+  kind: "hall" | "node";
+  default: boolean;
+}
+
+/** Nodes that can host an operator terminal — Hall first, then TerminalHost
+ *  nodes. Backs the cockpit new-terminal hover picker. */
+export async function fetchTerminalTargets(): Promise<TerminalTarget[]> {
+  const res = await fetch(`${BASE}/api/terminal/targets`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`terminal targets: ${res.status}`);
+  const body = (await res.json()) as { targets: TerminalTarget[] };
+  return body.targets ?? [];
+}
+
+/** Dedicated operator-terminal WebSocket URL (NOT the /ws firehose). */
+export function terminalWsUrl(terminalId: string, node: string, cols: number, rows: number): string {
+  const origin = BASE || window.location.origin;
+  const u = new URL(origin);
+  const proto = u.protocol === "https:" ? "wss" : "ws";
+  const params = new URLSearchParams();
+  params.set("node", node);
+  params.set("cols", String(cols));
+  params.set("rows", String(rows));
+  return `${proto}://${u.host}/ws/operator/terminals/${encodeURIComponent(terminalId)}?${params}`;
+}
+
 export function connectWs(): void {
   if (ws || connecting) return;
 
