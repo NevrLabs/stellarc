@@ -724,7 +724,10 @@ async fn handle_envoy_hello(
     // Log initial service statuses from Hello. Full lifecycle management
     // (Hall event/projection/edge) is added in the Hall lifecycle follow-on task.
     if !services.is_empty() {
-        tracing::info!(count = services.len(), "envoy hello includes initial service statuses");
+        tracing::info!(
+            count = services.len(),
+            "envoy hello includes initial service statuses"
+        );
     }
 
     HelloOutcome::Accepted(conn)

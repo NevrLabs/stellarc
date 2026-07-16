@@ -339,12 +339,15 @@ impl AuthStore {
         let hash = hash_token(&token);
         let now = unix_timestamp();
         let expires_at = now + ttl_secs;
-        self.connection.lock().expect("auth store mutex poisoned").execute(
-            "INSERT INTO service_credentials
+        self.connection
+            .lock()
+            .expect("auth store mutex poisoned")
+            .execute(
+                "INSERT INTO service_credentials
              (token_hash, principal_id, app_id, organization_id, expires_at, revoked, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)",
-            params![hash, principal_id, app_id, organization_id, expires_at, now],
-        )?;
+                params![hash, principal_id, app_id, organization_id, expires_at, now],
+            )?;
         Ok(token)
     }
 
@@ -358,22 +361,33 @@ impl AuthStore {
         let hash = hash_token(token);
         let now = unix_timestamp();
         let conn = self.connection.lock().expect("auth store mutex poisoned");
-        let row = conn.query_row(
-            "SELECT principal_id, app_id, organization_id
+        let row = conn
+            .query_row(
+                "SELECT principal_id, app_id, organization_id
              FROM service_credentials
              WHERE token_hash = ?1 AND expires_at > ?2 AND revoked = 0",
-            params![hash, now],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
-        ).optional()?;
+                params![hash, now],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()?;
         Ok(row)
     }
 
     /// Revoke all credentials for an app. Called before stop/drain/quarantine.
     pub fn revoke_service_credentials(&self, app_id: &str) -> Result<()> {
-        self.connection.lock().expect("auth store mutex poisoned").execute(
-            "UPDATE service_credentials SET revoked = 1 WHERE app_id = ?1",
-            params![app_id],
-        )?;
+        self.connection
+            .lock()
+            .expect("auth store mutex poisoned")
+            .execute(
+                "UPDATE service_credentials SET revoked = 1 WHERE app_id = ?1",
+                params![app_id],
+            )?;
         Ok(())
     }
 }

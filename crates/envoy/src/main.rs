@@ -728,24 +728,18 @@ async fn dispatch_frame(conn: Arc<Conn>, frame: HallFrame) -> Result<()> {
         HallFrame::TerminalClose { terminal_id } => {
             let _ = conn.pty.close(&terminal_id).await;
         }
-        HallFrame::EnsureService { req_id, spec } => {
-            match conn.services.ensure(spec).await {
-                Ok(()) => conn.send_resp(req_id, true, None).await,
-                Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
-            }
-        }
-        HallFrame::StopService { req_id, app_id } => {
-            match conn.services.stop(&app_id).await {
-                Ok(()) => conn.send_resp(req_id, true, None).await,
-                Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
-            }
-        }
-        HallFrame::DrainService { req_id, app_id } => {
-            match conn.services.drain(&app_id).await {
-                Ok(()) => conn.send_resp(req_id, true, None).await,
-                Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
-            }
-        }
+        HallFrame::EnsureService { req_id, spec } => match conn.services.ensure(spec).await {
+            Ok(()) => conn.send_resp(req_id, true, None).await,
+            Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
+        },
+        HallFrame::StopService { req_id, app_id } => match conn.services.stop(&app_id).await {
+            Ok(()) => conn.send_resp(req_id, true, None).await,
+            Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
+        },
+        HallFrame::DrainService { req_id, app_id } => match conn.services.drain(&app_id).await {
+            Ok(()) => conn.send_resp(req_id, true, None).await,
+            Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
+        },
     }
     Ok(())
 }

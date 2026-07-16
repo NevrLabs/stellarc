@@ -432,7 +432,11 @@ async fn run_monitor(
         }
 
         // Back off to poll interval once stable.
-        backoff_idx = if health_ok { 0 } else { backoff_idx.saturating_add(1) };
+        backoff_idx = if health_ok {
+            0
+        } else {
+            backoff_idx.saturating_add(1)
+        };
     }
 }
 
@@ -517,7 +521,10 @@ fn expand_env_value(value: &str, app_id: &str) -> Result<String> {
 /// Returns the absolute canonical path.
 fn validate_entrypoint(package_root: &Path, entrypoint: &str) -> Result<PathBuf> {
     let rel = Path::new(entrypoint);
-    anyhow::ensure!(!rel.is_absolute(), "entrypoint must be relative: {entrypoint}");
+    anyhow::ensure!(
+        !rel.is_absolute(),
+        "entrypoint must be relative: {entrypoint}"
+    );
     for component in rel.components() {
         anyhow::ensure!(
             matches!(component, Component::Normal(_)),
@@ -525,11 +532,7 @@ fn validate_entrypoint(package_root: &Path, entrypoint: &str) -> Result<PathBuf>
         );
     }
     let abs = package_root.join(rel);
-    anyhow::ensure!(
-        abs.exists(),
-        "entrypoint not found: {}",
-        abs.display()
-    );
+    anyhow::ensure!(abs.exists(), "entrypoint not found: {}", abs.display());
     anyhow::ensure!(
         is_executable(&abs),
         "entrypoint is not executable: {}",
@@ -697,8 +700,14 @@ mod tests {
                 }
             }
         }
-        assert!(states.contains(&"draining".to_string()), "states: {states:?}");
-        assert!(states.contains(&"stopped".to_string()), "states: {states:?}");
+        assert!(
+            states.contains(&"draining".to_string()),
+            "states: {states:?}"
+        );
+        assert!(
+            states.contains(&"stopped".to_string()),
+            "states: {states:?}"
+        );
     }
 
     #[tokio::test]
@@ -719,10 +728,7 @@ mod tests {
             expand_env_value("${app_state}/data", "org.app").unwrap(),
             "org.app/data"
         );
-        assert_eq!(
-            expand_env_value("no-template", "x").unwrap(),
-            "no-template"
-        );
+        assert_eq!(expand_env_value("no-template", "x").unwrap(), "no-template");
         assert!(expand_env_value("${unknown}", "x").is_err());
     }
 
