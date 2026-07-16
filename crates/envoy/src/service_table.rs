@@ -29,6 +29,7 @@ use olympus_proto::frames::{EnvoyFrame, ServiceSpec, ServiceStatus};
 use tokio::sync::{broadcast, RwLock};
 
 /// State maintained per managed app.
+#[allow(dead_code)] // fields used via Arc<ServiceEntry> passed to monitor tasks
 struct ServiceEntry {
     /// The allocated loopback port.
     port: u16,
@@ -59,6 +60,7 @@ pub(crate) struct UnitState {
     pub active_state: String,
     pub sub_state: String,
     pub result: String,
+    #[allow(dead_code)] // available for logging/diagnostics; not gated by tests
     pub n_restarts: u32,
 }
 
