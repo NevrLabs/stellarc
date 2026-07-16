@@ -54,7 +54,7 @@ pub(crate) trait AppRuntime: Send + Sync {
     fn inspect(&self, unit: &str) -> Result<UnitState>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct UnitState {
     pub active_state: String,
     pub sub_state: String,
@@ -437,30 +437,19 @@ async fn run_monitor(
 /// Raw Tokio TCP HTTP/1.0 health probe. Returns true iff status is 2xx.
 async fn probe_http(port: u16, path: &str) -> bool {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let Ok(mut stream) = tokio::time::timeout(
-        Duration::from_secs(2),
-        tokio::net::TcpStream::connect(("127.0.0.1", port)),
-    )
-    .await
-    .ok()
-    .and_then(|r| r.ok())
-    .map(Ok::<_, ()>)
-    .transpose()
-    else {
-        return false;
+    let connect = tokio::net::TcpStream::connect(("127.0.0.1", port));
+    let mut stream = match tokio::time::timeout(Duration::from_secs(2), connect).await {
+        Ok(Ok(s)) => s,
+        _ => return false,
     };
     let request = format!("GET {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
     if stream.write_all(request.as_bytes()).await.is_err() {
         return false;
     }
     let mut buf = [0u8; 16];
-    if tokio::time::timeout(Duration::from_secs(2), stream.read_exact(&mut buf))
-        .await
-        .ok()
-        .and_then(|r| r.ok())
-        .is_none()
-    {
-        return false;
+    match tokio::time::timeout(Duration::from_secs(2), stream.read_exact(&mut buf)).await {
+        Ok(Ok(_)) => {}
+        _ => return false,
     }
     // HTTP/1.0 200, 201, …, 299
     buf.starts_with(b"HTTP/1.") && buf.get(9..12).is_some_and(|s| s[0] == b'2')
