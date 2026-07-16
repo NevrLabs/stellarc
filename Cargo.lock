@@ -2606,6 +2606,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "olympus-mock-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "futures",
+ "http-body-util",
+ "olympus-control-plane",
+ "olympus-envoy",
+ "olympus-proto",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+]
+
+[[package]]
 name = "olympus-proto"
 version = "0.1.0"
 dependencies = [
