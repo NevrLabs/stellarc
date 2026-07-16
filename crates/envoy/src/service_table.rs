@@ -656,7 +656,7 @@ mod tests {
     // just records the call. This works as-is since validate_entrypoint is only
     // called inside SystemdBinaryRuntime::ensure.
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn ensure_idempotent() {
         let rt = FakeRuntime::new();
         let (table, _rx) = make_table(rt.clone());
@@ -666,7 +666,7 @@ mod tests {
         assert_eq!(rt.launched.lock().unwrap().len(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn stop_aborts_monitor_and_emits_stopped() {
         let rt = FakeRuntime::new();
         let (table, mut rx) = make_table(rt.clone());
@@ -685,7 +685,7 @@ mod tests {
         assert!(found_stopped);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn drain_emits_draining_then_stopped() {
         let rt = FakeRuntime::new();
         let (table, mut rx) = make_table(rt.clone());
@@ -710,7 +710,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn state_dir_preserved_after_stop() {
         let dir = tempfile::tempdir().unwrap();
         let rt = FakeRuntime::new();
@@ -759,7 +759,7 @@ mod tests {
         assert!(validate_entrypoint(root, "/absolute").is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn quarantined_app_blocks_re_ensure() {
         let rt = FakeRuntime::new();
         let (table, _rx) = make_table(rt.clone());
