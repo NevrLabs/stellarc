@@ -47,6 +47,16 @@ use tower::ServiceExt;
 
 const NODE: &str = "mock-envoy";
 
+struct NoopEdge;
+impl olympus_control_plane::edge::EdgeDriver for NoopEdge {
+    fn apply(&self, _: &[olympus_control_plane::edge::Route]) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn healthy(&self) -> bool {
+        true
+    }
+}
+
 type Writer = Arc<Mutex<Box<dyn AsyncWrite + Send + Unpin>>>;
 
 struct MockEnvoy {
@@ -341,9 +351,7 @@ fn state(dir: &tempfile::TempDir, conns: EnvoyConnections, nodes: NodeRegistry) 
         hall_pty: olympus_control_plane::server::terminal_ws::HallTerminals::new(),
         hall_iroh_id: None,
         proxy: olympus_control_plane::proxy::ProxyTable::new(),
-        edge: olympus_control_plane::edge::EdgeManager::new(
-            olympus_control_plane::edge::MemoryDriver::available(),
-        ),
+        edge: olympus_control_plane::edge::EdgeManager::new(Arc::new(NoopEdge)),
         vaults: Arc::new(olympus_control_plane::vault::VaultStore::with_jj_mode(
             dir.path().join("vaults"),
             olympus_control_plane::vault::JjMode::Disabled,
