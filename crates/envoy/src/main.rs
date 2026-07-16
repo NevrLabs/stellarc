@@ -356,7 +356,7 @@ where
                 tokio::time::sleep(HEARTBEAT_INTERVAL).await;
                 let hb = EnvoyFrame::Heartbeat {
                     node_id: hb_node.clone(),
-                    slots_used: 0,
+                    slots_used: hb_conn.table.len().await as u32,
                 };
                 if hb_conn.send_frame(&hb).await.is_err() {
                     break;
@@ -719,6 +719,7 @@ async fn send_and_stream(conn: &Conn, session_id: &str, cmd: AgentCommand) -> Re
     // Break on terminal events (Done/Error) — the broadcast channel is never
     // closed (it lives for the runtime's lifetime), so without a break this
     // loop hangs forever after the turn completes.
+    let mut runtime_failed = false;
     while let Some(event) = events.next().await {
         let turn_id = conn.next_turn_id_for_event(session_id).await;
         let mut frame = EnvoyFrame::Event {
@@ -732,10 +733,17 @@ async fn send_and_stream(conn: &Conn, session_id: &str, cmd: AgentCommand) -> Re
             tracing::error!(error = %e, "failed to send event frame");
             return Err(e);
         }
+        if matches!(&event, AgentEvent::Error(_)) {
+            runtime_failed = true;
+        }
         // Terminal events end the drain — the broadcast stream itself never ends.
         if matches!(&event, AgentEvent::Done { .. } | AgentEvent::Error(_)) {
             break;
         }
+    }
+
+    if runtime_failed {
+        conn.table.stop(session_id).await?;
     }
 
     Ok(())

@@ -1,0 +1,1 @@
+{"sessionId":"mock-malformed","turns":[{"expect":"malformed","actions":[{"type":"chunk","text":"partial"},{"type":"malformed","frame":"{broken-acp"}]}]}

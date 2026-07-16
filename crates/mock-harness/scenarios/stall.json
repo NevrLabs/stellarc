@@ -1,0 +1,1 @@
+{"sessionId":"mock-stall","turns":[{"actions":[{"type":"chunk","text":"waiting"},{"type":"stall","millis":500},{"type":"chunk","text":" done"}]}]}

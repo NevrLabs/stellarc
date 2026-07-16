@@ -146,6 +146,11 @@ impl RuntimeTable {
             .map(|e| e.runtime.clone())
     }
 
+    /// Number of child runtimes currently holding an Envoy slot.
+    pub async fn len(&self) -> usize {
+        self.runtimes.read().await.len()
+    }
+
     /// The `resumable` capability flag for a session's runtime, if registered.
     pub async fn resumable(&self, session_id: &str) -> Option<bool> {
         self.runtimes

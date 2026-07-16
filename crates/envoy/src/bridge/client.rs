@@ -104,13 +104,13 @@ impl AcpClient {
             loop {
                 match reader.read(&mut chunk).await {
                     Ok(0) => {
-                        fail_pending(&state, "ACP reader EOF").await;
+                        fail_pending(&state, &events, "ACP reader EOF").await;
                         break;
                     }
                     Ok(read) => buffer.extend_from_slice(&chunk[..read]),
                     Err(error) => {
                         debug!(target: "olympus.bridge.client", %error, "ACP read failed");
-                        fail_pending(&state, &format!("ACP read failed: {error}")).await;
+                        fail_pending(&state, &events, &format!("ACP read failed: {error}")).await;
                         break;
                     }
                 }
@@ -120,8 +120,12 @@ impl AcpClient {
                         Ok(None) => break,
                         Err(error) => {
                             debug!(target: "olympus.bridge.client", %error, "ACP frame decode failed");
-                            fail_pending(&state, &format!("ACP frame decode failed: {error}"))
-                                .await;
+                            fail_pending(
+                                &state,
+                                &events,
+                                &format!("ACP frame decode failed: {error}"),
+                            )
+                            .await;
                             return;
                         }
                     }
@@ -362,7 +366,11 @@ async fn handle_message(
     }
 }
 
-async fn fail_pending(state: &Arc<Mutex<ClientState>>, reason: &str) {
+async fn fail_pending(
+    state: &Arc<Mutex<ClientState>>,
+    events: &tokio::sync::broadcast::Sender<AgentEvent>,
+    reason: &str,
+) {
     let mut state = state.lock().await;
     state.pending.clear();
     let completions = std::mem::take(&mut state.completions);
@@ -370,6 +378,7 @@ async fn fail_pending(state: &Arc<Mutex<ClientState>>, reason: &str) {
     for (_, sender) in completions {
         let _ = sender.send(Err(reason.to_owned()));
     }
+    let _ = events.send(AgentEvent::Error(reason.to_owned()));
 }
 
 pub fn build_initialize_request(id: AcpId) -> AcpRequest {
