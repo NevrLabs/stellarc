@@ -13,5 +13,6 @@ pub mod mock_runtime;
 pub mod observer;
 pub mod pty;
 pub mod runtime_table;
+pub mod service_table;
 pub mod spool;
 pub mod transport;

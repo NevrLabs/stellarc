@@ -26,6 +26,7 @@ use olympus_envoy::{
     mock_runtime::MockAgentRuntime,
     pty,
     runtime_table::RuntimeTable,
+    service_table::ServiceTable,
     spool::EventSpool,
 };
 use olympus_proto::{
@@ -109,6 +110,14 @@ async fn main() -> Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|| state_dir.join("jobs"));
     let jobs = Arc::new(JobTable::new(job_root)?);
+    let app_root = arg_value("--app-root")
+        .or_else(|| std::env::var("OLYMPUS_APP_ROOT").ok())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+            PathBuf::from(home).join(".olympus").join("apps")
+        });
+    let services = Arc::new(ServiceTable::new(app_root)?);
     if let Some(state_db) = observer_state_db()? {
         let observer_spool = spool.clone();
         std::thread::Builder::new()
@@ -140,6 +149,7 @@ async fn main() -> Result<()> {
                         agents.clone(),
                         spool.clone(),
                         jobs.clone(),
+                        services.clone(),
                         roles.clone(),
                     )
                     .await
@@ -182,6 +192,7 @@ async fn main() -> Result<()> {
             agents.clone(),
             spool.clone(),
             jobs.clone(),
+            services.clone(),
             roles.clone(),
         )
         .await
@@ -212,6 +223,8 @@ struct Conn {
     table: Arc<RuntimeTable>,
     spool: Arc<EventSpool>,
     jobs: Arc<JobTable>,
+    /// Managed binary app runtime (APP-1, ADR 0015).
+    services: Arc<ServiceTable>,
     turn: Mutex<std::collections::HashMap<String, u64>>,
     /// Operator terminal (PTY) manager (ADR 0021 cockpit). Operator-only;
     /// driven solely by HallFrame::Terminal* frames.
@@ -274,6 +287,7 @@ async fn run_connection<R, W>(
     agents: Vec<discovery::AgentInfo>,
     spool: Arc<EventSpool>,
     jobs: Arc<JobTable>,
+    services: Arc<ServiceTable>,
     roles: Vec<NodeRole>,
 ) -> Result<()>
 where
@@ -290,6 +304,7 @@ where
         table: table.clone(),
         spool,
         jobs,
+        services: services.clone(),
         turn: Mutex::new(std::collections::HashMap::new()),
         pty: pty_mgr,
     });
@@ -322,6 +337,27 @@ where
         })
     };
 
+    // Forward ServiceTable status change snapshots to Hall.
+    let svc_fwd_handle = {
+        let fwd_conn = conn.clone();
+        let mut svc_rx = services.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match svc_rx.recv().await {
+                    Ok(frame) => {
+                        if fwd_conn.send_frame(&frame).await.is_err() {
+                            break;
+                        }
+                    }
+                    // Lagged: missed some snapshots — this is fine (level-triggered state,
+                    // Hall will reconcile on next snapshot or reconnect).
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        })
+    };
+
     // Hello handshake.
     let agents_json = serde_json::to_value(&agents).unwrap_or_default();
     let mut runtimes = Vec::new();
@@ -343,6 +379,7 @@ where
         agents: Some(agents_json),
         runtimes,
         roles,
+        services: services.statuses().await,
     };
     conn.send_frame(&hello).await?;
     tracing::info!("hello sent");
@@ -466,6 +503,7 @@ where
     replay_handle.abort();
     reaper_handle.abort();
     pty_fwd_handle.abort();
+    svc_fwd_handle.abort();
 
     Ok(())
 }
@@ -689,6 +727,24 @@ async fn dispatch_frame(conn: Arc<Conn>, frame: HallFrame) -> Result<()> {
         }
         HallFrame::TerminalClose { terminal_id } => {
             let _ = conn.pty.close(&terminal_id).await;
+        }
+        HallFrame::EnsureService { req_id, spec } => {
+            match conn.services.ensure(spec).await {
+                Ok(()) => conn.send_resp(req_id, true, None).await,
+                Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
+            }
+        }
+        HallFrame::StopService { req_id, app_id } => {
+            match conn.services.stop(&app_id).await {
+                Ok(()) => conn.send_resp(req_id, true, None).await,
+                Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
+            }
+        }
+        HallFrame::DrainService { req_id, app_id } => {
+            match conn.services.drain(&app_id).await {
+                Ok(()) => conn.send_resp(req_id, true, None).await,
+                Err(e) => conn.send_resp(req_id, false, Some(&format!("{e:#}"))).await,
+            }
         }
     }
     Ok(())
@@ -920,6 +976,7 @@ fn configured_roles() -> Result<Vec<NodeRole>> {
                 "agent_runtime" | "agent-runtime" => {}
                 "job_runner" | "job-runner" => roles.push(NodeRole::JobRunner),
                 "terminal_host" | "terminal-host" => roles.push(NodeRole::TerminalHost),
+                "app_host" | "app-host" => roles.push(NodeRole::AppHost),
                 other => anyhow::bail!("unknown envoy role: {other}"),
             }
         }
@@ -928,6 +985,7 @@ fn configured_roles() -> Result<Vec<NodeRole>> {
         NodeRole::AgentRuntime => 0,
         NodeRole::JobRunner => 1,
         NodeRole::TerminalHost => 2,
+        NodeRole::AppHost => 3,
     });
     roles.dedup();
     Ok(roles)

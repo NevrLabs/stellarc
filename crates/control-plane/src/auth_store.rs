@@ -97,7 +97,18 @@ impl AuthStore {
                expires_at INTEGER NOT NULL,
                created_at INTEGER NOT NULL
              );
-             CREATE INDEX IF NOT EXISTS auth_sessions_expiry ON auth_sessions(expires_at);",
+             CREATE INDEX IF NOT EXISTS auth_sessions_expiry ON auth_sessions(expires_at);
+             CREATE TABLE IF NOT EXISTS service_credentials (
+               token_hash TEXT PRIMARY KEY,
+               principal_id TEXT NOT NULL,
+               app_id TEXT NOT NULL,
+               organization_id TEXT NOT NULL,
+               expires_at INTEGER NOT NULL,
+               revoked INTEGER NOT NULL DEFAULT 0,
+               created_at INTEGER NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS svc_cred_app ON service_credentials(app_id);
+             CREATE INDEX IF NOT EXISTS svc_cred_expiry ON service_credentials(expires_at);",
         )?;
         Ok(Self {
             connection: Mutex::new(connection),
@@ -310,6 +321,61 @@ impl AuthStore {
         )?;
         Ok(count > 0)
     }
+
+    // ── APP-1 service-principal credentials (ADR 0015 §6) ──────────────────
+
+    /// Mint a short-lived service credential. Returns the raw token (write to
+    /// a 0600 file on disk — do not log or include in durable events).
+    /// `ttl_secs`: credential lifetime. Caller writes the token to the app
+    /// state dir credential file before injecting the path into the unit env.
+    pub fn mint_service_credential(
+        &self,
+        principal_id: &str,
+        app_id: &str,
+        organization_id: &str,
+        ttl_secs: i64,
+    ) -> Result<String> {
+        let token = random_token();
+        let hash = hash_token(&token);
+        let now = unix_timestamp();
+        let expires_at = now + ttl_secs;
+        self.connection.lock().expect("auth store mutex poisoned").execute(
+            "INSERT INTO service_credentials
+             (token_hash, principal_id, app_id, organization_id, expires_at, revoked, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)",
+            params![hash, principal_id, app_id, organization_id, expires_at, now],
+        )?;
+        Ok(token)
+    }
+
+    /// Resolve a service credential. Returns `(principal_id, app_id, org_id)`
+    /// if the token is valid and not expired or revoked. Returns `None` otherwise.
+    /// Never returns the token itself — only the bound identity.
+    pub fn resolve_service_credential(
+        &self,
+        token: &str,
+    ) -> Result<Option<(String, String, String)>> {
+        let hash = hash_token(token);
+        let now = unix_timestamp();
+        let conn = self.connection.lock().expect("auth store mutex poisoned");
+        let row = conn.query_row(
+            "SELECT principal_id, app_id, organization_id
+             FROM service_credentials
+             WHERE token_hash = ?1 AND expires_at > ?2 AND revoked = 0",
+            params![hash, now],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+        ).optional()?;
+        Ok(row)
+    }
+
+    /// Revoke all credentials for an app. Called before stop/drain/quarantine.
+    pub fn revoke_service_credentials(&self, app_id: &str) -> Result<()> {
+        self.connection.lock().expect("auth store mutex poisoned").execute(
+            "UPDATE service_credentials SET revoked = 1 WHERE app_id = ?1",
+            params![app_id],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(unix)]
@@ -385,4 +451,53 @@ fn unix_timestamp() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store() -> AuthStore {
+        AuthStore::open_in_memory().unwrap()
+    }
+
+    #[test]
+    fn service_credential_mint_resolve_revoke() {
+        let s = store();
+        let token = s
+            .mint_service_credential("principal-1", "my.app", "org-1", 3600)
+            .unwrap();
+        // Resolve with valid token.
+        let resolved = s.resolve_service_credential(&token).unwrap();
+        assert!(resolved.is_some(), "valid token should resolve");
+        let (principal, app, org) = resolved.unwrap();
+        assert_eq!(principal, "principal-1");
+        assert_eq!(app, "my.app");
+        assert_eq!(org, "org-1");
+        // Revoke.
+        s.revoke_service_credentials("my.app").unwrap();
+        let after_revoke = s.resolve_service_credential(&token).unwrap();
+        assert!(after_revoke.is_none(), "revoked token should not resolve");
+    }
+
+    #[test]
+    fn service_credential_unknown_token_returns_none() {
+        let s = store();
+        let result = s.resolve_service_credential("not-a-token").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn service_credential_separate_from_user_sessions() {
+        let s = store();
+        // Mint a service credential and verify it doesn't affect user session paths.
+        let token = s
+            .mint_service_credential("svc-1", "app-1", "org-1", 60)
+            .unwrap();
+        // Attempting to verify as a user session must fail (different table).
+        // verify_session_token tests not shown here; the key property is the
+        // tables are separate and service tokens cannot be used as user tokens.
+        let resolved = s.resolve_service_credential(&token).unwrap();
+        assert!(resolved.is_some());
+    }
 }

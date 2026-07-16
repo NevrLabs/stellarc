@@ -644,6 +644,7 @@ async fn handle_envoy_hello(
         agents,
         runtimes,
         roles,
+        services,
     } = frame
     else {
         unreachable!("handle_envoy_hello called with non-Hello frame")
@@ -720,6 +721,12 @@ async fn handle_envoy_hello(
     }
     *connected_node = Some(node_id);
 
+    // Log initial service statuses from Hello. Full lifecycle management
+    // (Hall event/projection/edge) is added in the Hall lifecycle follow-on task.
+    if !services.is_empty() {
+        tracing::info!(count = services.len(), "envoy hello includes initial service statuses");
+    }
+
     HelloOutcome::Accepted(conn)
 }
 
@@ -794,6 +801,11 @@ async fn handle_envoy_frame(
         }
         EnvoyFrame::Runtimes { runtimes: _ } => {
             tracing::debug!("runtimes table update received (S4 will process)");
+        }
+        EnvoyFrame::Services { services } => {
+            // Log incoming service status snapshots. Full Hall app lifecycle
+            // event/edge management will be added in the follow-on Hall lifecycle task.
+            tracing::debug!(count = services.len(), "service table snapshot received");
         }
         EnvoyFrame::JobOutput {
             job_id,

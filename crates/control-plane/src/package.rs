@@ -74,6 +74,50 @@ pub struct Contributions {
     pub skill: Vec<Contribution>,
     #[serde(default)]
     pub workflow_template: Vec<Contribution>,
+    /// Managed binary apps (APP-1, ADR 0015). Typed separately because
+    /// runtime/entrypoint/health/env are trust-boundary fields that must not
+    /// flow through generic definition blobs.
+    #[serde(default)]
+    pub apps: Vec<AppContribution>,
+}
+
+// ── APP-1 typed contribution ──────────────────────────────────────────────
+
+/// Runtime kind for a managed app. Container is parsed but rejected at activation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AppRuntimeKind {
+    Binary,
+    Container,
+}
+
+/// A managed binary app declared in a package manifest (APP-1, ADR 0015).
+/// All fields are trust-boundary fields and must be validated before activation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AppContribution {
+    /// App id: valid slug, must be globally unique across all installed packages.
+    pub id: String,
+    /// Runtime kind; only `binary` is supported in APP-1.
+    pub runtime: AppRuntimeKind,
+    /// Relative entrypoint path within the package root (e.g. "bin/server").
+    /// Must be relative, no parent-dir traversal.
+    pub entrypoint: String,
+    /// Dynamic listen mode ("dynamic" is the only v1 value).
+    pub listen: String,
+    /// HTTP health check path (must start with `/`).
+    pub health_path: String,
+    /// Env var declarations. Keys are safe identifiers; values may use
+    /// exactly `${app_state}` template; `PORT` is reserved.
+    #[serde(default)]
+    pub env: std::collections::BTreeMap<String, String>,
+    /// Optional memory limit in bytes.
+    #[serde(default)]
+    pub memory_max: Option<u64>,
+    /// Capability ids this app consumes (must be a subset of
+    /// package.capabilities.required).
+    #[serde(default)]
+    pub required_capabilities: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -148,6 +192,16 @@ impl PackageManifest {
                 );
             }
         }
+        // App contributions share the global id namespace.
+        for app in &self.contributions.apps {
+            anyhow::ensure!(valid_id(&app.id), "invalid app id {}", app.id);
+            anyhow::ensure!(
+                ids.insert(app.id.clone()),
+                "duplicate contribution id {}",
+                app.id
+            );
+            validate_app_contribution(app)?;
+        }
         for capability in &self.capabilities.required {
             validate_capability(capability)?;
         }
@@ -187,6 +241,9 @@ impl PackageManifest {
             ("policy_provider", !c.policy_provider.is_empty()),
             ("view_provider", !c.view_provider.is_empty()),
             ("storage_provider", !c.storage_provider.is_empty()),
+            // APP-1: binary apps are schema-valid but not yet activatable.
+            // Remove this gate in the same changeset that adds Hall lifecycle dispatch.
+            ("apps", !c.apps.is_empty()),
         ]
         .into_iter()
         .filter_map(|(name, present)| present.then_some(name))
@@ -218,6 +275,7 @@ impl Contributions {
             ("skill", &self.skill),
             ("workflow_template", &self.workflow_template),
         ];
+        // `apps` uses `AppContribution` and is iterated separately in validate_schema.
         groups
             .into_iter()
             .flat_map(|(kind, values)| values.iter().map(move |value| (kind, value)))
@@ -330,6 +388,73 @@ fn validate_capability(value: &str) -> Result<()> {
         .split_once(':')
         .map_or(value, |(authority, _)| authority);
     anyhow::ensure!(valid_id(authority), "invalid capability id {value}");
+    Ok(())
+}
+
+/// Validate fields of an AppContribution that are trust-boundary inputs.
+fn validate_app_contribution(app: &AppContribution) -> Result<()> {
+    // listen must be exactly "dynamic" for APP-1.
+    anyhow::ensure!(
+        app.listen == "dynamic",
+        "app {}: listen must be 'dynamic' in APP-1, got '{}'",
+        app.id,
+        app.listen
+    );
+    // Reject container runtime at schema time so callers get a clear error.
+    if let AppRuntimeKind::Container = app.runtime {
+        anyhow::bail!(
+            "app {}: container runtime is not supported in APP-1",
+            app.id
+        );
+    }
+    // Entrypoint must be relative, no traversal.
+    let ep = std::path::Path::new(&app.entrypoint);
+    anyhow::ensure!(
+        !ep.is_absolute(),
+        "app {}: entrypoint must be relative",
+        app.id
+    );
+    for component in ep.components() {
+        anyhow::ensure!(
+            matches!(component, std::path::Component::Normal(_)),
+            "app {}: entrypoint contains path traversal",
+            app.id
+        );
+    }
+    // Health path must start with `/`, no CR/LF.
+    anyhow::ensure!(
+        app.health_path.starts_with('/')
+            && !app.health_path.contains('\r')
+            && !app.health_path.contains('\n'),
+        "app {}: health_path must start with '/' and contain no CR/LF",
+        app.id
+    );
+    // Env keys validation.
+    for key in app.env.keys() {
+        anyhow::ensure!(
+            !key.is_empty()
+                && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !key.starts_with(|c: char| c.is_ascii_digit()),
+            "app {}: invalid env key '{key}'",
+            app.id
+        );
+        anyhow::ensure!(
+            key != "PORT",
+            "app {}: PORT is reserved (envoy-owned)",
+            app.id
+        );
+    }
+    // Env value template validation: only ${app_state} allowed.
+    for (key, value) in &app.env {
+        if value.contains("${") {
+            let expanded = value.replace("${app_state}", "");
+            anyhow::ensure!(
+                !expanded.contains("${"),
+                "app {}: unknown template token in env.{key} value",
+                app.id
+            );
+        }
+    }
     Ok(())
 }
 
@@ -684,5 +809,178 @@ id = "trig.f"
             !unsupported.contains(&"activity_provider"),
             "{unsupported:?}"
         );
+    }
+
+    // ── APP-1 contribution tests ──────────────────────────────────────────
+
+    fn app_manifest(app_toml: &str) -> PackageManifest {
+        PackageManifest::parse_toml(&format!(
+            r#"
+[package]
+id = "acme.appkg"
+name = "Acme app"
+version = "1.0.0"
+publisher = "acme"
+license = "MIT"
+[compatibility]
+olympus_api = "*"
+{app_toml}
+"#
+        ))
+        .unwrap()
+    }
+
+    const VALID_APP: &str = r#"
+[[contributions.apps]]
+id = "acme.server"
+runtime = "binary"
+entrypoint = "bin/server"
+listen = "dynamic"
+health_path = "/health"
+"#;
+
+    #[test]
+    fn apps_parse_and_validate() {
+        let pkg = app_manifest(VALID_APP);
+        pkg.validate_schema().expect("valid app must pass schema");
+        assert_eq!(pkg.contributions.apps.len(), 1);
+        let app = &pkg.contributions.apps[0];
+        assert_eq!(app.id, "acme.server");
+        assert_eq!(app.entrypoint, "bin/server");
+    }
+
+    #[test]
+    fn apps_appear_in_unsupported_until_lifecycle_lands() {
+        let pkg = app_manifest(VALID_APP);
+        pkg.validate_schema().expect("schema valid");
+        let unsupported = pkg.unsupported_classes();
+        // Apps are in unsupported_classes until Hall lifecycle dispatch is added.
+        assert!(unsupported.contains(&"apps"), "{unsupported:?}");
+    }
+
+    #[test]
+    fn app_id_participates_in_duplicate_check() {
+        let toml = r#"
+[[contributions.activity_provider]]
+id = "acme.server"
+
+[[contributions.apps]]
+id = "acme.server"
+runtime = "binary"
+entrypoint = "bin/app"
+listen = "dynamic"
+health_path = "/ok"
+"#;
+        let pkg = app_manifest(toml);
+        let err = pkg.validate_schema().unwrap_err().to_string();
+        assert!(err.contains("duplicate contribution id"), "got: {err}");
+    }
+
+    #[test]
+    fn app_container_runtime_rejected() {
+        let toml = r#"
+[[contributions.apps]]
+id = "acme.container-app"
+runtime = "container"
+entrypoint = "image:latest"
+listen = "dynamic"
+health_path = "/health"
+"#;
+        let pkg = app_manifest(toml);
+        let err = pkg.validate_schema().unwrap_err().to_string();
+        assert!(err.contains("container runtime"), "got: {err}");
+    }
+
+    #[test]
+    fn app_invalid_listen_rejected() {
+        let toml = r#"
+[[contributions.apps]]
+id = "acme.app"
+runtime = "binary"
+entrypoint = "bin/server"
+listen = "fixed:8080"
+health_path = "/health"
+"#;
+        let pkg = app_manifest(toml);
+        let err = pkg.validate_schema().unwrap_err().to_string();
+        assert!(err.contains("dynamic"), "got: {err}");
+    }
+
+    #[test]
+    fn app_entrypoint_traversal_rejected() {
+        let toml = r#"
+[[contributions.apps]]
+id = "acme.app"
+runtime = "binary"
+entrypoint = "../escape"
+listen = "dynamic"
+health_path = "/health"
+"#;
+        let pkg = app_manifest(toml);
+        let err = pkg.validate_schema().unwrap_err().to_string();
+        assert!(err.contains("traversal"), "got: {err}");
+    }
+
+    #[test]
+    fn app_port_env_key_reserved() {
+        let toml = r#"
+[[contributions.apps]]
+id = "acme.app"
+runtime = "binary"
+entrypoint = "bin/server"
+listen = "dynamic"
+health_path = "/health"
+
+[contributions.apps.env]
+PORT = "8080"
+"#;
+        let pkg = app_manifest(toml);
+        let err = pkg.validate_schema().unwrap_err().to_string();
+        assert!(err.contains("PORT"), "got: {err}");
+    }
+
+    #[test]
+    fn app_unknown_template_token_rejected() {
+        let toml = r#"
+[[contributions.apps]]
+id = "acme.app"
+runtime = "binary"
+entrypoint = "bin/server"
+listen = "dynamic"
+health_path = "/health"
+
+[contributions.apps.env]
+DATA_DIR = "${unknown}"
+"#;
+        let pkg = app_manifest(toml);
+        let err = pkg.validate_schema().unwrap_err().to_string();
+        assert!(err.contains("unknown template token"), "got: {err}");
+    }
+
+    #[test]
+    fn app_valid_env_template_passes() {
+        let toml = r#"
+[[contributions.apps]]
+id = "acme.app"
+runtime = "binary"
+entrypoint = "bin/server"
+listen = "dynamic"
+health_path = "/health"
+
+[contributions.apps.env]
+DATA_DIR = "${app_state}/data"
+LOG_LEVEL = "info"
+"#;
+        let pkg = app_manifest(toml);
+        pkg.validate_schema().expect("valid env template must pass");
+    }
+
+    #[test]
+    fn app_round_trips_json() {
+        let pkg = app_manifest(VALID_APP);
+        pkg.validate_schema().expect("valid");
+        let json = serde_json::to_string(&pkg).expect("serialize");
+        let back: PackageManifest = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(pkg, back);
     }
 }

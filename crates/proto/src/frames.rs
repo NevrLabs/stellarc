@@ -32,6 +32,49 @@ pub enum NodeRole {
     JobRunner,
     /// Node can host operator terminals (PTY shells). ADR 0021 cockpit.
     TerminalHost,
+    /// Node can host managed binary apps (APP-1, ADR 0015).
+    AppHost,
+}
+
+// ── APP-1 service frames ───────────────────────────────────────────────────
+
+/// Wire spec for a managed binary app. Hall → Envoy in EnsureService.
+/// All trust-boundary fields — entrypoint/env/health — are validated by the
+/// package manifest layer before they reach this struct.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceSpec {
+    pub app_id: String,
+    pub organization_id: String,
+    /// Absolute path to the package root on this envoy's host.
+    pub package_root: String,
+    /// Relative entrypoint within package_root (e.g. "bin/server").
+    pub entrypoint: String,
+    /// Env vars injected into the process (beyond PORT, which envoy owns).
+    #[serde(default)]
+    pub env: std::collections::BTreeMap<String, String>,
+    /// HTTP health check path (absolute, e.g. "/healthz").
+    pub health_path: String,
+    /// Optional MemoryMax for the transient systemd unit (bytes).
+    #[serde(default)]
+    pub memory_max: Option<u64>,
+    /// Service-principal credential file path (absolute, 0600, envoy writes).
+    #[serde(default)]
+    pub credential_path: Option<String>,
+}
+
+/// Live status reported by the envoy's ServiceTable.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceStatus {
+    pub app_id: String,
+    /// "starting" | "running" | "draining" | "stopped" | "quarantined"
+    pub state: String,
+    /// "healthy" | "unhealthy" | "unknown"
+    pub health: String,
+    /// Allocated loopback port (set once running).
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -237,6 +280,26 @@ pub enum HallFrame {
         #[serde(rename = "terminalId")]
         terminal_id: String,
     },
+    /// Ensure a managed binary app is running (APP-1, ADR 0015).
+    EnsureService {
+        #[serde(rename = "reqId")]
+        req_id: u64,
+        spec: ServiceSpec,
+    },
+    /// Stop a managed app (graceful drain then kill).
+    StopService {
+        #[serde(rename = "reqId")]
+        req_id: u64,
+        #[serde(rename = "appId")]
+        app_id: String,
+    },
+    /// Begin draining a managed app (mark draining, then stop).
+    DrainService {
+        #[serde(rename = "reqId")]
+        req_id: u64,
+        #[serde(rename = "appId")]
+        app_id: String,
+    },
     /// Spool truncation watermark: Hall has durably applied events for
     /// `session_id` up to and including `seq`.
     Ack {
@@ -279,6 +342,9 @@ pub enum EnvoyFrame {
         runtimes: Vec<RuntimeStatus>,
         #[serde(default)]
         roles: Vec<NodeRole>,
+        /// Managed app service statuses (APP-1, ADR 0015).
+        #[serde(default)]
+        services: Vec<ServiceStatus>,
     },
     /// Liveness beat.
     Heartbeat {
@@ -322,6 +388,8 @@ pub enum EnvoyFrame {
     },
     /// Runtimes-table update (sent in hello and on change).
     Runtimes { runtimes: Vec<RuntimeStatus> },
+    /// Service-table snapshot (sent in hello and on change, APP-1).
+    Services { services: Vec<ServiceStatus> },
     JobOutput {
         #[serde(rename = "jobId")]
         job_id: String,
@@ -373,7 +441,10 @@ impl HallFrame {
             | HallFrame::Probe { req_id }
             | HallFrame::DispatchJob { req_id, .. }
             | HallFrame::CancelJob { req_id, .. }
-            | HallFrame::TerminalOpen { req_id, .. } => Some(*req_id),
+            | HallFrame::TerminalOpen { req_id, .. }
+            | HallFrame::EnsureService { req_id, .. }
+            | HallFrame::StopService { req_id, .. }
+            | HallFrame::DrainService { req_id, .. } => Some(*req_id),
             HallFrame::Ack { .. }
             | HallFrame::ResumeFrom { .. }
             | HallFrame::TerminalInput { .. }
@@ -473,6 +544,31 @@ mod tests {
                 session_id: "s-1".into(),
                 seq: 7,
             },
+            HallFrame::EnsureService {
+                req_id: 9,
+                spec: ServiceSpec {
+                    app_id: "org.app".into(),
+                    organization_id: "org-1".into(),
+                    package_root: "/home/rpw/.olympus/org-1/apps/org.app".into(),
+                    entrypoint: "bin/server".into(),
+                    env: {
+                        let mut m = std::collections::BTreeMap::new();
+                        m.insert("LOG_LEVEL".into(), "info".into());
+                        m
+                    },
+                    health_path: "/healthz".into(),
+                    memory_max: Some(256 * 1024 * 1024),
+                    credential_path: Some("/home/rpw/.olympus/org-1/apps/org.app/cred".into()),
+                },
+            },
+            HallFrame::StopService {
+                req_id: 10,
+                app_id: "org.app".into(),
+            },
+            HallFrame::DrainService {
+                req_id: 11,
+                app_id: "org.app".into(),
+            },
         ];
         for f in &frames {
             round_trip(f);
@@ -491,6 +587,12 @@ mod tests {
                 agents: Some(json!([{"id": "default", "kind": "hermes"}])),
                 runtimes: vec![sample_runtime_status()],
                 roles: vec![NodeRole::AgentRuntime, NodeRole::JobRunner],
+                services: vec![ServiceStatus {
+                    app_id: "org.app".into(),
+                    state: "running".into(),
+                    health: "healthy".into(),
+                    port: Some(8080),
+                }],
             },
             EnvoyFrame::Heartbeat {
                 node_id: "envoy-1".into(),
@@ -535,6 +637,14 @@ mod tests {
             },
             EnvoyFrame::Runtimes {
                 runtimes: vec![sample_runtime_status()],
+            },
+            EnvoyFrame::Services {
+                services: vec![ServiceStatus {
+                    app_id: "org.app".into(),
+                    state: "running".into(),
+                    health: "healthy".into(),
+                    port: Some(9000),
+                }],
             },
         ];
         for f in &frames {
@@ -597,12 +707,30 @@ mod tests {
                 protocol_version,
                 version,
                 runtimes,
+                services,
                 ..
             } => {
                 assert_eq!(protocol_version, PROTOCOL_VERSION + 40);
                 assert_eq!(version.git_hash, "unknown"); // #[serde(default)]
                 assert!(runtimes.is_empty()); // #[serde(default)]
+                assert!(services.is_empty()); // #[serde(default)] backward compat
             }
+            other => panic!("expected Hello, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hello_omitting_services_parses_empty_services() {
+        // Old envoys (v2) that don't include `services` in Hello must still
+        // parse successfully — the field has serde(default).
+        let json = format!(
+            r#"{{"kind":"hello","nodeId":"old-envoy","hostname":"h","slotsTotal":2,
+                "protocolVersion":{},"version":{{"semver":"0.1.0"}}}}"#,
+            PROTOCOL_VERSION - 1
+        );
+        let f: EnvoyFrame = serde_json::from_str(&json).expect("old hello must parse");
+        match f {
+            EnvoyFrame::Hello { services, .. } => assert!(services.is_empty()),
             other => panic!("expected Hello, got {other:?}"),
         }
     }

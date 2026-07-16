@@ -1,0 +1,7 @@
+[package]
+name = "olympus-echoapp"
+version = "0.1.0"
+edition = "2021"
+# Standalone fixture — not part of the workspace. Build separately:
+#   cargo build --release
+# The resulting binary is used in service_table integration tests.
