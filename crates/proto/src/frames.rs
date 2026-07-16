@@ -621,6 +621,43 @@ mod tests {
     }
 
     #[test]
+    fn managed_app_frames_round_trip() {
+        let spec = ServiceSpec {
+            app_id: "echoapp".into(),
+            organization_id: "acme".into(),
+            slug: "echo".into(),
+            entrypoint: "/opt/echoapp".into(),
+            health_path: "/healthz".into(),
+            env: std::collections::BTreeMap::from([(
+                "DB".into(),
+                "${app_state}/app.db".into(),
+            )]),
+            resources: std::collections::BTreeMap::new(),
+            bearer_token: "signed-token".into(),
+        };
+        round_trip(&HallFrame::EnsureService {
+            req_id: 9,
+            service: spec,
+        });
+        round_trip(&HallFrame::StopService {
+            req_id: 10,
+            app_id: "echoapp".into(),
+        });
+        round_trip(&HallFrame::DrainService {
+            req_id: 11,
+            app_id: "echoapp".into(),
+        });
+        round_trip(&EnvoyFrame::Services {
+            services: vec![ServiceStatus {
+                app_id: "echoapp".into(),
+                state: ServiceState::Healthy,
+                health: true,
+                port: Some(43123),
+            }],
+        });
+    }
+
+    #[test]
     fn prompt_frame_maps_to_agent_command() {
         let f = HallFrame::Prompt {
             req_id: 1,

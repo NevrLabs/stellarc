@@ -383,6 +383,30 @@ id = "db"
     }
 
     #[test]
+    fn parses_managed_binary_app_manifest() {
+        let parsed = manifest(
+            r#"
+[[contributions.apps]]
+id = "echoapp"
+runtime = "binary"
+entrypoint = "bin/echoapp"
+listen = "dynamic"
+health = "/healthz"
+env = { ECHO_DB = "${app_state}/echo.db" }
+resources = { memory_max = "64M" }
+required_capabilities = ["mcp.register"]
+auth_policy = "session_scoped"
+"#,
+        );
+        parsed.validate_schema().unwrap();
+        let app = &parsed.contributions.apps[0];
+        assert_eq!(app.id, "echoapp");
+        assert_eq!(app.runtime, AppRuntimeKind::Binary);
+        assert_eq!(app.entrypoint, "bin/echoapp");
+        assert_eq!(app.listen, "dynamic");
+    }
+
+    #[test]
     fn validation_pipeline_rejects_compat_and_collisions() {
         let package =
             manifest("[[contributions.activity_provider]]\nid='runner'\nprovides=['job.run']");
