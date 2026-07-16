@@ -106,9 +106,10 @@ pub struct SyncBindingSummary {
     pub conflict: Option<String>,
 }
 
-/// Transport seam: adapters configure exchange, but all content remains under jj.
+/// Transport seam: adapters configure exchange and import only through jj.
 pub trait SyncAdapter {
     fn configure(&self, path: &Path, binding: &SyncBinding) -> Result<()>;
+    fn import_into_jj(&self, path: &Path, binding: &SyncBinding) -> Result<()>;
     fn status(&self) -> SyncStatus;
 }
 
@@ -128,6 +129,13 @@ impl SyncAdapter for GithubSyncAdapter {
         )
     }
 
+    fn import_into_jj(&self, path: &Path, binding: &SyncBinding) -> Result<()> {
+        let SyncBinding::Github { id, .. } = binding else {
+            bail!("github adapter requires a github binding");
+        };
+        run_jj(path, &["git", "fetch", "--remote", id], "jj git fetch")
+    }
+
     fn status(&self) -> SyncStatus {
         SyncStatus::Ready
     }
@@ -136,6 +144,10 @@ impl SyncAdapter for GithubSyncAdapter {
 impl SyncAdapter for OlympusSyncAdapter {
     fn configure(&self, _path: &Path, _binding: &SyncBinding) -> Result<()> {
         Ok(())
+    }
+
+    fn import_into_jj(&self, _path: &Path, _binding: &SyncBinding) -> Result<()> {
+        bail!("Olympus synchronization is not yet connected")
     }
 
     fn status(&self) -> SyncStatus {
