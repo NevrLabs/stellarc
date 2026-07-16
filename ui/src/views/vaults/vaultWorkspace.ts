@@ -64,7 +64,7 @@ export function openWorkspaceTab(
       const exists = candidate.tabs.some((candidateTab) => candidateTab.id === tab.id);
       return {
         ...candidate,
-        tabs: exists ? candidate.tabs : [...candidate.tabs, tab],
+        tabs: exists ? candidate.tabs.map((candidateTab) => candidateTab.id === tab.id ? tab : candidateTab) : [...candidate.tabs, tab],
         activeTabId: tab.id,
       };
     }),

@@ -101,9 +101,17 @@ export function VaultWorkspaceView() {
     setMutationError(null);
     try {
       const markdown = `---\ntitle: ${yamlString(title)}\n---\n\n# ${title}\n`;
-      const document = await putVaultNote(activeVaultId, path, { markdown, createOnly: true });
-      await invalidateVault(activeVaultId);
+      const optimisticDocument = { path, title, markdown, frontmatter: { title }, linkedNotes: [] };
+      queryClient.setQueryData(qk.vaultNote(activeVaultId, path), optimisticDocument);
       setNewNoteFolder(null);
+      openTab(noteTab(path, `${title} · saving`));
+      const document = await putVaultNote(activeVaultId, path, { markdown, createOnly: true });
+      queryClient.setQueryData(qk.vaultNote(activeVaultId, document.path), document);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.vaults() }),
+        queryClient.invalidateQueries({ queryKey: qk.vaultNotes(activeVaultId) }),
+        queryClient.invalidateQueries({ queryKey: qk.vaultDocuments(activeVaultId) }),
+      ]);
       openTab(noteTab(document.path, document.title));
     } catch (error) {
       setMutationError(errorMessage(error));
@@ -154,7 +162,7 @@ export function VaultWorkspaceView() {
           activeNotePath={activeNotePath}
           onSelectVault={(vaultId) => { setWorkspace(createInitialWorkspace(null)); void navigate({ to: "/vaults/$vaultId", params: { vaultId } }); }}
           onCreateVault={() => { setMutationError(null); setCreateVaultOpen(true); }}
-          onCreateNote={(folder) => { setMutationError(null); setNewNoteFolder(folder ?? ""); }}
+          onCreateNote={(folder) => { setMutationError(null); setNewNoteFolder(folder ?? parentFolder(activeNotePath) ?? ""); }}
           onOpenNote={(path, title) => openTab(noteTab(path, title))}
           onOpenGraph={() => openTab(graphTab)}
           onOpenTable={() => openTab(tableTab)}
@@ -178,7 +186,7 @@ export function VaultWorkspaceView() {
         )}
       </div>
       {createVaultOpen && <CreateVaultDialog busy={busy} error={mutationError} onClose={() => setCreateVaultOpen(false)} onCreate={handleCreateVault} />}
-      {newNoteFolder !== null && <NewNoteDialog folder={newNoteFolder || null} busy={busy} error={mutationError} onClose={() => setNewNoteFolder(null)} onCreate={handleCreateNote} />}
+      {newNoteFolder !== null && <NewNoteDialog folder={newNoteFolder || null} notes={notes} busy={busy} error={mutationError} onClose={() => setNewNoteFolder(null)} onCreate={handleCreateNote} />}
       {renameEntry && <RenameNoteDialog key={renameEntry.path} currentPath={renameEntry.path} busy={busy} error={mutationError} onClose={() => setRenameEntry(null)} onRename={handleRename} />}
       <DeleteNoteDialog path={deleteEntry?.path ?? null} busy={busy} error={mutationError} onClose={() => setDeleteEntry(null)} onDelete={handleDelete} />
     </>
@@ -212,6 +220,11 @@ function findNote(notes: NoteTreeEntry[], path: string): NoteTreeEntry | null {
 
 function closeAllTarget(state: ReturnType<typeof createInitialWorkspace>, tabId: string) {
   return state.panes.reduce((current, pane) => closeWorkspaceTab(current, pane.id, tabId), state);
+}
+
+function parentFolder(path: string | null): string | null {
+  const slash = path?.lastIndexOf("/") ?? -1;
+  return slash > 0 ? path!.slice(0, slash) : null;
 }
 
 function yamlString(value: string): string {
