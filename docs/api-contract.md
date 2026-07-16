@@ -140,12 +140,16 @@ export interface VaultSummary {
   name: string;
   noteCount: number;
   updatedAt: number; // epoch seconds
-  backend: {
-    kind: "github";
-    repository: string; // canonical owner/repository, never credentials
-    branch: string;
-    syncEngine: "jj-git";
-  } | null;          // null only for legacy/unconfigured vaults
+  authority: { kind: "olympus" };
+  syncBindings: Array<{
+    id: string;
+    adapter: "github" | "olympus";
+    direction: "pull" | "push" | "bidirectional";
+    schedule: "manual";
+    lastSync: number | null;
+    status: "ready" | "notYetConnected" | "error";
+    conflict: string | null;
+  }>;
 }
 
 export interface NoteTreeEntry {
@@ -264,11 +268,22 @@ PUT /api/setup                         # declare (set/replace) a scope's agent s
   → 200 Setup                          # the stored declaration
   → 400 if scope is not "org:<slug>" or "project:<org>/<project>"
 
-POST /api/vaults                       # create a jj-colocated markdown vault
-  body { name: string,
-         backend: { kind: "github", repository: "owner/repository",
-                    branch: "main", syncEngine: "jj-git" } }
+POST /api/vaults                       # create an Olympus-authoritative jj vault
+  body { name: string, syncBindings?: Array<
+    | { adapter: "github", id?: string, repo: "owner/repository", branch?: "main",
+        direction: "pull"|"push"|"bidirectional" }
+    | { adapter: "olympus", id?: string, remoteInstallation: string,
+        direction: "pull"|"push"|"bidirectional" }
+  > }
+  # syncBindings defaults to []; schema-v1 backend bodies remain accepted during migration.
   → 201 VaultSummary
+
+GET /api/vaults/:id/sync-bindings
+  → 200 { "syncBindings": SyncBinding[] }
+
+GET|PUT|DELETE /api/vaults/:id/sync-bindings/:bindingId
+  # PUT body is a SyncBinding; path bindingId is authoritative. DELETE never deletes vault data.
+  → 200 SyncBinding | 204
 
 PUT /api/vaults/:id/note?path=<relative-markdown-path>
   body { markdown?: string, newPath?: string, createOnly?: boolean }

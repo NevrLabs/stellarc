@@ -37,9 +37,113 @@ pub struct VaultSummary {
     pub name: String,
     pub note_count: usize,
     pub updated_at: f64,
-    pub backend: Option<VaultBackend>,
+    pub authority: VaultAuthority,
+    pub sync_bindings: Vec<SyncBindingSummary>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum VaultAuthority {
+    Olympus,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncDirection {
+    Pull,
+    Push,
+    #[default]
+    Bidirectional,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncSchedule {
+    Manual,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncStatus {
+    Ready,
+    NotYetConnected,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "adapter", rename_all = "lowercase")]
+pub enum SyncBinding {
+    #[serde(rename_all = "camelCase")]
+    Github {
+        #[serde(default)]
+        id: String,
+        #[serde(alias = "repository")]
+        repo: String,
+        #[serde(default = "default_branch")]
+        branch: String,
+        #[serde(default)]
+        direction: SyncDirection,
+    },
+    #[serde(rename_all = "camelCase")]
+    Olympus {
+        #[serde(default)]
+        id: String,
+        remote_installation: String,
+        #[serde(default)]
+        direction: SyncDirection,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncBindingSummary {
+    pub id: String,
+    pub adapter: String,
+    pub direction: SyncDirection,
+    pub schedule: SyncSchedule,
+    pub last_sync: Option<f64>,
+    pub status: SyncStatus,
+    pub conflict: Option<String>,
+}
+
+/// Transport seam: adapters configure exchange, but all content remains under jj.
+pub trait SyncAdapter {
+    fn configure(&self, path: &Path, binding: &SyncBinding) -> Result<()>;
+    fn status(&self) -> SyncStatus;
+}
+
+struct GithubSyncAdapter;
+struct OlympusSyncAdapter;
+
+impl SyncAdapter for GithubSyncAdapter {
+    fn configure(&self, path: &Path, binding: &SyncBinding) -> Result<()> {
+        let SyncBinding::Github { id, repo, .. } = binding else {
+            bail!("github adapter requires a github binding");
+        };
+        let url = format!("https://github.com/{repo}.git");
+        run_jj(path, &["git", "remote", "add", id, &url], "jj git remote add")
+    }
+
+    fn status(&self) -> SyncStatus {
+        SyncStatus::Ready
+    }
+}
+
+impl SyncAdapter for OlympusSyncAdapter {
+    fn configure(&self, _path: &Path, _binding: &SyncBinding) -> Result<()> {
+        Ok(())
+    }
+
+    fn status(&self) -> SyncStatus {
+        SyncStatus::NotYetConnected
+    }
+}
+
+fn default_branch() -> String {
+    "main".to_string()
+}
+
+/// Schema-v1 compatibility only. New manifests and DTOs use SyncBinding.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum VaultBackend {
@@ -78,12 +182,107 @@ impl VaultBackend {
             }
         }
     }
+}
 
-    fn remote_url(&self) -> String {
-        match self {
-            Self::Github { repository, .. } => format!("https://github.com/{repository}.git"),
+impl From<VaultBackend> for SyncBinding {
+    fn from(backend: VaultBackend) -> Self {
+        match backend {
+            VaultBackend::Github { repository, branch, .. } => Self::Github {
+                id: "github".to_string(),
+                repo: repository,
+                branch,
+                direction: SyncDirection::Bidirectional,
+            },
         }
     }
+}
+
+pub trait IntoSyncBindings {
+    fn into_sync_bindings(self) -> Vec<SyncBinding>;
+}
+
+impl IntoSyncBindings for Vec<SyncBinding> {
+    fn into_sync_bindings(self) -> Vec<SyncBinding> {
+        self
+    }
+}
+
+impl IntoSyncBindings for VaultBackend {
+    fn into_sync_bindings(self) -> Vec<SyncBinding> {
+        vec![self.into()]
+    }
+}
+
+impl SyncBinding {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Github { id, .. } | Self::Olympus { id, .. } => id,
+        }
+    }
+
+    fn set_id(&mut self, value: String) {
+        match self {
+            Self::Github { id, .. } | Self::Olympus { id, .. } => *id = value,
+        }
+    }
+
+    fn adapter(&self) -> &'static str {
+        match self {
+            Self::Github { .. } => "github",
+            Self::Olympus { .. } => "olympus",
+        }
+    }
+
+    fn direction(&self) -> SyncDirection {
+        match self {
+            Self::Github { direction, .. } | Self::Olympus { direction, .. } => *direction,
+        }
+    }
+
+    fn validate(&self) -> Result<()> {
+        if self.id().is_empty()
+            || !self.id().chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        {
+            bail!("invalid sync binding id");
+        }
+        match self {
+            Self::Github { repo, branch, .. } => {
+                validate_github_repository(repo)?;
+                validate_branch(branch)
+            }
+            Self::Olympus { remote_installation, .. } if remote_installation.trim().is_empty() => {
+                bail!("remote installation is required")
+            }
+            Self::Olympus { .. } => Ok(()),
+        }
+    }
+
+    fn summary(&self) -> SyncBindingSummary {
+        SyncBindingSummary {
+            id: self.id().to_string(),
+            adapter: self.adapter().to_string(),
+            direction: self.direction(),
+            schedule: SyncSchedule::Manual,
+            last_sync: None,
+            status: match self {
+                Self::Github { .. } => GithubSyncAdapter.status(),
+                Self::Olympus { .. } => OlympusSyncAdapter.status(),
+            },
+            conflict: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultManifest {
+    schema_version: u8,
+    name: String,
+    authority: VaultAuthority,
+    #[serde(default)]
+    sync_bindings: Vec<SyncBinding>,
+    #[serde(default)]
+    backup_bindings: Vec<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -176,24 +375,19 @@ impl VaultStore {
             }
             let id = entry.file_name().to_string_lossy().to_string();
             let path = entry.path();
-            let metadata = read_vault_metadata(&path);
-            let name = metadata
-                .as_ref()
-                .and_then(|value| value.get("name"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned)
-                .unwrap_or_else(|| id.clone());
-            let backend = metadata
-                .as_ref()
-                .and_then(|value| value.get("backend"))
-                .and_then(|value| serde_json::from_value(value.clone()).ok());
+            let metadata = load_vault_manifest(&path, &id)?;
             let (note_count, updated_at) = vault_stats(&path)?;
             vaults.push(VaultSummary {
                 id,
-                name,
+                name: metadata.name,
                 note_count,
                 updated_at,
-                backend,
+                authority: metadata.authority,
+                sync_bindings: metadata
+                    .sync_bindings
+                    .iter()
+                    .map(SyncBinding::summary)
+                    .collect(),
             });
         }
         vaults.sort_by(|a, b| {
@@ -205,12 +399,17 @@ impl VaultStore {
         Ok(vaults)
     }
 
-    pub fn create_vault(&self, name: &str, backend: VaultBackend) -> Result<VaultSummary> {
+    pub fn create_vault(
+        &self,
+        name: &str,
+        sync_bindings: impl IntoSyncBindings,
+    ) -> Result<VaultSummary> {
+        let mut sync_bindings = sync_bindings.into_sync_bindings();
         let name = name.trim();
         if name.is_empty() {
             bail!("vault name is required");
         }
-        backend.validate()?;
+        normalize_bindings(&mut sync_bindings)?;
         fs::create_dir_all(&self.root)
             .with_context(|| format!("creating vault root {}", self.root.display()))?;
 
@@ -218,12 +417,21 @@ impl VaultStore {
         let (id, path) = create_unique_vault_dir(&self.root, &slug)?;
         let setup = (|| -> Result<()> {
             fs::create_dir_all(path.join(".vault"))?;
-            fs::write(
-                path.join(".vault").join("metadata.json"),
-                serde_json::to_vec_pretty(&json!({ "name": name, "backend": backend }))?,
+            write_vault_manifest(
+                &path,
+                &VaultManifest {
+                    schema_version: 2,
+                    name: name.to_string(),
+                    authority: VaultAuthority::Olympus,
+                    sync_bindings: sync_bindings.clone(),
+                    backup_bindings: Vec::new(),
+                },
             )?;
             self.jj_init(&path)?;
-            self.configure_backend(&path, &backend)?;
+            for binding in &sync_bindings {
+                // Sync setup is best-effort: the Olympus authority stays available.
+                let _ = self.configure_binding(&path, binding);
+            }
             self.jj_snapshot(&path, "vault: create")
         })();
         if let Err(err) = setup {
@@ -236,8 +444,51 @@ impl VaultStore {
             name: name.to_string(),
             note_count: 0,
             updated_at: now_secs(),
-            backend: Some(backend),
+            authority: VaultAuthority::Olympus,
+            sync_bindings: sync_bindings.iter().map(SyncBinding::summary).collect(),
         })
+    }
+
+    pub fn list_sync_bindings(&self, vault_id: &str) -> Result<Vec<SyncBinding>> {
+        let path = self.existing_vault_path(vault_id)?;
+        Ok(load_vault_manifest(&path, vault_id)?.sync_bindings)
+    }
+
+    pub fn put_sync_binding(
+        &self,
+        vault_id: &str,
+        binding_id: &str,
+        mut binding: SyncBinding,
+    ) -> Result<SyncBinding> {
+        let path = self.existing_vault_path(vault_id)?;
+        binding.set_id(binding_id.to_string());
+        binding.validate()?;
+        let mut manifest = load_vault_manifest(&path, vault_id)?;
+        if let Some(existing) = manifest
+            .sync_bindings
+            .iter_mut()
+            .find(|existing| existing.id() == binding_id)
+        {
+            *existing = binding.clone();
+        } else {
+            manifest.sync_bindings.push(binding.clone());
+        }
+        write_vault_manifest(&path, &manifest)?;
+        let _ = self.configure_binding(&path, &binding);
+        Ok(binding)
+    }
+
+    pub fn delete_sync_binding(&self, vault_id: &str, binding_id: &str) -> Result<()> {
+        let path = self.existing_vault_path(vault_id)?;
+        let mut manifest = load_vault_manifest(&path, vault_id)?;
+        let before = manifest.sync_bindings.len();
+        manifest
+            .sync_bindings
+            .retain(|binding| binding.id() != binding_id);
+        if before == manifest.sync_bindings.len() {
+            bail!("sync binding not found");
+        }
+        write_vault_manifest(&path, &manifest)
     }
 
     pub fn list_notes(&self, vault_id: &str) -> Result<Vec<NoteTreeEntry>> {
@@ -413,16 +664,14 @@ impl VaultStore {
         run_jj(path, &["describe", "-m", message], "jj describe")
     }
 
-    fn configure_backend(&self, path: &Path, backend: &VaultBackend) -> Result<()> {
+    fn configure_binding(&self, path: &Path, binding: &SyncBinding) -> Result<()> {
         if self.jj_mode == JjMode::Disabled {
             return Ok(());
         }
-        let url = backend.remote_url();
-        run_jj(
-            path,
-            &["git", "remote", "add", "origin", &url],
-            "jj git remote add",
-        )
+        match binding {
+            SyncBinding::Github { .. } => GithubSyncAdapter.configure(path, binding),
+            SyncBinding::Olympus { .. } => OlympusSyncAdapter.configure(path, binding),
+        }
     }
 }
 
@@ -443,9 +692,59 @@ fn run_jj(path: &Path, args: &[&str], label: &str) -> Result<()> {
     Ok(())
 }
 
-fn read_vault_metadata(path: &Path) -> Option<Value> {
-    let bytes = fs::read(path.join(".vault").join("metadata.json")).ok()?;
-    serde_json::from_slice(&bytes).ok()
+fn write_vault_manifest(path: &Path, manifest: &VaultManifest) -> Result<()> {
+    fs::write(
+        path.join(".vault").join("metadata.json"),
+        serde_json::to_vec_pretty(manifest)?,
+    )?;
+    Ok(())
+}
+
+fn load_vault_manifest(path: &Path, fallback_name: &str) -> Result<VaultManifest> {
+    let metadata_path = path.join(".vault").join("metadata.json");
+    let value: Value = match fs::read(&metadata_path) {
+        Ok(bytes) => serde_json::from_slice(&bytes)?,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(err) => return Err(err.into()),
+    };
+    if value.get("schemaVersion").and_then(Value::as_u64) == Some(2) {
+        return Ok(serde_json::from_value(value)?);
+    }
+    let name = value
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(fallback_name)
+        .to_string();
+    let sync_bindings = value
+        .get("backend")
+        .cloned()
+        .map(serde_json::from_value::<VaultBackend>)
+        .transpose()?
+        .map(|backend| vec![backend.into()])
+        .unwrap_or_default();
+    let manifest = VaultManifest {
+        schema_version: 2,
+        name,
+        authority: VaultAuthority::Olympus,
+        sync_bindings,
+        backup_bindings: Vec::new(),
+    };
+    write_vault_manifest(path, &manifest)?;
+    Ok(manifest)
+}
+
+fn normalize_bindings(bindings: &mut [SyncBinding]) -> Result<()> {
+    let mut ids = BTreeSet::new();
+    for binding in bindings {
+        if binding.id().is_empty() {
+            binding.set_id(binding.adapter().to_string());
+        }
+        binding.validate()?;
+        if !ids.insert(binding.id().to_string()) {
+            bail!("duplicate sync binding id");
+        }
+    }
+    Ok(())
 }
 
 fn validate_github_repository(repository: &str) -> Result<()> {
@@ -1079,7 +1378,7 @@ mod tests {
             .create_vault("Engineering Notes", backend.clone())
             .unwrap();
         assert_eq!(vault.id, "engineering-notes");
-        assert_eq!(vault.backend, Some(backend));
+        assert_eq!(vault.sync_bindings[0].adapter, "github");
 
         let doc = store
             .write_note(
@@ -1109,7 +1408,7 @@ mod tests {
         assert_eq!(tree[0].children[0].path, "runbooks/boot.md");
 
         let listed = store.list_vaults().unwrap();
-        assert_eq!(listed[0].backend, vault.backend);
+        assert_eq!(listed[0].sync_bindings, vault.sync_bindings);
 
         let documents = store.list_documents(&vault.id).unwrap();
         assert_eq!(documents.len(), 1);
@@ -1232,7 +1531,59 @@ mod tests {
 
         let listed = store.list_vaults().unwrap();
         assert_eq!(listed[0].name, "Legacy");
-        assert_eq!(listed[0].backend, None);
+        assert!(listed[0].sync_bindings.is_empty());
+        let metadata: Value = serde_json::from_slice(
+            &fs::read(path.join(".vault/metadata.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metadata["schemaVersion"], 2);
+    }
+
+    #[test]
+    fn name_only_create_writes_v2_olympus_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store(&tmp);
+        let vault = store
+            .create_vault("Local Notes", Vec::<SyncBinding>::new())
+            .unwrap();
+        assert_eq!(vault.authority, VaultAuthority::Olympus);
+        assert!(vault.sync_bindings.is_empty());
+        let metadata: Value = serde_json::from_slice(
+            &fs::read(store.vault_path(&vault.id).join(".vault/metadata.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metadata["schemaVersion"], 2);
+        assert_eq!(metadata["authority"]["kind"], "olympus");
+        assert_eq!(metadata["syncBindings"], json!([]));
+    }
+
+    #[test]
+    fn v1_github_backend_migrates_and_binding_crud_roundtrips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store(&tmp);
+        let path = store.root().join("legacy-github");
+        fs::create_dir_all(path.join(".vault")).unwrap();
+        fs::write(
+            path.join(".vault/metadata.json"),
+            r#"{"name":"Legacy GitHub","backend":{"kind":"github","repository":"owner/repo","branch":"main","syncEngine":"jj-git"}}"#,
+        )
+        .unwrap();
+
+        let listed = store.list_vaults().unwrap();
+        assert_eq!(listed[0].sync_bindings[0].adapter, "github");
+        let olympus = SyncBinding::Olympus {
+            id: String::new(),
+            remote_installation: "node-2".into(),
+            direction: SyncDirection::Bidirectional,
+        };
+        store
+            .put_sync_binding("legacy-github", "peer", olympus)
+            .unwrap();
+        assert_eq!(store.list_sync_bindings("legacy-github").unwrap().len(), 2);
+        store
+            .delete_sync_binding("legacy-github", "github")
+            .unwrap();
+        assert_eq!(store.list_sync_bindings("legacy-github").unwrap()[0].id(), "peer");
     }
 
     #[test]

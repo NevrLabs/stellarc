@@ -35,6 +35,7 @@ import type {
   VaultSummary,
   NoteTreeEntry,
   CreateVaultBody,
+  SyncBinding,
   VaultDocumentsResponse,
 } from "./types";
 // A production Web UI is permanently bound to the Hall that served it. The
@@ -420,6 +421,35 @@ export async function createVault(body: CreateVaultBody): Promise<VaultSummary> 
     body,
     "create vault failed",
   );
+}
+
+export async function fetchVaultSyncBindings(vaultId: string): Promise<SyncBinding[]> {
+  const res = await fetch(`${BASE}/api/vaults/${encodeURIComponent(vaultId)}/sync-bindings`, {
+    headers: authHeaders(),
+  });
+  const body = await expectJson<{ syncBindings: SyncBinding[] }>(res, "vault sync bindings");
+  return body.syncBindings;
+}
+
+export async function putVaultSyncBinding(
+  vaultId: string,
+  bindingId: string,
+  binding: SyncBinding,
+): Promise<SyncBinding> {
+  const res = await fetch(`${BASE}/api/vaults/${encodeURIComponent(vaultId)}/sync-bindings/${encodeURIComponent(bindingId)}`, {
+    method: "PUT",
+    headers: { ...authHeaders(), "content-type": "application/json" },
+    body: JSON.stringify(binding),
+  });
+  return expectJson(res, "put vault sync binding");
+}
+
+export async function deleteVaultSyncBinding(vaultId: string, bindingId: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/vaults/${encodeURIComponent(vaultId)}/sync-bindings/${encodeURIComponent(bindingId)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`delete vault sync binding failed: ${res.status}`);
 }
 
 export async function fetchVaultNotes(

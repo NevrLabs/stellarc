@@ -547,9 +547,9 @@ export function generateSearchHits(query: string): SearchHit[] {
 // ── Vaults ─────────────────────────────────────────────
 
 export const VAULTS: VaultSummary[] = [
-  { id: "engineering", name: "Engineering", noteCount: 6, updatedAt: NOW - 7200, backend: { kind: "github", repository: "IEatCodeDaily/engineering-vault", branch: "main", syncEngine: "jj-git" } },
-  { id: "ops-runbooks", name: "Ops runbooks", noteCount: 2, updatedAt: NOW - 86400, backend: { kind: "github", repository: "IEatCodeDaily/ops-runbooks", branch: "main", syncEngine: "jj-git" } },
-  { id: "personal", name: "Personal", noteCount: 1, updatedAt: NOW - 172800, backend: { kind: "github", repository: "IEatCodeDaily/personal-vault", branch: "main", syncEngine: "jj-git" } },
+  { id: "engineering", name: "Engineering", noteCount: 6, updatedAt: NOW - 7200, authority: { kind: "olympus" }, syncBindings: [{ id: "github", adapter: "github", direction: "bidirectional", schedule: "manual", lastSync: NOW - 7200, status: "ready", conflict: null }] },
+  { id: "ops-runbooks", name: "Ops runbooks", noteCount: 2, updatedAt: NOW - 86400, authority: { kind: "olympus" }, syncBindings: [] },
+  { id: "personal", name: "Personal", noteCount: 1, updatedAt: NOW - 172800, authority: { kind: "olympus" }, syncBindings: [] },
 ];
 
 export const VAULT_NOTES: Record<string, NoteTreeEntry[]> = {

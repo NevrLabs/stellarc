@@ -426,26 +426,48 @@ export interface OlympusPackage {
 
 // ---- Vaults (ADR 0004 — markdown-first knowledge base) ----
 
+export type SyncDirection = "pull" | "push" | "bidirectional";
+export type SyncStatus = "ready" | "notYetConnected" | "error";
+
+export interface GithubSyncBinding {
+  id?: string;
+  adapter: "github";
+  repo: string;
+  branch?: string;
+  direction: SyncDirection;
+}
+
+export interface OlympusSyncBinding {
+  id?: string;
+  adapter: "olympus";
+  remoteInstallation: string;
+  direction: SyncDirection;
+}
+
+export type SyncBinding = GithubSyncBinding | OlympusSyncBinding;
+
+export interface SyncBindingSummary {
+  id: string;
+  adapter: "github" | "olympus";
+  direction: SyncDirection;
+  schedule: "manual";
+  lastSync: number | null;
+  status: SyncStatus;
+  conflict: string | null;
+}
+
 export interface VaultSummary {
   id: string;
   name: string;
   noteCount: number;
   updatedAt: number;
-  backend: VaultBackend | null;
+  authority: { kind: "olympus" };
+  syncBindings: SyncBindingSummary[];
 }
-
-export interface GithubVaultBackend {
-  kind: "github";
-  repository: string;
-  branch: string;
-  syncEngine: "jj-git";
-}
-
-export type VaultBackend = GithubVaultBackend;
 
 export interface CreateVaultBody {
   name: string;
-  backend: VaultBackend;
+  syncBindings?: SyncBinding[];
 }
 
 export interface VaultsResponse {

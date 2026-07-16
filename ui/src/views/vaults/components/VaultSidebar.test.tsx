@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { NoteTreeEntry, VaultSummary } from "../../../types";
 import { VaultSidebar } from "./VaultSidebar";
 
-const vaults: VaultSummary[] = [{ id: "vault-1", name: "Vault", noteCount: 1, updatedAt: 1, backend: null }];
+const vaults: VaultSummary[] = [{ id: "vault-1", name: "Vault", noteCount: 1, updatedAt: 1, authority: { kind: "olympus" }, syncBindings: [] }];
 const notes: NoteTreeEntry[] = [
   { kind: "note", path: "one.md", title: "One", updatedAt: 1, children: [] },
 ];

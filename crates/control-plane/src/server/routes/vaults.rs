@@ -19,6 +19,16 @@ pub fn router() -> Router<AppState> {
         .route("/api/vaults/{id}/notes", get(list_vault_notes))
         .route("/api/vaults/{id}/documents", get(list_vault_documents))
         .route(
+            "/api/vaults/{id}/sync-bindings",
+            get(list_sync_bindings),
+        )
+        .route(
+            "/api/vaults/{id}/sync-bindings/{binding_id}",
+            get(get_sync_binding)
+                .put(put_sync_binding)
+                .delete(delete_sync_binding),
+        )
+        .route(
             "/api/vaults/{id}/note",
             get(get_vault_note)
                 .put(put_vault_note)
@@ -38,9 +48,13 @@ pub(crate) struct VaultNoteQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CreateVaultBody {
     name: String,
-    backend: crate::vault::VaultBackend,
+    #[serde(default)]
+    sync_bindings: Vec<crate::vault::SyncBinding>,
+    #[serde(default)]
+    backend: Option<crate::vault::VaultBackend>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -72,12 +86,66 @@ pub(crate) async fn create_vault(
     State(state): State<AppState>,
     Json(body): Json<CreateVaultBody>,
 ) -> Response {
-    match state.vaults.create_vault(&body.name, body.backend) {
+    let sync_bindings = if body.sync_bindings.is_empty() {
+        body.backend
+            .map(crate::vault::SyncBinding::from)
+            .into_iter()
+            .collect()
+    } else {
+        body.sync_bindings
+    };
+    match state.vaults.create_vault(&body.name, sync_bindings) {
         Ok(vault) => (
             StatusCode::CREATED,
             Json(serde_json::to_value(VaultSummaryDto::from(vault)).unwrap()),
         )
             .into_response(),
+        Err(err) => vault_error(err),
+    }
+}
+
+pub(crate) async fn list_sync_bindings(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    match state.vaults.list_sync_bindings(&id) {
+        Ok(bindings) => Json(json!({ "syncBindings": bindings })).into_response(),
+        Err(err) => vault_error(err),
+    }
+}
+
+pub(crate) async fn get_sync_binding(
+    State(state): State<AppState>,
+    Path((id, binding_id)): Path<(String, String)>,
+) -> Response {
+    match state.vaults.list_sync_bindings(&id) {
+        Ok(bindings) => bindings
+            .into_iter()
+            .find(|binding| binding.id() == binding_id)
+            .map(Json)
+            .map(IntoResponse::into_response)
+            .unwrap_or_else(|| vault_error(anyhow::anyhow!("sync binding not found"))),
+        Err(err) => vault_error(err),
+    }
+}
+
+pub(crate) async fn put_sync_binding(
+    State(state): State<AppState>,
+    Path((id, binding_id)): Path<(String, String)>,
+    Json(binding): Json<crate::vault::SyncBinding>,
+) -> Response {
+    match state.vaults.put_sync_binding(&id, &binding_id, binding) {
+        Ok(binding) => Json(binding).into_response(),
+        Err(err) => vault_error(err),
+    }
+}
+
+pub(crate) async fn delete_sync_binding(
+    State(state): State<AppState>,
+    Path((id, binding_id)): Path<(String, String)>,
+) -> Response {
+    match state.vaults.delete_sync_binding(&id, &binding_id) {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(err) => vault_error(err),
     }
 }

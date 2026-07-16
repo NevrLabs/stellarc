@@ -10,7 +10,8 @@ use serde::Serialize;
 use crate::search::SearchHit as IndexHit;
 use crate::server::capability::CapabilitySet;
 use crate::vault::{
-    NoteDocument, NoteIndexEntry, NoteTreeEntry, NoteTreeEntryKind, VaultBackend, VaultSummary,
+    NoteDocument, NoteIndexEntry, NoteTreeEntry, NoteTreeEntryKind, SyncBindingSummary,
+    VaultAuthority, VaultSummary,
 };
 use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, SessionRow, SetupRow};
 
@@ -402,7 +403,8 @@ pub struct VaultSummaryDto {
     pub name: String,
     pub note_count: usize,
     pub updated_at: f64,
-    pub backend: Option<VaultBackend>,
+    pub authority: VaultAuthority,
+    pub sync_bindings: Vec<SyncBindingSummary>,
 }
 
 impl From<VaultSummary> for VaultSummaryDto {
@@ -412,7 +414,8 @@ impl From<VaultSummary> for VaultSummaryDto {
             name: vault.name,
             note_count: vault.note_count,
             updated_at: vault.updated_at,
-            backend: vault.backend,
+            authority: vault.authority,
+            sync_bindings: vault.sync_bindings,
         }
     }
 }

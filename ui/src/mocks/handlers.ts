@@ -369,13 +369,10 @@ export const handlers = [
   http.post("http://127.0.0.1:8787/api/organizations/:organizationId/vaults", async ({ request }) => {
     const body = (await request.json()) as {
       name: string;
-      backend: { kind: "github"; repository: string; branch: string; syncEngine: "jj-git" };
+      syncBindings?: Array<{ adapter: "github" | "olympus"; direction: "pull" | "push" | "bidirectional" }>;
     };
-    if (!body.name?.trim() || !body.backend?.repository?.includes("/")) {
-      return HttpResponse.json(
-        { message: "Name and GitHub owner/repository are required" },
-        { status: 400 },
-      );
+    if (!body.name?.trim()) {
+      return HttpResponse.json({ message: "Name is required" }, { status: 400 });
     }
     const id = body.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     const vault = {
@@ -383,7 +380,15 @@ export const handlers = [
       name: body.name,
       noteCount: 0,
       updatedAt: Math.floor(Date.now() / 1000),
-      backend: body.backend,
+      authority: { kind: "olympus" as const },
+      syncBindings: (body.syncBindings ?? []).map((binding) => ({
+        ...binding,
+        id: binding.adapter,
+        schedule: "manual" as const,
+        lastSync: null,
+        status: binding.adapter === "olympus" ? "notYetConnected" as const : "ready" as const,
+        conflict: null,
+      })),
     };
     VAULTS.push(vault);
     VAULT_NOTES_MUTABLE[id] = {};
