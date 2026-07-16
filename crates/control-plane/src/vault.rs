@@ -121,7 +121,11 @@ impl SyncAdapter for GithubSyncAdapter {
             bail!("github adapter requires a github binding");
         };
         let url = format!("https://github.com/{repo}.git");
-        run_jj(path, &["git", "remote", "add", id, &url], "jj git remote add")
+        run_jj(
+            path,
+            &["git", "remote", "add", id, &url],
+            "jj git remote add",
+        )
     }
 
     fn status(&self) -> SyncStatus {
@@ -187,7 +191,9 @@ impl VaultBackend {
 impl From<VaultBackend> for SyncBinding {
     fn from(backend: VaultBackend) -> Self {
         match backend {
-            VaultBackend::Github { repository, branch, .. } => Self::Github {
+            VaultBackend::Github {
+                repository, branch, ..
+            } => Self::Github {
                 id: "github".to_string(),
                 repo: repository,
                 branch,
@@ -241,7 +247,10 @@ impl SyncBinding {
 
     fn validate(&self) -> Result<()> {
         if self.id().is_empty()
-            || !self.id().chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+            || !self
+                .id()
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
         {
             bail!("invalid sync binding id");
         }
@@ -250,7 +259,10 @@ impl SyncBinding {
                 validate_github_repository(repo)?;
                 validate_branch(branch)
             }
-            Self::Olympus { remote_installation, .. } if remote_installation.trim().is_empty() => {
+            Self::Olympus {
+                remote_installation,
+                ..
+            } if remote_installation.trim().is_empty() => {
                 bail!("remote installation is required")
             }
             Self::Olympus { .. } => Ok(()),
@@ -1532,10 +1544,8 @@ mod tests {
         let listed = store.list_vaults().unwrap();
         assert_eq!(listed[0].name, "Legacy");
         assert!(listed[0].sync_bindings.is_empty());
-        let metadata: Value = serde_json::from_slice(
-            &fs::read(path.join(".vault/metadata.json")).unwrap(),
-        )
-        .unwrap();
+        let metadata: Value =
+            serde_json::from_slice(&fs::read(path.join(".vault/metadata.json")).unwrap()).unwrap();
         assert_eq!(metadata["schemaVersion"], 2);
     }
 
@@ -1583,7 +1593,10 @@ mod tests {
         store
             .delete_sync_binding("legacy-github", "github")
             .unwrap();
-        assert_eq!(store.list_sync_bindings("legacy-github").unwrap()[0].id(), "peer");
+        assert_eq!(
+            store.list_sync_bindings("legacy-github").unwrap()[0].id(),
+            "peer"
+        );
     }
 
     #[test]

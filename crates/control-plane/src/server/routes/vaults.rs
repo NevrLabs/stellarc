@@ -18,10 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/vaults", get(list_vaults).post(create_vault))
         .route("/api/vaults/{id}/notes", get(list_vault_notes))
         .route("/api/vaults/{id}/documents", get(list_vault_documents))
-        .route(
-            "/api/vaults/{id}/sync-bindings",
-            get(list_sync_bindings),
-        )
+        .route("/api/vaults/{id}/sync-bindings", get(list_sync_bindings))
         .route(
             "/api/vaults/{id}/sync-bindings/{binding_id}",
             get(get_sync_binding)
