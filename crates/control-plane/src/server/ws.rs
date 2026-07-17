@@ -67,7 +67,7 @@ pub enum ServerFrame {
     #[serde(rename = "hello")]
     Hello { snapshot: Snapshot },
     #[serde(rename = "session.added")]
-    SessionAdded { session: SessionDto },
+    SessionAdded { session: Box<SessionDto> },
     #[serde(rename = "session.updated", rename_all = "camelCase")]
     SessionUpdated {
         session_id: String,
@@ -692,7 +692,7 @@ mod tests {
         // These have no sessionId — always delivered.
         assert!(should_deliver(
             &ServerFrame::SessionAdded {
-                session: SessionDto {
+                session: Box::new(SessionDto {
                     id: "s2".into(),
                     hermes_id: "h".into(),
                     org_id: "o".into(),
@@ -719,7 +719,7 @@ mod tests {
                     card_id: None,
                     project_id: None,
                     capabilities: None,
-                },
+                }),
             },
             &subs,
         ));

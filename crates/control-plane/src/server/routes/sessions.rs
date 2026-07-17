@@ -590,7 +590,7 @@ pub(crate) async fn create_session(
             .to_string();
 
             let _ = state.deltas.send(ServerFrame::SessionAdded {
-                session: dto.clone(),
+                session: Box::new(dto.clone()),
             });
 
             (
@@ -933,7 +933,7 @@ pub(crate) async fn fork_session(
     }
 
     let _ = state.deltas.send(ServerFrame::SessionAdded {
-        session: dto.clone(),
+        session: Box::new(dto.clone()),
     });
 
     Json(json!({ "session": dto })).into_response()
@@ -2183,7 +2183,7 @@ pub(crate) async fn create_subsession(
     };
 
     let _ = state.deltas.send(ServerFrame::SessionAdded {
-        session: dto.clone(),
+        session: Box::new(dto.clone()),
     });
     (
         StatusCode::CREATED,
@@ -2474,7 +2474,7 @@ pub(crate) async fn handover_session(
     };
 
     let _ = state.deltas.send(ServerFrame::SessionAdded {
-        session: dto.clone(),
+        session: Box::new(dto.clone()),
     });
 
     Json(json!({ "session": dto, "handover": {
@@ -2491,9 +2491,10 @@ pub(crate) async fn attach_session_project(
     Path(session_id): Path<String>,
     Json(body): Json<AttachProjectBody>,
 ) -> Response {
-    // Validate session exists.
     let session_space = {
-        let views = state.views.read().await;
+        // Project deletion and session attachment share the views write lock so
+        // validation, durable append, and projection are one serialized command.
+        let mut views = state.views.write().await;
         let Some(session) = views.sessions.get(&session_id) else {
             return (
                 StatusCode::NOT_FOUND,
@@ -2511,38 +2512,44 @@ pub(crate) async fn attach_session_project(
             )
                 .into_response();
         }
-        // Also validate project exists.
-        if views.projects.get(&body.project_id).is_none_or(|project| {
-            scope
+        let Some(project) = views.projects.get(&body.project_id) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "project not found" })),
+            )
+                .into_response();
+        };
+        if project.org_id != session.org_id
+            || scope
                 .as_ref()
                 .is_some_and(|scope| project.org_id != scope.0.organization_id)
-        }) {
+        {
             return (
                 StatusCode::NOT_FOUND,
                 Json(json!({ "error": "not_found", "message": "project not found" })),
             )
                 .into_response();
         }
-        state.bridge.space_for(&session.org_id, &session_id)
+        let session_space = state.bridge.space_for(&session.org_id, &session_id);
+        let event = crate::event::Event::SessionProjectAttached {
+            session_id: session_id.clone(),
+            project_id: body.project_id.clone(),
+            attached_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_secs_f64())
+                .unwrap_or(0.0),
+        };
+        if let Err(error) = state.log.append(&event) {
+            tracing::error!(%error, %session_id, project_id = %body.project_id, "failed to persist session project attachment");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "failed to persist event").into_response();
+        }
+        views.apply(&event);
+        session_space
     };
-    // Create symlink (best-effort).
+
+    // The event log is authoritative; the symlink is a convenience mirror.
     let _ = state
         .projects
         .attach_symlink(&body.project_id, session_space.as_deref());
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0);
-    let event = crate::event::Event::SessionProjectAttached {
-        session_id: session_id.clone(),
-        project_id: body.project_id.clone(),
-        attached_at: now,
-    };
-    append_and_apply(&state, event).await;
-    let views = state.views.read().await;
-    match views.sessions.get(&session_id) {
-        Some(row) => Json(json!({ "sessionId": row.session_id, "projectId": row.project_id }))
-            .into_response(),
-        None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    }
+    Json(json!({ "sessionId": session_id, "projectId": body.project_id })).into_response()
 }

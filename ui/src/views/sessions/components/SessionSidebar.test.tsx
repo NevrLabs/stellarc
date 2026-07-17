@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionSidebar } from "./SessionSidebar";
 import type { Session } from "../../../types";
+import { attachSessionToProject, createSession } from "../../../api";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -39,17 +40,32 @@ vi.mock("../../../hooks/queries", () => ({
           agent: null,
           model: null,
           node: null,
+          projectId: "project-a",
           capabilities: null,
         } satisfies Session,
       ],
     },
   }),
-  useProjects: () => ({ data: { projects: [], total: 0 } }),
+  useProjects: () => ({
+    data: {
+      projects: [{ id: "project-a", name: "QA project", vaults: [], repos: [], boards: [], layout: null, createdAt: 1 }],
+      total: 1,
+    },
+  }),
   useUpdateSession: () => ({ mutate: vi.fn() }),
   useAgentCatalog: () => ({ data: { nodes: [] }, isLoading: false }),
 }));
 
 vi.mock("../../../api", () => ({ attachSessionToProject: vi.fn(), createSession: vi.fn() }));
+
+vi.mock("./AgentPicker", () => ({
+  AgentPicker: ({ open, onSelect, error }: { open: boolean; onSelect: (agent: string, node: string) => Promise<void>; error?: string | null }) => open ? (
+    <>
+      <button type="button" onClick={() => void onSelect("default", "talos")}>Pick test agent</button>
+      {error && <div role="alert">{error}</div>}
+    </>
+  ) : null,
+}));
 
 describe("SessionSidebar", () => {
   it("marks the active session as open and focused", () => {
@@ -85,5 +101,57 @@ describe("SessionSidebar", () => {
       type: "session",
       sessionId: "s-1",
     });
+  });
+
+  it("awaits project association and surfaces failure in the picker", async () => {
+    vi.mocked(createSession).mockResolvedValue({ id: "new-session" } as Session);
+    const onOpenSession = vi.fn().mockRejectedValue(new Error("association failed"));
+    render(
+      <SessionSidebar
+        width={220}
+        activeSessionId={null}
+        activeProjectId="project-a"
+        onOpenSession={onOpenSession}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pick test agent" }));
+
+    await waitFor(() => expect(onOpenSession).toHaveBeenCalledWith("new-session"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("association failed");
+  });
+
+  it("surfaces a failed drag-to-project association", async () => {
+    vi.mocked(attachSessionToProject).mockRejectedValueOnce(new Error("Hall unavailable"));
+    render(<SessionSidebar width={220} activeSessionId="s-1" />);
+
+    fireEvent.drop(screen.getByRole("button", { name: "QA project" }), {
+      dataTransfer: {
+        getData: () => JSON.stringify({ type: "session", sessionId: "s-1" }),
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not move session to project: Hall unavailable",
+    );
+  });
+
+  it("surfaces a failed project-session open", async () => {
+    const onOpenSession = vi.fn().mockRejectedValue(new Error("Project unavailable"));
+    render(
+      <SessionSidebar
+        width={220}
+        activeSessionId={null}
+        activeProjectId="project-a"
+        onOpenSession={onOpenSession}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Focused session"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not open session: Project unavailable",
+    );
   });
 });

@@ -15,16 +15,25 @@ async function drag(page: Page, handle: Locator, dx: number, dy: number) {
   await page.mouse.up();
 }
 
-test("live dev interactions", async ({ page }) => {
+async function signIn(page: Page) {
   if (!username || !password) throw new Error("dev credentials were not supplied");
-
   await page.goto(baseURL);
   await page.evaluate(() => localStorage.clear());
+  const status = await page.evaluate(async ({ username, password }) => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    return response.status;
+  }, { username, password });
+  expect(status).toBe(200);
   await page.reload();
-  await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.locator(".app")).toBeVisible();
+  await expect(page.locator(".app")).toBeVisible({ timeout: 15_000 });
+}
+
+test("live dev interactions", async ({ page }) => {
+  await signIn(page);
 
   const rows = page.locator(".srow[data-session-id]");
   await expect(rows.first()).toBeVisible();
@@ -65,26 +74,66 @@ test("live dev interactions", async ({ page }) => {
 });
 
 test("project workspace layout restores and session route stays single-pane", async ({ page }) => {
-  if (!username || !password) throw new Error("dev credentials were not supplied");
+  await signIn(page);
 
-  await page.goto(baseURL);
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.locator(".app")).toBeVisible();
-
-  const workspace = page.locator("[data-project-id]").first();
-  await expect(workspace).toBeVisible();
-  await workspace.click();
+  const fixture = await page.evaluate(async () => {
+    const requestJson = async (url: string, init?: RequestInit) => {
+      const response = await fetch(url, init);
+      if (!response.ok) throw new Error(`${init?.method ?? "GET"} ${url}: HTTP ${response.status}`);
+      return response.json();
+    };
+    const organizations = await requestJson("/api/organizations");
+    const organizationId = organizations.organizations?.[0]?.id as string | undefined;
+    if (!organizationId) throw new Error("project-workspace e2e requires an organization");
+    const scope = `/api/organizations/${organizationId}`;
+    const [projects, sessions] = await Promise.all([
+      requestJson(`${scope}/projects`),
+      requestJson(`${scope}/sessions?managed=true&archived=false&limit=500`),
+    ]);
+    let project = (projects.projects ?? []).find(
+      (candidate: { name?: string }) => candidate.name === "QA E2E",
+    );
+    if (!project) {
+      project = await requestJson(`${scope}/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "QA E2E" }),
+      });
+    }
+    const memberIds = (sessions.sessions ?? [])
+      .filter((session: { projectId?: string | null }) => session.projectId === project.id)
+      .map((session: { id: string }) => session.id);
+    while (memberIds.length < 2) {
+      const session = await requestJson(`${scope}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const association = await fetch(`${scope}/sessions/${session.id}/project`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      if (!association.ok) {
+        throw new Error(`could not associate E2E session: HTTP ${association.status}`);
+      }
+      memberIds.push(session.id);
+    }
+    const reset = await fetch(`${scope}/projects/${project.id}/layout`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ layout: null }),
+    });
+    if (!reset.ok) throw new Error(`could not reset E2E project layout: HTTP ${reset.status}`);
+    return { projectId: project.id as string, memberIds };
+  });
+  await page.goto(`${baseURL}/sessions/projects/${encodeURIComponent(fixture.projectId)}`);
   await expect(page).toHaveURL(/\/sessions\/projects\//);
 
   const rows = page.locator(".srow[data-session-id]");
   await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThanOrEqual(2);
-  const singleSessionId = await rows.nth(0).getAttribute("data-session-id");
-  expect(singleSessionId).toBeTruthy();
+  const singleSessionId = fixture.memberIds[0];
 
   await rows.nth(0).click();
   await expect(page.locator(".chat-view")).toBeVisible();

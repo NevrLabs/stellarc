@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 
-use super::support::{append_and_apply, append_and_apply_events};
+use super::support::append_and_apply_events;
 use crate::server::dto::ProjectDto;
 use crate::server::principal::OrgScope;
 use crate::server::AppState;
@@ -45,6 +45,32 @@ pub(crate) struct PutProjectLayoutBody {
 
 const MAX_LAYOUT_BYTES: usize = 64 * 1024;
 
+async fn apply_existing_project_event(
+    state: &AppState,
+    scope: &Option<axum::extract::Extension<OrgScope>>,
+    project_id: &str,
+    event: crate::event::Event,
+) -> Result<Option<ProjectDto>, Response> {
+    let mut views = state.views.write().await;
+    if views.projects.get(project_id).is_none_or(|project| {
+        scope
+            .as_ref()
+            .is_some_and(|scope| project.org_id != scope.0.organization_id)
+    }) {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "not_found", "message": "project not found" })),
+        )
+            .into_response());
+    }
+    if let Err(error) = state.log.append(&event) {
+        tracing::error!(%error, project_id, "failed to persist project event");
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "failed to persist event").into_response());
+    }
+    views.apply(&event);
+    Ok(views.projects.get(project_id).map(ProjectDto::from_row))
+}
+
 pub(crate) async fn put_project_layout(
     State(state): State<AppState>,
     scope: Option<axum::extract::Extension<OrgScope>>,
@@ -58,20 +84,6 @@ pub(crate) async fn put_project_layout(
         )
             .into_response();
     }
-    {
-        let views = state.views.read().await;
-        if views.projects.get(&id).is_none_or(|project| {
-            scope
-                .as_ref()
-                .is_some_and(|scope| project.org_id != scope.0.organization_id)
-        }) {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({ "error": "not_found", "message": "project not found" })),
-            )
-                .into_response();
-        }
-    }
     let event = crate::event::Event::ProjectLayoutUpdated {
         project_id: id.clone(),
         layout: body.layout,
@@ -80,17 +92,10 @@ pub(crate) async fn put_project_layout(
             .map(|duration| duration.as_secs_f64())
             .unwrap_or(0.0),
     };
-    if let Err(response) = append_and_apply_events(&state, &[event]).await {
-        return response;
-    }
-    let views = state.views.read().await;
-    match views.projects.get(&id) {
-        Some(project) => Json(ProjectDto::from_row(project)).into_response(),
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "project was deleted" })),
-        )
-            .into_response(),
+    match apply_existing_project_event(&state, &scope, &id, event).await {
+        Ok(Some(project)) => Json(project).into_response(),
+        Ok(None) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        Err(response) => response,
     }
 }
 
@@ -183,42 +188,10 @@ pub(crate) async fn patch_project(
     Path(id): Path<String>,
     Json(body): Json<PatchProjectBody>,
 ) -> Response {
-    {
-        let views = state.views.read().await;
-        if views.projects.get(&id).is_none() {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({ "error": "not_found", "message": "project not found" })),
-            )
-                .into_response();
-        }
-    }
-    if state
-        .views
-        .read()
-        .await
-        .projects
-        .get(&id)
-        .is_none_or(|project| {
-            scope
-                .as_ref()
-                .is_some_and(|scope| project.org_id != scope.0.organization_id)
-        })
-    {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "project not found" })),
-        )
-            .into_response();
-    }
-    // Update on-disk manifest (best-effort).
-    let _ = state.projects.update(
-        &id,
-        body.name.as_deref(),
-        body.vaults.as_deref(),
-        body.repos.as_deref(),
-        body.boards.as_deref(),
-    );
+    let manifest_name = body.name.clone();
+    let manifest_vaults = body.vaults.clone();
+    let manifest_repos = body.repos.clone();
+    let manifest_boards = body.boards.clone();
     let event = crate::event::Event::ProjectUpdated {
         project_id: id.clone(),
         name: body.name,
@@ -226,11 +199,20 @@ pub(crate) async fn patch_project(
         repos: body.repos,
         boards: body.boards,
     };
-    append_and_apply(&state, event).await;
-    let views = state.views.read().await;
-    match views.projects.get(&id) {
-        Some(row) => Json(ProjectDto::from_row(row)).into_response(),
-        None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    match apply_existing_project_event(&state, &scope, &id, event).await {
+        Ok(Some(project)) => {
+            // The event log is authoritative; the manifest is a convenience mirror.
+            let _ = state.projects.update(
+                &id,
+                manifest_name.as_deref(),
+                manifest_vaults.as_deref(),
+                manifest_repos.as_deref(),
+                manifest_boards.as_deref(),
+            );
+            Json(project).into_response()
+        }
+        Ok(None) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        Err(response) => response,
     }
 }
 
@@ -239,34 +221,6 @@ pub(crate) async fn delete_project(
     scope: Option<axum::extract::Extension<OrgScope>>,
     Path(id): Path<String>,
 ) -> Response {
-    {
-        let views = state.views.read().await;
-        if views.projects.get(&id).is_none() {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({ "error": "not_found", "message": "project not found" })),
-            )
-                .into_response();
-        }
-    }
-    if state
-        .views
-        .read()
-        .await
-        .projects
-        .get(&id)
-        .is_none_or(|project| {
-            scope
-                .as_ref()
-                .is_some_and(|scope| project.org_id != scope.0.organization_id)
-        })
-    {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "project not found" })),
-        )
-            .into_response();
-    }
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
@@ -275,6 +229,9 @@ pub(crate) async fn delete_project(
         project_id: id.clone(),
         deleted_at: now,
     };
-    append_and_apply(&state, event).await;
-    StatusCode::NO_CONTENT.into_response()
+    match apply_existing_project_event(&state, &scope, &id, event).await {
+        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Some(_)) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        Err(response) => response,
+    }
 }

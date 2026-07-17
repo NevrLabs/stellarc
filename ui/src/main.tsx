@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
-import { useLiveSync } from "./hooks/queries";
+import { qk, useLiveSync } from "./hooks/queries";
 import { ThemeProvider } from "./theme";
 import { AuthGate, useHallAuth } from "./auth";
 // Design system: tokens (colors, type, spacing, radius, motion, fonts) + base
@@ -17,6 +17,18 @@ const queryClient = new QueryClient({
     queries: { retry: 1, refetchOnWindowFocus: false },
   },
 });
+
+if (import.meta.env.DEV) {
+  const qaWindow = window as typeof window & {
+    __olympusQa?: { refetchProject: (projectId: string) => Promise<unknown> };
+  };
+  qaWindow.__olympusQa = {
+    refetchProject: (projectId) => queryClient.refetchQueries({
+      queryKey: qk.project(projectId),
+      exact: true,
+    }),
+  };
+}
 
 function Root() {
   return <AuthGate><AuthenticatedApp /></AuthGate>;

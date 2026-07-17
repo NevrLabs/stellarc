@@ -18,7 +18,8 @@ import urllib.request
 import http.cookiejar
 from pathlib import Path
 
-for site_packages in glob.glob("/tmp/oly-qa/venv/lib/python3.*/site-packages"):
+qa_venv = os.path.expanduser(os.getenv("OLYMPUS_QA_VENV", "~/.cache/olympus-qa-venv"))
+for site_packages in glob.glob(f"{qa_venv}/lib/python3.*/site-packages"):
     import sys
     sys.path.insert(0, site_packages)
 
@@ -75,12 +76,12 @@ def user_client(api_base, ui_base):
 def seed(api_base, ui_base, opener, organization_id):
     stamp = str(int(time.time()))
     scoped = f"/api/organizations/{organization_id}"
-    sessions = [api_request(api_base, opener, ui_base, "POST", f"{scoped}/sessions", {}) for _ in range(3)]
+    sessions = [api_request(api_base, opener, ui_base, "POST", f"{scoped}/sessions", {}) for _ in range(5)]
     projects = {
         name: api_request(api_base, opener, ui_base, "POST", f"{scoped}/projects", {"name": f"QA {name} {stamp}"})
-        for name in ("A", "B", "Clean")
+        for name in ("A", "B", "Clean", "Deleted")
     }
-    for session in sessions[:2]:
+    for session in (sessions[0], sessions[1], sessions[3]):
         api_request(
             api_base,
             opener,
@@ -89,6 +90,22 @@ def seed(api_base, ui_base, opener, organization_id):
             f"{scoped}/sessions/{session['id']}/project",
             {"projectId": projects["A"]["id"]},
         )
+    api_request(
+        api_base,
+        opener,
+        ui_base,
+        "POST",
+        f"{scoped}/sessions/{sessions[2]['id']}/project",
+        {"projectId": projects["B"]["id"]},
+    )
+    api_request(
+        api_base,
+        opener,
+        ui_base,
+        "POST",
+        f"{scoped}/sessions/{sessions[4]['id']}/project",
+        {"projectId": projects["Deleted"]["id"]},
+    )
     return {
         "organizationId": organization_id,
         "sessions": [session["id"] for session in sessions],
@@ -169,20 +186,68 @@ async def login(socket, ui_base):
     await wait_for(socket, "!!document.querySelector('.app')", "authenticated app")
 
 
-async def navigate_project(socket, ui_base, project_id):
+async def navigate_project(socket, ui_base, project_id, wait_ready=True):
     await command(socket, "Page.navigate", {"url": f"{ui_base}/sessions/projects/{project_id}"})
-    await wait_for(socket, "!!document.querySelector('.sessions-dockview')", f"project {project_id}")
+    await wait_for(socket, f"location.pathname === '/sessions/projects/{project_id}'", f"project route {project_id}")
+    if wait_ready:
+        await wait_for(
+            socket,
+            f"location.pathname === '/sessions/projects/{project_id}' && document.querySelector('.sessions-dock-shell')?.dataset.projectReady === 'true'",
+            f"project authority {project_id}",
+        )
 
 
 async def project_panel_count(socket):
     return await evaluate(socket, "document.querySelectorAll('.chat-view').length")
 
 
-async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir):
+async def refetch_project(socket, project_id):
+    await evaluate(socket, f"window.__olympusQa.refetchProject({json.dumps(project_id)})")
+
+
+async def wait_layout_idle(socket):
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        idle = await evaluate(
+            socket,
+            "document.querySelector('.sessions-dock-shell')?.dataset.layoutSaving === 'false'",
+        )
+        if idle:
+            await asyncio.sleep(1)
+            if await evaluate(
+                socket,
+                "document.querySelector('.sessions-dock-shell')?.dataset.layoutSaving === 'false'",
+            ):
+                return
+        await asyncio.sleep(0.1)
+    raise RuntimeError("timed out waiting for a stable idle project layout writer")
+
+
+async def wait_project_layout_count(api_base, opener, ui_base, path, expected, description, timeout=15):
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        project = await asyncio.to_thread(api_request, api_base, opener, ui_base, "GET", path)
+        last = len((project.get("layout") or {}).get("panels", {}))
+        if last == expected:
+            return project
+        await asyncio.sleep(0.2)
+    raise RuntimeError(f"timed out waiting for {description}; expected={expected}, last={last}")
+
+
+async def assert_project_layout_null(api_base, opener, ui_base, path, description):
+    await asyncio.sleep(1)
+    project = await asyncio.to_thread(api_request, api_base, opener, ui_base, "GET", path)
+    if project.get("layout") is not None:
+        raise RuntimeError(f"{description} was written back instead of preserving Hall layout:null")
+
+
+async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, state_path):
     project_a = state["projects"]["A"]
     project_b = state["projects"]["B"]
     project_clean = state["projects"]["Clean"]
-    first, second, _ = state["sessions"]
+    project_deleted = state["projects"]["Deleted"]
+    first, second, third, transfer, deleted_session = state["sessions"]
     scoped = f"/api/organizations/{state['organizationId']}"
 
     async with await connect_page(cdp) as socket:
@@ -220,27 +285,92 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir):
         await wait_for(socket, "document.documentElement.dataset.theme !== 'obsidian'", "light theme")
         await screenshot(socket, str(Path(evidence_dir) / "project-workspace-light.png"))
 
-        await asyncio.sleep(1)
-        remote_a = await asyncio.to_thread(api_request, api_base, opener, ui_base, "GET", f"{scoped}/projects/{project_a}")
-        if len((remote_a.get("layout") or {}).get("panels", {})) != 2:
-            raise RuntimeError("Hall did not persist Project A's two-pane layout")
+        remote_a = await wait_project_layout_count(
+            api_base, opener, ui_base, f"{scoped}/projects/{project_a}", 2,
+            "Project A's two-pane layout",
+        )
 
         await evaluate(socket, f"localStorage.removeItem({json.dumps(f'olympus-project-layout:{project_a}')})")
         await command(socket, "Page.reload", {"ignoreCache": True})
         await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "server-only Project A restore")
 
-        await asyncio.to_thread(
-            api_request, api_base, opener, ui_base, "POST", f"{scoped}/sessions/{second}/project", {"projectId": project_b}
+        # Add a third A pane, then move only that session to B. A must prune the
+        # foreign pane without sacrificing its durable two-pane workspace.
+        await wait_for(socket, f"!!document.querySelector('[data-session-id={json.dumps(transfer)}]')", "transfer session row")
+        await evaluate(socket, f'''(() => {{
+          const row = document.querySelector('[data-session-id={json.dumps(transfer)}]');
+          row.dispatchEvent(new MouseEvent('contextmenu', {{bubbles:true, clientX:180, clientY:420}}));
+        }})()''')
+        await wait_for(socket, "[...document.querySelectorAll('[role=menuitem]')].some(item => item.textContent.includes('Open Below'))", "third-pane menu")
+        await evaluate(socket, "[...document.querySelectorAll('[role=menuitem]')].find(item => item.textContent.includes('Open Below')).click()")
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 3", "third Project A pane")
+        await wait_project_layout_count(
+            api_base, opener, ui_base, f"{scoped}/projects/{project_a}", 3,
+            "Project A's three-pane pre-prune layout",
         )
-        await command(socket, "Page.reload", {"ignoreCache": True})
-        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "foreign Project B session pruning from A")
+
+        await asyncio.to_thread(
+            api_request, api_base, opener, ui_base, "POST", f"{scoped}/sessions/{transfer}/project", {"projectId": project_b}
+        )
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "live foreign-session pruning from A")
+        await wait_project_layout_count(
+            api_base, opener, ui_base, f"{scoped}/projects/{project_a}", 2,
+            "Project A's pruned two-pane layout",
+        )
 
         await navigate_project(socket, ui_base, project_b)
         if await project_panel_count(socket) != 0:
             raise RuntimeError("Project B inherited Project A layout")
-        await wait_for(socket, f"!!document.querySelector('[data-session-id={json.dumps(second)}]')", "Project B session row")
-        await evaluate(socket, f"document.querySelector('[data-session-id={json.dumps(second)}]').click()")
+        await wait_for(socket, f"!!document.querySelector('[data-session-id={json.dumps(third)}]')", "Project B session row")
+        await evaluate(socket, f"document.querySelector('[data-session-id={json.dumps(third)}]').click()")
         await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "Project B pane")
+        remote_b = await wait_project_layout_count(
+            api_base, opener, ui_base, f"{scoped}/projects/{project_b}", 1,
+            "Project B's one-pane layout",
+        )
+        await wait_layout_idle(socket)
+
+        # A fresh same-route Hall response must replace already-restored state.
+        await asyncio.to_thread(
+            api_request, api_base, opener, ui_base, "PUT",
+            f"{scoped}/projects/{project_b}/layout", {"layout": None},
+        )
+        await refetch_project(socket, project_b)
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 0", "same-route Hall null for B")
+        await wait_layout_idle(socket)
+        await assert_project_layout_null(
+            api_base, opener, ui_base, f"{scoped}/projects/{project_b}", "Project B clean authority",
+        )
+        await asyncio.to_thread(
+            api_request, api_base, opener, ui_base, "PUT",
+            f"{scoped}/projects/{project_b}/layout", {"layout": remote_b["layout"]},
+        )
+        await refetch_project(socket, project_b)
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "same-route Hall recovery for B")
+
+        # A cached React Query value must not beat a newer authoritative Hall
+        # null after that project has already been restored.
+        await navigate_project(socket, ui_base, project_a)
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "Project A before authority refresh")
+        await wait_layout_idle(socket)
+        await asyncio.to_thread(
+            api_request, api_base, opener, ui_base, "PUT",
+            f"{scoped}/projects/{project_a}/layout", {"layout": None},
+        )
+        await refetch_project(socket, project_a)
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 0", "same-route Hall null for A")
+        await wait_layout_idle(socket)
+        await assert_project_layout_null(
+            api_base, opener, ui_base, f"{scoped}/projects/{project_a}", "Project A clean authority",
+        )
+        await asyncio.to_thread(
+            api_request, api_base, opener, ui_base, "PUT",
+            f"{scoped}/projects/{project_a}/layout", {"layout": remote_a["layout"]},
+        )
+        await refetch_project(socket, project_a)
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "same-route Hall recovery for A")
+        await navigate_project(socket, ui_base, project_b)
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "Project B after authority-cache check")
 
         cached_a = json.dumps(remote_a["layout"])
         await evaluate(socket, f"localStorage.setItem({json.dumps(f'olympus-project-layout:{project_clean}')}, {json.dumps(cached_a)})")
@@ -248,6 +378,36 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir):
         await asyncio.sleep(1)
         if await project_panel_count(socket) != 0:
             raise RuntimeError("authoritative Hall layout:null was overridden by stale browser cache")
+
+        await navigate_project(socket, ui_base, project_deleted)
+        await wait_for(socket, f"!!document.querySelector('[data-session-id={json.dumps(deleted_session)}]')", "deleted-project session row before deletion")
+        await evaluate(socket, f"document.querySelector('[data-session-id={json.dumps(deleted_session)}]').click()")
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "deleted project before rejection")
+        await asyncio.to_thread(
+            api_request, api_base, opener, ui_base, "DELETE",
+            f"{scoped}/projects/{project_deleted}",
+        )
+        await refetch_project(socket, project_deleted)
+        await wait_for(
+            socket,
+            "[...document.querySelectorAll('[role=alert]')].some(alert => alert.textContent.includes('Project unavailable'))",
+            "same-route deleted project rejection",
+        )
+        if await project_panel_count(socket) != 0:
+            raise RuntimeError("authoritative project 404 restored a stale browser layout")
+        await wait_for(
+            socket,
+            f"!!document.querySelector('[data-session-id={json.dumps(deleted_session)}]')",
+            "deleted-project session row",
+        )
+        await evaluate(socket, f"document.querySelector('[data-session-id={json.dumps(deleted_session)}]').click()")
+        await wait_for(
+            socket,
+            "[...document.querySelectorAll('[role=alert]')].some(alert => alert.textContent.includes('Could not open session'))",
+            "deleted-project open rejection",
+        )
+        if await project_panel_count(socket) != 0:
+            raise RuntimeError("a session opened inside an authoritative project 404")
 
         await asyncio.to_thread(
             api_request,
@@ -272,12 +432,12 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir):
 
     state["geometry"] = geometry
     state["single"] = single
-    Path(DEFAULT_STATE).write_text(json.dumps(state, indent=2))
+    Path(state_path).write_text(json.dumps(state, indent=2))
     return state
 
 
 async def verify_existing(cdp, ui_base, state):
-    expected = {state["projects"]["A"]: 1, state["projects"]["B"]: 1, state["projects"]["Clean"]: 0}
+    expected = {state["projects"]["A"]: 2, state["projects"]["B"]: 1, state["projects"]["Clean"]: 0}
     async with await connect_page(cdp) as socket:
         await login(socket, ui_base)
         observed = {}
@@ -309,7 +469,9 @@ async def main():
         return
     opener, organization_id = user_client(args.api, args.ui)
     state = seed(args.api, args.ui, opener, organization_id)
-    result = await initial_probe(args.cdp, args.ui, args.api, opener, state, args.evidence_dir)
+    result = await initial_probe(
+        args.cdp, args.ui, args.api, opener, state, args.evidence_dir, args.state,
+    )
     print(json.dumps(result, sort_keys=True))
 
 

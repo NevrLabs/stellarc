@@ -354,6 +354,27 @@ async fn login_cookie_authenticates_session_and_organization_routes() {
     let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(body["layout"]["panels"]["one"], serde_json::json!({}));
 
+    let oversized_layout = serde_json::json!({
+        "layout": { "payload": "x".repeat(65 * 1024) }
+    });
+    let rejected_layout = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!(
+                    "/api/organizations/{organization_id}/projects/{project_id}/layout"
+                ))
+                .header("cookie", cookie)
+                .header("sec-fetch-site", "same-origin")
+                .header("content-type", "application/json")
+                .body(Body::from(oversized_layout.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rejected_layout.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
     let scoped_session = app
         .clone()
         .oneshot(
@@ -390,6 +411,24 @@ async fn login_cookie_authenticates_session_and_organization_routes() {
     let created_id = body["id"].as_str().unwrap();
     assert_eq!(body["orgId"], organization_id);
 
+    let attached = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/api/organizations/{organization_id}/sessions/{created_id}/project"
+                ))
+                .header("cookie", cookie)
+                .header("sec-fetch-site", "same-origin")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(r#"{{"projectId":"{project_id}"}}"#)))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(attached.status(), StatusCode::OK);
+
     let created_detail = app
         .clone()
         .oneshot(
@@ -405,6 +444,11 @@ async fn login_cookie_authenticates_session_and_organization_routes() {
         .await
         .unwrap();
     assert_eq!(created_detail.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(created_detail.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["projectId"], project_id);
 
     let unscoped_cookie_access = app
         .clone()
@@ -613,6 +657,61 @@ async fn cookie_sessions_and_operator_flag_fail_closed() {
         .await
         .unwrap();
     assert_eq!(disabled_operator.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn unscoped_project_attachment_rejects_cross_organization_membership() {
+    let (state, _dir) = test_state();
+    let events = [
+        Event::SessionOrganizationAssigned {
+            session_id: "s1".into(),
+            organization_id: "org-a".into(),
+        },
+        Event::ProjectCreated {
+            project_id: "project-b".into(),
+            name: "Other organization".into(),
+            created_at: 102.0,
+        },
+        Event::ProjectOrganizationAssigned {
+            project_id: "project-b".into(),
+            organization_id: "org-b".into(),
+        },
+    ];
+    for event in events {
+        state.log.append(&event).unwrap();
+        state.views.write().await.apply(&event);
+    }
+    let app = build_router(state.clone());
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions/s1/project")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"projectId":"project-b"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let durable_events = state.log.read_all().unwrap();
+    assert!(!durable_events.iter().any(|(_, event)| matches!(
+        event,
+        Event::SessionProjectAttached { session_id, project_id, .. }
+            if session_id == "s1" && project_id == "project-b"
+    )));
+    let mut replayed = ViewManager::new();
+    replayed.replay(&state.log).unwrap();
+    assert_eq!(
+        replayed
+            .sessions
+            .get("s1")
+            .and_then(|session| session.project_id.as_deref()),
+        None,
+    );
 }
 
 #[tokio::test]

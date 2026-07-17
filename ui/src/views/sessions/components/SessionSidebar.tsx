@@ -59,7 +59,7 @@ export function SessionSidebar({
   activeProjectId?: string | null;
   openSessionIds?: ReadonlySet<string>;
   paneMarks?: ReadonlyMap<string, string>;
-  onOpenSession?: (id: string, split?: "right" | "below") => void;
+  onOpenSession?: (id: string, split?: "right" | "below") => void | Promise<void>;
   onResizeStart?: (e: React.MouseEvent) => void;
   onResizeKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
@@ -84,6 +84,7 @@ export function SessionSidebar({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
+  const [projectActionError, setProjectActionError] = useState<string | null>(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [metadataFields, setMetadataFields] = useState<ReadonlySet<SessionMetadataField>>(
     () => new Set(DEFAULT_SESSION_METADATA_FIELDS),
@@ -102,34 +103,56 @@ export function SessionSidebar({
         const session = await createSession({ agent: agentId, node: nodeId });
         setPickerOpen(false);
         if (session?.id) {
-          void navigate({
-            to: "/sessions/$sessionId",
-            params: { sessionId: session.id },
-          });
+          if (activeProjectId && onOpenSession) {
+            await onOpenSession(session.id);
+          } else {
+            void navigate({
+              to: "/sessions/$sessionId",
+              params: { sessionId: session.id },
+            });
+          }
         }
       } catch (error) {
         setPickerOpen(true);
         setPickerError(error instanceof Error ? error.message : `Could not create session on ${nodeId}`);
       }
     },
-    [navigate],
+    [activeProjectId, navigate, onOpenSession],
   );
 
-  const handleSelectSession = useCallback(
-    (id: string) => {
-      if (onOpenSession) onOpenSession(id);
-      else void navigate({ to: "/sessions/$sessionId", params: { sessionId: id } });
+  const handleOpenSession = useCallback(
+    (id: string, split?: "right" | "below") => {
+      setProjectActionError(null);
+      if (onOpenSession) {
+        void Promise.resolve(onOpenSession(id, split)).catch((error) => {
+          const detail = error instanceof Error ? `: ${error.message}` : "";
+          setProjectActionError(`Could not open session${detail}`);
+        });
+      } else {
+        void navigate({ to: "/sessions/$sessionId", params: { sessionId: id } });
+      }
       closeIfPhone();
     },
     [navigate, closeIfPhone, onOpenSession],
+  );
+
+  const handleSelectSession = useCallback(
+    (id: string) => handleOpenSession(id),
+    [handleOpenSession],
   );
 
   const handleProjectDrop = useCallback(async (event: React.DragEvent, projectId: string) => {
     event.preventDefault();
     const sessionId = sessionDragId(event.dataTransfer);
     if (!sessionId) return;
-    await attachSessionToProject(sessionId, projectId);
-    await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    setProjectActionError(null);
+    try {
+      await attachSessionToProject(sessionId, projectId);
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      const detail = error instanceof Error ? `: ${error.message}` : "";
+      setProjectActionError(`Could not move session to project${detail}`);
+    }
   }, [queryClient]);
 
   return (
@@ -165,6 +188,11 @@ export function SessionSidebar({
             <>
               <div className="sec-head"><span className="lbl">PROJECT WORKSPACES</span></div>
               <div className="sec-content">
+                {projectActionError && (
+                  <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
+                    {projectActionError}
+                  </div>
+                )}
                 {projectData!.projects.map((project) => (
                   <button
                     type="button"
@@ -191,7 +219,7 @@ export function SessionSidebar({
               paneMarks={paneMarks}
               metadataFields={metadataFields}
               onSelect={handleSelectSession}
-              onOpenSession={onOpenSession}
+              onOpenSession={handleOpenSession}
             />
           )}
           <SessionSection
@@ -202,7 +230,7 @@ export function SessionSidebar({
             paneMarks={paneMarks}
             metadataFields={metadataFields}
             onSelect={handleSelectSession}
-            onOpenSession={onOpenSession}
+            onOpenSession={handleOpenSession}
           />
         </div>
       </aside>

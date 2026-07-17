@@ -35,6 +35,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DockviewReact,
   type DockviewApi,
@@ -46,11 +47,11 @@ import "dockview-react/dist/styles/dockview.css";
 import { Icon } from "../components/Icon";
 import { BrandIcon, agentBrand } from "../components/BrandIcons";
 import { useUIStore } from "../store";
-import { useSession, useMessages, useAgents, useProject, useSessions } from "../hooks/queries";
+import { qk, useSession, useMessages, useAgents, useProject, useSessions } from "../hooks/queries";
 import { useResizable } from "../hooks/useResizable";
-import { attachSessionToProject, saveProjectLayout } from "../api";
+import { ApiError, attachSessionToProject, saveProjectLayout } from "../api";
 import { readSessionPanelState, writeSessionPanelState } from "../workbench/sessionPanelState";
-import { LatestProjectLayoutWriter } from "../workbench/projectLayoutPersistence";
+import { LatestProjectLayoutWriter, ProjectLayoutJournal, stableJson } from "../workbench/projectLayoutPersistence";
 
 import { SessionSidebar } from "./sessions/components/SessionSidebar";
 import { RightPanel, type RsTab } from "./sessions/components/RightPanel";
@@ -61,6 +62,38 @@ import { UsagePage } from "./sessions/pages/UsagePage";
 import { HistoryPage } from "./sessions/pages/HistoryPage";
 
 type DockLayout = ReturnType<DockviewApi["toJSON"]>;
+
+type ProjectLayoutWriterEvent =
+  | { kind: "saved"; projectId: string; layout: DockLayout; result: unknown; revision: number }
+  | { kind: "error"; projectId: string; error: unknown }
+  | { kind: "idle"; projectId: string };
+
+const projectLayoutWriterListeners = new Set<(event: ProjectLayoutWriterEvent) => void>();
+let projectLayoutWriterRevision = 0;
+const emitProjectLayoutWriterEvent = (event: ProjectLayoutWriterEvent) => {
+  for (const listener of projectLayoutWriterListeners) listener(event);
+};
+const projectLayoutJournal = new ProjectLayoutJournal<DockLayout>(() => localStorage, stableJson);
+
+// One queue per browser runtime, not per React mount. StrictMode and route
+// remounts must not create independent writers that can complete out of order.
+const projectLayoutWriter = new LatestProjectLayoutWriter<DockLayout>(
+  async (projectId, layout) => {
+    const result = await saveProjectLayout(projectId, layout);
+    projectLayoutJournal.acknowledge(projectId, layout);
+    emitProjectLayoutWriterEvent({
+      kind: "saved",
+      projectId,
+      layout,
+      result,
+      revision: ++projectLayoutWriterRevision,
+    });
+    return result;
+  },
+  (projectId, error) => emitProjectLayoutWriterEvent({ kind: "error", projectId, error }),
+  (projectId) => emitProjectLayoutWriterEvent({ kind: "idle", projectId }),
+  stableJson,
+);
 
 interface SessionPanelParams {
   sessionId: string;
@@ -76,19 +109,26 @@ export function SessionsView({
   page: "chat" | "agents" | "usage" | "history" | null;
 }) {
   const { sidebarCollapsed } = useUIStore();
+  const queryClient = useQueryClient();
   const apiRef = useRef<DockviewApi | null>(null);
   const [dockApi, setDockApi] = useState<DockviewApi | null>(null);
   const restoringRef = useRef(false);
   const restoredProjectRef = useRef<string | null>(null);
+  const restoredAuthorityRef = useRef<string | null>(null);
+  const activeProjectRef = useRef(projectId);
+  activeProjectRef.current = projectId;
   const {
     data: project,
     isSuccess: projectLoaded,
     isError: projectLoadFailed,
+    error: projectLoadError,
+    isFetching: projectFetching,
   } = useProject(projectId);
   const {
     data: sessionData,
-    isSuccess: sessionsLoaded,
     refetch: refetchSessions,
+    isFetching: sessionsFetching,
+    error: sessionsError,
   } = useSessions({ managed: true, archived: false });
   const projectSessionIds = React.useMemo(
     () => new Set(
@@ -102,6 +142,27 @@ export function SessionsView({
   const [openSessionIds, setOpenSessionIds] = useState<Set<string>>(() => new Set());
   const [paneMarks, setPaneMarks] = useState<Map<string, string>>(() => new Map());
   const [groupCount, setGroupCount] = useState(0);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [projectRestoreError, setProjectRestoreError] = useState<string | null>(null);
+  const [membershipVerifiedProjectId, setMembershipVerifiedProjectId] = useState<string | null>(null);
+  const [layoutSaveRevision, setLayoutSaveRevision] = useState(0);
+  const [layoutSaveError, setLayoutSaveError] = useState<{
+    projectId: string;
+    message: string;
+  } | null>(null);
+  const projectFailureStatus = projectLoadError instanceof ApiError ? projectLoadError.status : null;
+  const authoritativeProjectFailure = projectLoadFailed
+    && projectFailureStatus !== null
+    && projectFailureStatus >= 400
+    && projectFailureStatus < 500;
+  const membershipAuthorityReady = membershipVerifiedProjectId === projectId
+    && !sessionsFetching
+    && sessionsError == null;
+  const membershipAuthorityReadyRef = useRef(false);
+  membershipAuthorityReadyRef.current = membershipAuthorityReady;
+  const projectPersistenceAllowedRef = useRef(false);
+  projectPersistenceAllowedRef.current = !projectFetching
+    && (projectLoaded || (projectLoadFailed && !authoritativeProjectFailure));
 
   const syncOpenSessions = useCallback((api: DockviewApi) => {
     const ids = new Set<string>();
@@ -129,25 +190,53 @@ export function SessionsView({
   // zero). Layout-effect cleanups run BEFORE passive-effect cleanups, so we
   // snapshot the still-intact layout there and suspend all later persists.
   const persistSuspendedRef = useRef(false);
-  const layoutWriterRef = useRef<LatestProjectLayoutWriter<DockLayout> | null>(null);
-  layoutWriterRef.current ??= new LatestProjectLayoutWriter<DockLayout>(saveProjectLayout);
+  const latestLayoutSaveRevisionRef = useRef(new Map<string, number>());
+  const retriedPendingLayoutRef = useRef(new Map<string, string>());
+
+  useEffect(() => {
+    const listener = (event: ProjectLayoutWriterEvent) => {
+      if (event.kind === "saved") {
+        latestLayoutSaveRevisionRef.current.set(event.projectId, event.revision);
+        if (activeProjectRef.current === event.projectId) {
+          restoredAuthorityRef.current = `hall:${stableJson(event.layout)}`;
+        }
+        void queryClient.cancelQueries({ queryKey: qk.project(event.projectId) }).then(() => {
+          if (latestLayoutSaveRevisionRef.current.get(event.projectId) === event.revision) {
+            queryClient.setQueryData(qk.project(event.projectId), event.result);
+          }
+        });
+        setLayoutSaveError((current) => current?.projectId === event.projectId ? null : current);
+      } else if (event.kind === "error") {
+        const detail = event.error instanceof Error ? `: ${event.error.message}` : "";
+        setLayoutSaveError({
+          projectId: event.projectId,
+          message: `Could not save project layout${detail}`,
+        });
+      } else {
+        if (activeProjectRef.current === event.projectId) {
+          persistSuspendedRef.current = false;
+        }
+        setLayoutSaveRevision((revision) => revision + 1);
+      }
+    };
+    projectLayoutWriterListeners.add(listener);
+    return () => { projectLayoutWriterListeners.delete(listener); };
+  }, [queryClient]);
 
   const persist = useCallback(() => {
     const api = apiRef.current;
     if (
       !api ||
       !projectId ||
+      !projectPersistenceAllowedRef.current ||
+      !membershipAuthorityReadyRef.current ||
       persistSuspendedRef.current ||
       restoringRef.current ||
       restoredProjectRef.current !== projectId
     ) return;
-    const layout = api.toJSON();
-    try {
-      localStorage.setItem(`olympus-project-layout:${projectId}`, JSON.stringify(layout));
-    } catch {
-      // Server persistence remains authoritative.
-    }
-    layoutWriterRef.current!.enqueue(projectId, layout);
+    const layout = JSON.parse(JSON.stringify(api.toJSON())) as DockLayout;
+    projectLayoutJournal.record(projectId, layout);
+    projectLayoutWriter.enqueue(projectId, layout);
   }, [projectId]);
 
   useLayoutEffect(() => {
@@ -166,10 +255,38 @@ export function SessionsView({
   useEffect(() => setActiveSessionId(sessionId), [sessionId]);
   useEffect(() => {
     restoredProjectRef.current = null;
+    restoredAuthorityRef.current = null;
+    membershipAuthorityReadyRef.current = false;
+    setMembershipVerifiedProjectId(null);
+    setWorkspaceError(null);
+    setProjectRestoreError(null);
     setOpenSessionIds(new Set());
     setPaneMarks(new Map());
     setGroupCount(0);
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    void refetchSessions().then((result) => {
+      if (cancelled || activeProjectRef.current !== projectId) return;
+      if (result.error == null && result.data) {
+        membershipAuthorityReadyRef.current = true;
+        setMembershipVerifiedProjectId(projectId);
+      } else {
+        membershipAuthorityReadyRef.current = false;
+        setMembershipVerifiedProjectId(null);
+        setWorkspaceError("Could not verify project membership");
+      }
+    }).catch(() => {
+      if (!cancelled && activeProjectRef.current === projectId) {
+        membershipAuthorityReadyRef.current = false;
+        setMembershipVerifiedProjectId(null);
+        setWorkspaceError("Could not verify project membership");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, refetchSessions]);
 
   const openSessionPanel = useCallback((id: string, opts?: {
     drop?: DockviewDidDropEvent;
@@ -202,12 +319,44 @@ export function SessionsView({
     panel.api.setActive();
     setActiveSessionId(id);
     syncOpenSessions(api);
-    persist();
+    requestAnimationFrame(persist);
   }, [persist, syncOpenSessions]);
 
-  const openSession = useCallback((id: string, split?: "right" | "below") => {
-    if (projectSessionIds.has(id)) openSessionPanel(id, { split });
-  }, [openSessionPanel, projectSessionIds]);
+  const associateAndOpenSession = useCallback(async (id: string, opts?: {
+    drop?: DockviewDidDropEvent;
+    split?: "right" | "below";
+  }) => {
+    if (!projectId) return;
+    if (!projectLoaded || projectFetching || project?.id !== projectId) {
+      throw new Error("Project is unavailable; session was not opened");
+    }
+    if (!membershipAuthorityReadyRef.current) {
+      throw new Error("Project membership is unavailable; session was not opened");
+    }
+    if (projectSessionIds.has(id)) {
+      setWorkspaceError(null);
+      openSessionPanel(id, opts);
+      return;
+    }
+    await attachSessionToProject(id, projectId);
+    const refreshed = await refetchSessions();
+    if (activeProjectRef.current !== projectId) return;
+    const attached = refreshed.data?.sessions.some(
+      (session) => session.id === id && session.projectId === projectId,
+    );
+    if (refreshed.error != null || !attached) {
+      membershipAuthorityReadyRef.current = false;
+      setMembershipVerifiedProjectId(null);
+      throw new Error("Could not verify project membership; session was not opened");
+    }
+    membershipAuthorityReadyRef.current = true;
+    setWorkspaceError(null);
+    openSessionPanel(id, opts);
+  }, [openSessionPanel, project?.id, projectFetching, projectId, projectLoaded, projectSessionIds, refetchSessions]);
+
+  const openSession = useCallback(async (id: string, split?: "right" | "below") => {
+    await associateAndOpenSession(id, { split });
+  }, [associateAndOpenSession]);
 
   const handleReady = useCallback((event: DockviewReadyEvent) => {
     apiRef.current = event.api;
@@ -228,15 +377,11 @@ export function SessionsView({
         projectId?: string | null;
       } | null;
       if (!payload?.sessionId || !projectId) return;
-      void (async () => {
-        if (payload.projectId !== projectId) {
-          await attachSessionToProject(payload.sessionId!, projectId);
-          await refetchSessions();
-        }
-        openSessionPanel(payload.sessionId!, { drop: dropEvent });
-      })();
+      void associateAndOpenSession(payload.sessionId, { drop: dropEvent }).catch((error) => {
+        setWorkspaceError(error instanceof Error ? error.message : String(error));
+      });
     });
-  }, [openSessionPanel, persist, projectId, refetchSessions, syncOpenSessions]);
+  }, [associateAndOpenSession, persist, projectId, syncOpenSessions]);
 
   useEffect(() => {
     const api = dockApi;
@@ -244,42 +389,125 @@ export function SessionsView({
       !api ||
       apiRef.current !== api ||
       !projectId ||
+      projectFetching ||
       (!projectLoaded && !projectLoadFailed) ||
-      !sessionsLoaded ||
-      restoredProjectRef.current === projectId
+      projectLayoutWriter.isBusy(projectId)
     ) return;
-    let layout = projectLoaded ? project?.layout as DockLayout | null | undefined : null;
-    if (projectLoadFailed) {
-      try {
-        const raw = localStorage.getItem(`olympus-project-layout:${projectId}`);
-        layout = raw ? JSON.parse(raw) as DockLayout : null;
-      } catch {
-        layout = null;
-      }
+    let layout = projectLoaded ? (project?.layout as DockLayout | null | undefined) ?? null : null;
+    let authoritySignature: string;
+    let recoveringPendingLayout = false;
+    const pendingLayout = authoritativeProjectFailure ? null : projectLayoutJournal.pending(projectId);
+    if (authoritativeProjectFailure) {
+      layout = null;
+      authoritySignature = `rejected:${projectFailureStatus}`;
+      setProjectRestoreError(`Project unavailable (HTTP ${projectFailureStatus})`);
+      projectLayoutJournal.clear(projectId);
+    } else if (pendingLayout) {
+      layout = pendingLayout;
+      authoritySignature = `pending:${stableJson(layout)}`;
+      recoveringPendingLayout = true;
+      setProjectRestoreError("Workspace has unsaved changes; retrying the Hall save");
+    } else if (projectLoadFailed) {
+      setProjectRestoreError("Hall unavailable; using the last browser workspace copy");
+      layout = projectLayoutJournal.cached(projectId);
+      authoritySignature = `fallback:${stableJson(layout)}`;
+    } else {
+      authoritySignature = `hall:${stableJson(layout)}`;
+      setProjectRestoreError(null);
+      projectLayoutJournal.cacheAuthority(projectId, layout);
     }
+    // Rejection and an authoritative empty layout must clear already-mounted
+    // content even if the separate sessions-membership request is unavailable.
+    // Membership is required only before retaining or mounting session panes.
+    if (layout && Object.keys(layout.panels ?? {}).length > 0 && !membershipAuthorityReady) return;
+    if (
+      restoredProjectRef.current === projectId
+      && restoredAuthorityRef.current === authoritySignature
+    ) return;
+    persistSuspendedRef.current = true;
     restoringRef.current = true;
     let layoutPruned = false;
-    if (layout && Object.keys(layout.panels ?? {}).length > 0) {
-      try {
-        api.fromJSON(layout);
-        for (const panel of [...api.panels]) {
-          const sid = (panel.params as SessionPanelParams | undefined)?.sessionId;
-          if (!sid || !projectSessionIds.has(sid)) {
-            api.removePanel(panel);
-            layoutPruned = true;
-          }
-        }
-        pruneEmptyGroups(api);
-      } catch {
-        // Replace layouts from incompatible Dockview versions with a clean one.
-        layoutPruned = true;
+    try {
+      if (restoredProjectRef.current === projectId) {
+        api.clear();
       }
+      if (layout && Object.keys(layout.panels ?? {}).length > 0) {
+        try {
+          // Dockview normalizes the object it receives. Restore from a clone so
+          // the exact journaled snapshot remains available for Hall retry and
+          // acknowledgement matching.
+          api.fromJSON(JSON.parse(JSON.stringify(layout)) as DockLayout);
+          for (const panel of [...api.panels]) {
+            const sid = (panel.params as SessionPanelParams | undefined)?.sessionId;
+            if (!sid || !projectSessionIds.has(sid)) {
+              api.removePanel(panel);
+              layoutPruned = true;
+            }
+          }
+          pruneEmptyGroups(api);
+        } catch {
+          // Replace layouts from incompatible Dockview versions with a clean one.
+          api.clear();
+          layoutPruned = true;
+        }
+      }
+    } finally {
+      restoringRef.current = false;
     }
-    restoringRef.current = false;
     restoredProjectRef.current = projectId;
+    restoredAuthorityRef.current = authoritySignature;
     syncOpenSessions(api);
-    if (layoutPruned) persist();
-  }, [dockApi, persist, project?.layout, projectId, projectLoadFailed, projectLoaded, projectSessionIds, sessionsLoaded, syncOpenSessions]);
+    if (layoutPruned) {
+      persistSuspendedRef.current = false;
+      persist();
+    } else if (recoveringPendingLayout && layout) {
+      const pendingFingerprint = stableJson(layout);
+      if (retriedPendingLayoutRef.current.get(projectId) !== pendingFingerprint) {
+        retriedPendingLayoutRef.current.set(projectId, pendingFingerprint);
+        projectLayoutWriter.enqueue(projectId, layout);
+      }
+    } else {
+      projectLayoutWriter.adopt(projectId, api.toJSON());
+      requestAnimationFrame(() => {
+        if (activeProjectRef.current === projectId && apiRef.current === api) {
+          persistSuspendedRef.current = false;
+        }
+      });
+    }
+  }, [authoritativeProjectFailure, dockApi, layoutSaveRevision, membershipAuthorityReady, persist, project?.layout, projectFetching, projectId, projectLoadError, projectLoadFailed, projectLoaded, projectSessionIds, syncOpenSessions]);
+
+  useEffect(() => {
+    const api = dockApi;
+    if (
+      !api ||
+      apiRef.current !== api ||
+      !projectId ||
+      !membershipAuthorityReady ||
+      restoredProjectRef.current !== projectId
+    ) return;
+    let pruned = false;
+    restoringRef.current = true;
+    try {
+      for (const panel of [...api.panels]) {
+        const sid = (panel.params as SessionPanelParams | undefined)?.sessionId;
+        if (!sid || !projectSessionIds.has(sid)) {
+          api.removePanel(panel);
+          pruned = true;
+        }
+      }
+      if (pruned) pruneEmptyGroups(api);
+    } finally {
+      restoringRef.current = false;
+    }
+    if (pruned) {
+      syncOpenSessions(api);
+      persist();
+    }
+  }, [dockApi, membershipAuthorityReady, persist, projectId, projectSessionIds, syncOpenSessions]);
+
+  const visibleWorkspaceError = workspaceError
+    ?? (layoutSaveError?.projectId === projectId ? layoutSaveError.message : null)
+    ?? projectRestoreError;
 
   return (
     <>
@@ -316,7 +544,16 @@ export function SessionsView({
             <HistoryPage />
           </div>
         ) : projectId ? (
-          <div className="sessions-dock-shell">
+          <div
+            className="sessions-dock-shell"
+            data-project-ready={projectLoaded && !projectFetching && project?.id === projectId && membershipAuthorityReady}
+            data-layout-saving={projectLayoutWriter.isBusy(projectId)}
+          >
+            {visibleWorkspaceError && (
+              <div role="alert" style={{ position: "absolute", zIndex: 20, top: 8, left: "50%", transform: "translateX(-50%)", padding: "6px 10px", border: "1px solid var(--err-line)", borderRadius: 4, background: "var(--bg-elev)", color: "var(--err)", fontSize: 12 }}>
+                {visibleWorkspaceError}
+              </div>
+            )}
             <DockviewReact
               key={projectId}
               className={`dockview-theme-abyss olympus-dockview sessions-dockview${groupCount > 1 ? " multi-group" : ""}`}

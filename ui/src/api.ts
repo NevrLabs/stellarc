@@ -91,11 +91,21 @@ function jsonHeaders(): Record<string, string> {
   return { ...authHeaders(), "content-type": "application/json" };
 }
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function expectJson<T>(res: Response, label: string): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null) as { message?: unknown } | null;
     const message = typeof body?.message === "string" ? body.message : `${label} ${res.status}`;
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   return res.json() as Promise<T>;
 }

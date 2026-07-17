@@ -22,9 +22,25 @@ Start a debugging browser (survives session exit):
       --no-sandbox --disable-gpu --headless=new --remote-debugging-port=9666 \
       --user-data-dir=/tmp/oly-qa/profile --window-size=1440,900 about:blank
 Ready-made probe scripts (screenshot, login, geometry chain, HTML5 drag,
-sash drag): /tmp/oly-qa/*.py on fxcompute-01 (venv: /tmp/oly-qa/venv with
-websockets). Copy them into your worktree if /tmp got wiped; canonical copies
-in the olympus-control-plane-engineering skill scripts dir on Terminus.
+sash drag) live in `ui/scripts/qa`. Their durable dependency environment is
+`~/.cache/olympus-qa-venv` (override with `OLYMPUS_QA_VENV`):
+
+    python3 -m venv ~/.cache/olympus-qa-venv
+    ~/.cache/olympus-qa-venv/bin/pip install websockets
+
+Do not place the venv under `/tmp`; fxcompute reboots erase it. Browser profiles,
+screenshots, and disposable state may remain under `/tmp/oly-qa`.
+
+The Vite dev build exposes `window.__olympusQa.refetchProject(projectId)` for
+deterministic same-route authority tests. It is guarded by `import.meta.env.DEV`
+and is not present in production bundles. Prefer this seam over synthetic focus
+events; production intentionally disables focus refetching.
+
+When an isolated Hall must survive a restart, never execute the shared Cargo
+target directly. Build under `~/.cache/olympus-cargo.lock`, copy the resulting
+binary to a worktree/revision-scoped path under `~/.cache/olympus-qa/`, and run
+that copy. Another worktree can replace `olympus-cargo-target/debug/olympus-hall`
+at any time.
 
 ## Evidence bar for review-required
 - Screenshots of the changed surface, BOTH themes, from the LIVE dev UI.

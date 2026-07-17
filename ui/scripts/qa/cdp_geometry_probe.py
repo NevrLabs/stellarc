@@ -1,5 +1,5 @@
-import asyncio, json, sys, urllib.request, glob
-for p in glob.glob("/tmp/oly-qa/venv/lib/python3.*/site-packages"): sys.path.insert(0, p)
+import asyncio, json, sys, urllib.request, glob, os
+for p in glob.glob(os.path.expanduser(os.getenv("OLYMPUS_QA_VENV", "~/.cache/olympus-qa-venv")) + "/lib/python3.*/site-packages"): sys.path.insert(0, p)
 import websockets
 CDP = "http://127.0.0.1:9666"
 _id = 0

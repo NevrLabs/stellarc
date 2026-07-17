@@ -3,6 +3,8 @@
 # ssh fxcompute-01 'cd /home/rpw/olympus && ui/scripts/dev-e2e.sh'
 set -euo pipefail
 
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UI="$ROOT/ui"
 CREDS="${OLYMPUS_DEV_CREDENTIALS:-$HOME/.config/olympus-dev/admin-credentials}"
@@ -24,12 +26,16 @@ curl -fsS "$OLYMPUS_DEV_BASE_URL/" >/dev/null || {
   echo "ERROR: dev UI unavailable at $OLYMPUS_DEV_BASE_URL" >&2
   exit 1
 }
-curl -fsS "${OLYMPUS_DEV_HALL_URL:-http://127.0.0.1:8799}/health" >/dev/null || {
+curl -fsS "${OLYMPUS_DEV_HALL_URL:-http://127.0.0.1:8799}/api/health" >/dev/null || {
   echo "ERROR: dev Hall unavailable" >&2
   exit 1
 }
 
 cd "$UI"
 rm -rf test-results/dev-e2e
-exec timeout --signal=TERM --kill-after=10s 9m bunx playwright test e2e/dev.spec.ts \
+[[ -x node_modules/.bin/playwright ]] || {
+  echo "ERROR: local Playwright CLI is missing; install UI dependencies first" >&2
+  exit 1
+}
+exec timeout --signal=TERM --kill-after=10s 9m node_modules/.bin/playwright test e2e/dev.spec.ts \
   --workers=1 --reporter=line --output=test-results/dev-e2e
