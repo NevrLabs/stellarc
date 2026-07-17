@@ -1546,19 +1546,32 @@ mod tests {
     }
 
     #[test]
-    fn legacy_vault_without_backend_remains_listable() {
+    fn future_manifest_is_refused_without_rewrite() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("future");
+        fs::create_dir_all(path.join(".vault")).unwrap();
+        let metadata_path = path.join(".vault/metadata.json");
+        let original = br#"{"schemaVersion":3,"name":"Future","futureField":true}"#;
+        fs::write(&metadata_path, original).unwrap();
+
+        let error = load_vault_manifest(&path, "future").unwrap_err();
+        assert!(error.to_string().contains("schema v3 is newer"));
+        assert_eq!(fs::read(metadata_path).unwrap(), original);
+    }
+
+    #[test]
+    fn legacy_vault_without_backend_remains_listable_without_writing() {
         let tmp = tempfile::tempdir().unwrap();
         let store = store(&tmp);
         let path = store.root().join("legacy");
         fs::create_dir_all(path.join(".vault")).unwrap();
-        fs::write(path.join(".vault/metadata.json"), r#"{"name":"Legacy"}"#).unwrap();
+        let original = br#"{"name":"Legacy"}"#;
+        fs::write(path.join(".vault/metadata.json"), original).unwrap();
 
         let listed = store.list_vaults().unwrap();
         assert_eq!(listed[0].name, "Legacy");
         assert!(listed[0].sync_bindings.is_empty());
-        let metadata: Value =
-            serde_json::from_slice(&fs::read(path.join(".vault/metadata.json")).unwrap()).unwrap();
-        assert_eq!(metadata["schemaVersion"], 2);
+        assert_eq!(fs::read(path.join(".vault/metadata.json")).unwrap(), original);
     }
 
     #[test]
