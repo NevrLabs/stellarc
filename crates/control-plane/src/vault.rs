@@ -731,8 +731,17 @@ fn load_vault_manifest(path: &Path, fallback_name: &str) -> Result<VaultManifest
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => json!({}),
         Err(err) => return Err(err.into()),
     };
-    if value.get("schemaVersion").and_then(Value::as_u64) == Some(2) {
-        return Ok(serde_json::from_value(value)?);
+    match value.get("schemaVersion") {
+        Some(version) => match version.as_u64() {
+            Some(2) => return Ok(serde_json::from_value(value)?),
+            Some(version) if version > 2 => {
+                bail!("vault manifest schema v{version} is newer than this Hall supports")
+            }
+            Some(1) => {}
+            Some(version) => bail!("unsupported vault manifest schema v{version}"),
+            None => bail!("vault manifest schemaVersion must be an integer"),
+        },
+        None => {}
     }
     let name = value
         .get("name")
@@ -746,15 +755,17 @@ fn load_vault_manifest(path: &Path, fallback_name: &str) -> Result<VaultManifest
         .transpose()?
         .map(|backend| vec![backend.into()])
         .unwrap_or_default();
-    let manifest = VaultManifest {
+    tracing::info!(
+        vault = fallback_name,
+        "loaded schema-v1 vault manifest; migration deferred until next write"
+    );
+    Ok(VaultManifest {
         schema_version: 2,
         name,
         authority: VaultAuthority::Olympus,
         sync_bindings,
         backup_bindings: Vec::new(),
-    };
-    write_vault_manifest(path, &manifest)?;
-    Ok(manifest)
+    })
 }
 
 fn normalize_bindings(bindings: &mut [SyncBinding]) -> Result<()> {
