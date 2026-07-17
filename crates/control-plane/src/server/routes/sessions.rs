@@ -572,6 +572,7 @@ pub(crate) async fn create_session(
                         liveness: "active".to_string(),
                         parent_session_id: None,
                         card_id: None,
+                        project_id: None,
                         capabilities: None,
                     })
             };
@@ -874,6 +875,7 @@ pub(crate) async fn fork_session(
                 liveness: "active".to_string(),
                 parent_session_id: None,
                 card_id: None,
+                project_id: None,
                 capabilities: None,
             },
         }

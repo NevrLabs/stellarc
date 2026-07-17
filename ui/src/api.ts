@@ -37,6 +37,8 @@ import type {
   NoteTreeEntry,
   CreateVaultBody,
   VaultDocumentsResponse,
+  Project,
+  ProjectsResponse,
 } from "./types";
 // A production Web UI is permanently bound to the Hall that served it. The
 // configurable base exists only for Vite development; production REST and WS
@@ -137,6 +139,34 @@ export async function fetchSession(id: string): Promise<Session> {
   const res = await fetch(`${BASE}/api/sessions/${id}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`session ${res.status}`);
   return res.json() as Promise<Session>;
+}
+
+export async function fetchProjects(): Promise<ProjectsResponse> {
+  const res = await fetch(`${BASE}/api/projects`, { headers: authHeaders() });
+  return expectJson(res, "projects");
+}
+
+export async function fetchProject(id: string): Promise<Project> {
+  const res = await fetch(`${BASE}/api/projects/${encodeURIComponent(id)}`, { headers: authHeaders() });
+  return expectJson(res, "project");
+}
+
+export async function saveProjectLayout(id: string, layout: unknown): Promise<Project> {
+  const res = await fetch(`${BASE}/api/projects/${encodeURIComponent(id)}/layout`, {
+    method: "PUT",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ layout }),
+  });
+  return expectJson(res, "project layout");
+}
+
+export async function attachSessionToProject(sessionId: string, projectId: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/sessions/${encodeURIComponent(sessionId)}/project`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ projectId }),
+  });
+  if (!res.ok) throw new Error(`attach session to project ${res.status}`);
 }
 
 export async function fetchMessages(

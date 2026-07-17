@@ -717,6 +717,7 @@ mod tests {
                     liveness: "idle".into(),
                     parent_session_id: None,
                     card_id: None,
+                    project_id: None,
                     capabilities: None,
                 },
             },

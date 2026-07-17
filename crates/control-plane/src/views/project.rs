@@ -19,6 +19,8 @@ pub struct ProjectRow {
     pub repos: Vec<String>,
     /// Board ids bound to this project.
     pub boards: Vec<String>,
+    /// Opaque project-scoped UI workspace layout.
+    pub layout: Option<serde_json::Value>,
     /// When the project was created (epoch seconds).
     pub created_at: f64,
     /// When the project was deleted, if tombstoned.
@@ -55,6 +57,7 @@ impl ProjectView {
                         vaults: vec![],
                         repos: vec![],
                         boards: vec![],
+                        layout: None,
                         created_at: *created_at,
                         deleted_at: None,
                     },
@@ -88,6 +91,13 @@ impl ProjectView {
                     if let Some(b) = boards {
                         row.boards = b.clone();
                     }
+                }
+            }
+            Event::ProjectLayoutUpdated {
+                project_id, layout, ..
+            } => {
+                if let Some(row) = self.projects.get_mut(project_id) {
+                    row.layout = Some(layout.clone());
                 }
             }
             Event::ProjectDeleted {
@@ -190,6 +200,19 @@ mod tests {
         assert_eq!(p.vaults, vec!["vault-a"]);
         assert_eq!(p.repos, vec!["my-repo"]);
         assert_eq!(p.boards, vec!["board-1"]);
+    }
+
+    #[test]
+    fn layout_update_is_projected() {
+        let mut view = ProjectView::new();
+        view.apply(&created("p1", "Alpha", 1.0));
+        let layout = serde_json::json!({"grid": {"orientation": "horizontal"}});
+        view.apply(&Event::ProjectLayoutUpdated {
+            project_id: "p1".into(),
+            layout: layout.clone(),
+            updated_at: 2.0,
+        });
+        assert_eq!(view.get("p1").unwrap().layout.as_ref(), Some(&layout));
     }
 
     #[test]

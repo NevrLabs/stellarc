@@ -46,6 +46,12 @@ const sessionsHistoryRoute = createRoute({
   component: () => null,
 });
 
+const projectSessionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sessions/projects/$projectId",
+  component: () => null,
+});
+
 const sessionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sessions/$sessionId",
@@ -110,6 +116,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   sessionsIndexRoute,
   sessionsHistoryRoute,
+  projectSessionsRoute,
   sessionRoute,
   vaultsRoute,
   vaultDetailRoute,
@@ -144,12 +151,13 @@ export type VaultPage = "note" | "tables" | "graph";
 export function parseRoute(pathname: string): {
   surface: SurfaceName;
   sessionId: string | null;
+  projectId: string | null;
   page: SessionsPage | null;
   vaultId: string | null;
   vaultPage: VaultPage;
   nodeId: string | null;
 } {
-  const base = { sessionId: null, page: null, vaultId: null, vaultPage: "note" as VaultPage, nodeId: null };
+  const base = { sessionId: null, projectId: null, page: null, vaultId: null, vaultPage: "note" as VaultPage, nodeId: null };
   if (pathname === "/sessions" || pathname === "/") {
     return { surface: "sessions", ...base };
   }
@@ -161,6 +169,10 @@ export function parseRoute(pathname: string): {
   }
   if (pathname === "/sessions/history") {
     return { surface: "sessions", ...base, page: "history" };
+  }
+  if (pathname.startsWith("/sessions/projects/")) {
+    const projectId = pathname.slice("/sessions/projects/".length) || null;
+    return { surface: "sessions", ...base, projectId, page: "chat" };
   }
   if (pathname.startsWith("/sessions/")) {
     const id = pathname.split("/sessions/")[1];

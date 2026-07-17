@@ -78,6 +78,15 @@ impl Log {
             ))
             .with_context(|| format!("indexing {table} by organization"))?;
         }
+        let has_project_layout = conn
+            .prepare("PRAGMA table_info(projects)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|column| column == "layout");
+        if !has_project_layout {
+            conn.execute_batch("ALTER TABLE projects ADD COLUMN layout TEXT;")
+                .context("migrating projects table to add layout")?;
+        }
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -434,7 +443,7 @@ impl Log {
 
     pub fn list_projects(&self) -> Result<Vec<ProjectRow>> {
         let conn = self.conn.lock().expect("SQLite mutex poisoned");
-        let mut stmt = conn.prepare("SELECT project_id,org_id,name,vaults,repos,boards,created_at,deleted_at FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC")?;
+        let mut stmt = conn.prepare("SELECT project_id,org_id,name,vaults,repos,boards,layout,created_at,deleted_at FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC")?;
         let rows = stmt.query_map([], project_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(Into::into)
@@ -442,7 +451,7 @@ impl Log {
 
     pub fn get_project(&self, id: &str) -> Result<Option<ProjectRow>> {
         let conn = self.conn.lock().expect("SQLite mutex poisoned");
-        conn.query_row("SELECT project_id,org_id,name,vaults,repos,boards,created_at,deleted_at FROM projects WHERE project_id=?1 AND deleted_at IS NULL", [id], project_row).optional().map_err(Into::into)
+        conn.query_row("SELECT project_id,org_id,name,vaults,repos,boards,layout,created_at,deleted_at FROM projects WHERE project_id=?1 AND deleted_at IS NULL", [id], project_row).optional().map_err(Into::into)
     }
 
     pub fn list_repos(&self) -> Result<Vec<RepoRow>> {
@@ -722,6 +731,14 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
         } => {
             tx.execute("UPDATE projects SET name=COALESCE(?2,name),vaults=COALESCE(?3,vaults),repos=COALESCE(?4,repos),boards=COALESCE(?5,boards) WHERE project_id=?1", params![project_id,name,vaults.as_ref().map(json),repos.as_ref().map(json),boards.as_ref().map(json)])?;
         }
+        Event::ProjectLayoutUpdated {
+            project_id, layout, ..
+        } => {
+            tx.execute(
+                "UPDATE projects SET layout=?2 WHERE project_id=?1",
+                params![project_id, serde_json::to_string(layout)?],
+            )?;
+        }
         Event::ProjectDeleted {
             project_id,
             deleted_at,
@@ -920,6 +937,7 @@ fn event_type(event: &Event) -> &'static str {
         Event::SessionRepoAttached { .. } => "session.repo_attached",
         Event::ProjectCreated { .. } => "project.created",
         Event::ProjectUpdated { .. } => "project.updated",
+        Event::ProjectLayoutUpdated { .. } => "project.layout_updated",
         Event::ProjectDeleted { .. } => "project.deleted",
         Event::SessionProjectAttached { .. } => "session.project_attached",
         Event::SessionOrganizationAssigned { .. } => "session.organization_assigned",
@@ -952,6 +970,7 @@ fn event_time(event: &Event) -> f64 {
         Event::RepoRemoved { removed_at, .. } => *removed_at,
         Event::SessionRepoAttached { attached_at, .. } => *attached_at,
         Event::ProjectCreated { created_at, .. } => *created_at,
+        Event::ProjectLayoutUpdated { updated_at, .. } => *updated_at,
         Event::ProjectDeleted { deleted_at, .. } => *deleted_at,
         Event::SessionProjectAttached { attached_at, .. } => *attached_at,
         Event::PackageInstalled { installed_at, .. }
@@ -1046,8 +1065,19 @@ fn project_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectRow> {
         vaults: json_vec(r.get(3)?),
         repos: json_vec(r.get(4)?),
         boards: json_vec(r.get(5)?),
-        created_at: r.get(6)?,
-        deleted_at: r.get(7)?,
+        layout: r
+            .get::<_, Option<String>>(6)?
+            .map(|raw| serde_json::from_str(&raw))
+            .transpose()
+            .map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    6,
+                    rusqlite::types::Type::Text,
+                    Box::new(error),
+                )
+            })?,
+        created_at: r.get(7)?,
+        deleted_at: r.get(8)?,
     })
 }
 fn repo_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RepoRow> {
@@ -1093,7 +1123,7 @@ CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON messages BEGIN 
 CREATE TABLE IF NOT EXISTS cards(card_id TEXT PRIMARY KEY,board_id TEXT NOT NULL,title TEXT NOT NULL,status TEXT NOT NULL,assigned_id TEXT,assigned_kind TEXT,current_session_id TEXT,current_bookmark TEXT,blocked_by TEXT NOT NULL DEFAULT '[]',priority INTEGER NOT NULL DEFAULT 0,attempts TEXT NOT NULL DEFAULT '[]',created_at REAL NOT NULL,status_changed_at REAL NOT NULL,org_id TEXT NOT NULL DEFAULT 'personal');
 CREATE TABLE IF NOT EXISTS setup(scope TEXT PRIMARY KEY,skills TEXT NOT NULL,mcp TEXT NOT NULL,plugins TEXT NOT NULL,hooks TEXT NOT NULL,declared_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS registry(kind TEXT NOT NULL,slug TEXT NOT NULL,definition TEXT NOT NULL,registered_at REAL NOT NULL,PRIMARY KEY(kind,slug));
-CREATE TABLE IF NOT EXISTS projects(project_id TEXT PRIMARY KEY,name TEXT NOT NULL,vaults TEXT NOT NULL DEFAULT '[]',repos TEXT NOT NULL DEFAULT '[]',boards TEXT NOT NULL DEFAULT '[]',created_at REAL NOT NULL,deleted_at REAL,org_id TEXT NOT NULL DEFAULT 'personal');
+CREATE TABLE IF NOT EXISTS projects(project_id TEXT PRIMARY KEY,name TEXT NOT NULL,vaults TEXT NOT NULL DEFAULT '[]',repos TEXT NOT NULL DEFAULT '[]',boards TEXT NOT NULL DEFAULT '[]',layout TEXT,created_at REAL NOT NULL,deleted_at REAL,org_id TEXT NOT NULL DEFAULT 'personal');
 CREATE TABLE IF NOT EXISTS repos(slug TEXT PRIMARY KEY,url TEXT NOT NULL,default_branch TEXT NOT NULL,registered_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS session_repos(session_id TEXT NOT NULL,slug TEXT NOT NULL,attached_at REAL NOT NULL,PRIMARY KEY(session_id,slug));
 CREATE TABLE IF NOT EXISTS envoy_watermarks(session_id TEXT PRIMARY KEY,seq INTEGER NOT NULL) WITHOUT ROWID;

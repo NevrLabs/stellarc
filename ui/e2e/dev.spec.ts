@@ -30,21 +30,11 @@ test("live dev interactions", async ({ page }) => {
   await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThanOrEqual(2);
   await rows.nth(0).click();
-  await expect(page.locator(".chat-view")).toBeVisible();
+  await expect(page.locator(".chat-view")).toHaveCount(1);
   await rows.nth(1).click();
-
-  const focused = page.locator(".srow[data-focused=true]");
-  const open = page.locator(".srow[data-open=true]:not([data-focused=true])").first();
-  await expect(focused).toHaveClass(/\bon\b/);
-  await expect(open).toBeVisible();
-  const [focusedStyle, openStyle] = await Promise.all([
-    focused.evaluate((el) => ({ background: getComputedStyle(el).backgroundColor, shadow: getComputedStyle(el).boxShadow })),
-    open.evaluate((el) => ({ background: getComputedStyle(el).backgroundColor, shadow: getComputedStyle(el).boxShadow })),
-  ]);
-  expect(focusedStyle.background).not.toBe("rgba(0, 0, 0, 0)");
-  expect(openStyle.background).not.toBe("rgba(0, 0, 0, 0)");
-  expect(focusedStyle.background).not.toBe(openStyle.background);
-  expect(`${focusedStyle.shadow} ${openStyle.shadow}`).not.toContain("inset");
+  await expect(page.locator(".chat-view")).toHaveCount(1);
+  await expect(page.locator(".sessions-dockview")).toHaveCount(0);
+  await expect(page.locator(".srow[data-focused=true]")).toHaveCount(1);
 
   const bottom = page.locator(".chat-view .bpanel");
   const bottomHandle = page.locator(".chat-view .rz-y");
@@ -74,7 +64,7 @@ test("live dev interactions", async ({ page }) => {
   await expect(html).not.toHaveAttribute("data-theme", before ?? "obsidian");
 });
 
-test("session tiling via context menu", async ({ page }) => {
+test("project workspace layout restores and session route stays single-pane", async ({ page }) => {
   if (!username || !password) throw new Error("dev credentials were not supplied");
 
   await page.goto(baseURL);
@@ -85,22 +75,21 @@ test("session tiling via context menu", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.locator(".app")).toBeVisible();
 
+  const workspace = page.locator("[data-project-id]").first();
+  await expect(workspace).toBeVisible();
+  await workspace.click();
+  await expect(page).toHaveURL(/\/sessions\/projects\//);
+
   const rows = page.locator(".srow[data-session-id]");
   await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThanOrEqual(2);
+  const singleSessionId = await rows.nth(0).getAttribute("data-session-id");
+  expect(singleSessionId).toBeTruthy();
 
-  // Open the first session normally
   await rows.nth(0).click();
   await expect(page.locator(".chat-view")).toBeVisible();
-
-  // Single group = no tab bar visible
-  await expect(page.locator(".sessions-dockview:not(.multi-group)")).toBeVisible();
-
-  // Right-click the second session row → context menu → Open Right
   await rows.nth(1).click({ button: "right" });
   await page.getByRole("menuitem", { name: "Open Right" }).click();
-
-  // Now we should have 2 groups → multi-group class + tab bar visible
   await expect(page.locator(".sessions-dockview.multi-group")).toBeVisible();
   const groupTabBars = page.locator(
     ".sessions-dockview.multi-group .dv-tabs-and-actions-container",
@@ -109,14 +98,27 @@ test("session tiling via context menu", async ({ page }) => {
   await expect(groupTabBars.first()).toBeVisible();
   await expect(groupTabBars.nth(1)).toBeVisible();
 
-  // Pane marks should appear in sidebar rows
-  await expect(page.locator(".srow-pane-mark").first()).toBeVisible();
-  expect(await page.locator(".srow-pane-mark").count()).toBeGreaterThanOrEqual(2);
+  const before = await page.locator(".dv-groupview").evaluateAll((groups) =>
+    groups.map((group) => {
+      const box = group.getBoundingClientRect();
+      return { width: box.width, height: box.height };
+    }),
+  );
+  expect(before.length).toBeGreaterThanOrEqual(2);
+  expect(before.every((box) => box.width > 100 && box.height > 100)).toBe(true);
 
-  // Click the already-open first session → should activate, not duplicate
-  const groupCountBefore = await page.locator(".dv-groupview").count();
-  await rows.nth(0).click();
-  await expect(page.locator(".srow[data-focused=true]")).toBeVisible();
-  const groupCountAfter = await page.locator(".dv-groupview").count();
-  expect(groupCountAfter).toBe(groupCountBefore);
+  await page.reload();
+  await expect(page.locator(".sessions-dockview.multi-group")).toBeVisible();
+  await expect(page.locator(".chat-view")).toHaveCount(before.length);
+  const restored = await page.locator(".dv-groupview").evaluateAll((groups) =>
+    groups.map((group) => {
+      const box = group.getBoundingClientRect();
+      return { width: box.width, height: box.height };
+    }),
+  );
+  expect(restored.every((box) => box.width > 100 && box.height > 100)).toBe(true);
+
+  await page.goto(`${baseURL}/sessions/${encodeURIComponent(singleSessionId!)}`);
+  await expect(page.locator(".sessions-dockview")).toHaveCount(0);
+  await expect(page.locator(".chat-view")).toHaveCount(1);
 });

@@ -56,7 +56,7 @@ const SURFACES: {
 
 export function AppShell() {
   const { location } = useRouterState();
-  const { surface, sessionId, page, nodeId } = parseRoute(location.pathname);
+  const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
   const { sidebarCollapsed, sidebarWidth } = useUIStore();
 
   return (
@@ -65,7 +65,7 @@ export function AppShell() {
       <div className="body">
         {/* Sessions View owns its own sidebar + viewport layout */}
         {surface === "sessions" && (
-          <SessionsView sessionId={sessionId} page={page} />
+          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
         )}
 
         {/* Vaults View owns its own sidebar + viewport layout */}

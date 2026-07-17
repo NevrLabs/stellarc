@@ -230,6 +230,12 @@ pub enum Event {
         repos: Option<Vec<String>>,
         boards: Option<Vec<String>>,
     },
+    /// Opaque Dockview workspace layout for a project.
+    ProjectLayoutUpdated {
+        project_id: String,
+        layout: serde_json::Value,
+        updated_at: f64,
+    },
     /// A project was deleted (tombstoned).
     ProjectDeleted { project_id: String, deleted_at: f64 },
     /// A session was attached to a project.
@@ -600,6 +606,11 @@ mod tests {
                 repos: Some(vec!["r".into()]),
                 boards: Some(vec!["b".into()]),
             },
+            Event::ProjectLayoutUpdated {
+                project_id: "p".into(),
+                layout: serde_json::json!({"groups": []}),
+                updated_at: 1.5,
+            },
             Event::ProjectDeleted {
                 project_id: "p".into(),
                 deleted_at: 2.0,
@@ -773,6 +784,11 @@ mod tests {
                 repos: Some(vec!["olympus".into()]),
                 boards: Some(vec!["board-1".into()]),
             },
+            Event::ProjectLayoutUpdated {
+                project_id: "proj-1".into(),
+                layout: serde_json::json!({"grid": {"orientation": "horizontal"}}),
+                updated_at: 1_700_000_018.5,
+            },
             Event::ProjectDeleted {
                 project_id: "proj-1".into(),
                 deleted_at: 1_700_000_019.0,
@@ -869,6 +885,7 @@ mod tests {
             Event::SessionRepoAttached { .. } => {}
             Event::ProjectCreated { .. } => {}
             Event::ProjectUpdated { .. } => {}
+            Event::ProjectLayoutUpdated { .. } => {}
             Event::ProjectDeleted { .. } => {}
             Event::SessionProjectAttached { .. } => {}
             Event::SessionOrganizationAssigned { .. } => {}

@@ -56,6 +56,8 @@ pub struct SessionDto {
     /// Card that owns this session tree, if linked (ADR 0006 §7 footgun 3).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub card_id: Option<String>,
+    /// Project workspace this session belongs to, if any.
+    pub project_id: Option<String>,
     /// Hall-signed capability envelope; null means legacy full grant.
     pub capabilities: Option<Box<CapabilitySet>>,
 }
@@ -130,6 +132,7 @@ impl SessionDto {
             liveness: "idle".into(),
             parent_session_id: row.parent_session_id.clone(),
             card_id: row.card_id.clone(),
+            project_id: row.project_id.clone(),
             capabilities: row.capabilities.clone().map(Box::new),
         }
     }
@@ -541,6 +544,7 @@ pub struct ProjectDto {
     pub vaults: Vec<String>,
     pub repos: Vec<String>,
     pub boards: Vec<String>,
+    pub layout: Option<serde_json::Value>,
     pub created_at: f64,
 }
 
@@ -552,6 +556,7 @@ impl ProjectDto {
             vaults: row.vaults.clone(),
             repos: row.repos.clone(),
             boards: row.boards.clone(),
+            layout: row.layout.clone(),
             created_at: row.created_at,
         }
     }

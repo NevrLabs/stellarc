@@ -3,14 +3,14 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use axum::{Json, Router};
+use axum::routing::{get, put};
+use axum::{Extension, Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 
 use super::support::{append_and_apply, append_and_apply_events};
 use crate::server::dto::ProjectDto;
-use crate::server::principal::OrgScope;
+use crate::server::principal::{OrgScope, Principal};
 use crate::server::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -20,6 +20,7 @@ pub fn router() -> Router<AppState> {
             "/api/projects/{id}",
             get(get_project).patch(patch_project).delete(delete_project),
         )
+        .route("/api/projects/{id}/layout", put(put_project_layout))
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,6 +36,59 @@ pub(crate) struct PatchProjectBody {
     vaults: Option<Vec<String>>,
     repos: Option<Vec<String>>,
     boards: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct PutProjectLayoutBody {
+    layout: serde_json::Value,
+}
+
+const MAX_LAYOUT_BYTES: usize = 64 * 1024;
+
+pub(crate) async fn put_project_layout(
+    State(state): State<AppState>,
+    Extension(_principal): Extension<Principal>,
+    scope: Option<axum::extract::Extension<OrgScope>>,
+    Path(id): Path<String>,
+    Json(body): Json<PutProjectLayoutBody>,
+) -> Response {
+    if serde_json::to_vec(&body.layout).map_or(true, |bytes| bytes.len() > MAX_LAYOUT_BYTES) {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(json!({ "error": "layout_too_large", "message": "layout exceeds 64 KiB" })),
+        )
+            .into_response();
+    }
+    {
+        let views = state.views.read().await;
+        if views.projects.get(&id).is_none_or(|project| {
+            scope
+                .as_ref()
+                .is_some_and(|scope| project.org_id != scope.0.organization_id)
+        }) {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "project not found" })),
+            )
+                .into_response();
+        }
+    }
+    let event = crate::event::Event::ProjectLayoutUpdated {
+        project_id: id.clone(),
+        layout: body.layout,
+        updated_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs_f64())
+            .unwrap_or(0.0),
+    };
+    if let Err(response) = append_and_apply_events(&state, &[event]).await {
+        return response;
+    }
+    let views = state.views.read().await;
+    Json(ProjectDto::from_row(
+        views.projects.get(&id).expect("project exists after layout update"),
+    ))
+    .into_response()
 }
 
 pub(crate) async fn list_projects(

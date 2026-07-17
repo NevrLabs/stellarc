@@ -26,8 +26,24 @@ export interface Session {
   managed: boolean;           // true = Olympus-driven (steerable); false = observed/read-only
   agent: string | null;       // Hermes profile bound to this session (assignable)
   node: string | null;        // node the runtime runs on ("local" for now)
+  projectId?: string | null;  // project workspace association
   liveness?: "running" | "input-required" | "active" | "idle"; // managed: running/input-required from bridge; observed: active from recency; else idle
   capabilities: CapabilitySet | null; // null preserves the legacy full grant
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  vaults: string[];
+  repos: string[];
+  boards: string[];
+  layout: unknown | null;
+  createdAt: number;
+}
+
+export interface ProjectsResponse {
+  projects: Project[];
+  total: number;
 }
 
 export interface ResourceLimits {

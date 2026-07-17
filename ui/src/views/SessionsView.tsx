@@ -46,9 +46,9 @@ import "dockview-react/dist/styles/dockview.css";
 import { Icon } from "../components/Icon";
 import { BrandIcon, agentBrand } from "../components/BrandIcons";
 import { useUIStore } from "../store";
-import { useSession, useMessages, useAgents } from "../hooks/queries";
+import { useSession, useMessages, useAgents, useProject } from "../hooks/queries";
 import { useResizable } from "../hooks/useResizable";
-import { getLocalUiState, loadWorkspaceState, saveWorkspaceState } from "../lib/uiState";
+import { attachSessionToProject, saveProjectLayout } from "../api";
 import { readSessionPanelState, writeSessionPanelState } from "../workbench/sessionPanelState";
 
 import { SessionSidebar } from "./sessions/components/SessionSidebar";
@@ -65,18 +65,22 @@ interface SessionPanelParams {
   sessionId: string;
 }
 
-let savedSessionsLayout: DockLayout | null = null;
-
 export function SessionsView({
   sessionId,
+  projectId,
   page,
 }: {
   sessionId: string | null;
+  projectId: string | null;
   page: "chat" | "agents" | "usage" | "history" | null;
 }) {
   const { sidebarCollapsed } = useUIStore();
-  const navigate = useNavigate();
   const apiRef = useRef<DockviewApi | null>(null);
+  const [dockApi, setDockApi] = useState<DockviewApi | null>(null);
+  const restoringRef = useRef(false);
+  const restoredProjectRef = useRef<string | null>(null);
+  const { data: project, isSuccess: projectLoaded } = useProject(projectId);
+  const [activeSessionId, setActiveSessionId] = useState(sessionId);
   const [openSessionIds, setOpenSessionIds] = useState<Set<string>>(() => new Set());
   const [paneMarks, setPaneMarks] = useState<Map<string, string>>(() => new Map());
   const [groupCount, setGroupCount] = useState(0);
@@ -110,20 +114,43 @@ export function SessionsView({
 
   const persist = useCallback(() => {
     const api = apiRef.current;
-    if (!api || persistSuspendedRef.current) return;
+    if (
+      !api ||
+      !projectId ||
+      persistSuspendedRef.current ||
+      restoringRef.current ||
+      restoredProjectRef.current !== projectId
+    ) return;
     const layout = api.toJSON();
     if (Object.keys(layout.panels ?? {}).length === 0) return;
-    savedSessionsLayout = layout;
-    saveWorkspaceState("sessions", savedSessionsLayout);
-  }, []);
+    try {
+      localStorage.setItem(`olympus-project-layout:${projectId}`, JSON.stringify(layout));
+    } catch {
+      // Server persistence remains authoritative.
+    }
+    void saveProjectLayout(projectId, layout).catch(() => undefined);
+  }, [projectId]);
 
   useLayoutEffect(() => {
     persistSuspendedRef.current = false;
     return () => {
       persist(); // final good snapshot, before dockview dispose starts
       persistSuspendedRef.current = true;
+      apiRef.current = null;
     };
   }, [persist]);
+
+  useEffect(() => {
+    try { localStorage.removeItem("olympus-ui-state:sessions"); } catch { /* best effort */ }
+  }, []);
+
+  useEffect(() => setActiveSessionId(sessionId), [sessionId]);
+  useEffect(() => {
+    restoredProjectRef.current = null;
+    setOpenSessionIds(new Set());
+    setPaneMarks(new Map());
+    setGroupCount(0);
+  }, [projectId]);
 
   const openSessionPanel = useCallback((id: string, opts?: {
     drop?: DockviewDidDropEvent;
@@ -135,11 +162,10 @@ export function SessionsView({
     const existing = api.getPanel(panelId);
     if (existing) {
       existing.api.setActive();
+      setActiveSessionId(id);
       syncOpenSessions(api);
       return;
     }
-    // Resolve the active group (or first group as fallback) so splits are relative
-    // to the panel the user is actually looking at, not an arbitrary one.
     const activeGroup = api.activeGroup ?? api.groups[0] ?? null;
     const positionArgs =
       opts?.split && activeGroup
@@ -155,73 +181,66 @@ export function SessionsView({
       ...positionArgs,
     });
     panel.api.setActive();
+    setActiveSessionId(id);
     syncOpenSessions(api);
     persist();
   }, [persist, syncOpenSessions]);
 
   const openSession = useCallback((id: string, split?: "right" | "below") => {
     openSessionPanel(id, { split });
-    void navigate({ to: "/sessions/$sessionId", params: { sessionId: id } });
-  }, [navigate, openSessionPanel]);
-
-  useEffect(() => {
-    if (sessionId) openSessionPanel(sessionId);
-  }, [openSessionPanel, sessionId]);
-
+  }, [openSessionPanel]);
 
   const handleReady = useCallback((event: DockviewReadyEvent) => {
     apiRef.current = event.api;
-    const local = savedSessionsLayout ?? getLocalUiState<DockLayout>("sessions");
-    if (local && Object.keys(local.panels ?? {}).length > 0) {
-      try {
-        event.api.fromJSON(local);
-        pruneEmptyGroups(event.api);
-        syncOpenSessions(event.api);
-      } catch {
-        savedSessionsLayout = null;
-      }
-    }
-    void loadWorkspaceState<DockLayout>("sessions").then((remote) => {
-      if (!remote || apiRef.current !== event.api) return;
-      if (Object.keys(remote.panels ?? {}).length === 0) return;
-      try {
-        event.api.fromJSON(remote);
-        pruneEmptyGroups(event.api);
-        syncOpenSessions(event.api);
-        savedSessionsLayout = remote;
-        if (sessionId) openSessionPanel(sessionId);
-      } catch {
-        // Ignore incompatible remote layouts.
-      }
-    });
-    if (sessionId) openSessionPanel(sessionId);
-    const layoutDisposable = event.api.onDidLayoutChange(() => { syncOpenSessions(event.api); persist(); });
-    const activeDisposable = event.api.onDidActivePanelChange(({ panel }) => {
+    setDockApi(event.api);
+    syncOpenSessions(event.api);
+    event.api.onDidLayoutChange(() => { syncOpenSessions(event.api); persist(); });
+    event.api.onDidActivePanelChange(({ panel }) => {
       const params = panel?.params as SessionPanelParams | undefined;
-      if (params?.sessionId) {
-        void navigate({ to: "/sessions/$sessionId", params: { sessionId: params.sessionId } });
-      }
+      if (params?.sessionId) setActiveSessionId(params.sessionId);
     });
-    const removeDisposable = event.api.onDidRemovePanel(() => {
-      syncOpenSessions(event.api);
-    });
-    const dragOverDisposable = event.api.onUnhandledDragOver((dragEvent) => {
+    event.api.onDidRemovePanel(() => syncOpenSessions(event.api));
+    event.api.onUnhandledDragOver((dragEvent) => {
       if (hasDragType(dragEvent.nativeEvent, "application/x-olympus-session")) dragEvent.accept();
     });
-    const dropDisposable = event.api.onDidDrop((dropEvent) => {
-      const payload = dragPayload(dropEvent.nativeEvent, "application/x-olympus-session") as { sessionId?: string } | null;
-      if (!payload?.sessionId) return;
+    event.api.onDidDrop((dropEvent) => {
+      const payload = dragPayload(dropEvent.nativeEvent, "application/x-olympus-session") as {
+        sessionId?: string;
+        projectId?: string | null;
+      } | null;
+      if (!payload?.sessionId || !projectId) return;
+      if (payload.projectId !== projectId) {
+        void attachSessionToProject(payload.sessionId, projectId);
+      }
       openSessionPanel(payload.sessionId, { drop: dropEvent });
-      void navigate({ to: "/sessions/$sessionId", params: { sessionId: payload.sessionId } });
     });
-    return () => {
-      layoutDisposable.dispose();
-      activeDisposable.dispose();
-      removeDisposable.dispose();
-      dragOverDisposable.dispose();
-      dropDisposable.dispose();
-    };
-  }, [navigate, openSessionPanel, persist, sessionId, syncOpenSessions]);
+  }, [openSessionPanel, persist, projectId, syncOpenSessions]);
+
+  useEffect(() => {
+    const api = dockApi;
+    if (!api || apiRef.current !== api || !projectId || !projectLoaded || restoredProjectRef.current === projectId) return;
+    let layout = project?.layout as DockLayout | null | undefined;
+    if (!layout) {
+      try {
+        const raw = localStorage.getItem(`olympus-project-layout:${projectId}`);
+        layout = raw ? JSON.parse(raw) as DockLayout : null;
+      } catch {
+        layout = null;
+      }
+    }
+    restoringRef.current = true;
+    if (layout && Object.keys(layout.panels ?? {}).length > 0) {
+      try {
+        api.fromJSON(layout);
+        pruneEmptyGroups(api);
+      } catch {
+        // Ignore layouts from incompatible Dockview versions.
+      }
+    }
+    restoringRef.current = false;
+    restoredProjectRef.current = projectId;
+    syncOpenSessions(api);
+  }, [dockApi, project?.layout, projectId, projectLoaded, syncOpenSessions]);
 
   return (
     <>
@@ -229,10 +248,11 @@ export function SessionsView({
       {!sidebarCollapsed && (
         <SessionSidebar
           width={sidebar.size}
-          activeSessionId={sessionId}
+          activeSessionId={projectId ? activeSessionId : sessionId}
+          activeProjectId={projectId}
           openSessionIds={openSessionIds}
           paneMarks={paneMarks}
-          onOpenSession={openSession}
+          onOpenSession={projectId ? openSession : undefined}
           onResizeStart={sidebar.onResizeStart}
           onResizeKeyDown={(event) => {
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -256,15 +276,20 @@ export function SessionsView({
           <div className="view on" data-view="sessions" style={{ flexDirection: "column" }}>
             <HistoryPage />
           </div>
-        ) : (
+        ) : projectId ? (
           <div className="sessions-dock-shell">
             <DockviewReact
+              key={projectId}
               className={`dockview-theme-abyss olympus-dockview sessions-dockview${groupCount > 1 ? " multi-group" : ""}`}
               components={{ "session-panel": SessionDockPanel }}
               onReady={handleReady}
             />
-            {!sessionId && openSessionIds.size === 0 && <div className="sessions-dock-empty"><SessionEmptyPane /></div>}
+            {openSessionIds.size === 0 && <div className="sessions-dock-empty"><SessionEmptyPane /></div>}
           </div>
+        ) : sessionId ? (
+          <SessionPanel sessionId={sessionId} />
+        ) : (
+          <div className="view on" data-view="sessions"><SessionEmptyPane /></div>
         )}
       </div>
     </>
@@ -299,22 +324,26 @@ function dragPayload(event: globalThis.DragEvent | PointerEvent, type: string): 
 }
 
 function SessionDockPanel({ params }: IDockviewPanelProps<SessionPanelParams>) {
-  const [rsCollapsed, setRsCollapsed] = useSessionPanelState(params.sessionId, "rsCollapsed", false);
-  const [bpCollapsed, setBpCollapsed] = useSessionPanelState(params.sessionId, "bpCollapsed", false);
-  const [rsTab, setRsTab] = useSessionPanelState<RsTab>(params.sessionId, "rsTab", "overview");
-  const [bpTab, setBpTab] = useSessionPanelState<BpTab>(params.sessionId, "bpTab", "terminal");
+  return <SessionPanel sessionId={params.sessionId} />;
+}
+
+function SessionPanel({ sessionId }: { sessionId: string }) {
+  const [rsCollapsed, setRsCollapsed] = useSessionPanelState(sessionId, "rsCollapsed", false);
+  const [bpCollapsed, setBpCollapsed] = useSessionPanelState(sessionId, "bpCollapsed", false);
+  const [rsTab, setRsTab] = useSessionPanelState<RsTab>(sessionId, "rsTab", "overview");
+  const [bpTab, setBpTab] = useSessionPanelState<BpTab>(sessionId, "bpTab", "terminal");
   const rightPanel = useResizable({
     axis: "x", min: 200, max: 450, initial: 279,
-    direction: "left", persistKey: `olympus-session-${params.sessionId}-rsidebar-w`,
+    direction: "left", persistKey: `olympus-session-${sessionId}-rsidebar-w`,
   });
   const bottomPanel = useResizable({
     axis: "y", min: 80, max: 400, initial: 152,
-    direction: "down", persistKey: `olympus-session-${params.sessionId}-bpanel-h`,
+    direction: "down", persistKey: `olympus-session-${sessionId}-bpanel-h`,
   });
 
   return (
     <SessionChatLayout
-      sessionId={params.sessionId}
+      sessionId={sessionId}
       rsCollapsed={rsCollapsed}
       bpCollapsed={bpCollapsed}
       rsTab={rsTab}

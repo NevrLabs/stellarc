@@ -7,6 +7,8 @@ import {
   fetchAgents,
   fetchAgentCatalog,
   fetchNodes,
+  fetchProjects,
+  fetchProject,
   fetchModels,
   healthCheck,
   fetchCards,
@@ -35,6 +37,8 @@ export const qk = {
   vaultNote: (vaultId: string, path: string) =>
     ["vaultNote", vaultId, path] as const,
   vaultDocuments: (vaultId: string) => ["vaultDocuments", vaultId] as const,
+  projects: () => ["projects"] as const,
+  project: (id: string) => ["project", id] as const,
 };
 
 /** Sessions list with auto-refetch. */
@@ -70,6 +74,19 @@ export function useSession(id: string | null) {
     enabled: !!id,
     staleTime: 5_000,
   });
+}
+
+export function useProject(id: string | null) {
+  return useQuery({
+    queryKey: id ? qk.project(id) : ["project", "none"],
+    queryFn: () => fetchProject(id!),
+    enabled: !!id,
+    staleTime: 0,
+  });
+}
+
+export function useProjects() {
+  return useQuery({ queryKey: qk.projects(), queryFn: fetchProjects, staleTime: 10_000 });
 }
 
 /** Messages for a session.

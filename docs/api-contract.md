@@ -339,6 +339,28 @@ one env flag (`VITE_USE_MOCKS=0`) — the types are identical, so no UI rewrite.
 - Search hit grouping/snippet length — tune after tantivy lands.
 - `message.delta` batching cadence (~100ms server-side per §10.3) — UI must not
   assume per-token frames.
+
+## Project workspaces
+
+```ts
+interface Project {
+  id: string;
+  name: string;
+  vaults: string[];
+  repos: string[];
+  boards: string[];
+  layout: unknown | null; // opaque Dockview JSON, capped at 64 KiB
+  createdAt: number;
+}
+```
+
+- `GET /api/projects/:id` returns the project and its server-persisted layout.
+- `PUT /api/projects/:id/layout` accepts `{ layout: unknown }` and returns the
+  updated project. The layout is event-backed, organization-scoped, and opaque
+  to Hall apart from the serialized-size limit.
+- `POST /api/sessions/:id/project` accepts `{ projectId }` and associates the
+  session with that project.
+
 ## Packages / registry v2 (ADR 0012)
 
 Package manifests are TOML and must declare `[package]`, `[compatibility]`,

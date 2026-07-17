@@ -16,7 +16,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Icon } from "../../../components/Icon";
-import { useSessions, useUpdateSession } from "../../../hooks/queries";
+import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
 import { useUIStore } from "../../../store";
 import { createSession } from "../../../api";
 import type { Session } from "../../../types";
@@ -46,6 +46,7 @@ function isPhoneViewport(): boolean {
 export function SessionSidebar({
   width,
   activeSessionId,
+  activeProjectId,
   openSessionIds = new Set(),
   paneMarks = new Map(),
   onOpenSession,
@@ -54,6 +55,7 @@ export function SessionSidebar({
 }: {
   width: number;
   activeSessionId: string | null;
+  activeProjectId?: string | null;
   openSessionIds?: ReadonlySet<string>;
   paneMarks?: ReadonlyMap<string, string>;
   onOpenSession?: (id: string, split?: "right" | "below") => void;
@@ -63,6 +65,7 @@ export function SessionSidebar({
   const navigate = useNavigate();
   const { data: sessionData } = useSessions({ managed: true, archived: false });
   const sessions = sessionData?.sessions ?? [];
+  const { data: projectData } = useProjects();
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   // Close the overlay sidebar after navigating on phone screens.
@@ -110,10 +113,11 @@ export function SessionSidebar({
 
   const handleSelectSession = useCallback(
     (id: string) => {
-      void navigate({ to: "/sessions/$sessionId", params: { sessionId: id } });
+      if (onOpenSession) onOpenSession(id);
+      else void navigate({ to: "/sessions/$sessionId", params: { sessionId: id } });
       closeIfPhone();
     },
-    [navigate, closeIfPhone],
+    [navigate, closeIfPhone, onOpenSession],
   );
 
   return (
@@ -145,6 +149,25 @@ export function SessionSidebar({
           <NavItem label="History" icon="clock" path="/sessions/history" />
         </div>
         <div className="sb-scroll">
+          {(projectData?.projects.length ?? 0) > 0 && (
+            <>
+              <div className="sec-head"><span className="lbl">PROJECT WORKSPACES</span></div>
+              <div className="sec-content">
+                {projectData!.projects.map((project) => (
+                  <button
+                    type="button"
+                    className={`navitem${activeProjectId === project.id ? " on" : ""}`}
+                    data-project-id={project.id}
+                    key={project.id}
+                    onClick={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
+                  >
+                    <Icon name="folder" size={14} />
+                    <span>{project.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {pinned.length > 0 && (
             <SessionSection
               label="PINNED"
@@ -326,7 +349,7 @@ function SessionRow({
         event.dataTransfer.effectAllowed = "copy";
         event.dataTransfer.setData(
           "application/x-olympus-session",
-          JSON.stringify({ type: "session", sessionId: session.id, title }),
+          JSON.stringify({ type: "session", sessionId: session.id, projectId: session.projectId, title }),
         );
       }}
       onClick={() => onSelect(session.id)}
