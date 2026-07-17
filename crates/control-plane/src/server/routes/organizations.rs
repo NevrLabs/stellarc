@@ -9,7 +9,7 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::routing::{any, get, post, put};
 use axum::Router;
 use tower::ServiceExt;
 
@@ -71,6 +71,7 @@ pub(crate) fn organization_resource_routes() -> Router<AppState> {
             "/projects/{id}",
             get(get_project).patch(patch_project).delete(delete_project),
         )
+        .route("/projects/{id}/layout", put(put_project_layout))
         .route("/sessions/{id}/project", post(attach_session_project))
         .route("/vaults", get(list_vaults).post(create_vault))
         .route("/vaults/{id}/notes", get(list_vault_notes))

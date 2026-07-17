@@ -50,6 +50,7 @@ import { useSession, useMessages, useAgents, useProject, useSessions } from "../
 import { useResizable } from "../hooks/useResizable";
 import { attachSessionToProject, saveProjectLayout } from "../api";
 import { readSessionPanelState, writeSessionPanelState } from "../workbench/sessionPanelState";
+import { LatestProjectLayoutWriter } from "../workbench/projectLayoutPersistence";
 
 import { SessionSidebar } from "./sessions/components/SessionSidebar";
 import { RightPanel, type RsTab } from "./sessions/components/RightPanel";
@@ -128,25 +129,8 @@ export function SessionsView({
   // zero). Layout-effect cleanups run BEFORE passive-effect cleanups, so we
   // snapshot the still-intact layout there and suspend all later persists.
   const persistSuspendedRef = useRef(false);
-  const pendingSavesRef = useRef(new Map<string, DockLayout>());
-  const saveWorkerRef = useRef<Promise<void> | null>(null);
-
-  const enqueueSave = useCallback((id: string, layout: DockLayout) => {
-    pendingSavesRef.current.set(id, layout);
-    if (saveWorkerRef.current) return;
-    saveWorkerRef.current = (async () => {
-      while (pendingSavesRef.current.size > 0) {
-        const next = pendingSavesRef.current.entries().next().value as [string, DockLayout];
-        pendingSavesRef.current.delete(next[0]);
-        try {
-          await saveProjectLayout(next[0], next[1]);
-        } catch {
-          // The local copy is only a fallback when the project request fails.
-        }
-      }
-      saveWorkerRef.current = null;
-    })();
-  }, []);
+  const layoutWriterRef = useRef<LatestProjectLayoutWriter<DockLayout> | null>(null);
+  layoutWriterRef.current ??= new LatestProjectLayoutWriter(saveProjectLayout);
 
   const persist = useCallback(() => {
     const api = apiRef.current;
@@ -163,8 +147,8 @@ export function SessionsView({
     } catch {
       // Server persistence remains authoritative.
     }
-    enqueueSave(projectId, layout);
-  }, [enqueueSave, projectId]);
+    layoutWriterRef.current.enqueue(projectId, layout);
+  }, [projectId]);
 
   useLayoutEffect(() => {
     persistSuspendedRef.current = false;

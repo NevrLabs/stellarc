@@ -10,7 +10,7 @@ use serde_json::json;
 
 use super::support::{append_and_apply, append_and_apply_events};
 use crate::server::dto::ProjectDto;
-use crate::server::principal::{OrgScope, Principal};
+use crate::server::principal::OrgScope;
 use crate::server::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -47,7 +47,6 @@ const MAX_LAYOUT_BYTES: usize = 64 * 1024;
 
 pub(crate) async fn put_project_layout(
     State(state): State<AppState>,
-    Extension(_principal): Extension<Principal>,
     scope: Option<axum::extract::Extension<OrgScope>>,
     Path(id): Path<String>,
     Json(body): Json<PutProjectLayoutBody>,

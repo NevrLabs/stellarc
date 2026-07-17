@@ -310,6 +310,50 @@ async fn login_cookie_authenticates_session_and_organization_routes() {
         .unwrap();
     assert_eq!(scoped_sessions.status(), StatusCode::OK);
 
+    let created_project = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/organizations/{organization_id}/projects"))
+                .header("cookie", cookie)
+                .header("sec-fetch-site", "same-origin")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"name":"Workspace"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created_project.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(created_project.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let project_id = body["id"].as_str().unwrap();
+
+    let saved_layout = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!(
+                    "/api/organizations/{organization_id}/projects/{project_id}/layout"
+                ))
+                .header("cookie", cookie)
+                .header("sec-fetch-site", "same-origin")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"layout":{"panels":{"one":{}}}}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(saved_layout.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(saved_layout.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["layout"]["panels"]["one"], serde_json::json!({}));
+
     let scoped_session = app
         .clone()
         .oneshot(
