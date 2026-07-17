@@ -276,7 +276,9 @@ POST /api/vaults                       # create an Olympus-authoritative jj vaul
     | { adapter: "olympus", id?: string, remoteInstallation: string,
         direction: "pull"|"push"|"bidirectional" }
   > }
-  # syncBindings defaults to []; schema-v1 backend bodies remain accepted during migration.
+  # syncBindings defaults to []. Schema-v1 backend bodies remain accepted during migration.
+  # Schema-v1 manifests are read without mutation and become v2 on the next manifest write;
+  # schema v3+ is refused and never rewritten.
   → 201 VaultSummary
 
 GET /api/vaults/:id/sync-bindings
