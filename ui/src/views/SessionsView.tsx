@@ -46,7 +46,7 @@ import "dockview-react/dist/styles/dockview.css";
 import { Icon } from "../components/Icon";
 import { BrandIcon, agentBrand } from "../components/BrandIcons";
 import { useUIStore } from "../store";
-import { useSession, useMessages, useAgents, useProject } from "../hooks/queries";
+import { useSession, useMessages, useAgents, useProject, useSessions } from "../hooks/queries";
 import { useResizable } from "../hooks/useResizable";
 import { attachSessionToProject, saveProjectLayout } from "../api";
 import { readSessionPanelState, writeSessionPanelState } from "../workbench/sessionPanelState";
@@ -79,7 +79,24 @@ export function SessionsView({
   const [dockApi, setDockApi] = useState<DockviewApi | null>(null);
   const restoringRef = useRef(false);
   const restoredProjectRef = useRef<string | null>(null);
-  const { data: project, isSuccess: projectLoaded } = useProject(projectId);
+  const {
+    data: project,
+    isSuccess: projectLoaded,
+    isError: projectLoadFailed,
+  } = useProject(projectId);
+  const {
+    data: sessionData,
+    isSuccess: sessionsLoaded,
+    refetch: refetchSessions,
+  } = useSessions({ managed: true, archived: false });
+  const projectSessionIds = React.useMemo(
+    () => new Set(
+      (sessionData?.sessions ?? [])
+        .filter((session) => session.projectId === projectId)
+        .map((session) => session.id),
+    ),
+    [projectId, sessionData?.sessions],
+  );
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
   const [openSessionIds, setOpenSessionIds] = useState<Set<string>>(() => new Set());
   const [paneMarks, setPaneMarks] = useState<Map<string, string>>(() => new Map());
@@ -111,6 +128,25 @@ export function SessionsView({
   // zero). Layout-effect cleanups run BEFORE passive-effect cleanups, so we
   // snapshot the still-intact layout there and suspend all later persists.
   const persistSuspendedRef = useRef(false);
+  const pendingSavesRef = useRef(new Map<string, DockLayout>());
+  const saveWorkerRef = useRef<Promise<void> | null>(null);
+
+  const enqueueSave = useCallback((id: string, layout: DockLayout) => {
+    pendingSavesRef.current.set(id, layout);
+    if (saveWorkerRef.current) return;
+    saveWorkerRef.current = (async () => {
+      while (pendingSavesRef.current.size > 0) {
+        const next = pendingSavesRef.current.entries().next().value as [string, DockLayout];
+        pendingSavesRef.current.delete(next[0]);
+        try {
+          await saveProjectLayout(next[0], next[1]);
+        } catch {
+          // The local copy is only a fallback when the project request fails.
+        }
+      }
+      saveWorkerRef.current = null;
+    })();
+  }, []);
 
   const persist = useCallback(() => {
     const api = apiRef.current;
@@ -122,14 +158,13 @@ export function SessionsView({
       restoredProjectRef.current !== projectId
     ) return;
     const layout = api.toJSON();
-    if (Object.keys(layout.panels ?? {}).length === 0) return;
     try {
       localStorage.setItem(`olympus-project-layout:${projectId}`, JSON.stringify(layout));
     } catch {
       // Server persistence remains authoritative.
     }
-    void saveProjectLayout(projectId, layout).catch(() => undefined);
-  }, [projectId]);
+    enqueueSave(projectId, layout);
+  }, [enqueueSave, projectId]);
 
   useLayoutEffect(() => {
     persistSuspendedRef.current = false;
@@ -187,8 +222,8 @@ export function SessionsView({
   }, [persist, syncOpenSessions]);
 
   const openSession = useCallback((id: string, split?: "right" | "below") => {
-    openSessionPanel(id, { split });
-  }, [openSessionPanel]);
+    if (projectSessionIds.has(id)) openSessionPanel(id, { split });
+  }, [openSessionPanel, projectSessionIds]);
 
   const handleReady = useCallback((event: DockviewReadyEvent) => {
     apiRef.current = event.api;
@@ -209,18 +244,28 @@ export function SessionsView({
         projectId?: string | null;
       } | null;
       if (!payload?.sessionId || !projectId) return;
-      if (payload.projectId !== projectId) {
-        void attachSessionToProject(payload.sessionId, projectId);
-      }
-      openSessionPanel(payload.sessionId, { drop: dropEvent });
+      void (async () => {
+        if (payload.projectId !== projectId) {
+          await attachSessionToProject(payload.sessionId!, projectId);
+          await refetchSessions();
+        }
+        openSessionPanel(payload.sessionId!, { drop: dropEvent });
+      })();
     });
-  }, [openSessionPanel, persist, projectId, syncOpenSessions]);
+  }, [openSessionPanel, persist, projectId, refetchSessions, syncOpenSessions]);
 
   useEffect(() => {
     const api = dockApi;
-    if (!api || apiRef.current !== api || !projectId || !projectLoaded || restoredProjectRef.current === projectId) return;
-    let layout = project?.layout as DockLayout | null | undefined;
-    if (!layout) {
+    if (
+      !api ||
+      apiRef.current !== api ||
+      !projectId ||
+      (!projectLoaded && !projectLoadFailed) ||
+      !sessionsLoaded ||
+      restoredProjectRef.current === projectId
+    ) return;
+    let layout = projectLoaded ? project?.layout as DockLayout | null | undefined : null;
+    if (projectLoadFailed) {
       try {
         const raw = localStorage.getItem(`olympus-project-layout:${projectId}`);
         layout = raw ? JSON.parse(raw) as DockLayout : null;
@@ -229,18 +274,28 @@ export function SessionsView({
       }
     }
     restoringRef.current = true;
+    let layoutPruned = false;
     if (layout && Object.keys(layout.panels ?? {}).length > 0) {
       try {
         api.fromJSON(layout);
+        for (const panel of [...api.panels]) {
+          const sid = (panel.params as SessionPanelParams | undefined)?.sessionId;
+          if (!sid || !projectSessionIds.has(sid)) {
+            api.removePanel(panel);
+            layoutPruned = true;
+          }
+        }
         pruneEmptyGroups(api);
       } catch {
-        // Ignore layouts from incompatible Dockview versions.
+        // Replace layouts from incompatible Dockview versions with a clean one.
+        layoutPruned = true;
       }
     }
     restoringRef.current = false;
     restoredProjectRef.current = projectId;
     syncOpenSessions(api);
-  }, [dockApi, project?.layout, projectId, projectLoaded, syncOpenSessions]);
+    if (layoutPruned) persist();
+  }, [dockApi, persist, project?.layout, projectId, projectLoadFailed, projectLoaded, projectSessionIds, sessionsLoaded, syncOpenSessions]);
 
   return (
     <>

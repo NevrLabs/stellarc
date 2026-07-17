@@ -15,10 +15,11 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../../../components/Icon";
 import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
 import { useUIStore } from "../../../store";
-import { createSession } from "../../../api";
+import { attachSessionToProject, createSession } from "../../../api";
 import type { Session } from "../../../types";
 import { timeAgo } from "../helpers";
 import { AgentPicker } from "./AgentPicker";
@@ -63,8 +64,11 @@ export function SessionSidebar({
   onResizeKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: sessionData } = useSessions({ managed: true, archived: false });
-  const sessions = sessionData?.sessions ?? [];
+  const sessions = (sessionData?.sessions ?? []).filter(
+    (session) => !activeProjectId || session.projectId === activeProjectId,
+  );
   const { data: projectData } = useProjects();
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
@@ -120,6 +124,14 @@ export function SessionSidebar({
     [navigate, closeIfPhone, onOpenSession],
   );
 
+  const handleProjectDrop = useCallback(async (event: React.DragEvent, projectId: string) => {
+    event.preventDefault();
+    const sessionId = sessionDragId(event.dataTransfer);
+    if (!sessionId) return;
+    await attachSessionToProject(sessionId, projectId);
+    await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+  }, [queryClient]);
+
   return (
     <>
       <aside className="sidebar" style={{ width }}>
@@ -160,6 +172,8 @@ export function SessionSidebar({
                     data-project-id={project.id}
                     key={project.id}
                     onClick={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => void handleProjectDrop(event, project.id)}
                   >
                     <Icon name="folder" size={14} />
                     <span>{project.name}</span>
@@ -203,6 +217,16 @@ export function SessionSidebar({
       />
     </>
   );
+}
+
+function sessionDragId(dataTransfer: DataTransfer): string | null {
+  try {
+    const payload = JSON.parse(dataTransfer.getData("application/x-olympus-session")) as unknown;
+    if (!payload || typeof payload !== "object" || !("sessionId" in payload)) return null;
+    return typeof payload.sessionId === "string" ? payload.sessionId : null;
+  } catch {
+    return null;
+  }
 }
 
 function NavItem({

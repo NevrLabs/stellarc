@@ -85,13 +85,14 @@ pub(crate) async fn put_project_layout(
         return response;
     }
     let views = state.views.read().await;
-    Json(ProjectDto::from_row(
-        views
-            .projects
-            .get(&id)
-            .expect("project exists after layout update"),
-    ))
-    .into_response()
+    match views.projects.get(&id) {
+        Some(project) => Json(ProjectDto::from_row(project)).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "not_found", "message": "project was deleted" })),
+        )
+            .into_response(),
+    }
 }
 
 pub(crate) async fn list_projects(
