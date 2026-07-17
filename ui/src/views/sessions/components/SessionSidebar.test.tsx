@@ -8,6 +8,10 @@ vi.mock("@tanstack/react-router", () => ({
   useRouterState: () => ({ location: { pathname: "/sessions/s-1" } }),
 }));
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock("../../../hooks/queries", () => ({
   useSessions: () => ({
     data: {
@@ -45,7 +49,7 @@ vi.mock("../../../hooks/queries", () => ({
   useAgentCatalog: () => ({ data: { nodes: [] }, isLoading: false }),
 }));
 
-vi.mock("../../../api", () => ({ createSession: vi.fn() }));
+vi.mock("../../../api", () => ({ attachSessionToProject: vi.fn(), createSession: vi.fn() }));
 
 describe("SessionSidebar", () => {
   it("marks the active session as open and focused", () => {
