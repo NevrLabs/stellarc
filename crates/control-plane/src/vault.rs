@@ -1582,7 +1582,36 @@ mod tests {
         let listed = store.list_vaults().unwrap();
         assert_eq!(listed[0].name, "Legacy");
         assert!(listed[0].sync_bindings.is_empty());
-        assert_eq!(fs::read(path.join(".vault/metadata.json")).unwrap(), original);
+        assert_eq!(
+            fs::read(path.join(".vault/metadata.json")).unwrap(),
+            original
+        );
+    }
+
+    #[test]
+    fn corrupt_manifest_does_not_hide_healthy_vaults() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store(&tmp);
+        store
+            .create_vault("Healthy", Vec::<SyncBinding>::new())
+            .unwrap();
+        let broken = store.root().join("broken");
+        fs::create_dir_all(broken.join(".vault")).unwrap();
+        fs::write(broken.join(".vault/metadata.json"), "{").unwrap();
+
+        let listed = store.list_vaults().unwrap();
+        assert_eq!(listed.len(), 2);
+        let broken = listed.iter().find(|vault| vault.id == "broken").unwrap();
+        assert_eq!(broken.name, "broken");
+        assert!(broken.sync_bindings.is_empty());
+    }
+
+    #[test]
+    fn github_binding_is_not_connected_before_first_sync() {
+        let binding: SyncBinding =
+            VaultBackend::github("owner/repo", "main").unwrap().into();
+
+        assert_eq!(binding.summary().status, SyncStatus::NotYetConnected);
     }
 
     #[test]
@@ -1617,6 +1646,12 @@ mod tests {
 
         let listed = store.list_vaults().unwrap();
         assert_eq!(listed[0].sync_bindings[0].adapter, "github");
+        let migrated = store.list_sync_bindings("legacy-github").unwrap();
+        let SyncBinding::Github { repo, branch, .. } = &migrated[0] else {
+            panic!("expected migrated github binding");
+        };
+        assert_eq!(repo, "owner/repo");
+        assert_eq!(branch, "main");
         let olympus = SyncBinding::Olympus {
             id: String::new(),
             remote_installation: "node-2".into(),
