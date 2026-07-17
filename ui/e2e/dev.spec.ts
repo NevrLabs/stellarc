@@ -106,6 +106,10 @@ test("project workspace layout restores and session route stays single-pane", as
   );
   expect(before.length).toBeGreaterThanOrEqual(2);
   expect(before.every((box) => box.width > 100 && box.height > 100)).toBe(true);
+  const paneFill = await page.locator(".chat-view").evaluateAll((chats) =>
+    chats.map((chat) => chat.getBoundingClientRect().height / chat.parentElement!.getBoundingClientRect().height),
+  );
+  expect(paneFill.every((ratio) => ratio >= 0.95)).toBe(true);
 
   await page.reload();
   await expect(page.locator(".sessions-dockview.multi-group")).toBeVisible();
@@ -117,6 +121,10 @@ test("project workspace layout restores and session route stays single-pane", as
     }),
   );
   expect(restored.every((box) => box.width > 100 && box.height > 100)).toBe(true);
+  const restoredFill = await page.locator(".chat-view").evaluateAll((chats) =>
+    chats.map((chat) => chat.getBoundingClientRect().height / chat.parentElement!.getBoundingClientRect().height),
+  );
+  expect(restoredFill.every((ratio) => ratio >= 0.95)).toBe(true);
 
   await page.goto(`${baseURL}/sessions/${encodeURIComponent(singleSessionId!)}`);
   await expect(page.locator(".sessions-dockview")).toHaveCount(0);
