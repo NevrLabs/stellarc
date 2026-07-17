@@ -108,7 +108,7 @@ pub struct SyncBindingSummary {
 
 /// Transport seam: adapters configure exchange and import only through jj.
 pub trait SyncAdapter {
-    fn configure(&self, path: &Path, binding: &SyncBinding) -> Result<()>;
+    fn configure(&self, path: &Path, binding: &SyncBinding, replace: bool) -> Result<()>;
     fn import_into_jj(&self, path: &Path, binding: &SyncBinding) -> Result<()>;
     fn status(&self) -> SyncStatus;
 }
@@ -117,16 +117,24 @@ struct GithubSyncAdapter;
 struct OlympusSyncAdapter;
 
 impl SyncAdapter for GithubSyncAdapter {
-    fn configure(&self, path: &Path, binding: &SyncBinding) -> Result<()> {
+    fn configure(&self, path: &Path, binding: &SyncBinding, replace: bool) -> Result<()> {
         let SyncBinding::Github { id, repo, .. } = binding else {
             bail!("github adapter requires a github binding");
         };
         let url = format!("https://github.com/{repo}.git");
-        run_jj(
-            path,
-            &["git", "remote", "add", id, &url],
-            "jj git remote add",
-        )
+        if replace {
+            run_jj(
+                path,
+                &["git", "remote", "set-url", id, &url],
+                "jj git remote set-url",
+            )
+        } else {
+            run_jj(
+                path,
+                &["git", "remote", "add", id, &url],
+                "jj git remote add",
+            )
+        }
     }
 
     fn import_into_jj(&self, path: &Path, binding: &SyncBinding) -> Result<()> {
@@ -137,12 +145,12 @@ impl SyncAdapter for GithubSyncAdapter {
     }
 
     fn status(&self) -> SyncStatus {
-        SyncStatus::Ready
+        SyncStatus::NotYetConnected
     }
 }
 
 impl SyncAdapter for OlympusSyncAdapter {
-    fn configure(&self, _path: &Path, _binding: &SyncBinding) -> Result<()> {
+    fn configure(&self, _path: &Path, _binding: &SyncBinding, _replace: bool) -> Result<()> {
         Ok(())
     }
 
@@ -399,8 +407,20 @@ impl VaultStore {
             }
             let id = entry.file_name().to_string_lossy().to_string();
             let path = entry.path();
-            let metadata = load_vault_manifest(&path, &id)?;
-            let (note_count, updated_at) = vault_stats(&path)?;
+            let metadata = load_vault_manifest(&path, &id).unwrap_or_else(|error| {
+                tracing::warn!(vault = %id, error = %error, "vault manifest unavailable; listing fallback metadata");
+                VaultManifest {
+                    schema_version: 2,
+                    name: id.clone(),
+                    authority: VaultAuthority::Olympus,
+                    sync_bindings: Vec::new(),
+                    backup_bindings: Vec::new(),
+                }
+            });
+            let (note_count, updated_at) = vault_stats(&path).unwrap_or_else(|error| {
+                tracing::warn!(vault = %id, error = %error, "vault contents unavailable; listing empty statistics");
+                (0, modified_secs(&path).unwrap_or(0.0))
+            });
             vaults.push(VaultSummary {
                 id,
                 name: metadata.name,
@@ -454,7 +474,9 @@ impl VaultStore {
             self.jj_init(&path)?;
             for binding in &sync_bindings {
                 // Sync setup is best-effort: the Olympus authority stays available.
-                let _ = self.configure_binding(&path, binding);
+                if let Err(error) = self.configure_binding(&path, binding, false) {
+                    tracing::warn!(vault = %id, binding = binding.id(), error = %error, "sync binding configuration failed");
+                }
             }
             self.jj_snapshot(&path, "vault: create")
         })();
@@ -488,6 +510,9 @@ impl VaultStore {
         binding.set_id(binding_id.to_string());
         binding.validate()?;
         let mut manifest = load_vault_manifest(&path, vault_id)?;
+        let replace_remote = manifest.sync_bindings.iter().any(|existing| {
+            existing.id() == binding_id && matches!(existing, SyncBinding::Github { .. })
+        });
         if let Some(existing) = manifest
             .sync_bindings
             .iter_mut()
@@ -498,7 +523,9 @@ impl VaultStore {
             manifest.sync_bindings.push(binding.clone());
         }
         write_vault_manifest(&path, &manifest)?;
-        let _ = self.configure_binding(&path, &binding);
+        if let Err(error) = self.configure_binding(&path, &binding, replace_remote) {
+            tracing::warn!(vault = vault_id, binding = binding_id, error = %error, "sync binding configuration failed");
+        }
         Ok(binding)
     }
 
@@ -688,13 +715,13 @@ impl VaultStore {
         run_jj(path, &["describe", "-m", message], "jj describe")
     }
 
-    fn configure_binding(&self, path: &Path, binding: &SyncBinding) -> Result<()> {
+    fn configure_binding(&self, path: &Path, binding: &SyncBinding, replace: bool) -> Result<()> {
         if self.jj_mode == JjMode::Disabled {
             return Ok(());
         }
         match binding {
-            SyncBinding::Github { .. } => GithubSyncAdapter.configure(path, binding),
-            SyncBinding::Olympus { .. } => OlympusSyncAdapter.configure(path, binding),
+            SyncBinding::Github { .. } => GithubSyncAdapter.configure(path, binding, replace),
+            SyncBinding::Olympus { .. } => OlympusSyncAdapter.configure(path, binding, replace),
         }
     }
 }
@@ -1608,8 +1635,7 @@ mod tests {
 
     #[test]
     fn github_binding_is_not_connected_before_first_sync() {
-        let binding: SyncBinding =
-            VaultBackend::github("owner/repo", "main").unwrap().into();
+        let binding: SyncBinding = VaultBackend::github("owner/repo", "main").unwrap().into();
 
         assert_eq!(binding.summary().status, SyncStatus::NotYetConnected);
     }

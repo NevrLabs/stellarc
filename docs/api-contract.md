@@ -148,6 +148,7 @@ export interface VaultSummary {
     schedule: "manual";
     lastSync: number | null;
     status: "ready" | "notYetConnected" | "error";
+    // GitHub and Olympus bindings remain notYetConnected until their first successful sync.
     conflict: string | null;
   }>;
 }
