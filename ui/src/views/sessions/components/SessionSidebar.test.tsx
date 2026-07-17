@@ -40,6 +40,7 @@ vi.mock("../../../hooks/queries", () => ({
       ],
     },
   }),
+  useProjects: () => ({ data: { projects: [], total: 0 } }),
   useUpdateSession: () => ({ mutate: vi.fn() }),
   useAgentCatalog: () => ({ data: { nodes: [] }, isLoading: false }),
 }));

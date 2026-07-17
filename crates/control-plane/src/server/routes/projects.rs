@@ -86,7 +86,10 @@ pub(crate) async fn put_project_layout(
     }
     let views = state.views.read().await;
     Json(ProjectDto::from_row(
-        views.projects.get(&id).expect("project exists after layout update"),
+        views
+            .projects
+            .get(&id)
+            .expect("project exists after layout update"),
     ))
     .into_response()
 }
