@@ -130,7 +130,7 @@ export function SessionsView({
   // snapshot the still-intact layout there and suspend all later persists.
   const persistSuspendedRef = useRef(false);
   const layoutWriterRef = useRef<LatestProjectLayoutWriter<DockLayout> | null>(null);
-  layoutWriterRef.current ??= new LatestProjectLayoutWriter(saveProjectLayout);
+  layoutWriterRef.current ??= new LatestProjectLayoutWriter<DockLayout>(saveProjectLayout);
 
   const persist = useCallback(() => {
     const api = apiRef.current;
@@ -147,7 +147,7 @@ export function SessionsView({
     } catch {
       // Server persistence remains authoritative.
     }
-    layoutWriterRef.current.enqueue(projectId, layout);
+    layoutWriterRef.current!.enqueue(projectId, layout);
   }, [projectId]);
 
   useLayoutEffect(() => {
