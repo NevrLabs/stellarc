@@ -369,11 +369,26 @@ The v1 executable classes are `session_tool_provider` (MCP), `skill`, and
 WF-1. Registry-v1 `PUT /api/registry` remains available and writes an active
 synthetic package named `legacy.<kind>.<slug>`. Adapter slug resolution reads
 only active package contributions. `activity_provider` contributions must use
-`definition.backend = "jobs"` and integer `definition.protocol = 1` in v1;
-missing or other protocol values fail closed. `job.run` resolves through registry
-v2 to the built-in `core.jobs` provider unless an activated package's durable
-binding selects another JOBS-2-backed provider. Each dispatch pins package id,
-version, digest, reviewed grants, organization, principal, node, and attempt
-identity from host-owned state; request bodies cannot override them. The
-invocation/result and standalone SSH transport contracts are normative in ADR
-0027.
+`definition.backend = "jobs"`, integer `definition.protocol = 1`, and a literal
+argv-array `definition.entrypoint` whose executable resolves without symlinks
+beneath the digest-verified installed package root; missing or invalid fields
+fail closed. `job.run` resolves through registry v2 to the built-in `core.jobs`
+provider unless an activated package's durable binding selects another
+JOBS-2-backed provider. `provides = ["job.run"]` selects the provider and is not
+a capability grant.
+
+Each durable dispatch pins package/contribution identity, version, digest, exact
+reviewed grants, organization, principal, selected node, attempt identity,
+inputs, cache directories, and artifact declarations from host-owned state;
+request bodies cannot override identity, authority, placement, entrypoint, or
+secret values. Organization, principal, grants, and package/contribution fields
+are sent to the selected JobRunner for verification. Node and initiating-session
+identity remain Hall-side; node identity is bound by the authenticated Envoy
+connection. Exact-v1 blob staging carries and verifies declared input bytes
+before dispatch. Artifact bytes are spooled back, durably accepted and verified
+before `JobResult` exposes authorized
+`/api/jobs/:jobId/artifacts/:path` retrieval handles. Output and blob chunks use
+base64 for arbitrary bytes. Only the JOBS-2 spool allocates Olympus output,
+artifact, and result sequence numbers; the provider emits unsequenced events.
+The complete invocation, content, result, recovery, and standalone SSH contracts
+are normative in ADR 0027.
