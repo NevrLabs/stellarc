@@ -105,6 +105,7 @@ cat > "$DROPIN_DIR/instance-$INSTANCE.conf" <<DROPIN
 ExecStart=
 ExecStart=$BIN_DIR/olympus-envoy --hall iroh:$HALL_IROH_ID --node-id $NODE_ID
 Environment="OLYMPUS_NODE_ID=$NODE_ID"
+Environment="OLYMPUS_HOME=$OLYMPUS_HOME"
 DROPIN
 
 systemctl --user daemon-reload

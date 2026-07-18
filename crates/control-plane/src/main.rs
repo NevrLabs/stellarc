@@ -156,8 +156,11 @@ async fn main() -> Result<()> {
         olympus_control_plane::server::bridge_mgr::BridgeManager::with_factory(
             log_arc.clone(),
             std::sync::Arc::new(
-                |spec: &olympus_control_plane::server::bridge_mgr::RuntimeSpec|
-                 -> std::sync::Arc<dyn olympus_control_plane::bridge::AgentRuntime> {
+                |_session_id,
+                 spec: &olympus_control_plane::server::bridge_mgr::RuntimeSpec|
+                 -> anyhow::Result<
+                    std::sync::Arc<dyn olympus_control_plane::bridge::AgentRuntime>,
+                > {
                     let cwd = spec
                         .cwd
                         .as_deref()
@@ -172,35 +175,32 @@ async fn main() -> Result<()> {
                     // Route the chosen agent to the correct ACP adapter: Hermes
                     // profiles use `hermes acp`, while local CLI harnesses
                     // (Claude Code / Codex) use the pinned Zed ACP adapters.
-                    let command =
-                        olympus_control_plane::bridge::hermes::acp_command_for_agent(
-                            spec.agent.as_deref(),
-                        );
+                    let command = olympus_control_plane::bridge::hermes::acp_command_for_agent(
+                        spec.agent.as_deref(),
+                    );
                     // Select the ACP wire framing: Hermes uses newline-delimited
                     // JSON (the transport hermes acp actually uses), while
                     // Claude Code and Codex use Content-Length framing per the
                     // ACP specification.
-                    let framing =
-                        olympus_control_plane::bridge::hermes::acp_framing_for_agent(
-                            spec.agent.as_deref(),
-                        );
+                    let framing = olympus_control_plane::bridge::hermes::acp_framing_for_agent(
+                        spec.agent.as_deref(),
+                    );
                     let model_set_style =
                         olympus_control_plane::bridge::hermes::model_set_style_for_agent(
                             spec.agent.as_deref(),
                         );
-                    let config =
-                        olympus_control_plane::bridge::hermes::HermesRuntimeConfig {
-                            command,
-                            cwd,
-                            session_source: Some("olympus".into()),
-                            event_buffer: 256,
-                            start_timeout_secs: 30,
-                            mcp_servers: spec.mcp_servers.clone(),
-                            env,
-                            framing,
-                            model_set_style,
-                        };
-                    olympus_control_plane::bridge::hermes::HermesAgentRuntime::new_arc(config)
+                    let config = olympus_control_plane::bridge::hermes::HermesRuntimeConfig {
+                        command,
+                        cwd,
+                        session_source: Some("olympus".into()),
+                        event_buffer: 256,
+                        start_timeout_secs: 30,
+                        mcp_servers: spec.mcp_servers.clone(),
+                        env,
+                        framing,
+                        model_set_style,
+                    };
+                    Ok(olympus_control_plane::bridge::hermes::HermesAgentRuntime::new_arc(config))
                 },
             ),
         )

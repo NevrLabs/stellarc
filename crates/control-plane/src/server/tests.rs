@@ -1252,6 +1252,82 @@ async fn post_sessions_rejects_agent_missing_from_node() {
 }
 
 #[tokio::test]
+async fn explicit_node_disconnect_fails_closed_without_local_runtime_fallback() {
+    let (state, _d) = test_state();
+    state
+        .nodes
+        .register(
+            "remote",
+            "remote-host",
+            4,
+            "0.1",
+            true,
+            crate::node::NodeTransport::Iroh,
+            Some("iroh-remote".into()),
+            vec![test_agent("coding-agent")],
+        )
+        .await;
+    // Deliberately omit an EnvoyConnection: the selected node disconnected
+    // after optimistic session creation.
+    let app = build_router(state.clone());
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"agent":"coding-agent","node":"remote"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let session_id = created["id"].as_str().unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/sessions/{session_id}/messages"))
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"text":"must stay remote"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    for _ in 0..50 {
+        let error_content = {
+            let views = state.views.read().await;
+            views
+                .messages
+                .recent(session_id, 10)
+                .iter()
+                .find(|message| message.role == "system")
+                .and_then(|message| message.content.clone())
+        };
+        if let Some(error_content) = error_content {
+            assert!(
+                error_content.contains("selected node remote disconnected"),
+                "unexpected error: {error_content:?}"
+            );
+            assert!(state.bridge.get_runtime(session_id).await.is_none());
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("expected a persisted fail-closed runtime error");
+}
+
+#[tokio::test]
 async fn patch_session_assigns_agent_and_model() {
     // PATCH /api/sessions/:id sets agent/model on an existing managed draft.
     let (state, _d) = test_state();
@@ -2311,6 +2387,10 @@ async fn enroll_flow_mint_script_register() {
         "placeholders must be replaced"
     );
     assert!(script.contains("83141ef93390a387aec148672f7ae44a9ee4c02a0f23f82c0bb80fcc2e499320"));
+    assert!(
+        script.contains("Environment=\"OLYMPUS_HOME=$OLYMPUS_HOME\""),
+        "the node-local state root must survive into the systemd service"
+    );
 
     // 3. Register a node id — lands in hall.toml.
     let envoy_id = "93141ef93390a387aec148672f7ae44a9ee4c02a0f23f82c0bb80fcc2e499321";

@@ -10,15 +10,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::bridge::{AgentCommand, AgentRuntime};
 use olympus_proto::RuntimeSpec;
 
 /// A type-erased runtime factory. Production uses HermesAgentRuntime; tests
-/// inject a mock. The spec carries the agent/node binding so the factory can
-/// route to the right Hermes profile.
-pub type RuntimeFactory = Arc<dyn Fn(&RuntimeSpec) -> Arc<dyn AgentRuntime> + Send + Sync>;
+/// inject a mock. The optional session id lets the production Envoy
+/// materialize a node-local managed-session workspace before constructing the
+/// runtime. Factories return errors so invalid identities fail closed before
+/// any child process is spawned.
+pub type RuntimeFactory =
+    Arc<dyn Fn(Option<&str>, &RuntimeSpec) -> Result<Arc<dyn AgentRuntime>> + Send + Sync>;
 
 /// One registered runtime plus the capability flags captured from its
 /// adapter's `initialize` response (ADR 0008 §3).
@@ -49,6 +52,9 @@ pub struct RuntimeTable {
     factory: RuntimeFactory,
     /// Active runtimes keyed by Olympus session id.
     runtimes: RwLock<HashMap<String, RuntimeEntry>>,
+    /// Per-session creation locks prevent retries/concurrent first prompts from
+    /// spawning multiple ACP children against one workspace.
+    start_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl RuntimeTable {
@@ -57,7 +63,19 @@ impl RuntimeTable {
         Self {
             factory,
             runtimes: RwLock::new(HashMap::new()),
+            start_locks: Mutex::new(HashMap::new()),
         }
+    }
+
+    async fn start_lock(&self, session_id: &str) -> Arc<Mutex<()>> {
+        let mut locks = self.start_locks.lock().await;
+        // A lock with no caller references is stale. Runtime-backed sessions
+        // bypass this map via the fast path; stopped sessions get a fresh lock.
+        locks.retain(|_, lock| Arc::strong_count(lock) > 1);
+        locks
+            .entry(session_id.to_owned())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 
     /// Ensure a runtime exists for a managed session, spawning it lazily on
@@ -81,7 +99,16 @@ impl RuntimeTable {
             return Ok((rt, hid));
         }
 
-        let runtime = (self.factory)(spec);
+        let start_lock = self.start_lock(session_id).await;
+        let _start_guard = start_lock.lock().await;
+        // Another caller may have completed startup while this request waited.
+        if let Some(entry) = self.runtimes.read().await.get(session_id) {
+            let rt = entry.runtime.clone();
+            let hid = rt.hermes_session_id().await.unwrap_or_default();
+            return Ok((rt, hid));
+        }
+
+        let runtime = (self.factory)(Some(session_id), spec)?;
         let resume = resume_hermes_id.filter(|s| !s.is_empty());
         runtime
             .start(resume)
@@ -110,7 +137,7 @@ impl RuntimeTable {
     /// Fork a source agent session into a fresh runtime (not yet registered —
     /// the caller assigns the Olympus session id and calls [`Self::register`]).
     pub async fn fork_runtime(&self, source_hermes_id: &str) -> Result<ForkedRuntime> {
-        let runtime = (self.factory)(&RuntimeSpec::default());
+        let runtime = (self.factory)(None, &RuntimeSpec::default())?;
         runtime
             .fork_session(source_hermes_id)
             .await
@@ -221,4 +248,99 @@ fn chrono_millis() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::pin::Pin;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use futures::stream::{self, Stream};
+    use tokio::sync::Notify;
+
+    use super::*;
+    use crate::bridge::AgentEvent;
+
+    struct SlowRuntime {
+        started: Arc<Notify>,
+        release: Arc<Notify>,
+        hermes_id: Mutex<Option<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl AgentRuntime for SlowRuntime {
+        async fn start(&self, _session_id: Option<&str>) -> Result<()> {
+            self.started.notify_one();
+            self.release.notified().await;
+            *self.hermes_id.lock().await = Some("hermes-session".into());
+            Ok(())
+        }
+
+        async fn fork_session(&self, _session_id: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn send(&self, _cmd: AgentCommand) -> Result<()> {
+            Ok(())
+        }
+
+        fn events(&self) -> Pin<Box<dyn Stream<Item = AgentEvent> + Send>> {
+            Box::pin(stream::empty())
+        }
+
+        async fn stop(&self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn hermes_session_id(&self) -> Option<String> {
+            self.hermes_id.lock().await.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_ensure_runtime_spawns_one_child_per_session() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let table = Arc::new(RuntimeTable::with_factory(Arc::new({
+            let calls = calls.clone();
+            let started = started.clone();
+            let release = release.clone();
+            move |_, _| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(Arc::new(SlowRuntime {
+                    started: started.clone(),
+                    release: release.clone(),
+                    hermes_id: Mutex::new(None),
+                }) as Arc<dyn AgentRuntime>)
+            }
+        })));
+
+        let first = tokio::spawn({
+            let table = table.clone();
+            async move {
+                table
+                    .ensure_runtime("session-a", &RuntimeSpec::default(), None)
+                    .await
+            }
+        });
+        started.notified().await;
+        let second = tokio::spawn({
+            let table = table.clone();
+            async move {
+                table
+                    .ensure_runtime("session-a", &RuntimeSpec::default(), None)
+                    .await
+            }
+        });
+        tokio::task::yield_now().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        release.notify_waiters();
+        let (_, first_id) = first.await.unwrap().unwrap();
+        let (_, second_id) = second.await.unwrap().unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(first_id, "hermes-session");
+        assert_eq!(second_id, first_id);
+    }
 }

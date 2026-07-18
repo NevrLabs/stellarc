@@ -2,6 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Managed-session workspace contract understood by current Hall and Envoy.
+/// Zero is reserved for legacy payloads that predate node-local workspaces.
+pub const MANAGED_WORKSPACE_VERSION: u8 = 1;
+
 /// What an agent runtime needs to spawn: which agent (Hermes profile) drives it
 /// and on which node. The factory turns this into a concrete runtime.
 ///
@@ -15,9 +19,19 @@ pub struct RuntimeSpec {
     /// Node to run on ("local" for now; multi-node is post-MVP).
     #[serde(default)]
     pub node: Option<String>,
-    /// The session space — the agent's working directory. `None` falls back to
-    /// the server's cwd (legacy behavior); production always sets this to the
-    /// per-session space so agents operate in a scoped directory, not the host.
+    /// Organization that owns the managed session. Envoys combine this
+    /// logical identity with the request's session id to materialize a
+    /// node-local workspace; Hall-local absolute paths are not portable.
+    #[serde(default)]
+    pub organization_id: Option<String>,
+    /// Versioned node-local workspace contract. New Envoys reject legacy zero
+    /// with an actionable upgrade error instead of misdiagnosing a missing
+    /// Hall-local cwd as a missing agent executable.
+    #[serde(default)]
+    pub workspace_version: u8,
+    /// Legacy/local requested working directory. A production Envoy ignores
+    /// this Hall-local path for managed sessions and derives its working
+    /// directory from `organization_id` plus the request's session id.
     #[serde(default)]
     pub cwd: Option<String>,
     /// MCP servers to inject into the ACP session/new request (resolved from
@@ -71,12 +85,16 @@ mod tests {
         let spec = RuntimeSpec {
             agent: Some("default".into()),
             node: Some("local".into()),
+            organization_id: Some("org-a".into()),
+            workspace_version: MANAGED_WORKSPACE_VERSION,
             cwd: Some("/tmp/space".into()),
             mcp_servers: vec![serde_json::json!({"name": "gh"})],
             env: vec![("HERMES_SKILLS_PATH".into(), "/x".into())],
         };
         let json = serde_json::to_value(&spec).unwrap();
         assert!(json.get("mcpServers").is_some(), "camelCase wire naming");
+        assert_eq!(json["organizationId"], "org-a");
+        assert_eq!(json["workspaceVersion"], MANAGED_WORKSPACE_VERSION);
         let back: RuntimeSpec = serde_json::from_value(json).unwrap();
         assert_eq!(back, spec);
     }
@@ -85,6 +103,8 @@ mod tests {
     fn runtime_spec_tolerates_missing_and_unknown_fields() {
         let spec: RuntimeSpec = serde_json::from_str(r#"{"agent":"a","futureField":1}"#).unwrap();
         assert_eq!(spec.agent.as_deref(), Some("a"));
+        assert!(spec.organization_id.is_none());
+        assert_eq!(spec.workspace_version, 0, "legacy payload marker");
         assert!(spec.mcp_servers.is_empty());
     }
 

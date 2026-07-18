@@ -14,7 +14,7 @@
 //!   olympus-envoy [--socket <path>] [--node-id <id>] [--mock]
 //! Defaults: socket = `$OLYMPUS_CONTROL_SOCKET` or `~/.olympus/control.sock`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -30,7 +30,7 @@ use olympus_envoy::{
 };
 use olympus_proto::{
     frames::{EnvoyFrame, HallFrame, NodeRole},
-    runtime::RuntimeSpec,
+    runtime::{RuntimeSpec, MANAGED_WORKSPACE_VERSION},
     version::{BuildVersion, PROTOCOL_VERSION},
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
@@ -91,8 +91,8 @@ async fn main() -> Result<()> {
     tracing::info!(count = agents.len(), "discovered local agents");
 
     let table = if mock {
-        RuntimeTable::with_factory(Arc::new(|_spec: &RuntimeSpec| {
-            MockAgentRuntime::new_arc() as Arc<dyn AgentRuntime>
+        RuntimeTable::with_factory(Arc::new(|_session_id, _spec: &RuntimeSpec| {
+            Ok(MockAgentRuntime::new_arc() as Arc<dyn AgentRuntime>)
         }))
     } else {
         production_factory()
@@ -194,13 +194,23 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Per-envoy state dir (iroh key lives here): ~/.olympus/envoy/<node-id>/.
-fn envoy_state_dir(node_id: &str) -> Result<PathBuf> {
+/// Root for this Envoy's state and node-local resources. Development and
+/// production must never share this tree.
+fn olympus_home() -> Result<PathBuf> {
+    if let Ok(home) = std::env::var("OLYMPUS_HOME") {
+        if !home.trim().is_empty() {
+            return Ok(PathBuf::from(home));
+        }
+    }
     let home = std::env::var("HOME").context("HOME is not set")?;
-    Ok(PathBuf::from(home)
-        .join(".olympus")
-        .join("envoy")
-        .join(node_id))
+    Ok(PathBuf::from(home).join(".olympus"))
+}
+
+/// Per-envoy state dir (iroh key lives here):
+/// `$OLYMPUS_HOME/envoy/<node-id>/`.
+fn envoy_state_dir(node_id: &str) -> Result<PathBuf> {
+    validate_resource_component("node id", node_id)?;
+    Ok(olympus_home()?.join("envoy").join(node_id))
 }
 
 /// Type-erased writer — UDS write half locally, iroh QUIC SendStream remotely.
@@ -895,23 +905,117 @@ async fn connect_with_retry(path: &PathBuf) -> Result<UnixStream> {
     }
 }
 
-/// Production runtime factory: spawns a real agent child via the ACP bridge.
+fn validate_resource_component(kind: &str, value: &str) -> Result<()> {
+    if value.is_empty()
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        anyhow::bail!("invalid {kind} path component: {value:?}");
+    }
+    Ok(())
+}
+
+fn ensure_private_directory(path: &Path) -> Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                anyhow::bail!("workspace path is not a real directory: {}", path.display());
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match std::fs::create_dir(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let metadata = std::fs::symlink_metadata(path).with_context(|| {
+                        format!("checking concurrently-created directory {}", path.display())
+                    })?;
+                    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                        anyhow::bail!("workspace path is not a real directory: {}", path.display());
+                    }
+                }
+                Err(error) => {
+                    return Err(error)
+                        .with_context(|| format!("creating directory {}", path.display()));
+                }
+            }
+        }
+        Err(error) => {
+            return Err(error).with_context(|| format!("checking directory {}", path.display()));
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+            .with_context(|| format!("securing directory {}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn materialize_session_space(
+    root: &Path,
+    organization_id: &str,
+    session_id: &str,
+) -> Result<PathBuf> {
+    validate_resource_component("organization id", organization_id)?;
+    validate_resource_component("session id", session_id)?;
+
+    let organization = root.join(organization_id);
+    let sessions = organization.join("sessions");
+    let session = sessions.join(session_id);
+    for directory in [
+        root,
+        organization.as_path(),
+        sessions.as_path(),
+        session.as_path(),
+    ] {
+        ensure_private_directory(directory)?;
+    }
+    Ok(session)
+}
+
+/// Production runtime factory: materializes managed session spaces on this
+/// node, then spawns a real agent child via the ACP bridge.
 fn production_factory() -> RuntimeTable {
     use olympus_envoy::bridge::hermes::{
         acp_command_for_agent, acp_framing_for_agent, HermesAgentRuntime, HermesRuntimeConfig,
     };
 
-    RuntimeTable::with_factory(Arc::new(|spec: &RuntimeSpec| {
-        let cwd = spec
-            .cwd
-            .as_deref()
-            .filter(|c| !c.is_empty())
-            .map(String::from)
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .map(|p| p.to_string_lossy().into_owned())
-                    .unwrap_or_else(|_| ".".into())
-            });
+    RuntimeTable::with_factory(Arc::new(|session_id, spec: &RuntimeSpec| {
+        let cwd = if let Some(session_id) = session_id {
+            if spec.workspace_version != MANAGED_WORKSPACE_VERSION {
+                anyhow::bail!(
+                    "runtime workspace protocol upgrade required: expected version {}, got {}",
+                    MANAGED_WORKSPACE_VERSION,
+                    spec.workspace_version
+                );
+            }
+            let organization_id = spec
+                .organization_id
+                .as_deref()
+                .context("managed runtime spec is missing organization id")?;
+            let workspace =
+                materialize_session_space(&olympus_home()?, organization_id, session_id)?;
+            tracing::info!(
+                session = session_id,
+                organization = organization_id,
+                cwd = %workspace.display(),
+                "materialized node-local session space"
+            );
+            workspace.to_string_lossy().into_owned()
+        } else {
+            spec.cwd
+                .as_deref()
+                .filter(|cwd| !cwd.is_empty())
+                .map(String::from)
+                .unwrap_or_else(|| {
+                    std::env::current_dir()
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .unwrap_or_else(|_| ".".into())
+                })
+        };
         let env = spec.env.clone();
         let command = acp_command_for_agent(spec.agent.as_deref());
         let framing = acp_framing_for_agent(spec.agent.as_deref());
@@ -928,7 +1032,7 @@ fn production_factory() -> RuntimeTable {
             framing,
             model_set_style,
         };
-        HermesAgentRuntime::new_arc(config) as Arc<dyn AgentRuntime>
+        Ok(HermesAgentRuntime::new_arc(config) as Arc<dyn AgentRuntime>)
     }))
 }
 
@@ -981,11 +1085,83 @@ fn configured_roles() -> Result<Vec<NodeRole>> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn materializes_private_node_local_session_space() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("olympus-dev");
+        let session =
+            materialize_session_space(&root, "org-a", "20260718T071209Z-deadbeef").unwrap();
+
+        assert_eq!(
+            session,
+            root.join("org-a")
+                .join("sessions")
+                .join("20260718T071209Z-deadbeef")
+        );
+        assert!(session.is_dir());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                session.metadata().unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
+    }
+
+    #[test]
+    fn session_space_rejects_unsafe_identity_components() {
+        let temp = tempfile::tempdir().unwrap();
+        assert!(materialize_session_space(temp.path(), "../other", "session").is_err());
+        assert!(materialize_session_space(temp.path(), "org", "a/b").is_err());
+        assert!(materialize_session_space(temp.path(), "org", "").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn session_space_rejects_preexisting_symlink_components() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("root");
+        let outside = temp.path().join("outside");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        symlink(&outside, root.join("org-a")).unwrap();
+
+        assert!(materialize_session_space(&root, "org-a", "session-a").is_err());
+        assert!(!outside.join("sessions").exists());
+    }
+
+    #[tokio::test]
+    async fn legacy_workspace_payload_fails_with_actionable_upgrade_error() {
+        let table = production_factory();
+        let result = table
+            .ensure_runtime(
+                "session-a",
+                &RuntimeSpec {
+                    organization_id: Some("org-a".into()),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await;
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("legacy workspace payload must fail before child spawn"),
+        };
+
+        assert!(
+            format!("{error:#}").contains("workspace protocol upgrade required"),
+            "unexpected error: {error:#}"
+        );
+    }
+
     #[tokio::test]
     async fn reregister_frame_causes_a_second_hello_on_same_connection() {
         let dir = tempfile::tempdir().unwrap();
-        let table = Arc::new(RuntimeTable::with_factory(Arc::new(|_| {
-            MockAgentRuntime::new_arc() as Arc<dyn AgentRuntime>
+        let table = Arc::new(RuntimeTable::with_factory(Arc::new(|_, _| {
+            Ok(MockAgentRuntime::new_arc() as Arc<dyn AgentRuntime>)
         })));
         let spool = Arc::new(EventSpool::open(dir.path()).unwrap());
         let jobs = Arc::new(JobTable::new(dir.path().join("jobs")).unwrap());
@@ -1036,8 +1212,8 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn three_missed_heartbeat_acks_cause_a_fresh_hello() {
         let dir = tempfile::tempdir().unwrap();
-        let table = Arc::new(RuntimeTable::with_factory(Arc::new(|_| {
-            MockAgentRuntime::new_arc() as Arc<dyn AgentRuntime>
+        let table = Arc::new(RuntimeTable::with_factory(Arc::new(|_, _| {
+            Ok(MockAgentRuntime::new_arc() as Arc<dyn AgentRuntime>)
         })));
         let spool = Arc::new(EventSpool::open(dir.path()).unwrap());
         let jobs = Arc::new(JobTable::new(dir.path().join("jobs")).unwrap());

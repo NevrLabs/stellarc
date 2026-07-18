@@ -34,3 +34,23 @@ active builds.
 - Completed worktree cleanup includes its inactive target.
 - The dev Hall retains its separate service target under `/var/lib/olympus` so
   test cleanup cannot remove the running binary.
+
+## Recurrence — 2026-07-18
+
+The shared target solved per-worktree duplication but was not bounded. It grew
+to 12.4 GB (`debug/` 11.0 GB, `release/` 1.4 GB) while inactive fxrun
+workspaces held another 18.0 GB. A release build reached 100% disk usage and
+failed while writing an rlib. No process referenced the shared debug tree, so
+removing only `$HOME/.cache/olympus-cargo-target/debug` reclaimed roughly 11 GB
+without touching the live dev service target or the freshly built release
+Envoy.
+
+The durable rule is therefore **shared and bounded**, not merely shared:
+
+- preflight `df` before release builds and broad gates;
+- after a verified change, remove inactive shared `debug/` artifacts when they
+  are no longer needed, while preserving release deployment artifacts;
+- inventory and expire inactive fxrun workspaces instead of treating the cache
+  as permanent storage;
+- never clean `/var/lib/olympus/cargo-target-dev` while the dev Hall or Envoy
+  process references it.
