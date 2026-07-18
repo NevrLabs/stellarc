@@ -5,6 +5,14 @@
 - Amends: ADR 0010 (`auth.sqlite` is identity/authorization metadata, not the store for external secret payloads)
 - Relates to: ADR 0005 (organization boundary), ADR 0011 (agent capabilities), ADR 0015 (managed apps and plugins), ADR 0018 (producer-side redaction)
 
+> **Amended by ADR 0027 (2026-07-18).** For agent-session credentials the
+> broker issues **leases** held by Envoy, which runs the node-local auth
+> proxy and owns OAuth refresh under an exclusive per-credential refresh
+> delegation. Already-leased sessions continue through a Hall/broker outage
+> up to lease TTL; only new authorizations fail closed (refines §11). §8
+> delivery tiers 2-4 are refined for agent harnesses into  and
+>  modes declared per ADR 0006 adapter.
+
 ## 1. Context
 
 Olympus-managed CLIs, MCP servers, workflows, agents, plugins, and apps need to authenticate to external systems. Credentials may belong to an organization, an individual user, or Olympus automation. They may be API keys, OAuth grants, application private keys, SSH keys, certificates, or renewable cloud credentials.

@@ -16,6 +16,11 @@
 > The earlier “DB is local + link file in the vault” example is superseded for
 > this board-specific layout only.
 
+> **Amended by ADR 0027 (2026-07-18).** Every vault write is a jj commit with
+> a mandatory signature: human writes sign as the user; agent writes use
+> author = the user on whose behalf, committer/signer = the agent's
+> Hall-minted key. Unsigned writes are rejected at the vault write path.
+
 ## Context
 
 Epic K specifies knowledge vaults as "text = jj, binaries = blobref +
