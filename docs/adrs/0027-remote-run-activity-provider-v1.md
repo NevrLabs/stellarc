@@ -1,6 +1,6 @@
 # ADR 0027 — Remote-run package and activity-provider protocol v1
 
-Status: proposed · Date: 2026-07-18
+Status: accepted · Date: 2026-07-18
 Relates to: ADR 0008 (Hall/Envoy), ADR 0011 (jobs/capabilities), ADR 0012
 (packages), ADR 0017 (durable jobs), ADR 0019 (CLI).
 
@@ -218,9 +218,20 @@ status.
 
 ## Cancellation, timeout, and recovery
 
-The execution core starts each attempt in its own process group. Cancellation,
+Both modes use the JOBS-2 launch fence before any provider code may execute:
+persist launch intent; spawn the digest-bound provider as a stopped process-group
+leader; durably record its PID/process-group identity; then release the group to
+execute. If spawn or durable identity persistence fails, the worker kills and
+reaps the stopped group, records the attempt failed or indeterminate, and never
+replays its effects.
+
+The provider entrypoint and executed target remain in that one attempt-owned
+process group. Providers must not daemonize, double-fork, call `setsid`, or
+otherwise escape it. Process-group termination is the sole v1 cancellation
+control path; there is no structured provider cancel record. Cancellation,
 timeout, worker recovery, and output-channel failure signal and then kill the
-complete process group. No layer claims exactly-once process effects.
+durably recorded complete process group. No layer claims exactly-once process
+effects.
 
 Olympus mode uses the JOBS-2 attempt ledger and spool unchanged. Standalone
 workers use an operator-configured state root (recommended
@@ -229,8 +240,9 @@ and `blobs/`; it is not caller-selectable. Before inspecting or mutating an
 attempt, a worker takes an exclusive per-`(jobId, epoch)` filesystem lock.
 Ledger writes use temporary-file write, file fsync, atomic rename, and parent
 fsync. The running record includes attempt identity, package digest, invocation
-digest, state, process-group id, spool high-water mark, and terminal result.
-The running record is durable before execution is reported as started.
+digest, state, process-group id, spool high-water mark, and terminal result. The
+launch intent and stopped process-group identity are durable before the group is
+released, not merely before execution is reported as started.
 
 A duplicate with the same attempt and invocation digest replays the durable
 spool or observes the locked running attempt; a different invocation digest is
