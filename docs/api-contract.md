@@ -369,7 +369,11 @@ The v1 executable classes are `session_tool_provider` (MCP), `skill`, and
 WF-1. Registry-v1 `PUT /api/registry` remains available and writes an active
 synthetic package named `legacy.<kind>.<slug>`. Adapter slug resolution reads
 only active package contributions. `activity_provider` contributions must use
-`definition.backend = "jobs"` in v1. `job.run` resolves through registry v2 to
-the built-in `core.jobs` provider unless an activated package's durable binding
-selects another JOBS-1-backed provider; each job record pins package id, version,
-and digest.
+`definition.backend = "jobs"` and integer `definition.protocol = 1` in v1;
+missing or other protocol values fail closed. `job.run` resolves through registry
+v2 to the built-in `core.jobs` provider unless an activated package's durable
+binding selects another JOBS-2-backed provider. Each dispatch pins package id,
+version, digest, reviewed grants, organization, principal, node, and attempt
+identity from host-owned state; request bodies cannot override them. The
+invocation/result and standalone SSH transport contracts are normative in ADR
+0027.
