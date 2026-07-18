@@ -2391,6 +2391,14 @@ async fn enroll_flow_mint_script_register() {
         script.contains("Environment=\"OLYMPUS_HOME=$OLYMPUS_HOME\""),
         "the node-local state root must survive into the systemd service"
     );
+    assert!(
+        script.contains("install -d -m 0700 \"$OLYMPUS_HOME\" \"$BIN_DIR\""),
+        "the node-local state root must be private"
+    );
+    assert!(
+        script.contains("UMask=0077"),
+        "the Envoy service must create private state by default"
+    );
 
     // 3. Register a node id — lands in hall.toml.
     let envoy_id = "93141ef93390a387aec148672f7ae44a9ee4c02a0f23f82c0bb80fcc2e499321";

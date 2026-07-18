@@ -49,7 +49,7 @@ fi
 log "Enrolling node '$NODE_ID' with Hall: $HALL_URL"
 
 # ── 2. Download the envoy binary ────────────────────────────────────────
-mkdir -p "$BIN_DIR"
+install -d -m 0700 "$OLYMPUS_HOME" "$BIN_DIR"
 STAMP="$(date +%s)"
 TARGET="$BIN_DIR/olympus-envoy-enroll-$STAMP"
 log "Downloading olympus-envoy binary…"
@@ -91,6 +91,7 @@ RestartSec=5
 KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStopSec=10
+UMask=0077
 
 [Install]
 WantedBy=default.target

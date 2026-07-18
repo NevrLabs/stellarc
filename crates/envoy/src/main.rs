@@ -12,7 +12,7 @@
 //!
 //! Usage:
 //!   olympus-envoy [--socket <path>] [--node-id <id>] [--mock]
-//! Defaults: socket = `$OLYMPUS_CONTROL_SOCKET` or `~/.olympus/control.sock`.
+//! Defaults: socket = `$OLYMPUS_CONTROL_SOCKET` or `$OLYMPUS_HOME/control.sock`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -865,7 +865,7 @@ impl Conn {
 }
 
 /// Resolve the Hall UDS socket path: `--socket` arg → `OLYMPUS_CONTROL_SOCKET`
-/// → `~/.olympus/control.sock`.
+/// → `$OLYMPUS_HOME/control.sock`.
 fn resolve_socket() -> Result<PathBuf> {
     if let Some(p) = arg_value("--socket") {
         return Ok(PathBuf::from(p));
@@ -873,8 +873,7 @@ fn resolve_socket() -> Result<PathBuf> {
     if let Ok(p) = std::env::var("OLYMPUS_CONTROL_SOCKET") {
         return Ok(PathBuf::from(p));
     }
-    let home = std::env::var("HOME").context("HOME is not set")?;
-    Ok(PathBuf::from(home).join(".olympus").join("control.sock"))
+    Ok(olympus_home()?.join("control.sock"))
 }
 
 /// Connect to the UDS socket, retrying forever (used by the reconnect loop —
