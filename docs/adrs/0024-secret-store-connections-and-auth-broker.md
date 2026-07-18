@@ -10,8 +10,8 @@
 > proxy and owns OAuth refresh under an exclusive per-credential refresh
 > delegation. Already-leased sessions continue through a Hall/broker outage
 > up to lease TTL; only new authorizations fail closed (refines §11). §8
-> delivery tiers 2-4 are refined for agent harnesses into  and
->  modes declared per ADR 0006 adapter.
+> delivery tiers 2-4 are refined for agent harnesses into `proxy` and
+> `materialize` modes declared per ADR 0006 adapter.
 
 ## 1. Context
 
