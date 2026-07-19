@@ -14,6 +14,12 @@
   existing mechanics: home-vault symlink materialization into the session
   space, default board, context injection. Nothing changes here; this ADR
   makes the one-primary rule normative.
+- **The primary project is immutable once set.** It is fixed at creation, or
+  by a single first attach for a projectless session; re-attaching to a
+  different project is rejected (`409 conflict`). To carry work elsewhere,
+  fork the session or attach the other project as context. Rationale: the
+  primary binds file-level state (home-vault symlink, session space, default
+  board) — "moving" it would strand or silently re-point that state.
 - A session may additionally attach any number of **context projects**:
 
   ```text
@@ -64,11 +70,15 @@
 1. Session event variants `ContextProjectAttached` / `ContextProjectDetached`
    (append at enum end; old events unaffected).
 2. `SessionRow` projection + DTO field `contextProjects: [{ projectId, mode }]`.
-3. Routes: attach/detach endpoints following the existing primary-attach
-   handler pattern (`routes/sessions.rs`).
-4. Tool surface via the ADR 0011 capability path: read tool group first,
+3. Primary-attach handler (`routes/sessions.rs`) rejects attach when
+   `session.project_id` is already set to a different project; sidebar
+   drag-drop onto a project becomes first-attach-only (drop on a second
+   project surfaces the conflict, offering context-attach instead).
+4. Routes: context attach/detach endpoints following the existing
+   primary-attach handler pattern.
+5. Tool surface via the ADR 0011 capability path: read tool group first,
    write group second.
-5. UI: session right panel lists context projects with mode badges; sidebar
+6. UI: session right panel lists context projects with mode badges; sidebar
    redesign is a separate track, out of scope here.
 
 ## 5. Rejected alternatives
