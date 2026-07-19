@@ -20,6 +20,11 @@
   fork the session or attach the other project as context. Rationale: the
   primary binds file-level state (home-vault symlink, session space, default
   board) — "moving" it would strand or silently re-point that state.
+- **Forks inherit the parent’s primary project — never a different one.**
+  Cross-project "continuation" is done by referencing the source session id
+  (sessions are org-visible per ADR 0027 §1) from a session in the target
+  project, or by context-attaching the source project. No cross-project fork,
+  no transcript copy.
 - A session may additionally attach any number of **context projects**:
 
   ```text
