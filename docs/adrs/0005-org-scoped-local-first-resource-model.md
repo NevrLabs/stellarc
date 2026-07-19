@@ -27,6 +27,10 @@
 > normative project-content layout and authority matrix. A Project references
 > its home Vault; it does not own or delete the Vault.
 
+> **Amended by ADR 0028 (2026-07-19).** A session has exactly one primary
+> project (nullable). Additional projects attach as tool-scoped context
+> (read|write), not as file-level bindings.
+
 ## 1. Why this supersedes §3 and §5
 
 ADR 0002 introduced a **"context"** isolation layer ("personal / noovoleum-rde /

@@ -6,6 +6,13 @@
 - Amends: ADR 0004's structured-vault examples and sync boundary; ADR 0009's Hall-owned card projection; ADR 0016's vault sync/backup scope
 - Depends on: ADR 0010 (identity/RBAC), ADR 0024 (Auth Broker), ADR 0025 (Repo/GitHub)
 
+> **Amended by ADR 0028 (2026-07-19).** A Project is additionally an
+> attachable context surface for sessions: a session has exactly one primary
+> project and may attach other same-org projects as context (mode read|write),
+> accessed through Hall APIs/agent tools under this ADR’s authority matrix —
+> never by materializing the context project’s home vault into the session
+> space.
+
 ## 1. Context
 
 Projects need sovereign, recoverable project content: description, durable contexts, documentation, settings, boards, and card prose. Olympus must be able to discover project content by attaching a vault without treating portable files as authority to create identities or privileges.
