@@ -928,11 +928,12 @@ pub(crate) async fn fork_session(
         },
         None => None,
     };
-    if let Err(e) = state.log.append(&forked_event) {
-        tracing::warn!(error = %e, "failed to append SessionForked event");
-    }
     {
         let mut views = state.views.write().await;
+        if let Err(error) = state.log.append(&forked_event) {
+            tracing::error!(%error, "persisting SessionForked event");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
         views.apply(&forked_event);
         if let Some(event) = capability_event.as_ref() {
             if let Err(error) = state.log.append(event) {
@@ -2509,6 +2510,20 @@ pub(crate) async fn attach_session_project(
                     .into_response();
             }
             return Json(json!({ "sessionId": session_id, "projectId": body.project_id }))
+                .into_response();
+        }
+        if session
+            .context_projects
+            .iter()
+            .any(|project| project.project_id == body.project_id)
+        {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "conflict",
+                    "message": "project is already attached as context"
+                })),
+            )
                 .into_response();
         }
         let Some(project) = views.projects.get(&body.project_id) else {

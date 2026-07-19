@@ -792,6 +792,42 @@ async fn primary_project_is_immutable_and_same_project_is_idempotent() {
 }
 
 #[tokio::test]
+async fn primary_attach_rejects_a_project_already_attached_as_context() {
+    let (state, _dir) = test_state();
+    for event in [
+        Event::ProjectCreated {
+            project_id: "p1".into(),
+            name: "Context first".into(),
+            created_at: 102.0,
+        },
+        Event::SessionContextProjectAttached {
+            session_id: "s1".into(),
+            project_id: "p1".into(),
+            mode: "read".into(),
+            attached_by: "operator".into(),
+            attached_at: 103.0,
+        },
+    ] {
+        state.log.append(&event).unwrap();
+        state.views.write().await.apply(&event);
+    }
+
+    let response = build_router(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions/s1/project")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"projectId":"p1"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn context_project_routes_validate_auth_resources_mode_and_primary() {
     let (state, _dir) = test_state();
     for event in [

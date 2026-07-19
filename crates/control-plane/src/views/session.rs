@@ -18,7 +18,7 @@
 
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::event::Event;
 use crate::server::capability::CapabilitySet;
@@ -37,7 +37,7 @@ pub struct Filters {
     pub pinned: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextProjectRef {
     pub project_id: String,
