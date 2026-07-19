@@ -3,7 +3,7 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
@@ -34,6 +34,14 @@ pub fn router() -> Router<AppState> {
             post(respond_permission_handler),
         )
         .route("/api/sessions/{id}/project", post(attach_session_project))
+        .route(
+            "/api/sessions/{id}/context-projects",
+            post(attach_context_project),
+        )
+        .route(
+            "/api/sessions/{id}/context-projects/{project_id}",
+            delete(detach_context_project),
+        )
         .route("/api/sessions/{id}/repos", post(attach_repo))
         .route(
             "/api/sessions/{id}/subsessions",
@@ -219,6 +227,13 @@ pub(crate) struct AttachRepoBody {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AttachProjectBody {
     project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AttachContextProjectBody {
+    project_id: String,
+    mode: String,
 }
 
 pub(crate) async fn list_sessions(
@@ -575,6 +590,7 @@ pub(crate) async fn create_session(
                         parent_session_id: None,
                         card_id: None,
                         project_id: None,
+                        context_projects: Vec::new(),
                         capabilities: None,
                     })
             };
@@ -877,7 +893,8 @@ pub(crate) async fn fork_session(
                 liveness: "active".to_string(),
                 parent_session_id: None,
                 card_id: None,
-                project_id: None,
+                project_id: source.project_id.clone(),
+                context_projects: Vec::new(),
                 capabilities: None,
             },
         }
@@ -931,6 +948,7 @@ pub(crate) async fn fork_session(
         views.sessions.get(&fork.session_id).cloned()
     } {
         dto.card_id = child_row.card_id.clone();
+        dto.project_id = child_row.project_id.clone();
         dto.capabilities = child_row.capabilities.clone().map(Box::new);
     }
 
@@ -2479,6 +2497,20 @@ pub(crate) async fn attach_session_project(
             )
                 .into_response();
         }
+        if let Some(primary_project_id) = session.project_id.as_deref() {
+            if primary_project_id != body.project_id {
+                return (
+                    StatusCode::CONFLICT,
+                    Json(json!({
+                        "error": "conflict",
+                        "message": "session already belongs to a project; attach it as context instead"
+                    })),
+                )
+                    .into_response();
+            }
+            return Json(json!({ "sessionId": session_id, "projectId": body.project_id }))
+                .into_response();
+        }
         let Some(project) = views.projects.get(&body.project_id) else {
             return (
                 StatusCode::NOT_FOUND,
@@ -2519,4 +2551,152 @@ pub(crate) async fn attach_session_project(
         .projects
         .attach_symlink(&body.project_id, session_space.as_deref());
     Json(json!({ "sessionId": session_id, "projectId": body.project_id })).into_response()
+}
+
+pub(crate) async fn attach_context_project(
+    State(state): State<AppState>,
+    axum::extract::Extension(principal): axum::extract::Extension<Principal>,
+    scope: Option<axum::extract::Extension<OrgScope>>,
+    Path(session_id): Path<String>,
+    Json(body): Json<AttachContextProjectBody>,
+) -> Response {
+    if body.mode != "read" && body.mode != "write" {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "bad_request", "message": "mode must be read or write" })),
+        )
+            .into_response();
+    }
+
+    let context_projects = {
+        let mut views = state.views.write().await;
+        let Some(session) = views.sessions.get(&session_id) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "session not found" })),
+            )
+                .into_response();
+        };
+        if scope
+            .as_ref()
+            .is_some_and(|scope| session.org_id != scope.0.organization_id)
+        {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "session not found" })),
+            )
+                .into_response();
+        }
+        let session_org_id = session.org_id.clone();
+        if session.project_id.as_deref() == Some(body.project_id.as_str()) {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "conflict",
+                    "message": "project is already the session's primary project"
+                })),
+            )
+                .into_response();
+        }
+        let Some(project) = views.projects.get(&body.project_id) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "project not found" })),
+            )
+                .into_response();
+        };
+        if project.org_id != session_org_id
+            || scope
+                .as_ref()
+                .is_some_and(|scope| project.org_id != scope.0.organization_id)
+        {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "project not found" })),
+            )
+                .into_response();
+        }
+        let event = crate::event::Event::SessionContextProjectAttached {
+            session_id: session_id.clone(),
+            project_id: body.project_id,
+            mode: body.mode,
+            attached_by: assigned_by(&principal),
+            attached_at: now_epoch(),
+        };
+        if let Err(error) = state.log.append(&event) {
+            tracing::error!(%error, %session_id, "failed to persist context project attachment");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "failed to persist event").into_response();
+        }
+        views.apply(&event);
+        views
+            .sessions
+            .get(&session_id)
+            .map(|session| session.context_projects.clone())
+            .unwrap_or_default()
+    };
+
+    Json(json!({ "contextProjects": context_projects })).into_response()
+}
+
+pub(crate) async fn detach_context_project(
+    State(state): State<AppState>,
+    scope: Option<axum::extract::Extension<OrgScope>>,
+    Path((session_id, project_id)): Path<(String, String)>,
+) -> Response {
+    let context_projects = {
+        let mut views = state.views.write().await;
+        let Some(session) = views.sessions.get(&session_id) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "session not found" })),
+            )
+                .into_response();
+        };
+        if scope
+            .as_ref()
+            .is_some_and(|scope| session.org_id != scope.0.organization_id)
+        {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "session not found" })),
+            )
+                .into_response();
+        }
+        let session_org_id = session.org_id.clone();
+        let Some(project) = views.projects.get(&project_id) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "project not found" })),
+            )
+                .into_response();
+        };
+        if project.org_id != session_org_id
+            || scope
+                .as_ref()
+                .is_some_and(|scope| project.org_id != scope.0.organization_id)
+        {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "project not found" })),
+            )
+                .into_response();
+        }
+        let event = crate::event::Event::SessionContextProjectDetached {
+            session_id: session_id.clone(),
+            project_id,
+            detached_at: now_epoch(),
+        };
+        if let Err(error) = state.log.append(&event) {
+            tracing::error!(%error, %session_id, "failed to persist context project detachment");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "failed to persist event").into_response();
+        }
+        views.apply(&event);
+        views
+            .sessions
+            .get(&session_id)
+            .map(|session| session.context_projects.clone())
+            .unwrap_or_default()
+    };
+
+    Json(json!({ "contextProjects": context_projects })).into_response()
 }

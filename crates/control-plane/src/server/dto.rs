@@ -58,6 +58,7 @@ pub struct SessionDto {
     pub card_id: Option<String>,
     /// Project workspace this session belongs to, if any.
     pub project_id: Option<String>,
+    pub context_projects: Vec<crate::views::session::ContextProjectRef>,
     /// Hall-signed capability envelope; null means legacy full grant.
     pub capabilities: Option<Box<CapabilitySet>>,
 }
@@ -133,6 +134,7 @@ impl SessionDto {
             parent_session_id: row.parent_session_id.clone(),
             card_id: row.card_id.clone(),
             project_id: row.project_id.clone(),
+            context_projects: row.context_projects.clone(),
             capabilities: row.capabilities.clone().map(Box::new),
         }
     }
@@ -685,6 +687,10 @@ mod tests {
             parent_session_id: None,
             card_id: None,
             project_id: None,
+            context_projects: vec![crate::views::session::ContextProjectRef {
+                project_id: "p2".into(),
+                mode: "read".into(),
+            }],
             capabilities: None,
         }
     }
@@ -698,6 +704,10 @@ mod tests {
         assert_eq!(json["ownerId"], "rpw");
         assert_eq!(json["lastActivity"], 200.0);
         assert_eq!(json["messageCount"], 3);
+        assert_eq!(
+            json["contextProjects"],
+            serde_json::json!([{"projectId": "p2", "mode": "read"}])
+        );
         assert_eq!(json["forkedFrom"], serde_json::Value::Null);
         // imported telegram session is observed, not managed
         assert_eq!(json["managed"], false);

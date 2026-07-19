@@ -312,6 +312,19 @@ pub enum Event {
         /// Semantic capability → selected provider package id.
         bindings: std::collections::BTreeMap<String, String>,
     },
+    SessionContextProjectAttached {
+        session_id: String,
+        project_id: String,
+        /// "read" | "write"
+        mode: String,
+        attached_by: String,
+        attached_at: f64,
+    },
+    SessionContextProjectDetached {
+        session_id: String,
+        project_id: String,
+        detached_at: f64,
+    },
 }
 
 #[cfg(test)]
@@ -639,6 +652,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn context_project_events_roundtrip_without_breaking_primary_attach_decode() {
+        let old: Event = serde_json::from_str(
+            r#"{"SessionProjectAttached":{"session_id":"s","project_id":"p","attached_at":3.0}}"#,
+        )
+        .unwrap();
+        assert!(matches!(old, Event::SessionProjectAttached { .. }));
+
+        for event in [
+            Event::SessionContextProjectAttached {
+                session_id: "s".into(),
+                project_id: "context".into(),
+                mode: "read".into(),
+                attached_by: "user:u1".into(),
+                attached_at: 4.0,
+            },
+            Event::SessionContextProjectDetached {
+                session_id: "s".into(),
+                project_id: "context".into(),
+                detached_at: 5.0,
+            },
+        ] {
+            let bytes = serde_json::to_vec(&event).unwrap();
+            assert_eq!(serde_json::from_slice::<Event>(&bytes).unwrap(), event);
+        }
+    }
+
     /// Returns exactly one instance of each variant.  Any future variant that
     /// isn't listed here will produce a compile-time non-exhaustive-pattern error
     /// in `_exhaustive_variant_guard` below — that is the intentional enforcement
@@ -855,6 +895,18 @@ mod tests {
                 removed_by: "operator".into(),
                 removed_at: 44.0,
             },
+            Event::SessionContextProjectAttached {
+                session_id: "sc-1".into(),
+                project_id: "proj-context".into(),
+                mode: "write".into(),
+                attached_by: "user:u1".into(),
+                attached_at: 45.0,
+            },
+            Event::SessionContextProjectDetached {
+                session_id: "sc-1".into(),
+                project_id: "proj-context".into(),
+                detached_at: 46.0,
+            },
         ]
     }
 
@@ -898,6 +950,8 @@ mod tests {
             Event::PackageDeactivated { .. } => {}
             Event::PackageRemoved { .. } => {}
             Event::PackageInstalledV2 { .. } => {}
+            Event::SessionContextProjectAttached { .. } => {}
+            Event::SessionContextProjectDetached { .. } => {}
         }
     }
 

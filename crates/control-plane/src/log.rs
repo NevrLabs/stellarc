@@ -758,12 +758,14 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
                 params![session_id, project_id],
             )?;
         }
+        Event::SessionContextProjectAttached { .. }
+        | Event::SessionContextProjectDetached { .. } => {}
         Event::SessionForked {
             parent_session_id,
             child_session_id,
             ..
         } => {
-            tx.execute("UPDATE sessions SET parent_session_id=?2, card_id=(SELECT card_id FROM sessions WHERE session_id=?2) WHERE session_id=?1", params![child_session_id,parent_session_id])?;
+            tx.execute("UPDATE sessions SET parent_session_id=?2, card_id=(SELECT card_id FROM sessions WHERE session_id=?2), project_id=(SELECT project_id FROM sessions WHERE session_id=?2) WHERE session_id=?1", params![child_session_id,parent_session_id])?;
         }
         Event::CardSessionLinked {
             card_id,
@@ -949,6 +951,8 @@ fn event_type(event: &Event) -> &'static str {
         Event::PackageActivated { .. } => "package.activated",
         Event::PackageDeactivated { .. } => "package.deactivated",
         Event::PackageRemoved { .. } => "package.removed",
+        Event::SessionContextProjectAttached { .. } => "session.context_project_attached",
+        Event::SessionContextProjectDetached { .. } => "session.context_project_detached",
     }
 }
 fn event_time(event: &Event) -> f64 {
@@ -973,6 +977,8 @@ fn event_time(event: &Event) -> f64 {
         Event::ProjectLayoutUpdated { updated_at, .. } => *updated_at,
         Event::ProjectDeleted { deleted_at, .. } => *deleted_at,
         Event::SessionProjectAttached { attached_at, .. } => *attached_at,
+        Event::SessionContextProjectAttached { attached_at, .. } => *attached_at,
+        Event::SessionContextProjectDetached { detached_at, .. } => *detached_at,
         Event::PackageInstalled { installed_at, .. }
         | Event::PackageInstalledV2 { installed_at, .. } => *installed_at,
         Event::PackageGranted { granted_at, .. } => *granted_at,
@@ -998,6 +1004,8 @@ fn event_session_id(event: &Event) -> Option<&str> {
         | Event::CardSessionLinked { session_id, .. }
         | Event::SessionRepoAttached { session_id, .. }
         | Event::SessionProjectAttached { session_id, .. }
+        | Event::SessionContextProjectAttached { session_id, .. }
+        | Event::SessionContextProjectDetached { session_id, .. }
         | Event::SessionOrganizationAssigned { session_id, .. }
         | Event::SessionCapabilitiesAssigned { session_id, .. } => Some(session_id),
         Event::CardAssigned { session_id, .. } => Some(session_id),
@@ -1031,6 +1039,7 @@ fn session_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         parent_session_id: r.get(14)?,
         card_id: r.get(15)?,
         project_id: r.get(16)?,
+        context_projects: Vec::new(),
         org_id: r.get(17)?,
         capabilities: r
             .get::<_, Option<String>>(18)?
