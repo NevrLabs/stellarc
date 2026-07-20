@@ -268,6 +268,7 @@ export const handlers = [
           { status: 409 },
         );
       }
+      sess.projectId = body.projectId ?? null;
       return HttpResponse.json({ sessionId: params.id, projectId: body.projectId });
     },
   ),

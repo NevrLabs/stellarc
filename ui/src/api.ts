@@ -177,7 +177,7 @@ export async function attachSessionToProject(sessionId: string, projectId: strin
     headers: jsonHeaders(),
     body: JSON.stringify({ projectId }),
   });
-  if (!res.ok) throw new Error(`attach session to project ${res.status}`);
+  if (!res.ok) throw new ApiError(await safeError(res), res.status);
 }
 
 /** Attach a project as context (ADR 0028). Returns the updated contextProjects list. */

@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionSidebar } from "./SessionSidebar";
 import type { Session } from "../../../types";
-import { attachSessionToProject, createSession } from "../../../api";
+import { attachContextProject, attachSessionToProject } from "../../../api";
+
+const navigate = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
   useRouterState: () => ({ location: { pathname: "/sessions/s-1" } }),
 }));
 
@@ -56,16 +58,7 @@ vi.mock("../../../hooks/queries", () => ({
   useAgentCatalog: () => ({ data: { nodes: [] }, isLoading: false }),
 }));
 
-vi.mock("../../../api", () => ({ attachSessionToProject: vi.fn(), createSession: vi.fn() }));
-
-vi.mock("./AgentPicker", () => ({
-  AgentPicker: ({ open, onSelect, error }: { open: boolean; onSelect: (agent: string, node: string) => Promise<void>; error?: string | null }) => open ? (
-    <>
-      <button type="button" onClick={() => void onSelect("default", "talos")}>Pick test agent</button>
-      {error && <div role="alert">{error}</div>}
-    </>
-  ) : null,
-}));
+vi.mock("../../../api", () => ({ attachSessionToProject: vi.fn(), attachContextProject: vi.fn() }));
 
 // Mock useResizable — the sidebar v4 uses it for the RECENT/PROJECTS section resize.
 vi.mock("../../../hooks/useResizable", () => ({
@@ -73,6 +66,8 @@ vi.mock("../../../hooks/useResizable", () => ({
 }));
 
 describe("SessionSidebar", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("marks the active session as open and focused", () => {
     const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" openSessionIds={new Set(["s-1"])} />);
 
@@ -112,23 +107,34 @@ describe("SessionSidebar", () => {
     });
   });
 
-  it("awaits project association and surfaces failure in the picker", async () => {
-    vi.mocked(createSession).mockResolvedValue({ id: "new-session" } as Session);
-    const onOpenSession = vi.fn().mockRejectedValue(new Error("association failed"));
-    render(
-      <SessionSidebar
-        width={220}
-        activeSessionId={null}
-        activeProjectId="project-a"
-        onOpenSession={onOpenSession}
-      />,
-    );
+  it("opens a client-side draft without creating a Hall session", () => {
+    render(<SessionSidebar width={220} activeSessionId={null} activeProjectId="project-a" />);
+    fireEvent.click(screen.getByRole("button", { name: "New session⌘N" }));
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/sessions/$sessionId",
+      params: { sessionId: "new" },
+      search: { project: "project-a" },
+    });
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /New session/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Pick test agent" }));
+  it("offers context modes when a drop conflicts with the primary project", async () => {
+    vi.mocked(attachSessionToProject).mockRejectedValueOnce(Object.assign(new Error("conflict"), { status: 409 }));
+    const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" />);
+    fireEvent.drop(container.querySelector("[data-project-id='project-a']") as HTMLElement, {
+      dataTransfer: { getData: () => JSON.stringify({ type: "session", sessionId: "s-1" }) },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Attach read-only" }));
+    await waitFor(() => expect(attachContextProject).toHaveBeenCalledWith("s-1", "project-a", "read"));
+  });
 
-    await waitFor(() => expect(onOpenSession).toHaveBeenCalledWith("new-session"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("association failed");
+  it("opens a project-prefilled draft from the project shortcut", () => {
+    render(<SessionSidebar width={220} activeSessionId={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "New session in QA project" }));
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/sessions/$sessionId",
+      params: { sessionId: "new" },
+      search: { project: "project-a" },
+    });
   });
 
   it("surfaces a failed drag-to-project association", async () => {
@@ -171,7 +177,7 @@ describe("SessionSidebar", () => {
 
   it("renders New session button, Agents/History/Usage navitems, and collapsible sections", () => {
     render(<SessionSidebar width={220} activeSessionId="s-1" />);
-    expect(screen.getByRole("button", { name: /New session/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New session⌘N" })).toBeTruthy();
     expect(screen.getByText("Agents")).toBeTruthy();
     expect(screen.getByText("History")).toBeTruthy();
     expect(screen.getByText("Usage")).toBeTruthy();
