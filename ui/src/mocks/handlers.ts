@@ -249,7 +249,7 @@ export const handlers = [
   ),
 
   // GET /api/projects (ADR 0028 mock)
-  http.get("http://127.0.0.1:8787/api/projects", () => HttpResponse.json({
+  http.get("http://127.0.0.1:8787/api/organizations/:organizationId/projects", () => HttpResponse.json({
     projects: PROJECTS,
     total: PROJECTS.length,
   })),
