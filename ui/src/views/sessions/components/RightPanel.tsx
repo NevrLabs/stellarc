@@ -5,9 +5,12 @@
  * This is View-owned layout — rendered by SessionsView, not by Pages.
  */
 
-import React from "react";
+import React, { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icon, type IconName } from "../../../components/Icon";
-import type { Message, Session } from "../../../types";
+import { useProjects, qk } from "../../../hooks/queries";
+import { attachContextProject, detachContextProject } from "../../../api";
+import type { ContextProjectRef, Message, Project, Session } from "../../../types";
 import { fmtTime, isDiffResult, parseDiff } from "../helpers";
 import { ContextRing } from "./ContextRing";
 
@@ -97,6 +100,7 @@ export function RightPanel({
           <div className="rs-sec">
             <ContextRing session={session} messages={messages} />
           </div>
+          <ContextProjectsSection session={session} />
           {artifacts.length > 0 && (
             <div className="arts">
               <div className="art-head">
@@ -265,5 +269,154 @@ export function RightPanel({
         </div>
       )}
     </aside>
+  );
+}
+
+/** ContextProjectsSection — ADR 0028 context projects in the overview tab.
+ *  Lists attached context projects with mode badges + detach on hover, and an
+ *  "attach project…" affordance listing same-org projects excluding the
+ *  primary and already-attached. Reuses .rs-sec / .art / .tag primitives. */
+function ContextProjectsSection({ session }: { session: Session | undefined }) {
+  const queryClient = useQueryClient();
+  const { data: projectData } = useProjects();
+  const projects = projectData?.projects ?? [];
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const attached = session?.contextProjects ?? [];
+  const attachedIds = new Set(attached.map((c) => c.projectId));
+  const primaryId = session?.projectId ?? null;
+
+  const projectById = (id: string): Project | undefined =>
+    projects.find((p) => p.id === id);
+  const nameFor = (id: string): string => projectById(id)?.name ?? id;
+
+  const candidates = projects.filter(
+    (p) => p.id !== primaryId && !attachedIds.has(p.id),
+  );
+
+  async function refresh() {
+    void queryClient.invalidateQueries({ queryKey: qk.session(session?.id ?? "") });
+    void queryClient.invalidateQueries({ queryKey: ["sessions"] });
+  }
+
+  async function handleAttach(projectId: string, mode: "read" | "write") {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await attachContextProject(session.id, projectId, mode);
+      setAdding(false);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "attach failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDetach(projectId: string) {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await detachContextProject(session.id, projectId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "detach failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rs-sec">
+      <div className="art-head">
+        <span className="l">CONTEXT PROJECTS</span>
+        <span className="l">{attached.length}</span>
+      </div>
+      {attached.length === 0 && !adding && (
+        <div className="empty-state-msg" style={{ padding: "6px 0", fontSize: 12 }}>
+          No context projects.
+        </div>
+      )}
+      {attached.map((c) => (
+        <div key={c.projectId} className="art" style={{ position: "relative" }}>
+          <Icon name="folder" size={12} />
+          <span className="nm">{nameFor(c.projectId)}</span>
+          <span
+            className="tag"
+            style={
+              c.mode === "write"
+                ? { color: "var(--green)", background: "var(--green-wash)" }
+                : { color: "var(--silver)", background: "var(--silver-wash)" }
+            }
+          >
+            {c.mode}
+          </span>
+          <span className="srow-actions" style={{ display: "flex", position: "static", transform: "none" }}>
+            <button
+              type="button"
+              className="srow-act"
+              title="Detach context project"
+              disabled={busy}
+              onClick={(e) => { e.stopPropagation(); void handleDetach(c.projectId); }}
+            >
+              <Icon name="x" size={11} />
+            </button>
+          </span>
+        </div>
+      ))}
+      {adding && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          {candidates.length === 0 ? (
+            <div className="empty-state-msg" style={{ padding: "4px 0", fontSize: 12 }}>
+              No other projects in this org.
+            </div>
+          ) : (
+            candidates.map((p) => (
+              <div key={p.id} className="art" style={{ padding: "4px 8px" }}>
+                <Icon name="folder" size={11} />
+                <span className="nm">{p.name}</span>
+                <button
+                  type="button"
+                  className="srow-act"
+                  title="Attach read-only"
+                  disabled={busy}
+                  onClick={() => void handleAttach(p.id, "read")}
+                >read</button>
+                <button
+                  type="button"
+                  className="srow-act"
+                  title="Attach read-write"
+                  disabled={busy}
+                  onClick={() => void handleAttach(p.id, "write")}
+                >write</button>
+              </div>
+            ))
+          )}
+          <button
+            type="button"
+            className="srow-act"
+            style={{ alignSelf: "flex-start" }}
+            onClick={() => { setAdding(false); setError(null); }}
+          >cancel</button>
+        </div>
+      )}
+      {!adding && candidates.length > 0 && (
+        <button
+          type="button"
+          className="srow-act"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => { setAdding(true); setError(null); }}
+        >+ attach project…</button>
+      )}
+      {error && (
+        <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
+          {error}
+        </div>
+      )}
+    </div>
   );
 }

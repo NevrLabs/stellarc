@@ -19,7 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../../../components/Icon";
 import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
 import { useUIStore } from "../../../store";
-import { attachSessionToProject, createSession } from "../../../api";
+import { attachContextProject, attachSessionToProject, createSession } from "../../../api";
 import type { Session } from "../../../types";
 import { timeAgo } from "../helpers";
 import { AgentPicker } from "./AgentPicker";
@@ -85,6 +85,10 @@ export function SessionSidebar({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [projectActionError, setProjectActionError] = useState<string | null>(null);
+  // ADR 0028: when a session with a different primary is dropped on a project,
+  // show an inline offer to attach it as context instead of re-primary (which
+  // now 409s).
+  const [contextOffer, setContextOffer] = useState<{ sessionId: string; projectId: string; projectName: string } | null>(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [metadataFields, setMetadataFields] = useState<ReadonlySet<SessionMetadataField>>(
     () => new Set(DEFAULT_SESSION_METADATA_FIELDS),
@@ -146,14 +150,46 @@ export function SessionSidebar({
     const sessionId = sessionDragId(event.dataTransfer);
     if (!sessionId) return;
     setProjectActionError(null);
+    setContextOffer(null);
+
+    // Client-side pre-check (ADR 0028): a session that already belongs to a
+    // different primary project cannot be re-primary'd (backend 409s). Offer
+    // context-attach inline instead.
+    const dragged = sessions.find((s) => s.id === sessionId);
+    if (dragged?.projectId && dragged.projectId !== projectId) {
+      const projectName = projectData?.projects.find((p) => p.id === projectId)?.name ?? projectId;
+      setContextOffer({ sessionId, projectId, projectName });
+      return;
+    }
+
     try {
       await attachSessionToProject(sessionId, projectId);
       await queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (error) {
+      const status = (error as Error & { status?: number }).status;
       const detail = error instanceof Error ? `: ${error.message}` : "";
-      setProjectActionError(`Could not move session to project${detail}`);
+      // Server-side 409 (re-primary): surface the context-attach offer.
+      if (status === 409) {
+        const projectName = projectData?.projects.find((p) => p.id === projectId)?.name ?? projectId;
+        setContextOffer({ sessionId, projectId, projectName });
+      } else {
+        setProjectActionError(`Could not move session to project${detail}`);
+      }
     }
-  }, [queryClient]);
+  }, [queryClient, sessions, projectData]);
+
+  const handleAttachAsContext = useCallback(async (mode: "read" | "write") => {
+    if (!contextOffer) return;
+    setProjectActionError(null);
+    try {
+      await attachContextProject(contextOffer.sessionId, contextOffer.projectId, mode);
+      setContextOffer(null);
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      const detail = error instanceof Error ? `: ${error.message}` : "";
+      setProjectActionError(`Could not attach as context${detail}`);
+    }
+  }, [contextOffer, queryClient]);
 
   return (
     <>
@@ -191,6 +227,16 @@ export function SessionSidebar({
                 {projectActionError && (
                   <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
                     {projectActionError}
+                  </div>
+                )}
+                {contextOffer && (
+                  <div role="status" style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--dim)", background: "var(--elev)", border: "var(--border-w) solid var(--border)", borderRadius: "var(--radius)" }}>
+                    <span>Session already has a primary project. Attach <strong>{contextOffer.projectName}</strong> as context?</span>
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <button type="button" className="srow-act" style={{ color: "var(--silver)" }} onClick={() => void handleAttachAsContext("read")}>read</button>
+                      <button type="button" className="srow-act" style={{ color: "var(--green)" }} onClick={() => void handleAttachAsContext("write")}>write</button>
+                      <button type="button" className="srow-act" onClick={() => setContextOffer(null)}>dismiss</button>
+                    </span>
                   </div>
                 )}
                 {projectData!.projects.map((project) => (
