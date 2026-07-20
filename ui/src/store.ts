@@ -7,13 +7,19 @@ export type ViewName =
   | "fleet"
   | "settings";
 
+export type SidebarMode = "full" | "compact" | "hidden";
+
+const SIDEBAR_MODE_KEY = "olympus-ui:sidebar-mode:v1";
+
 interface UIState {
   /** Active layout view (which pane is shown in the viewport). */
   view: ViewName;
   /** Active session id (for the chat view). */
   activeSessionId: string | null;
-  /** Left sidebar collapsed. */
-  sidebarCollapsed: boolean;
+  /** Persisted desktop preference. Mobile drawer state is intentionally separate. */
+  desktopSidebarMode: SidebarMode;
+  phoneViewport: boolean;
+  mobileSidebarOpen: boolean;
   /** Bottom panel collapsed. */
   bottomCollapsed: boolean;
   /** Right sidebar collapsed. */
@@ -29,7 +35,10 @@ interface UIState {
 
   setView: (v: ViewName) => void;
   setActiveSession: (id: string | null) => void;
-  toggleSidebar: () => void;
+  setDesktopSidebarMode: (mode: SidebarMode) => void;
+  setPhoneViewport: (phone: boolean) => void;
+  cycleSidebarMode: () => void;
+  closeSidebarOnPhone: () => void;
   toggleBottom: () => void;
   toggleRightSidebar: () => void;
   setBottomTab: (t: "events" | "logs" | "raw") => void;
@@ -38,8 +47,8 @@ interface UIState {
   setSidebarWidth: (w: number) => void;
 }
 
-/** True on phone-width screens where the sidebar renders as a fixed overlay. */
-function startCollapsed(): boolean {
+/** True on phone-width screens where the sidebar renders as a fixed drawer. */
+function isPhoneViewport(): boolean {
   try {
     return window.matchMedia("(max-width: 820px)").matches;
   } catch {
@@ -47,10 +56,42 @@ function startCollapsed(): boolean {
   }
 }
 
+function storedSidebarMode(): SidebarMode {
+  try {
+    return parseSidebarMode(localStorage.getItem(SIDEBAR_MODE_KEY));
+  } catch {
+    return "full";
+  }
+}
+
+export function parseSidebarMode(value: string | null): SidebarMode {
+  return value === "full" || value === "compact" || value === "hidden"
+    ? value
+    : "full";
+}
+
+function persistDesktopSidebarMode(mode: SidebarMode) {
+  if (isPhoneViewport()) return;
+  try {
+    localStorage.setItem(SIDEBAR_MODE_KEY, mode);
+  } catch {
+    // Browser storage is a convenience, never a render prerequisite.
+  }
+}
+
+export function nextSidebarMode(mode: SidebarMode, phone = isPhoneViewport()): SidebarMode {
+  if (phone) return mode === "hidden" ? "full" : "hidden";
+  if (mode === "full") return "compact";
+  if (mode === "compact") return "hidden";
+  return "full";
+}
+
 export const useUIStore = create<UIState>((set) => ({
   view: "sessions",
   activeSessionId: null,
-  sidebarCollapsed: startCollapsed(),
+  desktopSidebarMode: storedSidebarMode(),
+  phoneViewport: isPhoneViewport(),
+  mobileSidebarOpen: false,
   bottomCollapsed: true,
   rightSidebarCollapsed: false,
   bottomTab: "events",
@@ -60,7 +101,25 @@ export const useUIStore = create<UIState>((set) => ({
 
   setView: (view) => set({ view }),
   setActiveSession: (activeSessionId) => set({ activeSessionId }),
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  setDesktopSidebarMode: (desktopSidebarMode) => {
+    persistDesktopSidebarMode(desktopSidebarMode);
+    set({ desktopSidebarMode });
+  },
+  setPhoneViewport: (phoneViewport) => set({
+    phoneViewport,
+    ...(phoneViewport ? { mobileSidebarOpen: false } : {}),
+  }),
+  cycleSidebarMode: () => set((state) => {
+    if (state.phoneViewport) {
+      return { mobileSidebarOpen: !state.mobileSidebarOpen };
+    }
+    const desktopSidebarMode = nextSidebarMode(state.desktopSidebarMode, false);
+    persistDesktopSidebarMode(desktopSidebarMode);
+    return { desktopSidebarMode };
+  }),
+  closeSidebarOnPhone: () => {
+    set((state) => state.phoneViewport ? { mobileSidebarOpen: false } : {});
+  },
   toggleBottom: () => set((s) => ({ bottomCollapsed: !s.bottomCollapsed })),
   toggleRightSidebar: () =>
     set((s) => ({ rightSidebarCollapsed: !s.rightSidebarCollapsed })),
@@ -70,3 +129,9 @@ export const useUIStore = create<UIState>((set) => ({
   setSidebarWidth: (sidebarWidth) =>
     set({ sidebarWidth: Math.max(160, Math.min(380, sidebarWidth)) }),
 }));
+
+export function useSidebarMode(): SidebarMode {
+  return useUIStore((state) => state.phoneViewport
+    ? (state.mobileSidebarOpen ? "full" : "hidden")
+    : state.desktopSidebarMode);
+}

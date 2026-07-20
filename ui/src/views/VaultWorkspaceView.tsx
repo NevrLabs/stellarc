@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createVault, deleteVaultNote, putVaultNote } from "../api";
 import { useVaults, useVaultNotes, qk } from "../hooks/queries";
 import { parseRoute } from "../router";
-import { useUIStore } from "../store";
+import { useSidebarMode, useUIStore } from "../store";
 import type { CreateVaultBody, NoteTreeEntry } from "../types";
 import { CreateVaultDialog, NewNoteDialog } from "./vaults/components/VaultDialogs";
 import { DeleteNoteDialog, RenameNoteDialog } from "./vaults/components/NoteActionDialogs";
@@ -21,7 +21,8 @@ const EMPTY_NOTES: NoteTreeEntry[] = [];
 
 export function VaultWorkspaceView() {
   const { location } = useRouterState();
-  const { sidebarCollapsed } = useUIStore();
+  const sidebarMode = useSidebarMode();
+  const closeSidebarOnPhone = useUIStore((state) => state.closeSidebarOnPhone);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const route = parseRoute(location.pathname);
@@ -64,6 +65,7 @@ export function VaultWorkspaceView() {
   const openTab = (tab: WorkspaceTab) => {
     setFocusedTab(tab);
     navigateTab(tab);
+    closeSidebarOnPhone();
   };
 
   const invalidateVault = async (vaultId: string) => {
@@ -157,7 +159,7 @@ export function VaultWorkspaceView() {
 
   return (
     <>
-      {!sidebarCollapsed && (
+      {sidebarMode !== "hidden" && (
         <VaultSidebar
           vaults={vaults}
           activeVaultId={activeVaultId}
@@ -167,15 +169,17 @@ export function VaultWorkspaceView() {
             if (dirtyResources.size > 0 && !window.confirm("Discard unsaved changes and switch vaults?")) return;
             setDirtyResources(new Set());
             setFocusedTab(null);
+            closeSidebarOnPhone();
             void navigate({ to: "/vaults/$vaultId", params: { vaultId } });
           }}
-          onCreateVault={() => { setMutationError(null); setCreateVaultOpen(true); }}
-          onCreateNote={(folder) => { setMutationError(null); setNewNoteFolder(folder ?? ""); }}
+          onCreateVault={() => { setMutationError(null); setCreateVaultOpen(true); closeSidebarOnPhone(); }}
+          onCreateNote={(folder) => { setMutationError(null); setNewNoteFolder(folder ?? ""); closeSidebarOnPhone(); }}
           onOpenNote={(path, title) => openTab(noteTab(path, title))}
           onOpenGraph={() => openTab(graphTab)}
           onOpenTable={() => openTab(tableTab)}
-          onRenameNote={(entry) => { setMutationError(null); setRenameEntry(entry); }}
-          onDeleteNote={(entry) => { setMutationError(null); setDeleteEntry(entry); }}
+          onRenameNote={(entry) => { setMutationError(null); setRenameEntry(entry); closeSidebarOnPhone(); }}
+          onDeleteNote={(entry) => { setMutationError(null); setDeleteEntry(entry); closeSidebarOnPhone(); }}
+          mode={sidebarMode}
         />
       )}
       <div className="viewport vault-viewport">

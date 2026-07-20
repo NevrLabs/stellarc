@@ -273,6 +273,9 @@ Theme- and density-agnostic fixed geometry.
 | `--toolbar-h` | 32px | — | View headers (`.vp-head` / `.gv-head`) |
 | `--tabbar-h` | 30px | — | Tab strips (`.dtabs` / `.bp-tabs`) |
 | `--sidebar-w` | 220px | 190px | Left session sidebar |
+| `--sidebar-compact-w` | 48px | — | Icon-only left sidebar mode |
+| `--sidebar-icon-target` | 32px | — | Compact-sidebar control target |
+| `--sidebar-alert-w` | 260px | — | Floating compact-sidebar error width |
 | `--rsidebar-w` | 279px | 240px | Right info sidebar |
 | `--bpanel-h` | 152px | — | Bottom terminal/output panel |
 | `--palette-w` | 560px | — | ⌘K command palette |
@@ -541,6 +544,13 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
 ---
 
 ## 11. Changelog
+
+### 2026-07-20 — Three-state left sidebar + explicit development environment identity
+
+- Replaced the shell's boolean sidebar collapse with a persisted desktop cycle: full → compact icon rail → hidden → full. The compact rail has a dedicated `--sidebar-compact-w` layout token, preserves the independently persisted full width, and removes resize handles rather than shrinking their hit target.
+- Made the mode contract surface-wide. Sessions, Projects, Vaults, Fleet, and Settings retain operable icon targets and accessible names in compact mode; idle sessions now render a stable message icon instead of becoming blank targets.
+- Kept phone behavior binary: the sidebar remains a full overlay drawer or hidden, navigation closes it explicitly, and mobile closure does not overwrite the desktop preference.
+- Added an environment-driven `dev` pill beside the Olympus mark. It uses semantic warning tokens and renders only when the service explicitly provides `VITE_OLYMPUS_ENV=dev`; hostname and generic Vite mode are not treated as environment authority.
 
 ### 2026-07-16 — Left sidebar: session-row layout repair + navitem rhythm alignment
 

@@ -29,7 +29,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../components/Icon";
 import { BrandIcon, agentBrand } from "../components/BrandIcons";
-import { useUIStore } from "../store";
+import { useSidebarMode, useUIStore, type SidebarMode } from "../store";
 import { useResizable } from "../hooks/useResizable";
 import { useNodes, useSessions } from "../hooks/queries";
 import { refreshNodeAgents, mintEnroll, drainNode, removeNode } from "../api";
@@ -68,7 +68,7 @@ function slotPct(used: number, total: number): number {
 // ── Main View ──────────────────────────────────────
 
 export default function FleetView({ nodeId }: { nodeId: string | null }) {
-  const { sidebarCollapsed } = useUIStore();
+  const sidebarMode = useSidebarMode();
   const sidebar = useResizable({
     axis: "x",
     min: 180,
@@ -80,11 +80,17 @@ export default function FleetView({ nodeId }: { nodeId: string | null }) {
 
   return (
     <>
-      {!sidebarCollapsed && (
+      {sidebarMode !== "hidden" && (
         <FleetSidebar
           width={sidebar.size}
+          mode={sidebarMode}
           activeNodeId={nodeId}
           onResizeStart={sidebar.onResizeStart}
+          onResizeKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            event.preventDefault();
+            sidebar.setSize(Math.max(180, Math.min(380, sidebar.size + (event.key === "ArrowRight" ? 10 : -10))));
+          }}
         />
       )}
       <div className="viewport">
@@ -98,28 +104,26 @@ export default function FleetView({ nodeId }: { nodeId: string | null }) {
 
 function FleetSidebar({
   width,
+  mode,
   activeNodeId,
   onResizeStart,
+  onResizeKeyDown,
 }: {
   width: number;
+  mode: SidebarMode;
   activeNodeId: string | null;
   onResizeStart?: (e: React.MouseEvent) => void;
+  onResizeKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   const navigate = useNavigate();
   const { data: nodeData } = useNodes();
   const nodes = nodeData?.nodes ?? [];
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const closeSidebarOnPhone = useUIStore((s) => s.closeSidebarOnPhone);
   const [addOpen, setAddOpen] = useState(false);
 
   const closeIfPhone = useCallback(() => {
-    if (
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(max-width: 820px)").matches
-    ) {
-      toggleSidebar();
-    }
-  }, [toggleSidebar]);
+    closeSidebarOnPhone();
+  }, [closeSidebarOnPhone]);
 
   const handleSelectNode = useCallback(
     (id: string) => {
@@ -131,11 +135,16 @@ function FleetSidebar({
 
   return (
     <>
-      <aside className="sidebar" style={{ width }}>
+      <aside
+        id="primary-sidebar"
+        className={`sidebar${mode === "compact" ? " compact" : ""}`}
+        style={{ width: mode === "compact" ? "var(--sidebar-compact-w)" : width }}
+        aria-label="Fleet sidebar"
+      >
         <div className="sb-pad">
-          <button type="button" className="newbtn" onClick={() => setAddOpen(true)}>
+          <button type="button" className="newbtn" title="Add node" aria-label="Add node" onClick={() => setAddOpen(true)}>
             <Icon name="plus" size={14} />
-            Add node
+            <span className="sidebar-label">Add node</span>
           </button>
         </div>
         <div className="sb-scroll">
@@ -165,7 +174,7 @@ function FleetSidebar({
           )}
         </div>
       </aside>
-      <div className="rz-x" onMouseDown={onResizeStart} />
+      {mode === "full" && <div className="rz-x" role="separator" aria-label="Resize fleet sidebar" aria-orientation="vertical" aria-valuemin={180} aria-valuemax={380} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} onKeyDown={onResizeKeyDown} />}
       {addOpen && <AddNodeModal onClose={() => setAddOpen(false)} />}
     </>
   );
@@ -190,6 +199,14 @@ function NodeTreeItem({
         className={`srow${active ? " on" : ""}`}
         onClick={onSelect}
         title={`${node.hostname} · ${transportLabel(node)}`}
+        role="button"
+        tabIndex={0}
+        aria-label={`${node.nodeId} · ${node.status}`}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onSelect();
+        }}
       >
         <span
           style={{
@@ -223,8 +240,7 @@ function NodeTreeItem({
         agents.map((a) => (
           <div
             key={a.id}
-            className="srow"
-            style={{ paddingLeft: 28, paddingTop: 3, paddingBottom: 3 }}
+            className="srow fleet-agent-row"
             title={`${a.provider ?? a.kind} · ${a.model ?? "—"}`}
           >
             <BrandIcon name={agentBrand(a.kind, a.provider)} size={12} />

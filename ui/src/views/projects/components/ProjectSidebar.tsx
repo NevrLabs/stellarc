@@ -7,6 +7,7 @@
  */
 
 import { Icon } from "../../../components/Icon";
+import type { SidebarMode } from "../../../store";
 import type { Card } from "../../../types";
 
 export function ProjectSidebar({
@@ -14,14 +15,22 @@ export function ProjectSidebar({
   activeFilter,
   onFilterChange,
   cards,
+  mode = "full",
 }: {
   assignees: string[];
   activeFilter: string | null;
   onFilterChange: (v: string | null) => void;
   cards: Card[];
+  mode?: SidebarMode;
 }) {
   return (
-    <div className="sb-scroll">
+    <aside
+      id="primary-sidebar"
+      className={`sidebar${mode === "compact" ? " compact" : ""}`}
+      style={{ width: mode === "compact" ? "var(--sidebar-compact-w)" : undefined }}
+      aria-label="Projects sidebar"
+    >
+      <div className="sb-scroll">
       {/* Board section */}
       <div className="sec-head">
         <span className="lbl">BOARD</span>
@@ -32,11 +41,13 @@ export function ProjectSidebar({
         <button
           type="button"
           className={`srow${!activeFilter ? " on" : ""}`}
-          style={{ width: "100%", justifyContent: "flex-start" }}
+          style={{ width: mode === "compact" ? "var(--sidebar-icon-target)" : "100%", justifyContent: mode === "compact" ? "center" : "flex-start" }}
+          title="All Cards"
+          aria-label="All Cards"
           onClick={() => onFilterChange(null)}
         >
           <Icon name="kanban" size={12} />
-          <span className="title" style={{ marginLeft: 6 }}>
+          <span className="title sidebar-label" style={{ marginLeft: 6 }}>
             All Cards
           </span>
         </button>
@@ -56,7 +67,9 @@ export function ProjectSidebar({
                 key={a}
                 type="button"
                 className={`srow${activeFilter === a ? " on" : ""}`}
-                style={{ width: "100%", justifyContent: "flex-start" }}
+                style={{ width: mode === "compact" ? "var(--sidebar-icon-target)" : "100%", justifyContent: mode === "compact" ? "center" : "flex-start" }}
+                title={`${a} · ${cards.filter((c) => c.assignedId === a).length} cards`}
+                aria-label={`Filter by ${a}`}
                 onClick={() => onFilterChange(activeFilter === a ? null : a)}
               >
                 <span
@@ -69,7 +82,7 @@ export function ProjectSidebar({
                     flexShrink: 0,
                   }}
                 />
-                <span className="title" style={{ marginLeft: 6 }}>
+                <span className="title sidebar-label" style={{ marginLeft: 6 }}>
                   {a}
                 </span>
                 <span className="meta">
@@ -93,14 +106,17 @@ export function ProjectSidebar({
             <button
               type="button"
               className={`srow${activeFilter === "__unassigned__" ? " on" : ""}`}
-              style={{ width: "100%", justifyContent: "flex-start" }}
+              style={{ width: mode === "compact" ? "var(--sidebar-icon-target)" : "100%", justifyContent: mode === "compact" ? "center" : "flex-start" }}
+              title="No assignee"
+              aria-label="Filter by no assignee"
               onClick={() =>
                 onFilterChange(
                   activeFilter === "__unassigned__" ? null : "__unassigned__"
                 )
               }
             >
-              <span className="title" style={{ marginLeft: 18 }}>
+              <Icon name="bot" size={12} />
+              <span className="title sidebar-label" style={{ marginLeft: 6 }}>
                 No assignee
               </span>
               <span className="meta">
@@ -110,6 +126,7 @@ export function ProjectSidebar({
           </div>
         </>
       )}
-    </div>
+      </div>
+    </aside>
   );
 }

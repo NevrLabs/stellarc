@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Icon } from "../../../components/Icon";
+import type { SidebarMode } from "../../../store";
 import type { NoteTreeEntry, VaultSummary } from "../../../types";
 import { findFolderIndex } from "../vaultWorkspace";
 
@@ -23,6 +24,7 @@ export function VaultSidebar({
   onOpenTable,
   onRenameNote,
   onDeleteNote,
+  mode = "full",
 }: {
   vaults: VaultSummary[];
   activeVaultId: string | null;
@@ -36,6 +38,7 @@ export function VaultSidebar({
   onOpenTable: () => void;
   onRenameNote: (entry: NoteTreeEntry) => void;
   onDeleteNote: (entry: NoteTreeEntry) => void;
+  mode?: SidebarMode;
 }) {
   const [vaultOpen, setVaultOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -75,10 +78,16 @@ export function VaultSidebar({
   };
 
   return (
-    <aside className="sidebar on vault-sidebar" ref={rootRef}>
+    <aside
+      id="primary-sidebar"
+      className={`sidebar on vault-sidebar${mode === "compact" ? " compact" : ""}`}
+      style={{ width: mode === "compact" ? "var(--sidebar-compact-w)" : undefined }}
+      aria-label="Vaults sidebar"
+      ref={rootRef}
+    >
       <div className="vault-sidebar-body">
         <div className="vault-selector-wrap">
-          <button type="button" className="vault-selector" aria-haspopup="menu" aria-expanded={vaultOpen} onClick={() => setVaultOpen((value) => !value)}>
+          <button type="button" className="vault-selector" title={activeVault?.name ?? "Select a vault"} aria-label={`Vault: ${activeVault?.name ?? "Select a vault"}`} aria-haspopup="menu" aria-expanded={vaultOpen} onClick={() => setVaultOpen((value) => !value)}>
             <Icon name="book" size={15} />
             <span><small>Vault</small><strong>{activeVault?.name ?? "Select a vault"}</strong></span>
             <Icon name="chevron-down" size={12} />
@@ -99,7 +108,7 @@ export function VaultSidebar({
         </div>
 
         <div className="vault-create-segment">
-          <button type="button" className="vault-create-main" disabled={!activeVaultId} onClick={() => onCreateNote()}><Icon name="plus" size={14} /><span>New Note</span></button>
+          <button type="button" className="vault-create-main" title="New Note" aria-label="New Note" disabled={!activeVaultId} onClick={() => onCreateNote()}><Icon name="plus" size={14} /><span className="sidebar-label">New Note</span></button>
           <button type="button" className="vault-create-more" aria-label="Other new item types" aria-haspopup="menu" aria-expanded={createOpen} disabled={!activeVaultId} onClick={() => setCreateOpen((value) => !value)}><Icon name="chevron-down" size={12} /></button>
           {createOpen && (
             <div className="menu vault-create-popup" role="menu">
@@ -117,8 +126,8 @@ export function VaultSidebar({
         </div>
 
         <nav className="vault-primary-nav" aria-label="Vault views">
-          <button type="button" className="navitem" onClick={onOpenGraph}><Icon name="workflow" size={14} /><span>Graph View</span></button>
-          <button type="button" className="navitem" onClick={onOpenTable}><Icon name="layout-grid" size={14} /><span>Table View</span></button>
+          <button type="button" className="navitem" title="Graph View" aria-label="Graph View" onClick={onOpenGraph}><Icon name="workflow" size={14} /><span className="sidebar-label">Graph View</span></button>
+          <button type="button" className="navitem" title="Table View" aria-label="Table View" onClick={onOpenTable}><Icon name="layout-grid" size={14} /><span className="sidebar-label">Table View</span></button>
         </nav>
 
         <div className="vault-files-head"><span>Files</span><span>{activeVault?.noteCount ?? notes.length}</span></div>
@@ -133,6 +142,7 @@ export function VaultSidebar({
               onToggleFolder={toggleFolder}
               onOpenNote={onOpenNote}
               onOpenMenu={openMenu}
+              compact={mode === "compact"}
             />
           ))}
         </div>
@@ -171,6 +181,7 @@ function FileTreeEntry({
   onToggleFolder,
   onOpenNote,
   onOpenMenu,
+  compact,
 }: {
   entry: NoteTreeEntry;
   depth: number;
@@ -179,6 +190,7 @@ function FileTreeEntry({
   onToggleFolder: (entry: NoteTreeEntry) => void;
   onOpenNote: (path: string, title?: string) => void;
   onOpenMenu: (event: MouseEvent, entry: NoteTreeEntry) => void;
+  compact: boolean;
 }) {
   const folder = entry.kind === "folder";
   const isExpanded = folder && expanded.has(entry.path);
@@ -186,7 +198,8 @@ function FileTreeEntry({
     <div role="treeitem" aria-expanded={folder ? isExpanded : undefined}>
       <div
         className={`vault-file-row ${!folder && activeNotePath === entry.path ? "on focused" : ""}`}
-        style={{ paddingLeft: 8 + depth * 14 }}
+        style={{ paddingLeft: compact ? 0 : 8 + depth * 14 }}
+        title={entry.title}
         data-open={!folder && activeNotePath === entry.path ? "true" : "false"}
         data-focused={!folder && activeNotePath === entry.path ? "true" : "false"}
         draggable={!folder}
@@ -200,15 +213,15 @@ function FileTreeEntry({
         }}
         onContextMenu={(event) => onOpenMenu(event, entry)}
       >
-        <button type="button" className="vault-file-open" onClick={() => folder ? onToggleFolder(entry) : onOpenNote(entry.path, entry.title)}>
-          {folder && <Icon name={isExpanded ? "chevron-down" : "chevron-right"} size={11} />}
+        <button type="button" className="vault-file-open" aria-label={folder ? `${isExpanded ? "Collapse" : "Expand"} ${entry.title}` : `Open ${entry.title}`} onClick={() => folder ? onToggleFolder(entry) : onOpenNote(entry.path, entry.title)}>
+          {folder && <Icon className="vault-folder-chevron" name={isExpanded ? "chevron-down" : "chevron-right"} size={11} />}
           <Icon name={folder ? "folder" : "file"} size={13} />
           <span>{folder ? entry.title : entry.path.split("/").pop()}</span>
         </button>
         <button type="button" className="vault-file-menu" aria-label={`Actions for ${entry.title}`} onClick={(event) => onOpenMenu(event, entry)}><Icon name="ellipsis" size={13} /></button>
       </div>
       {folder && isExpanded && entry.children.map((child) => (
-        <FileTreeEntry key={child.path} entry={child} depth={depth + 1} expanded={expanded} activeNotePath={activeNotePath} onToggleFolder={onToggleFolder} onOpenNote={onOpenNote} onOpenMenu={onOpenMenu} />
+        <FileTreeEntry key={child.path} entry={child} depth={depth + 1} expanded={expanded} activeNotePath={activeNotePath} onToggleFolder={onToggleFolder} onOpenNote={onOpenNote} onOpenMenu={onOpenMenu} compact={compact} />
       ))}
     </div>
   );

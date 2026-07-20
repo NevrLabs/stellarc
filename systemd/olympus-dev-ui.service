@@ -1,0 +1,26 @@
+[Unit]
+Description=Olympus development Vite UI on fxcompute-01
+Wants=olympus-dev-hall.service
+After=olympus-dev-hall.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rpw/olympus-dev/ui
+Environment="HOME=/home/rpw"
+Environment="PATH=/home/rpw/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VITE_PROXY_TARGET=http://127.0.0.1:8799"
+Environment="VITE_USE_MOCKS=false"
+Environment="VITE_OLYMPUS_ENV=dev"
+Environment="VITE_ALLOWED_HOSTS=olympus-dev.entelechia.cloud"
+ExecStartPre=/home/rpw/olympus-dev/scripts/assert-dev-worktree.sh
+ExecStart=/home/rpw/.local/bin/bun run dev -- --host 127.0.0.1 --port 5177
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=15
+MemoryHigh=768M
+MemoryMax=1G
+TasksMax=512
+
+[Install]
+WantedBy=default.target

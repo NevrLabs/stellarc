@@ -24,7 +24,7 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { useUIStore } from "../store";
+import { useSidebarMode, useUIStore } from "../store";
 import { useCards } from "../hooks/queries";
 import type { Card, CardStatus } from "../types";
 import { timeAgo } from "./sessions/helpers";
@@ -53,7 +53,8 @@ function uniqueAssignees(cards: Card[]): string[] {
 }
 
 export function ProjectsView() {
-  const { sidebarCollapsed } = useUIStore();
+  const sidebarMode = useSidebarMode();
+  const closeSidebarOnPhone = useUIStore((state) => state.closeSidebarOnPhone);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [filterAssignee, setFilterAssignee] = useState<string | null>(null);
 
@@ -75,12 +76,16 @@ export function ProjectsView() {
   return (
     <>
       {/* ── View-owned left sidebar ─────────────────────────────── */}
-      {!sidebarCollapsed && (
+      {sidebarMode !== "hidden" && (
         <ProjectSidebar
           assignees={assignees}
           activeFilter={filterAssignee}
-          onFilterChange={setFilterAssignee}
+          onFilterChange={(filter) => {
+            setFilterAssignee(filter);
+            closeSidebarOnPhone();
+          }}
           cards={cards}
+          mode={sidebarMode}
         />
       )}
 

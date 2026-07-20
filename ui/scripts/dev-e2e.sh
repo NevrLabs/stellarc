@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Nightly from Terminus:
-# ssh fxcompute-01 'cd /home/rpw/olympus && ui/scripts/dev-e2e.sh'
+# ssh fxcompute-01 'cd /home/rpw/olympus-dev && ui/scripts/dev-e2e.sh'
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
@@ -9,6 +9,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UI="$ROOT/ui"
 CREDS="${OLYMPUS_DEV_CREDENTIALS:-$HOME/.config/olympus-dev/admin-credentials}"
 export OLYMPUS_DEV_BASE_URL="${OLYMPUS_DEV_BASE_URL:-http://127.0.0.1:5177}"
+export OLYMPUS_EVIDENCE_DIR="$HOME/.cache/olympus-qa/sidebar-evidence"
 
 [[ -r "$CREDS" ]] || { echo "ERROR: unreadable credentials: $CREDS" >&2; exit 1; }
 while IFS='=' read -r key value; do
@@ -33,6 +34,13 @@ curl -fsS "${OLYMPUS_DEV_HALL_URL:-http://127.0.0.1:8799}/api/health" >/dev/null
 
 cd "$UI"
 rm -rf test-results/dev-e2e
+install -d -m 0700 "$OLYMPUS_EVIDENCE_DIR"
+rm -f -- \
+  "$OLYMPUS_EVIDENCE_DIR/sidebar-full-obsidian.png" \
+  "$OLYMPUS_EVIDENCE_DIR/sidebar-compact-obsidian.png" \
+  "$OLYMPUS_EVIDENCE_DIR/sidebar-hidden-obsidian.png" \
+  "$OLYMPUS_EVIDENCE_DIR/sidebar-full-daybreak.png" \
+  "$OLYMPUS_EVIDENCE_DIR/sidebar-mobile-drawer.png"
 [[ -x node_modules/.bin/playwright ]] || {
   echo "ERROR: local Playwright CLI is missing; install UI dependencies first" >&2
   exit 1

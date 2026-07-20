@@ -31,6 +31,9 @@
   --toolbar-h:      32px;    /* view headers (.vp-head / .gv-head) */
   --tabbar-h:       30px;    /* tab strips (.dtabs / .bp-tabs) */
   --sidebar-w:      220px;   /* left session sidebar */
+  --sidebar-compact-w: 48px; /* icon-only left sidebar */
+  --sidebar-icon-target: 32px; /* compact sidebar control target */
+  --sidebar-alert-w: 260px;  /* compact sidebar floating error */
   --rsidebar-w:     279px;   /* right info sidebar */
   --bpanel-h:       152px;   /* bottom terminal/output panel */
   --palette-w:      560px;   /* ⌘K command palette */

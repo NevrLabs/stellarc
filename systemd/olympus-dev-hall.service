@@ -1,0 +1,31 @@
+[Unit]
+Description=Olympus development Hall on fxcompute-01
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Slice=olympus-build.slice
+WorkingDirectory=/home/rpw/olympus-dev
+EnvironmentFile=/home/rpw/.config/olympus-dev/hall.env
+Environment="HOME=/home/rpw"
+Environment="PATH=/home/rpw/.local/bin:/home/rpw/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="CARGO_HOME=/var/lib/olympus/cargo-home"
+Environment="CARGO_TARGET_DIR=/var/lib/olympus/cargo-target-dev"
+Environment="RUSTUP_HOME=/home/rpw/.rustup"
+Environment="SCCACHE_DIR=/var/lib/olympus/sccache"
+Environment="SCCACHE_CACHE_SIZE=10G"
+Environment="OLYMPUS_UI_DIST=/home/rpw/olympus-dev/ui/dist"
+ExecStartPre=/home/rpw/olympus-dev/scripts/assert-dev-worktree.sh
+ExecStart=/home/rpw/.local/bin/cargo-watch --watch crates --watch Cargo.toml --watch Cargo.lock --exec "run -p olympus-control-plane"
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=20
+UMask=0077
+MemoryHigh=3G
+MemoryMax=5G
+TasksMax=2048
+
+[Install]
+WantedBy=default.target

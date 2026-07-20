@@ -18,7 +18,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../../../components/Icon";
 import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
-import { useUIStore } from "../../../store";
+import { useUIStore, type SidebarMode } from "../../../store";
 import { attachSessionToProject, createSession } from "../../../api";
 import type { Session } from "../../../types";
 import { timeAgo } from "../helpers";
@@ -34,18 +34,9 @@ import {
 /** Max rows in the RECENT section; the rest live in the History page. */
 const RECENT_LIMIT = 5;
 
-/** On phone-width screens the sidebar is a fixed overlay — close it after
- *  navigation so the destination is actually visible (drawer pattern). */
-function isPhoneViewport(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(max-width: 820px)").matches
-  );
-}
-
 export function SessionSidebar({
   width,
+  mode = "full",
   activeSessionId,
   activeProjectId,
   openSessionIds = new Set(),
@@ -55,6 +46,7 @@ export function SessionSidebar({
   onResizeKeyDown,
 }: {
   width: number;
+  mode?: SidebarMode;
   activeSessionId: string | null;
   activeProjectId?: string | null;
   openSessionIds?: ReadonlySet<string>;
@@ -70,12 +62,12 @@ export function SessionSidebar({
     (session) => !activeProjectId || session.projectId === activeProjectId,
   );
   const { data: projectData } = useProjects();
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const closeSidebarOnPhone = useUIStore((s) => s.closeSidebarOnPhone);
 
   // Close the overlay sidebar after navigating on phone screens.
   const closeIfPhone = useCallback(() => {
-    if (isPhoneViewport()) toggleSidebar();
-  }, [toggleSidebar]);
+    closeSidebarOnPhone();
+  }, [closeSidebarOnPhone]);
 
   // PINNED = user-pinned only. Liveness NEVER moves a session here.
   const pinned = sessions.filter((s) => s.pinned);
@@ -157,14 +149,19 @@ export function SessionSidebar({
 
   return (
     <>
-      <aside className="sidebar" style={{ width }}>
+      <aside
+        id="primary-sidebar"
+        className={`sidebar${mode === "compact" ? " compact" : ""}`}
+        style={{ width: mode === "compact" ? "var(--sidebar-compact-w)" : width }}
+        aria-label="Sessions sidebar"
+      >
         <div className="sb-pad">
           <div className="session-sidebar-primary">
-            <button type="button" className="newbtn" onClick={handleNewSession}>
+            <button type="button" className="newbtn" title="New session" aria-label="New session" onClick={handleNewSession}>
               <Icon name="plus" size={14} />
-              New session
+              <span className="sidebar-label">New session</span>
             </button>
-            <button type="button" className="icobtn" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
+            <button type="button" className="icobtn" title="Configure session row metadata" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
               <Icon name="settings-2" size={13} />
             </button>
           </div>
@@ -189,7 +186,7 @@ export function SessionSidebar({
               <div className="sec-head"><span className="lbl">PROJECT WORKSPACES</span></div>
               <div className="sec-content">
                 {projectActionError && (
-                  <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
+                  <div className="sidebar-alert" role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
                     {projectActionError}
                   </div>
                 )}
@@ -199,12 +196,14 @@ export function SessionSidebar({
                     className={`navitem${activeProjectId === project.id ? " on" : ""}`}
                     data-project-id={project.id}
                     key={project.id}
+                    title={project.name}
+                    aria-label={project.name}
                     onClick={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => void handleProjectDrop(event, project.id)}
                   >
                     <Icon name="folder" size={14} />
-                    <span>{project.name}</span>
+                    <span className="sidebar-label">{project.name}</span>
                   </button>
                 ))}
               </div>
@@ -234,7 +233,7 @@ export function SessionSidebar({
           />
         </div>
       </aside>
-      <div className="rz-x" role="separator" aria-label="Resize sessions sidebar" aria-orientation="vertical" aria-valuemin={160} aria-valuemax={400} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} onKeyDown={onResizeKeyDown} />
+      {mode === "full" && <div className="rz-x" role="separator" aria-label="Resize sessions sidebar" aria-orientation="vertical" aria-valuemin={160} aria-valuemax={400} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} onKeyDown={onResizeKeyDown} />}
 
       {/* Bug 10: agent picker modal */}
       <AgentPicker
@@ -276,9 +275,10 @@ function NavItem({
       className={`navitem${isActive ? " on" : ""}`}
       onClick={() => void navigate({ to: path })}
       title={label}
+      aria-label={label}
     >
       <Icon name={icon} size={14} />
-      <span>{label}</span>
+      <span className="sidebar-label">{label}</span>
     </button>
   );
 }
@@ -356,7 +356,6 @@ function SessionRow({
 
   const isRunning = session.liveness === "running" || session.liveness === "active";
   const needsInput = session.liveness === "input-required";
-  const showIcon = isRunning || needsInput;
 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -396,6 +395,10 @@ function SessionRow({
       data-pinned={session.pinned ? "true" : "false"}
       data-open={open ? "true" : "false"}
       data-focused={active ? "true" : "false"}
+      title={`${title}${metadata.length > 0 ? ` · ${metadata.join(" · ")}` : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-label={title}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = "copy";
@@ -405,23 +408,29 @@ function SessionRow({
         );
       }}
       onClick={() => onSelect(session.id)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onSelect(session.id);
+      }}
       onContextMenu={openMenu}
     >
       {/* Instant hover card: node · agent · model (native title is too slow) */}
       <span className="srow-hovercard" role="tooltip">
+        <span className="hc-row"><span className="hc-k">session</span><span className="hc-v">{title}</span></span>
         <span className="hc-row"><span className="hc-k">node</span><span className="hc-v">{session.node ?? "olympus"}</span></span>
         <span className="hc-row"><span className="hc-k">agent</span><span className="hc-v">{session.agent ?? "—"}</span></span>
         <span className="hc-row"><span className="hc-k">model</span><span className="hc-v">{session.model ?? "—"}</span></span>
       </span>
-      {showIcon && (
-        <span className="srow-icon">
-          {isRunning ? (
-            <span className="srow-spinner" />
-          ) : (
-            <span className="srow-dot needs-input" title="Waiting for your input" />
-          )}
-        </span>
-      )}
+      <span className="srow-icon">
+        {isRunning ? (
+          <span className="srow-spinner" />
+        ) : needsInput ? (
+          <span className="srow-dot needs-input" title="Waiting for your input" />
+        ) : (
+          <Icon name="message-square" size={13} />
+        )}
+      </span>
       <span className="srow-copy">
         <span className="srow-title">{title}</span>
         {metadata.length > 0 && <span className="srow-meta">{metadata.join(" · ")}</span>}

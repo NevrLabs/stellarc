@@ -1,8 +1,17 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 
 const baseURL = process.env.OLYMPUS_DEV_BASE_URL ?? "http://127.0.0.1:5177";
 const username = process.env.OLYMPUS_DEV_USERNAME;
 const password = process.env.OLYMPUS_DEV_PASSWORD;
+const evidenceDir = process.env.OLYMPUS_EVIDENCE_DIR;
+
+async function capture(page: Page, name: string) {
+  if (!evidenceDir) return;
+  await mkdir(evidenceDir, { recursive: true });
+  await page.screenshot({ path: join(evidenceDir, name), fullPage: true });
+}
 
 async function drag(page: Page, handle: Locator, dx: number, dy: number) {
   const box = await handle.boundingBox();
@@ -34,6 +43,59 @@ async function signIn(page: Page) {
 
 test("live dev interactions", async ({ page }) => {
   await signIn(page);
+
+  await expect(page.locator(".env-pill")).toHaveText("dev");
+  const body = page.locator(".body");
+  const sidebarCycle = page.locator("[data-sidebar-cycle]");
+  await expect(body).toHaveAttribute("data-sidebar-mode", "full");
+  const expandedWidth = (await page.locator("aside.sidebar").boundingBox())!.width;
+  expect(expandedWidth).toBeGreaterThan(160);
+  await capture(page, "sidebar-full-obsidian.png");
+
+  await sidebarCycle.click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "compact");
+  await expect(page.locator("aside.sidebar")).toHaveClass(/\bcompact\b/);
+  expect((await page.locator("aside.sidebar").boundingBox())!.width).toBe(48);
+  await expect(page.getByText("Agents", { exact: true })).not.toBeVisible();
+
+  for (const surface of ["Vaults", "Projects", "Fleet", "Settings", "Sessions"]) {
+    await page.locator(`.layouts button[aria-label="${surface}"]`).click();
+    await expect(body).toHaveAttribute("data-sidebar-mode", "compact");
+    const compactSidebar = page.locator("aside.sidebar");
+    await expect(compactSidebar).toHaveClass(/\bcompact\b/);
+    expect((await compactSidebar.boundingBox())!.width).toBe(48);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const namedTarget = surface === "Vaults"
+      ? compactSidebar.locator("button[aria-label^='Vault:']")
+      : surface === "Projects"
+        ? compactSidebar.getByRole("button", { name: "All Cards" })
+        : surface === "Fleet"
+          ? compactSidebar.getByRole("button", { name: "Add node" })
+          : surface === "Sessions"
+            ? compactSidebar.locator(".srow[data-session-id]").first()
+            : compactSidebar.locator(".sidebar-compact-placeholder[title='Settings']");
+    await expect(namedTarget).toBeVisible();
+    await expect(namedTarget).toHaveAttribute("title", /\S+/);
+    if (surface !== "Settings") {
+      await namedTarget.focus();
+      await expect(namedTarget).toBeFocused();
+    }
+  }
+  await capture(page, "sidebar-compact-obsidian.png");
+
+  await page.reload();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "compact");
+  await page.setViewportSize({ width: 820, height: 844 });
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+  await page.setViewportSize({ width: 900, height: 844 });
+  await expect(body).toHaveAttribute("data-sidebar-mode", "compact");
+  await sidebarCycle.click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+  await expect(page.locator("aside.sidebar")).toHaveCount(0);
+  await capture(page, "sidebar-hidden-obsidian.png");
+  await sidebarCycle.click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "full");
+  expect((await page.locator("aside.sidebar").boundingBox())!.width).toBe(expandedWidth);
 
   const rows = page.locator(".srow[data-session-id]");
   await expect(rows.first()).toBeVisible();
@@ -71,6 +133,63 @@ test("live dev interactions", async ({ page }) => {
   const before = await html.getAttribute("data-theme");
   await page.getByRole("button", { name: "Toggle theme" }).click();
   await expect(html).not.toHaveAttribute("data-theme", before ?? "obsidian");
+  await capture(page, "sidebar-full-daybreak.png");
+});
+
+test("phone sidebar stays a full-or-hidden drawer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+
+  const body = page.locator(".body");
+  const sidebarCycle = page.locator("[data-sidebar-cycle]");
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+  await expect(page.locator("aside.sidebar")).toHaveCount(0);
+
+  await sidebarCycle.click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "full");
+  await expect(page.locator("aside.sidebar")).toBeVisible();
+  await expect(page.locator("aside.sidebar")).not.toHaveClass(/\bcompact\b/);
+  await expect(page.locator(".sidebar-scrim")).toBeVisible();
+  await expect(page.locator(".viewport")).toHaveAttribute("inert", "");
+  await expect(page.locator(".topbar")).toHaveAttribute("inert", "");
+  await expect(page.locator("aside.sidebar")).toHaveAttribute("aria-modal", "true");
+  await capture(page, "sidebar-mobile-drawer.png");
+
+  const drawerControls = page.locator("aside.sidebar button:not([disabled]):visible, aside.sidebar [tabindex='0']:visible");
+  const firstDrawerControl = drawerControls.first();
+  const lastDrawerControl = drawerControls.last();
+  await firstDrawerControl.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(lastDrawerControl).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(firstDrawerControl).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+  await expect(sidebarCycle).toBeFocused();
+
+  await sidebarCycle.click();
+  await page.getByRole("button", { name: "Usage", exact: true }).click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+  await expect(page.locator("aside.sidebar")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 900, height: 844 });
+  await expect(body).toHaveAttribute("data-sidebar-mode", "full");
+  await page.setViewportSize({ width: 820, height: 844 });
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+});
+
+test("phone vault action closes the same-path drawer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+  await page.locator('.layouts button[aria-label="Vaults"]').click();
+  const body = page.locator(".body");
+  await page.locator("[data-sidebar-cycle]").click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "full");
+  await page.getByRole("button", { name: /^Vault:/ }).click();
+  await page.getByRole("menuitem", { name: "Create vault…" }).click();
+  await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
+  await expect(page.getByRole("dialog", { name: "Create vault" })).toBeVisible();
 });
 
 test("project workspace layout restores and session route stays single-pane", async ({ page }) => {

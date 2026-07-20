@@ -14,15 +14,17 @@
 // provides its own secondary sidebar slot (session list, vault tree, etc.).
 // Surfaces whose card hasn't merged render a .ol-* placeholder pane.
 
+import { useEffect } from "react";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
-import { useUIStore } from "./store";
+import { nextSidebarMode, useSidebarMode, useUIStore, type SidebarMode } from "./store";
 import { useCockpit } from "./cockpit/store";
 import { Cockpit } from "./cockpit/Cockpit";
 import { SearchPill, CommandPalette } from "./CommandPalette";
 import { parseRoute, type SurfaceName } from "./router";
 import { useTheme } from "./theme";
 import { useHallAuth } from "./auth";
+import { isDevelopmentEnvironment } from "./environment";
 import { SessionsView } from "./views/SessionsView";
 import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
 import { ProjectsView } from "./views/ProjectsView";
@@ -57,12 +59,95 @@ const SURFACES: {
 export function AppShell() {
   const { location } = useRouterState();
   const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
-  const { sidebarCollapsed, sidebarWidth } = useUIStore();
+  const sidebarMode = useSidebarMode();
+  const { sidebarWidth, phoneViewport, setPhoneViewport, closeSidebarOnPhone } = useUIStore();
+  const mobileSidebarOpen = phoneViewport && sidebarMode === "full";
+
+  useEffect(() => {
+    const phone = window.matchMedia("(max-width: 820px)");
+    const syncViewport = (event: MediaQueryListEvent | MediaQueryList) => {
+      setPhoneViewport(event.matches);
+    };
+    syncViewport(phone);
+    phone.addEventListener("change", syncViewport);
+    return () => phone.removeEventListener("change", syncViewport);
+  }, [setPhoneViewport]);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const app = document.querySelector<HTMLElement>(".app");
+    const body = document.querySelector<HTMLElement>(".body");
+    const sidebar = document.querySelector<HTMLElement>("#primary-sidebar");
+    if (!app || !body || !sidebar) return;
+
+    const inerted: HTMLElement[] = [];
+    const makeInert = (element: Element) => {
+      if (!(element instanceof HTMLElement) || element.hasAttribute("inert")) return;
+      element.setAttribute("inert", "");
+      inerted.push(element);
+    };
+    for (const child of app.children) {
+      if (child !== body) makeInert(child);
+    }
+    for (const child of body.children) {
+      if (child !== sidebar && !child.classList.contains("sidebar-scrim")) makeInert(child);
+    }
+    sidebar.setAttribute("role", "dialog");
+    sidebar.setAttribute("aria-modal", "true");
+
+    const focusable = () => Array.from(sidebar.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+    )).filter((element) => element.getClientRects().length > 0);
+    const frame = window.requestAnimationFrame(() => {
+      focusable()[0]?.focus();
+    });
+    const containFocus = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeSidebarOnPhone();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = focusable();
+      if (controls.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", containFocus);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", containFocus);
+      for (const element of inerted) element.removeAttribute("inert");
+      sidebar.removeAttribute("role");
+      sidebar.removeAttribute("aria-modal");
+      document.querySelector<HTMLElement>("[data-sidebar-cycle]")?.focus();
+    };
+  }, [closeSidebarOnPhone, location.pathname, mobileSidebarOpen]);
+
+  useEffect(() => {
+    if (phoneViewport) closeSidebarOnPhone();
+  }, [closeSidebarOnPhone, location.pathname, phoneViewport]);
 
   return (
     <div className="app">
       <TopBar activeSurface={surface} />
-      <div className="body">
+      <div className="body" data-sidebar-mode={sidebarMode}>
+        {mobileSidebarOpen && (
+          <div
+            className="sidebar-scrim"
+            aria-hidden="true"
+            onClick={closeSidebarOnPhone}
+          />
+        )}
         {/* Sessions View owns its own sidebar + viewport layout */}
         {surface === "sessions" && (
           <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
@@ -78,8 +163,8 @@ export function AppShell() {
         {surface === "fleet" && <FleetView nodeId={nodeId} />}
 
         {/* Other surfaces keep the shell-level sidebar + viewport split */}
-        {!sidebarCollapsed && surface === "settings" && (
-          <SecondarySidebar width={sidebarWidth}>
+        {sidebarMode !== "hidden" && surface === "settings" && (
+          <SecondarySidebar width={sidebarWidth} mode={sidebarMode}>
             <PlaceholderSidebar surface={surface} />
           </SecondarySidebar>
         )}
@@ -104,9 +189,12 @@ export function AppShell() {
 
 function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
   const navigate = useNavigate();
-  const { toggleSidebar } = useUIStore();
+  const sidebarMode = useSidebarMode();
+  const { phoneViewport, cycleSidebarMode } = useUIStore();
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useHallAuth();
+  const nextMode = nextSidebarMode(sidebarMode, phoneViewport);
+  const developmentEnvironment = isDevelopmentEnvironment(import.meta.env.VITE_OLYMPUS_ENV);
 
   return (
     <div className="topbar">
@@ -114,12 +202,19 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
         <button
           type="button"
           className="icobtn"
-          onClick={toggleSidebar}
-          title="Toggle sidebar"
-          aria-label="Toggle sidebar"
+          data-sidebar-cycle
+          onClick={cycleSidebarMode}
+          aria-controls="primary-sidebar"
+          title={`Sidebar is ${sidebarMode}; switch to ${nextMode}`}
+          aria-label={`Sidebar is ${sidebarMode}; switch to ${nextMode}`}
         >
           <Icon name="mountain" size={14} />
         </button>
+        {developmentEnvironment && (
+          <span className="env-pill" title="Development environment · dev branch">
+            dev
+          </span>
+        )}
         <span className="divider" />
         {/* View selector — icon chips for each surface (concept: topbar .layouts) */}
         <div className="layouts" role="tablist" aria-label="Surfaces">
@@ -202,17 +297,23 @@ function OrgChip() {
 
 function SecondarySidebar({
   width,
+  mode,
   children,
 }: {
   width: number;
+  mode: SidebarMode;
   children: React.ReactNode;
 }) {
   return (
     <>
-      <aside className="sidebar" style={{ width }}>
+      <aside
+        id="primary-sidebar"
+        className={`sidebar${mode === "compact" ? " compact" : ""}`}
+        style={{ width: mode === "compact" ? "var(--sidebar-compact-w)" : width }}
+        aria-label="Settings sidebar"
+      >
         {children}
       </aside>
-      <div className="rz-x" />
     </>
   );
 }
@@ -225,6 +326,9 @@ function PlaceholderSidebar({ surface }: { surface: SurfaceName }) {
         <span className="lbl">{label.toUpperCase()}</span>
       </div>
       <div className="sec-content">
+        <span className="sidebar-compact-placeholder" title={label}>
+          <Icon name="gear" size={14} />
+        </span>
         <div
           className="empty-state"
           style={{ minHeight: 120, padding: "16px 8px" }}

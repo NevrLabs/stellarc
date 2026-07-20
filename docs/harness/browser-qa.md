@@ -4,6 +4,7 @@ Visual verification is MANDATORY for UI-touching work. A green
 typecheck/build/unit run is not visual evidence.
 
 ## Live dev stack
+- Checkout: /home/rpw/olympus-dev (branch dev; `/home/rpw/olympus` stays on main)
 - UI: http://127.0.0.1:5177 (olympus-dev-ui.service — NEVER bind :5177 yourself)
 - Hall: http://127.0.0.1:8799 (olympus-dev-hall.service)
 - Login: read ~/.config/olympus-dev/admin-credentials at runtime (username=/password= lines). Never commit or echo it.
@@ -45,4 +46,6 @@ at any time.
 ## Evidence bar for review-required
 - Screenshots of the changed surface, BOTH themes, from the LIVE dev UI.
 - For layout work: a geometry probe printout (element heights vs container).
+- For sidebar work: full/compact/hidden desktop geometry, reload persistence,
+  and the mobile full/hidden drawer path.
 - State honestly what was NOT visually verified.

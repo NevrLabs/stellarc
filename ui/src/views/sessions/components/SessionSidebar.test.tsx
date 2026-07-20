@@ -86,11 +86,25 @@ describe("SessionSidebar", () => {
     expect(row).not.toHaveClass("focused");
   });
 
+  it("keeps idle sessions operable and named in compact mode", () => {
+    const { container } = render(
+      <SessionSidebar mode="compact" width={220} activeSessionId="s-1" />,
+    );
+
+    expect(container.querySelector("aside.sidebar")).toHaveClass("compact");
+    expect(screen.getByRole("button", { name: "Focused session" })).toHaveAttribute(
+      "title",
+      expect.stringContaining("Focused session"),
+    );
+    expect(container.querySelector("[data-session-id='s-1'] .srow-icon svg")).toBeInTheDocument();
+    expect(screen.queryByRole("separator", { name: "Resize sessions sidebar" })).not.toBeInTheDocument();
+  });
+
   it("writes a dockview session drag payload", () => {
     render(<SessionSidebar width={220} activeSessionId="s-1" />);
     const data = new Map<string, string>();
 
-    fireEvent.dragStart(screen.getByText("Focused session").closest(".srow") as HTMLElement, {
+    fireEvent.dragStart(screen.getByRole("button", { name: "Focused session" }), {
       dataTransfer: {
         effectAllowed: "none",
         setData: (type: string, value: string) => data.set(type, value),
@@ -148,7 +162,7 @@ describe("SessionSidebar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Focused session"));
+    fireEvent.click(screen.getByRole("button", { name: "Focused session" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not open session: Project unavailable",

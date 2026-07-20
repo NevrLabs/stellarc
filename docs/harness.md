@@ -8,13 +8,13 @@ stored in the repository.
 Run on the dev host:
 
 ```bash
-cd /home/rpw/olympus && ui/scripts/dev-e2e.sh
+cd /home/rpw/olympus-dev && ui/scripts/dev-e2e.sh
 ```
 
 Replacement for the Terminus nightly command:
 
 ```bash
-ssh fxcompute-01 'cd /home/rpw/olympus && ui/scripts/dev-e2e.sh'
+ssh fxcompute-01 'cd /home/rpw/olympus-dev && ui/scripts/dev-e2e.sh'
 ```
 
 The script fails before launching Playwright if either live service or the

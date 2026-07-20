@@ -46,7 +46,7 @@ import {
 import "dockview-react/dist/styles/dockview.css";
 import { Icon } from "../components/Icon";
 import { BrandIcon, agentBrand } from "../components/BrandIcons";
-import { useUIStore } from "../store";
+import { useSidebarMode } from "../store";
 import { qk, useSession, useMessages, useAgents, useProject, useSessions } from "../hooks/queries";
 import { useResizable } from "../hooks/useResizable";
 import { ApiError, attachSessionToProject, saveProjectLayout } from "../api";
@@ -108,7 +108,7 @@ export function SessionsView({
   projectId: string | null;
   page: "chat" | "agents" | "usage" | "history" | null;
 }) {
-  const { sidebarCollapsed } = useUIStore();
+  const sidebarMode = useSidebarMode();
   const queryClient = useQueryClient();
   const apiRef = useRef<DockviewApi | null>(null);
   const [dockApi, setDockApi] = useState<DockviewApi | null>(null);
@@ -512,9 +512,10 @@ export function SessionsView({
   return (
     <>
       {/* ── View-owned left sidebar ─────────────────────────────── */}
-      {!sidebarCollapsed && (
+      {sidebarMode !== "hidden" && (
         <SessionSidebar
           width={sidebar.size}
+          mode={sidebarMode}
           activeSessionId={projectId ? activeSessionId : sessionId}
           activeProjectId={projectId}
           openSessionIds={openSessionIds}

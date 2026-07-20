@@ -49,6 +49,9 @@ export default defineConfig(({ mode, command }) => {
       "import.meta.env.VITE_API_BASE": JSON.stringify(
         servingDevelopment ? pick("VITE_API_BASE", "") : ""
       ),
+      "import.meta.env.VITE_OLYMPUS_ENV": JSON.stringify(
+        servingDevelopment ? pick("VITE_OLYMPUS_ENV", "") : ""
+      ),
     },
   };
 });

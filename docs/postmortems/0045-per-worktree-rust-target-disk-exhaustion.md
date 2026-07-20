@@ -54,3 +54,17 @@ The durable rule is therefore **shared and bounded**, not merely shared:
   as permanent storage;
 - never clean `/var/lib/olympus/cargo-target-dev` while the dev Hall or Envoy
   process references it.
+
+## Recurrence — 2026-07-20
+
+Before the dev-branch UI gate, the root filesystem was again 99% full with only
+1.6 GB available. A single superseded fxrun workspace,
+`olympus-talos-fix-22a4badc65b0e208`, retained 10 GB after its verification run
+had completed. A `/proc` scan found no external process whose cwd, executable,
+root, command line, or open file referenced that tree. Removing only that
+verified-inactive workspace restored 12 GB available (88% used); the live
+service target and current UI verification workspace were preserved.
+
+Manual cleanup remains a safety valve, not a durable policy. The outstanding
+prevention item is a bounded fxrun-workspace retention job that applies the same
+live-reference scan before expiration.

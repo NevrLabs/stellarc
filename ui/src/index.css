@@ -71,6 +71,7 @@ button {
 .icobtn { display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: var(--radius); color: var(--dim); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
 .icobtn:hover { background: var(--hover); color: var(--text); }
 .icobtn:focus-visible { outline: var(--ring-w) solid var(--ring); outline-offset: var(--ring-offset); }
+.env-pill { display: inline-flex; align-items: center; padding: var(--space-1) var(--space-3); border: var(--border-w) solid var(--warn-line); border-radius: var(--radius-full); background: var(--warn-wash); color: var(--warn); font-family: var(--font-mono); font-size: var(--fs-9); font-weight: var(--fw-semibold); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .divider { width: 1px; height: 20px; background: var(--border); }
 .layouts { display: flex; align-items: center; gap: var(--space-2); }
 .chip { display: flex; align-items: center; gap: 5px; padding: 4px var(--space-5); border-radius: var(--radius); color: var(--faint); border: var(--border-w) solid transparent; font-size: var(--fs-12); transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
@@ -95,6 +96,32 @@ button {
 /* ── Left Sidebar ────────────────────────────────── */
 .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--chrome); display: flex; flex-direction: column; overflow: hidden; }
 .sidebar.collapsed { display: none; }
+.sidebar.compact { width: var(--sidebar-compact-w); }
+.sidebar-compact-placeholder { display: none; }
+.sidebar.compact .sidebar-compact-placeholder { display: flex; width: var(--sidebar-icon-target); height: var(--sidebar-icon-target); align-items: center; justify-content: center; margin: 0 auto; color: var(--dim); }
+.sidebar.compact .sb-pad { padding: var(--space-4) var(--space-3); }
+.sidebar.compact .session-sidebar-primary { flex-direction: column; align-items: center; }
+.sidebar.compact .session-sidebar-primary .newbtn { flex: none; }
+.sidebar.compact .session-sidebar-primary .newbtn,
+.sidebar.compact .session-sidebar-primary .icobtn,
+.sidebar.compact .navitem,
+.sidebar.compact .srow { width: var(--sidebar-icon-target); min-width: var(--sidebar-icon-target); min-height: var(--sidebar-icon-target); justify-content: center; gap: 0; margin-inline: auto; padding: var(--space-3); }
+.sidebar.compact .sidebar-label,
+.sidebar.compact .sec-head,
+.sidebar.compact .srow-copy,
+.sidebar.compact .srow-time,
+.sidebar.compact .srow-pane-mark,
+.sidebar.compact .srow-actions,
+.sidebar.compact .srow-hovercard,
+.sidebar.compact .title,
+.sidebar.compact .meta,
+.sidebar.compact .gk,
+.sidebar.compact .session-metadata-menu,
+.sidebar.compact .empty-state { display: none; }
+.sidebar.compact .sec-content { gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+.sidebar.compact .srow-icon { width: 14px; }
+.sidebar.compact .sidebar-alert { position: fixed; z-index: 90; left: calc(var(--sidebar-compact-w) + var(--space-2)); width: var(--sidebar-alert-w); padding: var(--space-3) var(--space-4); border: var(--border-w) solid var(--err-line); border-radius: var(--radius); background: var(--bg-elev); box-shadow: var(--shadow-pop); }
+.sidebar-scrim { position: fixed; z-index: 70; inset: var(--topbar-h) 0 0; border: 0; border-radius: 0; background: var(--overlay); cursor: default; }
 .sb-pad { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 .session-sidebar-primary { display: flex; align-items: stretch; gap: var(--space-2); }
 .session-sidebar-primary .newbtn { min-width: 0; flex: 1; }
@@ -147,6 +174,8 @@ button {
 .srow:hover .srow-time, .srow:focus-within .srow-time, .srow:hover .srow-pane-mark, .srow:focus-within .srow-pane-mark { visibility: hidden; }
 .srow-act { display: flex; align-items: center; justify-content: center; padding: 3px; border-radius: var(--radius-sm); color: var(--faint); }
 .srow-act:hover { background: var(--bg-active); color: var(--text); }
+.fleet-agent-row { padding-left: 28px; padding-top: 3px; padding-bottom: 3px; }
+.sidebar.compact .fleet-agent-row { padding: var(--space-3); }
 [data-density="compact"] .srow-meta { display: none; }
 @media (hover: none) {
   .srow-actions { display: flex; position: static; transform: none; padding: 0 var(--space-2) 0 0; }
@@ -841,6 +870,21 @@ input[type=range] { accent-color: var(--silver); height: 14px; cursor: pointer; 
   .vault-file-menu { display: grid; width: 26px; height: 24px; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: transparent; }
   .vault-file-row:hover .vault-file-menu, .vault-file-menu:focus-visible { color: var(--dim); }
   .vault-file-menu:hover { background: var(--surface); color: var(--text); }
+  .vault-sidebar.compact .vault-sidebar-body { padding: var(--space-4) var(--space-3); gap: var(--space-2); }
+  .vault-sidebar.compact .vault-selector { width: var(--sidebar-icon-target); min-height: var(--sidebar-icon-target); grid-template-columns: 1fr; justify-items: center; margin-inline: auto; padding: var(--space-3); }
+  .vault-sidebar.compact .vault-selector > span,
+  .vault-sidebar.compact .vault-selector > svg:last-child { display: none; }
+  .vault-sidebar.compact .vault-create-segment { grid-template-columns: 1fr; }
+  .vault-sidebar.compact .vault-create-main { width: var(--sidebar-icon-target); margin-inline: auto; padding: 0; border-radius: var(--radius-sm); }
+  .vault-sidebar.compact .vault-create-more,
+  .vault-sidebar.compact .vault-files-head,
+  .vault-sidebar.compact .vault-file-open span,
+  .vault-sidebar.compact .vault-folder-chevron,
+  .vault-sidebar.compact .vault-file-menu { display: none; }
+  .vault-sidebar.compact .vault-primary-nav { align-items: center; padding-bottom: var(--space-2); }
+  .vault-sidebar.compact .vault-file-tree { margin: 0; }
+  .vault-sidebar.compact .vault-file-row { width: var(--sidebar-icon-target); justify-content: center; margin-inline: auto; }
+  .vault-sidebar.compact .vault-file-open { justify-content: center; padding: var(--space-3); }
   .vault-context-menu { position: fixed; display: flex; z-index: 80; min-width: 170px; right: auto; bottom: auto; max-height: min(280px, calc(100vh - 24px)); overflow-y: auto; }
   .vault-context-menu .danger { color: var(--danger); }
   .vault-details { width: min(420px, 90vw); }
