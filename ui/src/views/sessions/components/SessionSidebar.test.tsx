@@ -67,6 +67,11 @@ vi.mock("./AgentPicker", () => ({
   ) : null,
 }));
 
+// Mock useResizable — the sidebar v4 uses it for the RECENT/PROJECTS section resize.
+vi.mock("../../../hooks/useResizable", () => ({
+  useResizable: () => ({ size: 200, setSize: vi.fn(), onResizeStart: vi.fn() }),
+}));
+
 describe("SessionSidebar", () => {
   it("marks the active session as open and focused", () => {
     const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" openSessionIds={new Set(["s-1"])} />);
@@ -115,7 +120,7 @@ describe("SessionSidebar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(screen.getByRole("button", { name: /New session/ }));
     fireEvent.click(screen.getByRole("button", { name: "Pick test agent" }));
 
     await waitFor(() => expect(onOpenSession).toHaveBeenCalledWith("new-session"));
@@ -124,9 +129,11 @@ describe("SessionSidebar", () => {
 
   it("surfaces a failed drag-to-project association", async () => {
     vi.mocked(attachSessionToProject).mockRejectedValueOnce(new Error("Hall unavailable"));
-    render(<SessionSidebar width={220} activeSessionId="s-1" />);
+    const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" />);
 
-    fireEvent.drop(screen.getByRole("button", { name: "QA project" }), {
+    // Project rows are div.navitem.proj-row with data-project-id
+    const projRow = container.querySelector("[data-project-id='project-a']") as HTMLElement;
+    fireEvent.drop(projRow, {
       dataTransfer: {
         getData: () => JSON.stringify({ type: "session", sessionId: "s-1" }),
       },
@@ -153,5 +160,26 @@ describe("SessionSidebar", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not open session: Project unavailable",
     );
+  });
+
+  it("renders New session button, Agents/History/Usage navitems, and collapsible sections", () => {
+    render(<SessionSidebar width={220} activeSessionId="s-1" />);
+    expect(screen.getByRole("button", { name: /New session/ })).toBeTruthy();
+    expect(screen.getByText("Agents")).toBeTruthy();
+    expect(screen.getByText("History")).toBeTruthy();
+    expect(screen.getByText("Usage")).toBeTruthy();
+    expect(screen.getByText("RECENT")).toBeTruthy();
+    expect(screen.getByText("PROJECTS")).toBeTruthy();
+  });
+
+  it("collapses and expands sections on header click", () => {
+    const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" />);
+    const recentHeader = container.querySelector(".sec-head-toggle") as HTMLElement;
+    expect(container.querySelector("[data-session-id='s-1']")).toBeTruthy();
+
+    fireEvent.click(recentHeader);
+    // After collapse, the session row should be gone
+    // (section content is conditionally rendered)
+    expect(container.querySelector("[data-session-id='s-1']")).toBeFalsy();
   });
 });

@@ -1,41 +1,37 @@
 /**
- * SessionSidebar — the View-owned left sidebar for Sessions.
+ * SessionSidebar — the View-owned left sidebar for Sessions (v4 layout).
  *
- * Sections:
- *  - PINNED  = sessions the USER pinned (session.pinned) — never derived from
- *    liveness. A running session gets a spinner icon, not a section move.
- *  - RECENT  = managed, non-pinned, non-archived sessions, capped at 5 most
- *    recent. Anything older lives in the History page ("View all" NavItem).
+ * Top→bottom:
+ *  1. + New session button (⌘N hint)
+ *  2. NavItems: Agents, History, Usage (NO Sessions — the sidebar IS sessions)
+ *  3. RECENT: cross-project, newest-first, 2-row entries
+ *  4. PROJECTS: tree — no-project pseudo-row, project rows (N live pill),
+ *     sessions nested via .tree hairline, subsessions one deeper, N more… ghost
  *
- * Bug fixes:
- *  - Bug 5: Liveness dot shown ONLY when a turn is live; no dot for idle.
- *  - Bug 10: "New session" opens an agent picker (list from /api/agents).
- *  - Pin/archive hover actions actually PATCH the session now.
+ * Sections are collapsible (click header) + vertically resizable (RECENT↔PROJECTS).
+ * Collapse/hidden-projects persist to localStorage.
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../../../components/Icon";
 import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
 import { useUIStore } from "../../../store";
 import { attachSessionToProject, createSession } from "../../../api";
-import type { Session } from "../../../types";
+import type { Session, Project } from "../../../types";
 import { timeAgo } from "../helpers";
 import { AgentPicker } from "./AgentPicker";
+import { useResizable } from "../../../hooks/useResizable";
 import {
   DEFAULT_SESSION_METADATA_FIELDS,
   SESSION_METADATA_FIELDS,
   sessionMetadata,
   toggleSessionMetadataField,
+  useSidebarPrefs,
   type SessionMetadataField,
 } from "./sessionSidebarPreferences";
 
-/** Max rows in the RECENT section; the rest live in the History page. */
-const RECENT_LIMIT = 5;
-
-/** On phone-width screens the sidebar is a fixed overlay — close it after
- *  navigation so the destination is actually visible (drawer pattern). */
 function isPhoneViewport(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -66,21 +62,43 @@ export function SessionSidebar({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: sessionData } = useSessions({ managed: true, archived: false });
-  const sessions = (sessionData?.sessions ?? []).filter(
-    (session) => !activeProjectId || session.projectId === activeProjectId,
-  );
+  // Cross-project: no activeProjectId filter — sidebar always shows everything.
+  const sessions = sessionData?.sessions ?? [];
   const { data: projectData } = useProjects();
+  const projects = projectData?.projects ?? [];
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
-  // Close the overlay sidebar after navigating on phone screens.
   const closeIfPhone = useCallback(() => {
     if (isPhoneViewport()) toggleSidebar();
   }, [toggleSidebar]);
 
-  // PINNED = user-pinned only. Liveness NEVER moves a session here.
-  const pinned = sessions.filter((s) => s.pinned);
-  // RECENT = managed, not pinned, capped at the most recent 5.
-  const recent = sessions.filter((s) => !s.pinned).slice(0, RECENT_LIMIT);
+  // RECENT: all managed non-archived, newest first. Cap at a reasonable number.
+  const recent = useMemo(
+    () => [...sessions].sort((a, b) => b.lastActivity - a.lastActivity).slice(0, 8),
+    [sessions],
+  );
+
+  // PROJECTS tree: group sessions by projectId, build subsession nesting.
+  const { byProject, noProject, subsessions } = useMemo(() => {
+    const byProject = new Map<string, Session[]>();
+    const noProject: Session[] = [];
+    const subsessions = new Map<string, Session[]>(); // parentId → children
+    for (const s of sessions) {
+      if (s.forkType === "sub" && s.forkedFrom) {
+        const children = subsessions.get(s.forkedFrom) ?? [];
+        children.push(s);
+        subsessions.set(s.forkedFrom, children);
+      }
+      if (s.projectId) {
+        const list = byProject.get(s.projectId) ?? [];
+        list.push(s);
+        byProject.set(s.projectId, list);
+      } else {
+        noProject.push(s);
+      }
+    }
+    return { byProject, noProject, subsessions };
+  }, [sessions]);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
@@ -90,7 +108,14 @@ export function SessionSidebar({
     () => new Set(DEFAULT_SESSION_METADATA_FIELDS),
   );
 
-  // Bug 10: open agent picker instead of creating immediately
+  const { prefs, toggle, hideProject, showProject } = useSidebarPrefs();
+
+  // Vertical resize between RECENT and PROJECTS sections.
+  const recentResize = useResizable({
+    axis: "y", min: 80, max: 500, initial: 200, direction: "down",
+    persistKey: "olympus-sidebar-recent-h",
+  });
+
   const handleNewSession = useCallback(() => {
     setPickerError(null);
     setPickerOpen(true);
@@ -106,10 +131,7 @@ export function SessionSidebar({
           if (activeProjectId && onOpenSession) {
             await onOpenSession(session.id);
           } else {
-            void navigate({
-              to: "/sessions/$sessionId",
-              params: { sessionId: session.id },
-            });
+            void navigate({ to: "/sessions/$sessionId", params: { sessionId: session.id } });
           }
         }
       } catch (error) {
@@ -155,6 +177,10 @@ export function SessionSidebar({
     }
   }, [queryClient]);
 
+  const recentCollapsed = prefs.collapsed.recent;
+  const projectsCollapsed = prefs.collapsed.projects;
+  const visibleProjects = projects.filter((p) => !prefs.hiddenProjects.includes(p.id));
+
   return (
     <>
       <aside className="sidebar" style={{ width }}>
@@ -163,6 +189,7 @@ export function SessionSidebar({
             <button type="button" className="newbtn" onClick={handleNewSession}>
               <Icon name="plus" size={14} />
               New session
+              <span className="kbd" style={{ marginLeft: "auto" }}>⌘N</span>
             </button>
             <button type="button" className="icobtn" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
               <Icon name="settings-2" size={13} />
@@ -178,65 +205,145 @@ export function SessionSidebar({
               ))}
             </div>
           )}
-          {/* NavItems — Pages inside the Sessions View */}
           <NavItem label="Agents" icon="bot" path="/sessions/agents" />
-          <NavItem label="Usage" icon="activity" path="/sessions/usage" />
           <NavItem label="History" icon="clock" path="/sessions/history" />
+          <NavItem label="Usage" icon="activity" path="/sessions/usage" />
         </div>
-        <div className="sb-scroll">
-          {(projectData?.projects.length ?? 0) > 0 && (
-            <>
-              <div className="sec-head"><span className="lbl">PROJECT WORKSPACES</span></div>
-              <div className="sec-content">
-                {projectActionError && (
-                  <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
-                    {projectActionError}
-                  </div>
-                )}
-                {projectData!.projects.map((project) => (
-                  <button
-                    type="button"
-                    className={`navitem${activeProjectId === project.id ? " on" : ""}`}
-                    data-project-id={project.id}
-                    key={project.id}
-                    onClick={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => void handleProjectDrop(event, project.id)}
-                  >
-                    <Icon name="folder" size={14} />
-                    <span>{project.name}</span>
-                  </button>
-                ))}
-              </div>
-            </>
+        <div className="sb-scroll sb-scroll-v4">
+          {projectActionError && (
+            <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
+              {projectActionError}
+            </div>
           )}
-          {pinned.length > 0 && (
-            <SessionSection
-              label="PINNED"
-              sessions={pinned}
-              activeSessionId={activeSessionId}
-              openSessionIds={openSessionIds}
-              paneMarks={paneMarks}
-              metadataFields={metadataFields}
-              onSelect={handleSelectSession}
-              onOpenSession={handleOpenSession}
-            />
-          )}
-          <SessionSection
+
+          {/* ── RECENT ── */}
+          <SectionHeader
             label="RECENT"
-            sessions={recent}
-            activeSessionId={activeSessionId}
-            openSessionIds={openSessionIds}
-            paneMarks={paneMarks}
-            metadataFields={metadataFields}
-            onSelect={handleSelectSession}
-            onOpenSession={handleOpenSession}
+            count={recent.length}
+            collapsed={recentCollapsed}
+            onToggle={() => toggle("recent")}
           />
+          {!recentCollapsed && (
+            <div
+              className="sec-content sec-recent"
+              style={recent.length > 0 ? { maxHeight: recentResize.size, overflowY: "auto" } : undefined}
+            >
+              {recent.map((s) => (
+                <SessionRow
+                  key={s.id}
+                  session={s}
+                  active={activeSessionId === s.id}
+                  open={openSessionIds.has(s.id)}
+                  paneMark={paneMarks.get(s.id)}
+                  metadataFields={metadataFields}
+                  onSelect={handleSelectSession}
+                  onOpenSession={onOpenSession ? handleOpenSession : undefined}
+                  projectName={projectName(projects, s.projectId)}
+                  subsessionCount={(subsessions.get(s.id) ?? []).length}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Resize bar between RECENT and PROJECTS */}
+          {!recentCollapsed && !projectsCollapsed && recent.length > 0 && (
+            <div className="rz-y rz-y-section" role="separator" aria-label="Resize sections" onMouseDown={recentResize.onResizeStart} />
+          )}
+
+          {/* ── PROJECTS ── */}
+          <SectionHeader
+            label="PROJECTS"
+            count={visibleProjects.length}
+            collapsed={projectsCollapsed}
+            onToggle={() => toggle("projects")}
+          />
+          {!projectsCollapsed && (
+            <div className="sec-content sec-projects">
+              {/* no-project pseudo-row */}
+              {noProject.length > 0 && (
+                <ProjectRow
+                  project={null}
+                  liveCount={countLive(noProject)}
+                  sessionCount={noProject.length}
+                  isActive={!activeProjectId}
+                  onNavigate={() => void navigate({ to: "/sessions/history", search: { project: "none" } })}
+                />
+              )}
+
+              {visibleProjects.map((project) => {
+                const projectSessions = (byProject.get(project.id) ?? []).sort(
+                  (a, b) => b.lastActivity - a.lastActivity,
+                );
+                const liveCount = countLive(projectSessions);
+                const SHOWN = 5;
+                const shown = projectSessions.slice(0, SHOWN);
+                const remaining = projectSessions.length - SHOWN;
+
+                return (
+                  <div key={project.id} className="proj-group">
+                    <ProjectRow
+                      project={project}
+                      liveCount={liveCount}
+                      sessionCount={projectSessions.length}
+                      isActive={activeProjectId === project.id}
+                      onNavigate={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
+                      onHide={() => hideProject(project.id)}
+                      data-project-id={project.id}
+                      onDragOver={(e: React.DragEvent) => e.preventDefault()}
+                      onDrop={(e: React.DragEvent) => void handleProjectDrop(e, project.id)}
+                    />
+                    <div className="tree">
+                      {shown.map((s) => (
+                        <SessionTreeRow
+                          key={s.id}
+                          session={s}
+                          active={activeSessionId === s.id}
+                          open={openSessionIds.has(s.id)}
+                          paneMark={paneMarks.get(s.id)}
+                          metadataFields={metadataFields}
+                          onSelect={handleSelectSession}
+                          onOpenSession={onOpenSession ? handleOpenSession : undefined}
+                          subsessions={subsessions.get(s.id) ?? []}
+                          allSessions={sessions}
+                          activeSessionId={activeSessionId}
+                          openSessionIds={openSessionIds}
+                          paneMarks={paneMarks}
+                        />
+                      ))}
+                      {remaining > 0 && (
+                        <button
+                          type="button"
+                          className="srow ghost-row"
+                          onClick={() => void navigate({ to: "/sessions/history", search: { project: project.id } })}
+                        >
+                          <span className="srow-copy">
+                            <span className="srow-title ghost">{remaining} more…</span>
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* hidden projects ghost row */}
+              {prefs.hiddenProjects.length > 0 && (
+                <button
+                  type="button"
+                  className="srow ghost-row"
+                  onClick={() => prefs.hiddenProjects.forEach(showProject)}
+                >
+                  <span className="srow-copy">
+                    <span className="srow-title ghost">{prefs.hiddenProjects.length} hidden…</span>
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </aside>
       <div className="rz-x" role="separator" aria-label="Resize sessions sidebar" aria-orientation="vertical" aria-valuemin={160} aria-valuemax={400} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} onKeyDown={onResizeKeyDown} />
 
-      {/* Bug 10: agent picker modal */}
       <AgentPicker
         open={pickerOpen}
         onSelect={handlePickAgent}
@@ -247,14 +354,50 @@ export function SessionSidebar({
   );
 }
 
+/* ── Helpers ── */
+
+function countLive(sessions: Session[]): number {
+  return sessions.filter((s) => s.liveness === "running" || s.liveness === "input-required").length;
+}
+
+function projectName(projects: Project[], id: string | null | undefined): string | undefined {
+  if (!id) return undefined;
+  return projects.find((p) => p.id === id)?.name;
+}
+
 function sessionDragId(dataTransfer: DataTransfer): string | null {
   try {
     const payload = JSON.parse(dataTransfer.getData("application/x-olympus-session")) as unknown;
     if (!payload || typeof payload !== "object" || !("sessionId" in payload)) return null;
-    return typeof payload.sessionId === "string" ? payload.sessionId : null;
+    return typeof (payload as Record<string, unknown>).sessionId === "string"
+      ? (payload as Record<string, string>).sessionId
+      : null;
   } catch {
     return null;
   }
+}
+
+/* ── Sub-components ── */
+
+function SectionHeader({
+  label,
+  count,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button type="button" className="sec-head sec-head-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+      <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={10} />
+      <span className="lbl">{label}</span>
+      <span className="sp" />
+      <span className="ct">{count}</span>
+    </button>
+  );
 }
 
 function NavItem({
@@ -283,55 +426,74 @@ function NavItem({
   );
 }
 
-function SessionSection({
-  label,
-  sessions,
-  activeSessionId,
-  openSessionIds,
-  paneMarks,
-  metadataFields,
-  onSelect,
-  onOpenSession,
+/** Project row — flat button with icon, name, N-live pill. project=null = "no project". */
+function ProjectRow({
+  project,
+  liveCount,
+  sessionCount,
+  isActive,
+  onNavigate,
+  onHide,
+  ...dropProps
 }: {
-  label: string;
-  sessions: Session[];
-  activeSessionId: string | null;
-  openSessionIds: ReadonlySet<string>;
-  paneMarks: ReadonlyMap<string, string>;
-  metadataFields: ReadonlySet<SessionMetadataField>;
-  onSelect: (id: string) => void;
-  onOpenSession?: (id: string, split?: "right" | "below") => void;
-}) {
-  if (sessions.length === 0) return null;
+  project: Project | null;
+  liveCount: number;
+  sessionCount: number;
+  isActive: boolean;
+  onNavigate: () => void;
+  onHide?: () => void;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  const [menu, setMenu] = useState(false);
+
+  if (!project) {
+    return (
+      <button
+        type="button"
+        className={`navitem no-project-row${isActive ? " on" : ""}`}
+        onClick={onNavigate}
+      >
+        <span className="srow-dot done" style={{ width: 6, height: 6, background: "transparent", border: "1px solid var(--faint)" }} />
+        <span style={{ fontStyle: "italic", color: "var(--faint)" }}>no project</span>
+        {sessionCount > 0 && <span className="ct" style={{ marginLeft: "auto" }}>{sessionCount}</span>}
+      </button>
+    );
+  }
+
   return (
-    <>
-      <div className="sec-head">
-        <span className="lbl">{label}</span>
-        <span className="sp" />
-        <span className="ct">{sessions.length}</span>
-      </div>
-      <div className="sec-content">
-        {sessions.map((s) => (
-          <SessionRow
-            key={s.id}
-            session={s}
-            active={activeSessionId === s.id}
-            open={openSessionIds.has(s.id)}
-            paneMark={paneMarks.get(s.id)}
-            metadataFields={metadataFields}
-            onSelect={onSelect}
-            onOpenSession={onOpenSession}
-          />
-        ))}
-      </div>
-    </>
+    <div
+      className={`navitem proj-row${isActive ? " on" : ""}`}
+      onClick={onNavigate}
+      {...dropProps}
+    >
+      <Icon name="folder" size={14} />
+      <span>{project.name}</span>
+      {liveCount > 0 && <span className="live-pill">{liveCount} live</span>}
+      <span className="proj-actions">
+        <button
+          type="button"
+          className="srow-act"
+          title="Project menu"
+          onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
+        >
+          <Icon name="ellipsis" size={11} />
+        </button>
+      </span>
+      {menu && onHide && (
+        <div className="ctx-menu" style={{ position: "absolute", right: 0, top: "100%", zIndex: 1000 }} onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="ctx-item"
+            onClick={(e) => { e.stopPropagation(); setMenu(false); onHide(); }}
+          >
+            <Icon name="x" size={12} />
+            Hide from sidebar
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
-/** A clean session row: title left, time right, hover reveals pin/archive.
- *  Status icon (left): spinner when agent running, orange ! when waiting for
- *  input, nothing when idle. Right-click or ... button reveals context menu
- *  with Open / Open Right / Open Below. */
 function SessionRow({
   session,
   active,
@@ -340,6 +502,9 @@ function SessionRow({
   metadataFields,
   onSelect,
   onOpenSession,
+  projectName,
+  subsessionCount,
+  indent,
 }: {
   session: Session;
   active: boolean;
@@ -348,6 +513,9 @@ function SessionRow({
   metadataFields: ReadonlySet<SessionMetadataField>;
   onSelect: (id: string) => void;
   onOpenSession?: (id: string, split?: "right" | "below") => void;
+  projectName?: string;
+  subsessionCount?: number;
+  indent?: number;
 }) {
   const title = session.title || "Untitled";
   const time = timeAgo(session.lastActivity);
@@ -387,10 +555,15 @@ function SessionRow({
     else onSelect(session.id);
   }, [onOpenSession, onSelect, session.id]);
 
+  // Subline: project · agent · state/tokens (v4 mock row2)
+  const sublineParts = [projectName, ...metadata].filter(Boolean);
+  if (subsessionCount && subsessionCount > 0) sublineParts.push(`${subsessionCount} sub`);
+
   return (
     <div
       ref={rowRef}
       className={`srow ${active ? "on focused" : ""}`}
+      style={indent ? { paddingLeft: `calc(var(--nav-pad-x) + ${indent * 16}px)` } : undefined}
       data-session-id={session.id}
       data-managed={session.managed ? "true" : "false"}
       data-pinned={session.pinned ? "true" : "false"}
@@ -407,11 +580,14 @@ function SessionRow({
       onClick={() => onSelect(session.id)}
       onContextMenu={openMenu}
     >
-      {/* Instant hover card: node · agent · model (native title is too slow) */}
       <span className="srow-hovercard" role="tooltip">
-        <span className="hc-row"><span className="hc-k">node</span><span className="hc-v">{session.node ?? "olympus"}</span></span>
+        <span className="hc-row"><span className="hc-k">project</span><span className="hc-v">{projectName ?? "—"}</span></span>
         <span className="hc-row"><span className="hc-k">agent</span><span className="hc-v">{session.agent ?? "—"}</span></span>
         <span className="hc-row"><span className="hc-k">model</span><span className="hc-v">{session.model ?? "—"}</span></span>
+        <span className="hc-row"><span className="hc-k">node</span><span className="hc-v">{session.node ?? "olympus"}</span></span>
+        {subsessionCount && subsessionCount > 0 && (
+          <span className="hc-row"><span className="hc-k">subs</span><span className="hc-v">{subsessionCount}</span></span>
+        )}
       </span>
       {showIcon && (
         <span className="srow-icon">
@@ -424,40 +600,28 @@ function SessionRow({
       )}
       <span className="srow-copy">
         <span className="srow-title">{title}</span>
-        {metadata.length > 0 && <span className="srow-meta">{metadata.join(" · ")}</span>}
+        {sublineParts.length > 0 && <span className="srow-meta">{sublineParts.join(" · ")}</span>}
       </span>
       {paneMark && <span className="srow-pane-mark">{paneMark}</span>}
       <span className="srow-time">{time}</span>
-      {/* Hover actions */}
       <span className="srow-actions">
-        <button
-          type="button"
-          className="srow-act"
-          title="Open menu"
-          onClick={openMenu}
-        >
+        {onOpenSession && (
+          <>
+            <button type="button" className="srow-act" title="Open right" onClick={(e) => { e.stopPropagation(); fireOpen("right"); }}>
+              <Icon name="panel-right" size={11} />
+            </button>
+            <button type="button" className="srow-act" title="Open below" onClick={(e) => { e.stopPropagation(); fireOpen("below"); }}>
+              <Icon name="panel-bottom" size={11} />
+            </button>
+          </>
+        )}
+        <button type="button" className="srow-act" title="Open menu" onClick={openMenu}>
           <Icon name="ellipsis" size={11} />
         </button>
-        <button
-          type="button"
-          className="srow-act"
-          title={session.pinned ? "Unpin" : "Pin"}
-          onClick={(e) => {
-            e.stopPropagation();
-            update.mutate({ id: session.id, patch: { pinned: !session.pinned } });
-          }}
-        >
+        <button type="button" className="srow-act" title={session.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
           <Icon name="pin" size={11} />
         </button>
-        <button
-          type="button"
-          className="srow-act"
-          title="Archive"
-          onClick={(e) => {
-            e.stopPropagation();
-            update.mutate({ id: session.id, patch: { archived: true } });
-          }}
-        >
+        <button type="button" className="srow-act" title="Archive" onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { archived: true } }); }}>
           <Icon name="archive" size={11} />
         </button>
       </span>
@@ -472,35 +636,91 @@ function SessionRow({
             <Icon name="message-square" size={12} />
             Open
           </button>
-          <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("right")}>
-            <Icon name="panel-right" size={12} />
-            Open Right
-          </button>
-          <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("below")}>
-            <Icon name="panel-bottom" size={12} />
-            Open Below
-          </button>
+          {onOpenSession && (
+            <>
+              <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("right")}>
+                <Icon name="panel-right" size={12} />
+                Open Right
+              </button>
+              <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("below")}>
+                <Icon name="panel-bottom" size={12} />
+                Open Below
+              </button>
+            </>
+          )}
           <div className="ctx-sep" />
-          <button
-            type="button"
-            className="ctx-item"
-            role="menuitem"
-            onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}
-          >
+          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
             <Icon name="pin" size={12} />
             {session.pinned ? "Unpin" : "Pin"}
           </button>
-          <button
-            type="button"
-            className="ctx-item"
-            role="menuitem"
-            onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { archived: true } }); }}
-          >
+          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); navigator.clipboard?.writeText(session.id); }}>
+            <Icon name="copy" size={12} />
+            Copy ID
+          </button>
+          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { archived: true } }); }}>
             <Icon name="archive" size={12} />
             Archive
           </button>
         </div>
       )}
     </div>
+  );
+}
+
+/** Session row inside the PROJECTS tree — renders subsessions nested one deeper. */
+function SessionTreeRow({
+  session,
+  active,
+  open,
+  paneMark,
+  metadataFields,
+  onSelect,
+  onOpenSession,
+  subsessions,
+  allSessions,
+  activeSessionId,
+  openSessionIds,
+  paneMarks,
+}: {
+  session: Session;
+  active: boolean;
+  open: boolean;
+  paneMark?: string;
+  metadataFields: ReadonlySet<SessionMetadataField>;
+  onSelect: (id: string) => void;
+  onOpenSession?: (id: string, split?: "right" | "below") => void;
+  subsessions: Session[];
+  allSessions: Session[];
+  activeSessionId: string | null;
+  openSessionIds: ReadonlySet<string>;
+  paneMarks: ReadonlyMap<string, string>;
+}) {
+  const projectName: string | undefined = undefined; // already inside project group
+  return (
+    <>
+      <SessionRow
+        session={session}
+        active={active}
+        open={open}
+        paneMark={paneMark}
+        metadataFields={metadataFields}
+        onSelect={onSelect}
+        onOpenSession={onOpenSession}
+        subsessionCount={subsessions.length}
+      />
+      {subsessions.map((sub) => (
+        <SessionRow
+          key={sub.id}
+          session={sub}
+          active={activeSessionId === sub.id}
+          open={openSessionIds.has(sub.id)}
+          paneMark={paneMarks.get(sub.id)}
+          metadataFields={metadataFields}
+          onSelect={onSelect}
+          onOpenSession={onOpenSession}
+          indent={1}
+        />
+      ))}
+    </>
   );
 }
