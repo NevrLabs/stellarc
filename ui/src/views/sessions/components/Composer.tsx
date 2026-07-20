@@ -51,6 +51,7 @@ export function Composer({
   sessionModel,
   sessionAgent,
   sessionNode,
+  placeholder,
 }: {
   text: string;
   onTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -61,6 +62,7 @@ export function Composer({
   sessionModel: string | null;
   sessionAgent: string | null;
   sessionNode: string | null;
+  placeholder?: string;
 }) {
   const { data: agentsData } = useAgents();
   const agents = agentsData?.agents ?? [];
@@ -134,7 +136,7 @@ export function Composer({
         <textarea
           rows={1}
           className="composer-input"
-          placeholder={sending ? "Keep typing to queue follow-up changes…" : "Type a message…"}
+          placeholder={sending ? "Keep typing to queue follow-up changes…" : (placeholder ?? "Type a message…")}
           value={text}
           onChange={onTextChange}
           onKeyDown={onKeyDown}

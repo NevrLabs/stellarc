@@ -343,7 +343,7 @@ export const SESSIONS: Session[] = Array.from({ length: 32 }, (_, i) => {
 
 // ── Projects (ADR 0028 — context-project mock data) ────
 export const PROJECTS = [
-  { id: "proj-alpha", name: "Alpha Engine", vaults: [], repos: [], boards: [], layout: null, createdAt: 1 },
+  { id: "proj-alpha", name: "Alpha Engine", vaults: ["engineering"], repos: ["olympus"], boards: [], layout: null, createdAt: 1 },
   { id: "proj-beta", name: "Beta Board", vaults: [], repos: [], boards: [], layout: null, createdAt: 2 },
   { id: "proj-gamma", name: "Gamma Gateway", vaults: [], repos: [], boards: [], layout: null, createdAt: 3 },
 ];

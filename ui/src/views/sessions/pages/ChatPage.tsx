@@ -42,6 +42,7 @@ import { isDiffResult } from "../helpers";
 import { Composer } from "../components/Composer";
 import { ForkModal } from "../components/ForkModal";
 import { QueuePanel, type QueuedMsg } from "../components/QueuePanel";
+import { DraftSession } from "../components/DraftSession";
 
 type AgentStatus = "idle" | "thinking" | "streaming" | "done";
 
@@ -77,6 +78,19 @@ function saveQueue(sessionId: string, items: QueuedMsg[]) {
 }
 
 export function ChatPage({
+  sessionId,
+  onForkRequested,
+}: {
+  sessionId: string;
+  onForkRequested?: (sessionId: string) => void;
+}) {
+  if (sessionId === "new") {
+    return <DraftSession initialProjectId={new URLSearchParams(window.location.search).get("project")} />;
+  }
+  return <ActiveChatPage sessionId={sessionId} onForkRequested={onForkRequested} />;
+}
+
+function ActiveChatPage({
   sessionId,
   onForkRequested,
 }: {

@@ -18,10 +18,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../../../components/Icon";
 import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
 import { useUIStore } from "../../../store";
-import { attachSessionToProject, createSession } from "../../../api";
+import { attachContextProject, attachSessionToProject } from "../../../api";
 import type { Session, Project } from "../../../types";
 import { timeAgo } from "../helpers";
-import { AgentPicker } from "./AgentPicker";
+
 import { useResizable } from "../../../hooks/useResizable";
 import {
   DEFAULT_SESSION_METADATA_FIELDS,
@@ -100,9 +100,12 @@ export function SessionSidebar({
     return { byProject, noProject, subsessions };
   }, [sessions]);
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerError, setPickerError] = useState<string | null>(null);
   const [projectActionError, setProjectActionError] = useState<string | null>(null);
+  const [contextOffer, setContextOffer] = useState<{
+    sessionId: string;
+    projectId: string;
+    projectName: string;
+  } | null>(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [metadataFields, setMetadataFields] = useState<ReadonlySet<SessionMetadataField>>(
     () => new Set(DEFAULT_SESSION_METADATA_FIELDS),
@@ -117,30 +120,22 @@ export function SessionSidebar({
   });
 
   const handleNewSession = useCallback(() => {
-    setPickerError(null);
-    setPickerOpen(true);
-  }, []);
+    void navigate({
+      to: "/sessions/$sessionId",
+      params: { sessionId: "new" },
+      search: activeProjectId ? { project: activeProjectId } : {},
+    });
+    closeIfPhone();
+  }, [activeProjectId, closeIfPhone, navigate]);
 
-  const handlePickAgent = useCallback(
-    async (agentId: string, nodeId: string) => {
-      setPickerError(null);
-      try {
-        const session = await createSession({ agent: agentId, node: nodeId });
-        setPickerOpen(false);
-        if (session?.id) {
-          if (activeProjectId && onOpenSession) {
-            await onOpenSession(session.id);
-          } else {
-            void navigate({ to: "/sessions/$sessionId", params: { sessionId: session.id } });
-          }
-        }
-      } catch (error) {
-        setPickerOpen(true);
-        setPickerError(error instanceof Error ? error.message : `Could not create session on ${nodeId}`);
-      }
-    },
-    [activeProjectId, navigate, onOpenSession],
-  );
+  const handleProjectDraft = useCallback((projectId: string) => {
+    void navigate({
+      to: "/sessions/$sessionId",
+      params: { sessionId: "new" },
+      search: { project: projectId },
+    });
+    closeIfPhone();
+  }, [closeIfPhone, navigate]);
 
   const handleOpenSession = useCallback(
     (id: string, split?: "right" | "below") => {
@@ -168,14 +163,36 @@ export function SessionSidebar({
     const sessionId = sessionDragId(event.dataTransfer);
     if (!sessionId) return;
     setProjectActionError(null);
+    setContextOffer(null);
     try {
       await attachSessionToProject(sessionId, projectId);
       await queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (error) {
+      if (typeof error === "object" && error && "status" in error && error.status === 409) {
+        setContextOffer({
+          sessionId,
+          projectId,
+          projectName: projects.find((project) => project.id === projectId)?.name ?? projectId,
+        });
+        return;
+      }
       const detail = error instanceof Error ? `: ${error.message}` : "";
       setProjectActionError(`Could not move session to project${detail}`);
     }
-  }, [queryClient]);
+  }, [projects, queryClient]);
+
+  const handleAttachAsContext = useCallback(async (mode: "read" | "write") => {
+    if (!contextOffer) return;
+    setProjectActionError(null);
+    try {
+      await attachContextProject(contextOffer.sessionId, contextOffer.projectId, mode);
+      setContextOffer(null);
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      const detail = error instanceof Error ? `: ${error.message}` : "";
+      setProjectActionError(`Could not attach context project${detail}`);
+    }
+  }, [contextOffer, queryClient]);
 
   const recentCollapsed = prefs.collapsed.recent;
   const projectsCollapsed = prefs.collapsed.projects;
@@ -259,6 +276,16 @@ export function SessionSidebar({
           />
           {!projectsCollapsed && (
             <div className="sec-content sec-projects">
+              {contextOffer && (
+                <div style={{ margin: "4px 8px 8px", padding: 8, border: "1px solid var(--border-strong)", borderRadius: 6, background: "var(--elev)", fontSize: 11 }}>
+                  <div style={{ marginBottom: 6 }}>{contextOffer.projectName} is not the primary project. Attach as context?</div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button type="button" className="btn" aria-label="Attach read-only" onClick={() => void handleAttachAsContext("read")}>read</button>
+                    <button type="button" className="btn" aria-label="Attach read-write" onClick={() => void handleAttachAsContext("write")}>write</button>
+                    <button type="button" className="btn" onClick={() => setContextOffer(null)}>dismiss</button>
+                  </div>
+                </div>
+              )}
               {/* no-project pseudo-row */}
               {noProject.length > 0 && (
                 <ProjectRow
@@ -288,6 +315,7 @@ export function SessionSidebar({
                       isActive={activeProjectId === project.id}
                       onNavigate={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
                       onHide={() => hideProject(project.id)}
+                      onNewSession={() => handleProjectDraft(project.id)}
                       data-project-id={project.id}
                       onDragOver={(e: React.DragEvent) => e.preventDefault()}
                       onDrop={(e: React.DragEvent) => void handleProjectDrop(e, project.id)}
@@ -344,12 +372,6 @@ export function SessionSidebar({
       </aside>
       <div className="rz-x" role="separator" aria-label="Resize sessions sidebar" aria-orientation="vertical" aria-valuemin={160} aria-valuemax={400} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} onKeyDown={onResizeKeyDown} />
 
-      <AgentPicker
-        open={pickerOpen}
-        onSelect={handlePickAgent}
-        onCancel={() => setPickerOpen(false)}
-        error={pickerError}
-      />
     </>
   );
 }
@@ -434,6 +456,7 @@ function ProjectRow({
   isActive,
   onNavigate,
   onHide,
+  onNewSession,
   ...dropProps
 }: {
   project: Project | null;
@@ -442,6 +465,7 @@ function ProjectRow({
   isActive: boolean;
   onNavigate: () => void;
   onHide?: () => void;
+  onNewSession?: () => void;
 } & React.HTMLAttributes<HTMLDivElement>) {
   const [menu, setMenu] = useState(false);
 
@@ -469,6 +493,17 @@ function ProjectRow({
       <span>{project.name}</span>
       {liveCount > 0 && <span className="live-pill">{liveCount} live</span>}
       <span className="proj-actions">
+        {onNewSession && (
+          <button
+            type="button"
+            className="srow-act"
+            title={`New session in ${project.name}`}
+            aria-label={`New session in ${project.name}`}
+            onClick={(e) => { e.stopPropagation(); onNewSession(); }}
+          >
+            <Icon name="plus" size={11} />
+          </button>
+        )}
         <button
           type="button"
           className="srow-act"
