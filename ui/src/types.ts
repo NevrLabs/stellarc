@@ -27,6 +27,7 @@ export interface Session {
   agent: string | null;       // Hermes profile bound to this session (assignable)
   node: string | null;        // node the runtime runs on ("local" for now)
   projectId?: string | null;  // project workspace association
+  contextProjects?: ContextProjectRef[]; // ADR 0028 — attached context projects (read/write)
   liveness?: "running" | "input-required" | "active" | "idle"; // managed: running/input-required from bridge; observed: active from recency; else idle
   capabilities: CapabilitySet | null; // null preserves the legacy full grant
 }
@@ -39,6 +40,11 @@ export interface Project {
   boards: string[];
   layout: unknown | null;
   createdAt: number;
+}
+
+export interface ContextProjectRef {
+  projectId: string;
+  mode: "read" | "write";
 }
 
 export interface ProjectsResponse {

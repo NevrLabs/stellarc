@@ -14,6 +14,7 @@ import {
   VAULT_NOTES_MUTABLE,
   buildNoteDoc,
   buildVaultNoteTree,
+  PROJECTS,
 } from "./fixtures";
 import type {
   SessionListResponse,
@@ -29,6 +30,7 @@ import type {
   UsageResponse,
   NodesResponse,
   ToolCall,
+  ContextProjectRef,
 } from "../types";
 
 // ── REST Handlers ─────────────────────────────────────
@@ -244,6 +246,58 @@ export const handlers = [
 
       return HttpResponse.json({ accepted: true }, { status: 202 });
     }
+  ),
+
+  // GET /api/projects (ADR 0028 mock)
+  http.get("http://127.0.0.1:8787/api/projects", () => HttpResponse.json({
+    projects: PROJECTS,
+    total: PROJECTS.length,
+  })),
+
+  // POST /api/sessions/:id/project — primary attach (ADR 0028: 409 if session
+  // already has a different primary)
+  http.post<{ id: string }>(
+    "http://127.0.0.1:8787/api/organizations/:organizationId/sessions/:id/project",
+    async ({ params, request }: { params: { id: string }; request: Request }) => {
+      const body = (await request.json().catch(() => ({}))) as { projectId?: string };
+      const sess = SESSIONS.find((s) => s.id === params.id);
+      if (!sess) return new HttpResponse(null, { status: 404 });
+      if (sess.projectId && sess.projectId !== body.projectId) {
+        return HttpResponse.json(
+          { error: "conflict", message: "session already belongs to a project; attach it as context instead" },
+          { status: 409 },
+        );
+      }
+      return HttpResponse.json({ sessionId: params.id, projectId: body.projectId });
+    },
+  ),
+
+  // POST /api/sessions/:id/context-projects — attach context project (ADR 0028)
+  http.post<{ id: string }>(
+    "http://127.0.0.1:8787/api/organizations/:organizationId/sessions/:id/context-projects",
+    async ({ params, request }: { params: { id: string }; request: Request }) => {
+      const body = (await request.json().catch(() => ({}))) as { projectId?: string; mode?: string };
+      const sess = SESSIONS.find((s) => s.id === params.id);
+      if (!sess) return new HttpResponse(null, { status: 404 });
+      if (!sess.contextProjects) sess.contextProjects = [];
+      if (body.projectId && !sess.contextProjects.some((c) => c.projectId === body.projectId)) {
+        sess.contextProjects.push({ projectId: body.projectId!, mode: (body.mode ?? "read") as "read" | "write" });
+      }
+      return HttpResponse.json({ contextProjects: sess.contextProjects });
+    },
+  ),
+
+  // DELETE /api/sessions/:id/context-projects/:projectId — detach (ADR 0028)
+  http.delete<{ id: string; projectId: string }>(
+    "http://127.0.0.1:8787/api/organizations/:organizationId/sessions/:id/context-projects/:projectId",
+    ({ params }: { params: { id: string; projectId: string } }) => {
+      const sess = SESSIONS.find((s) => s.id === params.id);
+      if (!sess) return new HttpResponse(null, { status: 404 });
+      if (sess.contextProjects) {
+        sess.contextProjects = sess.contextProjects.filter((c) => c.projectId !== params.projectId);
+      }
+      return HttpResponse.json({ contextProjects: sess.contextProjects ?? [] });
+    },
   ),
 
   // POST /api/sessions/:id/fork

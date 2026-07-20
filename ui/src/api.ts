@@ -39,6 +39,7 @@ import type {
   VaultDocumentsResponse,
   Project,
   ProjectsResponse,
+  ContextProjectRef,
 } from "./types";
 // A production Web UI is permanently bound to the Hall that served it. The
 // configurable base exists only for Vite development; production REST and WS
@@ -177,6 +178,51 @@ export async function attachSessionToProject(sessionId: string, projectId: strin
     body: JSON.stringify({ projectId }),
   });
   if (!res.ok) throw new Error(`attach session to project ${res.status}`);
+}
+
+/** Attach a project as context (ADR 0028). Returns the updated contextProjects list. */
+export async function attachContextProject(
+  sessionId: string,
+  projectId: string,
+  mode: "read" | "write",
+): Promise<ContextProjectRef[]> {
+  const res = await fetch(`${BASE}/api/sessions/${encodeURIComponent(sessionId)}/context-projects`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ projectId, mode }),
+  });
+  if (!res.ok) {
+    const msg = await safeError(res);
+    const err = new Error(msg) as Error & { status: number };
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  return (data.contextProjects ?? []) as ContextProjectRef[];
+}
+
+/** Detach a context project (ADR 0028). Returns the updated contextProjects list. */
+export async function detachContextProject(
+  sessionId: string,
+  projectId: string,
+): Promise<ContextProjectRef[]> {
+  const res = await fetch(
+    `${BASE}/api/sessions/${encodeURIComponent(sessionId)}/context-projects/${encodeURIComponent(projectId)}`,
+    { method: "DELETE", headers: jsonHeaders() },
+  );
+  if (!res.ok) throw new Error(`detach context project ${res.status}`);
+  const data = await res.json();
+  return (data.contextProjects ?? []) as ContextProjectRef[];
+}
+
+/** Read the error message from a non-OK response, falling back to status text. */
+async function safeError(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return body?.message ?? body?.error ?? `${res.status}`;
+  } catch {
+    return `${res.status}`;
+  }
 }
 
 export async function fetchMessages(
