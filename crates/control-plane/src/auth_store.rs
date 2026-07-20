@@ -291,6 +291,19 @@ impl AuthStore {
         Ok(count == 1)
     }
 
+    pub fn revoke_organization_membership(
+        &self,
+        user_id: &str,
+        organization_id: &str,
+    ) -> Result<()> {
+        let connection = self.connection.lock().expect("auth store mutex poisoned");
+        connection.execute(
+            "DELETE FROM organization_memberships WHERE user_id = ?1 AND organization_id = ?2",
+            params![user_id, organization_id],
+        )?;
+        Ok(())
+    }
+
     pub fn organization_exists(&self, organization_id: &str) -> Result<bool> {
         let connection = self.connection.lock().expect("auth store mutex poisoned");
         let count: i64 = connection.query_row(

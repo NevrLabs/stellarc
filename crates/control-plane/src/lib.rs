@@ -15,6 +15,7 @@ pub mod irc;
 pub mod log;
 pub mod node;
 pub mod package;
+pub mod project_operations;
 pub mod projects;
 pub mod proxy;
 pub mod repos;

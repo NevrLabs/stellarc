@@ -48,6 +48,7 @@ pub use olympus_envoy::adapter::RegistryEntry;
 pub struct RegistryView {
     /// (kind, slug) → active adapter entry.
     entries: HashMap<String, RegistryEntry>,
+    project_context: RegistryEntry,
     entry_owners: HashMap<String, String>,
     packages: HashMap<String, PackageRecord>,
 }
@@ -56,6 +57,16 @@ impl RegistryView {
     pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
+            project_context: RegistryEntry {
+                kind: "mcp".into(),
+                slug: "project-context".into(),
+                definition: serde_json::json!({
+                    "transport": "hall",
+                    "tools": crate::project_operations::PROJECT_OPERATION_IDS,
+                })
+                .to_string(),
+                registered_at: 0.0,
+            },
             entry_owners: HashMap::new(),
             packages: HashMap::new(),
         }
@@ -358,7 +369,11 @@ impl RegistryView {
 
     /// Resolve a (kind, slug) pair to its definition, if registered.
     pub fn get(&self, kind: &str, slug: &str) -> Option<&RegistryEntry> {
-        self.entries.get(&Self::key(kind, slug))
+        if kind == "mcp" && slug == self.project_context.slug {
+            Some(&self.project_context)
+        } else {
+            self.entries.get(&Self::key(kind, slug))
+        }
     }
 
     /// Resolve a batch of slugs for a kind. Returns (found, missing) where

@@ -2341,6 +2341,58 @@ async fn get_setup_effective_merges_org_and_project() {
 }
 
 #[tokio::test]
+async fn primary_project_setup_injects_project_context_tools() {
+    use crate::adapter::SetupAdapter;
+
+    let (state, _dir) = test_state();
+    for event in [
+        Event::ProjectCreated {
+            project_id: "primary".into(),
+            name: "Primary".into(),
+            created_at: 1.0,
+        },
+        Event::SessionProjectAttached {
+            session_id: "s1".into(),
+            project_id: "primary".into(),
+            attached_at: 1.0,
+        },
+        Event::SetupDeclared {
+            scope: "project:acme/primary".into(),
+            skills: vec![],
+            mcp: vec![],
+            plugins: vec![],
+            hooks: vec![],
+            declared_at: 1.0,
+        },
+    ] {
+        state.views.write().await.apply(&event);
+    }
+    let views = state.views.read().await;
+    let effective = routes::sessions::effective_setup_for_session(&views, "s1", "acme");
+    assert_eq!(effective.scope, "project:acme/primary");
+    assert_eq!(effective.mcp, vec!["project-context"]);
+    let resolved = crate::adapter::ResolvedSetup::from_registry(
+        &views.registry,
+        &effective.skills,
+        &effective.mcp,
+        &effective.plugins,
+        &effective.hooks,
+    );
+    drop(views);
+
+    let space = tempfile::tempdir().unwrap();
+    crate::adapter::claude_code::ClaudeCodeAdapter
+        .materialize(&resolved, space.path(), crate::adapter::MergeMode::Union)
+        .unwrap();
+    let config: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(space.path().join(".mcp.json")).unwrap()).unwrap();
+    assert_eq!(
+        config["mcpServers"]["project-context"]["tools"],
+        serde_json::json!(crate::project_operations::PROJECT_OPERATION_IDS)
+    );
+}
+
+#[tokio::test]
 async fn put_setup_rejects_invalid_scope() {
     let (state, _d) = test_state();
     let app = build_router(state);

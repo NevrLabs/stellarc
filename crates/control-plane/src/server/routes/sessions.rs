@@ -181,6 +181,24 @@ fn capability_error(error: &'static str, message: impl Into<String>) -> Response
         .into_response()
 }
 
+pub(crate) fn effective_setup_for_session(
+    views: &crate::views::ViewManager,
+    session_id: &str,
+    org_slug: &str,
+) -> crate::views::SetupRow {
+    let project_ref = views
+        .sessions
+        .get(session_id)
+        .and_then(|session| session.project_id.as_deref())
+        .filter(|project_ref| views.projects.get(project_ref).is_some())
+        .unwrap_or("");
+    let mut effective = views.setup.effective_for_project(org_slug, project_ref);
+    if !project_ref.is_empty() && !effective.mcp.iter().any(|slug| slug == "project-context") {
+        effective.mcp.push("project-context".into());
+    }
+    effective
+}
+
 #[allow(clippy::result_large_err)]
 fn signed_capability_event(
     state: &AppState,
@@ -1111,9 +1129,7 @@ pub(crate) async fn post_message(
     let org_slug = std::env::var("OLYMPUS_DEFAULT_ORG").unwrap_or_else(|_| "default".to_string());
     let (mcp_servers, env_vars, adapter_warnings) = {
         let views = state.views.read().await;
-        // Get the effective (merged org+project) setup. For now, no project
-        // scoping — just org-level. TODO: wire project from session metadata.
-        let effective = views.setup.effective_for_project(&org_slug, "");
+        let effective = effective_setup_for_session(&views, &id, &org_slug);
         let resolved = crate::adapter::ResolvedSetup::from_registry(
             &views.registry,
             &effective.skills,
