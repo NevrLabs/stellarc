@@ -18,6 +18,8 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::event::Event;
 use crate::server::capability::CapabilitySet;
 
@@ -33,6 +35,13 @@ pub struct Filters {
     pub archived: Option<bool>,
     /// Restrict to sessions with this pinned flag.
     pub pinned: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextProjectRef {
+    pub project_id: String,
+    pub mode: String,
 }
 
 /// A row in the session-list projection.
@@ -70,6 +79,7 @@ pub struct SessionRow {
     pub card_id: Option<String>,
     /// Project attached to this session, if any (from SessionProjectAttached).
     pub project_id: Option<String>,
+    pub context_projects: Vec<ContextProjectRef>,
     /// Hall-signed capability envelope. None preserves legacy full authority.
     pub capabilities: Option<CapabilitySet>,
 }
@@ -138,6 +148,7 @@ impl SessionView {
                         parent_session_id: None,
                         card_id: None,
                         project_id: None,
+                        context_projects: Vec::new(),
                         capabilities: None,
                     },
                 );
@@ -232,6 +243,37 @@ impl SessionView {
                     row.project_id = Some(project_id.clone());
                 }
             }
+            Event::SessionContextProjectAttached {
+                session_id,
+                project_id,
+                mode,
+                ..
+            } => {
+                if let Some(row) = self.sessions.get_mut(session_id) {
+                    if let Some(project) = row
+                        .context_projects
+                        .iter_mut()
+                        .find(|project| project.project_id == *project_id)
+                    {
+                        project.mode = mode.clone();
+                    } else {
+                        row.context_projects.push(ContextProjectRef {
+                            project_id: project_id.clone(),
+                            mode: mode.clone(),
+                        });
+                    }
+                }
+            }
+            Event::SessionContextProjectDetached {
+                session_id,
+                project_id,
+                ..
+            } => {
+                if let Some(row) = self.sessions.get_mut(session_id) {
+                    row.context_projects
+                        .retain(|project| project.project_id != *project_id);
+                }
+            }
             Event::MessageRemoved { .. } => {}
             // ---- Session-tree events (ADR 0006 §7 footgun 3) ----
             Event::SessionForked {
@@ -245,15 +287,15 @@ impl SessionView {
                 if let Some(child) = self.sessions.get_mut(child_session_id) {
                     child.parent_session_id = Some(parent_session_id.clone());
                 }
-                // Inherit card_id from parent.
-                let parent_card = self
+                let inherited = self
                     .sessions
                     .get(parent_session_id)
-                    .and_then(|p| p.card_id.clone());
-                if let Some(card_id) = parent_card {
-                    if let Some(child) = self.sessions.get_mut(child_session_id) {
-                        child.card_id = Some(card_id);
-                    }
+                    .map(|parent| (parent.card_id.clone(), parent.project_id.clone()));
+                if let (Some((card_id, project_id)), Some(child)) =
+                    (inherited, self.sessions.get_mut(child_session_id))
+                {
+                    child.card_id = card_id;
+                    child.project_id = project_id;
                 }
             }
             Event::CardSessionLinked {
@@ -491,6 +533,65 @@ mod tests {
         });
         let child = v.get("child").unwrap();
         assert_eq!(child.card_id.as_deref(), Some("card-99"));
+    }
+
+    #[test]
+    fn context_projects_attach_detach_and_reattach_in_place() {
+        let mut v = SessionView::new();
+        v.apply(&created("s", "cli", 1.0));
+        for mode in ["read", "write"] {
+            v.apply(&Event::SessionContextProjectAttached {
+                session_id: "s".into(),
+                project_id: "p".into(),
+                mode: mode.into(),
+                attached_by: "user:u1".into(),
+                attached_at: 2.0,
+            });
+        }
+        assert_eq!(
+            v.get("s").unwrap().context_projects,
+            vec![ContextProjectRef {
+                project_id: "p".into(),
+                mode: "write".into(),
+            }]
+        );
+
+        v.apply(&Event::SessionContextProjectDetached {
+            session_id: "s".into(),
+            project_id: "p".into(),
+            detached_at: 3.0,
+        });
+        assert!(v.get("s").unwrap().context_projects.is_empty());
+    }
+
+    #[test]
+    fn fork_inherits_primary_project_but_not_context_projects() {
+        let mut v = SessionView::new();
+        v.apply(&created("parent", "cli", 1.0));
+        v.apply(&created("child", "cli", 2.0));
+        v.apply(&Event::SessionProjectAttached {
+            session_id: "parent".into(),
+            project_id: "primary".into(),
+            attached_at: 2.1,
+        });
+        v.apply(&Event::SessionContextProjectAttached {
+            session_id: "parent".into(),
+            project_id: "context".into(),
+            mode: "read".into(),
+            attached_by: "user:u1".into(),
+            attached_at: 2.2,
+        });
+        v.apply(&Event::SessionForked {
+            parent_session_id: "parent".into(),
+            child_session_id: "child".into(),
+            fork_type: "fork".into(),
+            fork_point: None,
+            forked_at: 3.0,
+        });
+
+        let child = v.get("child").unwrap();
+        assert_eq!(child.project_id.as_deref(), Some("primary"));
+        assert!(child.context_projects.is_empty());
     }
 
     // ---- CardSessionLinked ----

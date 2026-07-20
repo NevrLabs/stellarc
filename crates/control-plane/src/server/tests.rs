@@ -684,6 +684,7 @@ async fn unscoped_project_attachment_rejects_cross_organization_membership() {
     let app = build_router(state.clone());
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -712,6 +713,278 @@ async fn unscoped_project_attachment_rejects_cross_organization_membership() {
             .and_then(|session| session.project_id.as_deref()),
         None,
     );
+
+    let context_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions/s1/context-projects")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"projectId":"project-b","mode":"read"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(context_response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn primary_project_is_immutable_and_same_project_is_idempotent() {
+    let (state, _dir) = test_state();
+    for event in [
+        Event::ProjectCreated {
+            project_id: "p1".into(),
+            name: "Primary".into(),
+            created_at: 102.0,
+        },
+        Event::ProjectCreated {
+            project_id: "p2".into(),
+            name: "Other".into(),
+            created_at: 103.0,
+        },
+        Event::SessionProjectAttached {
+            session_id: "s1".into(),
+            project_id: "p1".into(),
+            attached_at: 104.0,
+        },
+    ] {
+        state.log.append(&event).unwrap();
+        state.views.write().await.apply(&event);
+    }
+    let app = build_router(state.clone());
+    let request = |project_id| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/sessions/s1/project")
+            .header("authorization", "Bearer testtoken")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"projectId":"{project_id}"}}"#)))
+            .unwrap()
+    };
+
+    assert_eq!(
+        app.clone().oneshot(request("p1")).await.unwrap().status(),
+        StatusCode::OK
+    );
+    let conflict = app.oneshot(request("p2")).await.unwrap();
+    assert_eq!(conflict.status(), StatusCode::CONFLICT);
+    let body = axum::body::to_bytes(conflict.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+        serde_json::json!({
+            "error": "conflict",
+            "message": "session already belongs to a project; attach it as context instead"
+        })
+    );
+    assert_eq!(
+        state
+            .log
+            .read_all()
+            .unwrap()
+            .iter()
+            .filter(|(_, event)| matches!(event, Event::SessionProjectAttached { session_id, .. } if session_id == "s1"))
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn primary_attach_rejects_a_project_already_attached_as_context() {
+    let (state, _dir) = test_state();
+    for event in [
+        Event::ProjectCreated {
+            project_id: "p1".into(),
+            name: "Context first".into(),
+            created_at: 102.0,
+        },
+        Event::SessionContextProjectAttached {
+            session_id: "s1".into(),
+            project_id: "p1".into(),
+            mode: "read".into(),
+            attached_by: "operator".into(),
+            attached_at: 103.0,
+        },
+    ] {
+        state.log.append(&event).unwrap();
+        state.views.write().await.apply(&event);
+    }
+
+    let response = build_router(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions/s1/project")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"projectId":"p1"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn context_project_routes_validate_auth_resources_mode_and_primary() {
+    let (state, _dir) = test_state();
+    for event in [
+        Event::ProjectCreated {
+            project_id: "primary".into(),
+            name: "Primary".into(),
+            created_at: 102.0,
+        },
+        Event::ProjectCreated {
+            project_id: "context".into(),
+            name: "Context".into(),
+            created_at: 103.0,
+        },
+        Event::SessionProjectAttached {
+            session_id: "s1".into(),
+            project_id: "primary".into(),
+            attached_at: 104.0,
+        },
+    ] {
+        state.log.append(&event).unwrap();
+        state.views.write().await.apply(&event);
+    }
+    let app = build_router(state);
+    let request = |uri: &str, body: &'static str, authenticated: bool| {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("content-type", "application/json");
+        if authenticated {
+            request = request.header("authorization", "Bearer testtoken");
+        }
+        request.body(Body::from(body)).unwrap()
+    };
+
+    assert_eq!(
+        app.clone()
+            .oneshot(request(
+                "/api/sessions/s1/context-projects",
+                r#"{"projectId":"context","mode":"read"}"#,
+                false,
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(request(
+                "/api/sessions/missing/context-projects",
+                r#"{"projectId":"context","mode":"read"}"#,
+                true,
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(request(
+                "/api/sessions/s1/context-projects",
+                r#"{"projectId":"missing","mode":"read"}"#,
+                true,
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(request(
+                "/api/sessions/s1/context-projects",
+                r#"{"projectId":"context","mode":"admin"}"#,
+                true,
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        app.oneshot(request(
+            "/api/sessions/s1/context-projects",
+            r#"{"projectId":"primary","mode":"read"}"#,
+            true,
+        ))
+        .await
+        .unwrap()
+        .status(),
+        StatusCode::CONFLICT
+    );
+}
+
+#[tokio::test]
+async fn context_project_routes_attach_reconfigure_and_detach() {
+    let (state, _dir) = test_state();
+    let project = Event::ProjectCreated {
+        project_id: "context".into(),
+        name: "Context".into(),
+        created_at: 102.0,
+    };
+    state.log.append(&project).unwrap();
+    state.views.write().await.apply(&project);
+    let app = build_router(state.clone());
+    let attach = |mode| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/sessions/s1/context-projects")
+            .header("authorization", "Bearer testtoken")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"projectId":"context","mode":"{mode}"}}"#
+            )))
+            .unwrap()
+    };
+
+    for mode in ["read", "write"] {
+        let response = app.clone().oneshot(attach(mode)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            body["contextProjects"],
+            serde_json::json!([{"projectId": "context", "mode": mode}])
+        );
+    }
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/sessions/s1/context-projects/context")
+                .header("authorization", "Bearer testtoken")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["contextProjects"], serde_json::json!([]));
+    assert!(state
+        .views
+        .read()
+        .await
+        .sessions
+        .get("s1")
+        .unwrap()
+        .context_projects
+        .is_empty());
 }
 
 #[tokio::test]
@@ -1004,6 +1277,33 @@ async fn post_fork_observed_session_returns_managed_fork_and_leaves_source() {
         state.log.clone(),
         test_support::mock_factory(),
     ));
+    for event in [
+        Event::ProjectCreated {
+            project_id: "primary".into(),
+            name: "Primary".into(),
+            created_at: 102.0,
+        },
+        Event::ProjectCreated {
+            project_id: "context".into(),
+            name: "Context".into(),
+            created_at: 103.0,
+        },
+        Event::SessionProjectAttached {
+            session_id: "s1".into(),
+            project_id: "primary".into(),
+            attached_at: 104.0,
+        },
+        Event::SessionContextProjectAttached {
+            session_id: "s1".into(),
+            project_id: "context".into(),
+            mode: "read".into(),
+            attached_by: "operator".into(),
+            attached_at: 105.0,
+        },
+    ] {
+        state.log.append(&event).unwrap();
+        state.views.write().await.apply(&event);
+    }
     let app = build_router(state.clone());
 
     let source_before = {
@@ -1033,7 +1333,20 @@ async fn post_fork_observed_session_returns_managed_fork_and_leaves_source() {
     assert_eq!(v["session"]["managed"], true);
     assert_eq!(v["session"]["forkedFrom"], "s1");
     assert_eq!(v["session"]["forkType"], "sub");
-    assert!(v["session"]["id"].as_str().unwrap() != "s1");
+    assert_eq!(v["session"]["projectId"], "primary");
+    assert_eq!(v["session"]["contextProjects"], serde_json::json!([]));
+    let child_id = v["session"]["id"].as_str().unwrap();
+    assert_ne!(child_id, "s1");
+    let child = state
+        .views
+        .read()
+        .await
+        .sessions
+        .get(child_id)
+        .cloned()
+        .unwrap();
+    assert_eq!(child.project_id.as_deref(), Some("primary"));
+    assert!(child.context_projects.is_empty());
 
     let source_after = {
         let views = state.views.read().await;

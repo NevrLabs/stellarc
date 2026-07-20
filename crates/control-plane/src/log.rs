@@ -61,6 +61,17 @@ impl Log {
             conn.execute_batch("ALTER TABLE sessions ADD COLUMN capabilities TEXT;")
                 .context("migrating sessions table to add capabilities")?;
         }
+        let has_context_projects = conn
+            .prepare("PRAGMA table_info(sessions)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|column| column == "context_projects");
+        if !has_context_projects {
+            conn.execute_batch(
+                "ALTER TABLE sessions ADD COLUMN context_projects TEXT NOT NULL DEFAULT '[]';",
+            )
+            .context("migrating sessions table to add context projects")?;
+        }
         for table in ["cards", "projects"] {
             let has_org_id = conn
                 .prepare(&format!("PRAGMA table_info({table})"))?
@@ -273,8 +284,9 @@ impl Log {
         let mut stmt = conn.prepare(
             "SELECT session_id, hermes_id, source, model, title, started_at,
                     message_count, input_tokens, output_tokens, archived, pinned,
-                    last_activity, agent, node, parent_session_id, card_id, project_id, org_id,
-                    capabilities FROM sessions ORDER BY started_at DESC, session_id",
+                    last_activity, agent, node, parent_session_id, card_id, project_id,
+                    context_projects, org_id, capabilities
+             FROM sessions ORDER BY started_at DESC, session_id",
         )?;
         let rows = stmt.query_map([], session_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
@@ -286,8 +298,9 @@ impl Log {
         conn.query_row(
             "SELECT session_id, hermes_id, source, model, title, started_at,
                     message_count, input_tokens, output_tokens, archived, pinned,
-                    last_activity, agent, node, parent_session_id, card_id, project_id, org_id,
-                    capabilities FROM sessions WHERE session_id = ?1",
+                    last_activity, agent, node, parent_session_id, card_id, project_id,
+                    context_projects, org_id, capabilities
+             FROM sessions WHERE session_id = ?1",
             [id],
             session_row,
         )
@@ -758,12 +771,67 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
                 params![session_id, project_id],
             )?;
         }
+        Event::SessionContextProjectAttached {
+            session_id,
+            project_id,
+            mode,
+            ..
+        } => {
+            let current: Option<String> = tx
+                .query_row(
+                    "SELECT context_projects FROM sessions WHERE session_id=?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(current) = current {
+                let mut projects: Vec<crate::views::session::ContextProjectRef> =
+                    serde_json::from_str(&current)?;
+                if let Some(project) = projects
+                    .iter_mut()
+                    .find(|project| project.project_id == *project_id)
+                {
+                    project.mode = mode.clone();
+                } else {
+                    projects.push(crate::views::session::ContextProjectRef {
+                        project_id: project_id.clone(),
+                        mode: mode.clone(),
+                    });
+                }
+                tx.execute(
+                    "UPDATE sessions SET context_projects=?2 WHERE session_id=?1",
+                    params![session_id, serde_json::to_string(&projects)?],
+                )?;
+            }
+        }
+        Event::SessionContextProjectDetached {
+            session_id,
+            project_id,
+            ..
+        } => {
+            let current: Option<String> = tx
+                .query_row(
+                    "SELECT context_projects FROM sessions WHERE session_id=?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(current) = current {
+                let mut projects: Vec<crate::views::session::ContextProjectRef> =
+                    serde_json::from_str(&current)?;
+                projects.retain(|project| project.project_id != *project_id);
+                tx.execute(
+                    "UPDATE sessions SET context_projects=?2 WHERE session_id=?1",
+                    params![session_id, serde_json::to_string(&projects)?],
+                )?;
+            }
+        }
         Event::SessionForked {
             parent_session_id,
             child_session_id,
             ..
         } => {
-            tx.execute("UPDATE sessions SET parent_session_id=?2, card_id=(SELECT card_id FROM sessions WHERE session_id=?2) WHERE session_id=?1", params![child_session_id,parent_session_id])?;
+            tx.execute("UPDATE sessions SET parent_session_id=?2, card_id=(SELECT card_id FROM sessions WHERE session_id=?2), project_id=(SELECT project_id FROM sessions WHERE session_id=?2) WHERE session_id=?1", params![child_session_id,parent_session_id])?;
         }
         Event::CardSessionLinked {
             card_id,
@@ -949,6 +1017,8 @@ fn event_type(event: &Event) -> &'static str {
         Event::PackageActivated { .. } => "package.activated",
         Event::PackageDeactivated { .. } => "package.deactivated",
         Event::PackageRemoved { .. } => "package.removed",
+        Event::SessionContextProjectAttached { .. } => "session.context_project_attached",
+        Event::SessionContextProjectDetached { .. } => "session.context_project_detached",
     }
 }
 fn event_time(event: &Event) -> f64 {
@@ -973,6 +1043,8 @@ fn event_time(event: &Event) -> f64 {
         Event::ProjectLayoutUpdated { updated_at, .. } => *updated_at,
         Event::ProjectDeleted { deleted_at, .. } => *deleted_at,
         Event::SessionProjectAttached { attached_at, .. } => *attached_at,
+        Event::SessionContextProjectAttached { attached_at, .. } => *attached_at,
+        Event::SessionContextProjectDetached { detached_at, .. } => *detached_at,
         Event::PackageInstalled { installed_at, .. }
         | Event::PackageInstalledV2 { installed_at, .. } => *installed_at,
         Event::PackageGranted { granted_at, .. } => *granted_at,
@@ -998,6 +1070,8 @@ fn event_session_id(event: &Event) -> Option<&str> {
         | Event::CardSessionLinked { session_id, .. }
         | Event::SessionRepoAttached { session_id, .. }
         | Event::SessionProjectAttached { session_id, .. }
+        | Event::SessionContextProjectAttached { session_id, .. }
+        | Event::SessionContextProjectDetached { session_id, .. }
         | Event::SessionOrganizationAssigned { session_id, .. }
         | Event::SessionCapabilitiesAssigned { session_id, .. } => Some(session_id),
         Event::CardAssigned { session_id, .. } => Some(session_id),
@@ -1031,14 +1105,21 @@ fn session_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         parent_session_id: r.get(14)?,
         card_id: r.get(15)?,
         project_id: r.get(16)?,
-        org_id: r.get(17)?,
+        context_projects: serde_json::from_str(&r.get::<_, String>(17)?).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                17,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?,
+        org_id: r.get(18)?,
         capabilities: r
-            .get::<_, Option<String>>(18)?
+            .get::<_, Option<String>>(19)?
             .map(|raw| serde_json::from_str(&raw))
             .transpose()
             .map_err(|error| {
                 rusqlite::Error::FromSqlConversionFailure(
-                    18,
+                    19,
                     rusqlite::types::Type::Text,
                     Box::new(error),
                 )
@@ -1112,7 +1193,7 @@ PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAG
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,event_type TEXT NOT NULL,payload BLOB NOT NULL,created_at REAL NOT NULL,session_id TEXT);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
-CREATE TABLE IF NOT EXISTS sessions(session_id TEXT PRIMARY KEY,hermes_id TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',model TEXT,title TEXT,started_at REAL NOT NULL,message_count INTEGER NOT NULL DEFAULT 0,input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,pinned INTEGER NOT NULL DEFAULT 0,last_activity REAL NOT NULL DEFAULT 0,agent TEXT,node TEXT,parent_session_id TEXT,card_id TEXT,project_id TEXT,org_id TEXT NOT NULL DEFAULT 'personal',capabilities TEXT);
+CREATE TABLE IF NOT EXISTS sessions(session_id TEXT PRIMARY KEY,hermes_id TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',model TEXT,title TEXT,started_at REAL NOT NULL,message_count INTEGER NOT NULL DEFAULT 0,input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,pinned INTEGER NOT NULL DEFAULT 0,last_activity REAL NOT NULL DEFAULT 0,agent TEXT,node TEXT,parent_session_id TEXT,card_id TEXT,project_id TEXT,org_id TEXT NOT NULL DEFAULT 'personal',capabilities TEXT,context_projects TEXT NOT NULL DEFAULT '[]');
 CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at DESC); CREATE INDEX IF NOT EXISTS idx_sessions_source ON sessions(source); CREATE INDEX IF NOT EXISTS idx_sessions_archived ON sessions(archived); CREATE INDEX IF NOT EXISTS idx_sessions_pinned ON sessions(pinned);
 CREATE TABLE IF NOT EXISTS messages(session_id TEXT NOT NULL,message_id INTEGER NOT NULL,role TEXT NOT NULL,content TEXT,tool_name TEXT,tool_calls TEXT,reasoning TEXT,timestamp REAL NOT NULL,token_count INTEGER,finish_reason TEXT,PRIMARY KEY(session_id,message_id)) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(session_id,timestamp);
@@ -1260,10 +1341,32 @@ mod tests {
             finish_reason: None,
         })
         .unwrap();
-        assert_eq!(log.event_count().unwrap(), 3);
+        log.append(&Event::SessionContextProjectAttached {
+            session_id: "s".into(),
+            project_id: "p".into(),
+            mode: "read".into(),
+            attached_by: "operator".into(),
+            attached_at: 3.0,
+        })
+        .unwrap();
+        assert_eq!(
+            log.get_session("s").unwrap().unwrap().context_projects,
+            vec![crate::views::session::ContextProjectRef {
+                project_id: "p".into(),
+                mode: "read".into(),
+            }]
+        );
+        log.append(&Event::SessionContextProjectDetached {
+            session_id: "s".into(),
+            project_id: "p".into(),
+            detached_at: 4.0,
+        })
+        .unwrap();
+        assert_eq!(log.event_count().unwrap(), 5);
         let session = log.get_session("s").unwrap().unwrap();
         assert_eq!(session.last_activity, 2.0);
         assert_eq!(session.org_id, "org-a");
+        assert!(session.context_projects.is_empty());
         assert_eq!(log.recent_messages("s", 50).unwrap().len(), 1);
         assert_eq!(log.search("sqlite", 10).unwrap().len(), 1);
     }

@@ -718,6 +718,7 @@ mod tests {
                     parent_session_id: None,
                     card_id: None,
                     project_id: None,
+                    context_projects: Vec::new(),
                     capabilities: None,
                 }),
             },
