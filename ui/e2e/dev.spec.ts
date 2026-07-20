@@ -22,6 +22,7 @@ async function drag(page: Page, handle: Locator, dx: number, dy: number) {
   await page.mouse.down();
   await page.mouse.move(x + dx, y + dy, { steps: 5 });
   await page.mouse.up();
+  await page.waitForTimeout(100);
 }
 
 async function signIn(page: Page) {
@@ -100,10 +101,14 @@ test("live dev interactions", async ({ page }) => {
   const rows = page.locator(".srow[data-session-id]");
   await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThanOrEqual(2);
+  const firstSessionId = await rows.nth(0).getAttribute("data-session-id");
+  const secondSessionId = await rows.nth(1).getAttribute("data-session-id");
+  expect(firstSessionId).toBeTruthy();
+  expect(secondSessionId).toBeTruthy();
   await rows.nth(0).click();
-  await expect(page.locator(".chat-view")).toHaveCount(1);
+  await expect(page.locator(".chat-view")).toHaveAttribute("data-session-id", firstSessionId!);
   await rows.nth(1).click();
-  await expect(page.locator(".chat-view")).toHaveCount(1);
+  await expect(page.locator(".chat-view")).toHaveAttribute("data-session-id", secondSessionId!);
   await expect(page.locator(".sessions-dockview")).toHaveCount(0);
   await expect(page.locator(".srow[data-focused=true]")).toHaveCount(1);
 
@@ -139,6 +144,7 @@ test("live dev interactions", async ({ page }) => {
 test("phone sidebar stays a full-or-hidden drawer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page);
+  await page.locator('.layouts button[aria-label="Vaults"]').click();
 
   const body = page.locator(".body");
   const sidebarCycle = page.locator("[data-sidebar-cycle]");
@@ -168,6 +174,7 @@ test("phone sidebar stays a full-or-hidden drawer", async ({ page }) => {
   await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");
   await expect(sidebarCycle).toBeFocused();
 
+  await page.locator('.layouts button[aria-label="Sessions"]').click();
   await sidebarCycle.click();
   await page.getByRole("button", { name: "Usage", exact: true }).click();
   await expect(body).toHaveAttribute("data-sidebar-mode", "hidden");

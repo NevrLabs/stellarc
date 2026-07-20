@@ -134,9 +134,9 @@ button {
 .navitem:hover { background: var(--hover); color: var(--text); }
 .navitem.on { background: var(--silver-wash); color: var(--silver); }
 .sb-scroll { flex: 1; overflow-y: auto; }
-.rz-x { width: 4px; cursor: col-resize; flex-shrink: 0; }
+.rz-x { position: relative; z-index: 1; width: 4px; cursor: col-resize; flex-shrink: 0; }
 .rz-x:hover { background: var(--silver-wash); }
-.rz-y { height: 4px; cursor: row-resize; flex-shrink: 0; }
+.rz-y { position: relative; z-index: 1; height: 4px; cursor: row-resize; flex-shrink: 0; }
 .rz-y:hover { background: var(--silver-wash); }
 .spin { width: 9px; height: 9px; border-radius: var(--radius-full); border: 1.5px solid var(--border-strong); border-top-color: var(--silver); animation: olympus-spin var(--loop-spin) linear infinite; flex-shrink: 0; }
 
