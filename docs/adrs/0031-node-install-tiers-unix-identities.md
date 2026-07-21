@@ -1,4 +1,4 @@
-# ADR 0031 — Tenant Node Tier: Root Envoy, Per-User Unix Identities, Org Groups
+# ADR 0031 — Node Install Tiers: Root Envoy, Per-User Unix Identities, Org Groups
 
 - Status: Proposed
 - Date: 2026-07-21
@@ -14,12 +14,21 @@
 
 Nodes have two tiers:
 
-| Tier | Install | Process identity | For |
-|---|---|---|---|
-| **personal** (today) | rootless; user-mode systemd; `~/.olympus` | everything as the installing user | single-human nodes; unprivileged LXC/WSL |
-| **tenant** (new) | root-installed; envoy = root system daemon; `/var/lib/olympus` | per-user Unix accounts + per-org groups | shared nodes, BYOK, multi-user orgs |
+| Tier | Install | Process identity | Scope cap | For |
+|---|---|---|---|---|
+| **user** (today; was "personal") | rootless; user-mode systemd; `~/.olympus` | everything as the installing user | **exactly 1 user, 1 org** | single-human nodes; unprivileged LXC/WSL |
+| **system** (new; was "tenant") | root-installed; envoy = root system daemon; `/var/lib/olympus` | per-user Unix accounts + per-org groups | multi-user, multi-org | shared nodes, BYOK, team orgs |
 
-Tenant-tier identity mapping:
+**The scope cap is structural, not a license flag.** A user install has one
+uid and no way to create accounts or groups — there is no mechanism to
+isolate a second user or a second org. So it doesn't offer them: enrollment
+registers the node bound to the installing user's identity and its single
+org; Hall rejects scheduling any other principal's work there (rule 1
+below already implies this; now it's total, not just BYOK/multi-user
+sessions). Multi-org on one host = system install, or two user installs
+under two real Unix accounts.
+
+System-tier identity mapping:
 
 - **Unix user per (registered user × node)** — `olympus-u-<user_slug>`,
   lazily created by the envoy on that user's first execution on the node.
@@ -39,7 +48,7 @@ Tenant-tier identity mapping:
   accounting, quotas, and OOM attribution (ADR 0002 §11.1) fall out of the
   slice tree.
 
-Filesystem (tenant tier; replaces `~/.olympus` on such nodes; interior
+Filesystem (system tier; replaces `~/.olympus` on such nodes; interior
 layout per ADR 0005 unchanged):
 
 ```text
@@ -67,8 +76,9 @@ that is the simpler, correct model here, supervised by systemd.
 ## 3. Normative rules
 
 1. Tier is a node fact carried in `Hello`. Hall schedules **fail-closed**:
-   BYOK leases, hall-managed creds, and sessions for >1 distinct user never
-   land on a personal-tier node.
+   a user-tier node serves exactly one (user, org) pair — its enrolling
+   identity. BYOK leases, hall-managed creds, other users' or orgs'
+   sessions never land there.
 2. Account/group **names** are the stable key; numeric uid/gid are per-node
    and never cross a node boundary. No cross-node FS sharing exists (ADR
    0005 sync is jj/event-level), so there is no uid-mapping problem.
@@ -86,17 +96,17 @@ that is the simpler, correct model here, supervised by systemd.
 ## 4. Migration order (each step independently shippable)
 
 1. Node tier field in `Hello` + fail-closed scheduling constraint in Hall
-   (no behavior change on existing nodes — all are personal-tier).
+   (no behavior change on existing nodes — all are user-tier).
 2. Envoy spawn seam: `spawn_as` via `systemd-run` behind the tier flag;
-   personal tier keeps the direct-spawn path.
-3. Tenant installer: root install, `/var/lib/olympus`, `sysusers.d`/
+   user tier keeps the direct-spawn path.
+3. System installer: root install, `/var/lib/olympus`, `sysusers.d`/
    `tmpfiles.d` fragments, envoy system unit (hardened: `ProtectSystem=
    strict` + explicit `ReadWritePaths`).
 4. Org groups + setgid tree materialization; per-user runtime dirs; move
    credential materialization there.
-5. BYOK lease delivery gated on tenant tier (completes the ADR 0027 §3
+5. BYOK lease delivery gated on system tier (completes the ADR 0027 §3
    matrix).
-6. Existing shared dev nodes migrate by re-enrollment as tenant tier; no
+6. Existing shared dev nodes migrate by re-enrollment as system tier; no
    in-place uid surgery on live trees.
 
 ## 5. Spike flags
@@ -118,10 +128,10 @@ that is the simpler, correct model here, supervised by systemd.
 - **`DynamicUser=` for session runtimes** — ephemeral UIDs break durable
   ownership of session spaces. Kept for transient build jobs (ADR 0017).
 - **Rootless-only via user namespaces on shared nodes** — cannot provision
-  durable per-user identities or quotas; remains the personal tier, not the
+  durable per-user identities or quotas; remains the user tier, not the
   shared-node answer.
 - **Separate setuid/root helper binary** — a second protocol surface with
   its own auth story; v1 runs the envoy itself as root with systemd
   hardening. Revisit if the envoy's parsing surface grows.
-- **Root-mandatory everywhere** — personal installs and unprivileged
+- **Root-mandatory everywhere** — user installs and unprivileged
   LXC/WSL nodes stay rootless; multi-tenancy is a tier, not a prerequisite.
