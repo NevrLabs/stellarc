@@ -78,6 +78,15 @@ for native/operator automation and must never be placed in a Vite environment.
   `views/sessions/`. WS + fetch in `api.ts`; hooks in `hooks/queries.ts`.
 - ADRs in `docs/adrs/` — 0002 (fleet boundary), 0005 (resource model),
   0007 (per-node discovery). Read these before touching node/agent code.
+- **ADR 0032 (2026-07-22) resets product scope — read it first.** Lite/full
+  editions: lite = desktop app, SQLite, single-user, multi-node; full = Linux
+  host, Postgres+pgvector, multi-org, **bundled Forgejo owns boards/issues/
+  PRs/CI**. Supersedes 0026 native-board/github_issues backends (cr-sqlite is
+  DEAD — do not start the §15.4 substrate gate) and 0025 in part. 0013 stands
+  as the workflow engine (no external engine; sayiir rejected for now).
+  Migration order lives in 0032 §7: storage seam extraction from `log.rs`
+  first, session manifest + workspace sweep second. The central `cards`
+  subsystem is deletion-scheduled after Forgejo lands — do not extend it.
 
 ## Open follow-ups (nothing blocking)
 
