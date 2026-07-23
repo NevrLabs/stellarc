@@ -43,7 +43,6 @@ pub struct EnvoyResp {
 /// event channels.
 pub struct EnvoyConnection {
     pub(crate) epoch: u64,
-    protocol_version: u32,
     shutdown: tokio::sync::watch::Sender<bool>,
     /// Buffered writer to the transport stream (UDS or iroh QUIC). Guarded so
     /// Hall can send from any task. Transport-agnostic via [`BoxedWriter`].
@@ -70,6 +69,7 @@ pub struct EnvoyConnection {
     /// `hermes_session_id()`.
     hermes_ids: std::sync::Mutex<HashMap<String, String>>,
     log: Option<Arc<crate::log::Log>>,
+    jobs: Option<Arc<crate::jobs::JobService>>,
 }
 
 /// A terminal output/exit event forwarded from an envoy to the operator WS.
@@ -80,27 +80,24 @@ pub enum TerminalFrame {
 }
 
 impl EnvoyConnection {
-    fn new(writer: BoxedWriter, log: Option<Arc<crate::log::Log>>) -> Arc<Self> {
+    fn new(
+        writer: BoxedWriter,
+        log: Option<Arc<crate::log::Log>>,
+        jobs: Option<Arc<crate::jobs::JobService>>,
+    ) -> Arc<Self> {
         let (shutdown, _) = tokio::sync::watch::channel(false);
-        Self::new_with_epoch(
-            writer,
-            log,
-            0,
-            olympus_proto::version::PROTOCOL_VERSION,
-            shutdown,
-        )
+        Self::new_with_epoch(writer, log, jobs, 0, shutdown)
     }
 
     fn new_with_epoch(
         writer: BoxedWriter,
         log: Option<Arc<crate::log::Log>>,
+        jobs: Option<Arc<crate::jobs::JobService>>,
         epoch: u64,
-        protocol_version: u32,
         shutdown: tokio::sync::watch::Sender<bool>,
     ) -> Arc<Self> {
         Arc::new(Self {
             epoch,
-            protocol_version,
             shutdown,
             writer: Mutex::new(tokio::io::BufWriter::new(writer)),
             pending: Mutex::new(HashMap::new()),
@@ -109,6 +106,7 @@ impl EnvoyConnection {
             terminal_channels: std::sync::Mutex::new(HashMap::new()),
             hermes_ids: std::sync::Mutex::new(HashMap::new()),
             log,
+            jobs,
         })
     }
 
@@ -292,6 +290,76 @@ impl EnvoyConnection {
         Ok(is_new)
     }
 
+    pub async fn apply_job_output(
+        &self,
+        job_id: &str,
+        attempt_epoch: u64,
+        seq: u64,
+        stream: olympus_proto::frames::JobStream,
+        data: String,
+    ) -> Result<()> {
+        let jobs = self.jobs.as_ref().context("job service unavailable")?;
+        jobs.persist_output(job_id, attempt_epoch, seq, stream, data)?;
+        self.send_request(HallFrame::Ack {
+            session_id: crate::jobs::wire_id(job_id, attempt_epoch),
+            seq,
+        })
+        .await?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn apply_job_result(
+        &self,
+        job_id: &str,
+        attempt_epoch: u64,
+        seq: u64,
+        exit_code: Option<i32>,
+        truncated: bool,
+        timed_out: bool,
+        cancelled: bool,
+    ) -> Result<()> {
+        let jobs = self.jobs.as_ref().context("job service unavailable")?;
+        jobs.persist_result(
+            job_id,
+            attempt_epoch,
+            seq,
+            exit_code,
+            truncated,
+            timed_out,
+            cancelled,
+        )?;
+        self.send_request(HallFrame::Ack {
+            session_id: crate::jobs::wire_id(job_id, attempt_epoch),
+            seq,
+        })
+        .await?;
+        Ok(())
+    }
+
+    pub fn reconcile_jobs(
+        &self,
+        node_id: &str,
+        attempts: &[olympus_proto::frames::JobAttemptStatus],
+    ) -> Result<()> {
+        self.jobs
+            .as_ref()
+            .context("job service unavailable")?
+            .reconcile(node_id, attempts)
+    }
+
+    pub fn pending_job_dispatches(
+        &self,
+        node_id: &str,
+        attempts: &[olympus_proto::frames::JobAttemptStatus],
+    ) -> Result<Vec<HallFrame>> {
+        Ok(self
+            .jobs
+            .as_ref()
+            .context("job service unavailable")?
+            .pending_dispatches(node_id, attempts))
+    }
+
     pub fn watermark(&self, session_id: &str) -> Result<Option<u64>> {
         self.log
             .as_ref()
@@ -361,10 +429,6 @@ impl EnvoyConnection {
         self.fail_all().await;
         let _ = self.writer.lock().await.shutdown().await;
     }
-
-    pub(crate) fn supports_heartbeat_repair(&self) -> bool {
-        self.protocol_version >= 3
-    }
 }
 
 /// Inject a Hall-assigned reqId into a request frame (overwriting whatever was
@@ -418,6 +482,11 @@ fn inject_req_id(frame: HallFrame, req_id: u64) -> HallFrame {
         HallFrame::Probe { .. } => HallFrame::Probe { req_id },
         HallFrame::DispatchJob {
             job_id,
+            attempt_epoch,
+            package_id,
+            package_version,
+            package_digest,
+            activity,
             argv,
             env_allowlist,
             cwd,
@@ -427,13 +496,26 @@ fn inject_req_id(frame: HallFrame, req_id: u64) -> HallFrame {
         } => HallFrame::DispatchJob {
             req_id,
             job_id,
+            attempt_epoch,
+            package_id,
+            package_version,
+            package_digest,
+            activity,
             argv,
             env_allowlist,
             cwd,
             timeout_secs,
             max_output_bytes,
         },
-        HallFrame::CancelJob { job_id, .. } => HallFrame::CancelJob { req_id, job_id },
+        HallFrame::CancelJob {
+            job_id,
+            attempt_epoch,
+            ..
+        } => HallFrame::CancelJob {
+            req_id,
+            job_id,
+            attempt_epoch,
+        },
         // Fire-and-forget frames pass through unchanged.
         other => other,
     }
@@ -446,6 +528,7 @@ pub struct EnvoyConnections {
     inner: Arc<RwLock<HashMap<String, Arc<EnvoyConnection>>>>,
     log: Option<Arc<crate::log::Log>>,
     next_epoch: Arc<AtomicU64>,
+    jobs: Option<Arc<crate::jobs::JobService>>,
 }
 
 impl EnvoyConnections {
@@ -453,11 +536,15 @@ impl EnvoyConnections {
         Self::default()
     }
 
-    pub fn with_log(log: Arc<crate::log::Log>) -> Self {
+    pub fn with_log_and_jobs(
+        log: Arc<crate::log::Log>,
+        jobs: Arc<crate::jobs::JobService>,
+    ) -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
             log: Some(log),
             next_epoch: Arc::new(AtomicU64::new(0)),
+            jobs: Some(jobs),
         }
     }
 
@@ -467,7 +554,7 @@ impl EnvoyConnections {
 
     /// Register a connection for a node. Returns the connection.
     pub async fn insert(&self, node_id: &str, writer: BoxedWriter) -> Arc<EnvoyConnection> {
-        let conn = EnvoyConnection::new(writer, self.log.clone());
+        let conn = EnvoyConnection::new(writer, self.log.clone(), self.jobs.clone());
         self.inner
             .write()
             .await
@@ -480,14 +567,13 @@ impl EnvoyConnections {
         node_id: &str,
         writer: BoxedWriter,
         epoch: u64,
-        protocol_version: u32,
         shutdown: tokio::sync::watch::Sender<bool>,
     ) -> Result<(Arc<EnvoyConnection>, Option<Arc<EnvoyConnection>>), Arc<EnvoyConnection>> {
         let conn = EnvoyConnection::new_with_epoch(
             writer,
             self.log.clone(),
+            self.jobs.clone(),
             epoch,
-            protocol_version,
             shutdown,
         );
         let mut inner = self.inner.write().await;
@@ -748,7 +834,7 @@ mod tests {
     }
 
     fn test_conn() -> Arc<EnvoyConnection> {
-        EnvoyConnection::new(test_writer(), None)
+        EnvoyConnection::new(test_writer(), None, None)
     }
 
     #[tokio::test]
@@ -769,24 +855,12 @@ mod tests {
         let conns = EnvoyConnections::new();
         let (shutdown, _) = tokio::sync::watch::channel(false);
         assert!(conns
-            .insert_epoch(
-                "n1",
-                test_writer(),
-                2,
-                olympus_proto::version::PROTOCOL_VERSION,
-                shutdown,
-            )
+            .insert_epoch("n1", test_writer(), 2, shutdown,)
             .await
             .is_ok());
         let (shutdown, _) = tokio::sync::watch::channel(false);
         assert!(conns
-            .insert_epoch(
-                "n1",
-                test_writer(),
-                1,
-                olympus_proto::version::PROTOCOL_VERSION,
-                shutdown,
-            )
+            .insert_epoch("n1", test_writer(), 1, shutdown,)
             .await
             .is_err());
         assert_eq!(conns.get("n1").await.unwrap().epoch, 2);
@@ -853,7 +927,7 @@ mod tests {
         let db = dir.path().join("hall.db");
         let log = Arc::new(crate::log::Log::open(&db).unwrap());
         let (writer, mut peer) = tokio::io::duplex(4096);
-        let conn = EnvoyConnection::new(Box::new(writer), Some(log.clone()));
+        let conn = EnvoyConnection::new(Box::new(writer), Some(log.clone()), None);
         let mut events = conn.subscribe_events("s1");
 
         assert!(conn
@@ -890,7 +964,7 @@ mod tests {
 
         let reopened = Arc::new(crate::log::Log::open(&db).unwrap());
         let (writer, _peer) = tokio::io::duplex(4096);
-        let conn = EnvoyConnection::new(Box::new(writer), Some(reopened.clone()));
+        let conn = EnvoyConnection::new(Box::new(writer), Some(reopened.clone()), None);
         let mut events = conn.subscribe_events("s1");
         assert!(!conn
             .apply_event("s1", 1, AgentEvent::Text("replayed-one".into()))
@@ -954,7 +1028,7 @@ mod tests {
         spool_poll(&mut observer, &spool);
         let log = Arc::new(crate::log::Log::open(&hall_db).unwrap());
         let (writer, _peer) = tokio::io::duplex(4096);
-        let conn = EnvoyConnection::new(Box::new(writer), Some(log.clone()));
+        let conn = EnvoyConnection::new(Box::new(writer), Some(log.clone()), None);
         for frame in spool.read("observed:remote", None).unwrap() {
             if let EnvoyFrame::Observed {
                 session_id,
@@ -975,7 +1049,7 @@ mod tests {
         spool_poll(&mut observer, &spool);
         let reopened = Arc::new(crate::log::Log::open(&hall_db).unwrap());
         let (writer, _peer) = tokio::io::duplex(4096);
-        let conn = EnvoyConnection::new(Box::new(writer), Some(reopened.clone()));
+        let conn = EnvoyConnection::new(Box::new(writer), Some(reopened.clone()), None);
         for _ in 0..2 {
             for frame in spool.read("observed:remote", None).unwrap() {
                 if let EnvoyFrame::Observed {
@@ -1003,7 +1077,7 @@ mod tests {
         let file = tempfile::NamedTempFile::new().unwrap();
         let log = Arc::new(crate::log::Log::open(file.path()).unwrap());
         let (writer, mut peer) = tokio::io::duplex(512);
-        let conn = EnvoyConnection::new(Box::new(writer), Some(log.clone()));
+        let conn = EnvoyConnection::new(Box::new(writer), Some(log.clone()), None);
         let mut events = conn.subscribe_events("s1");
 
         let error = conn

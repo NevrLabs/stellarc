@@ -8,11 +8,8 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Oldest frame schema Hall accepts during rolling upgrades. v2 remains
-/// compatible as long as Hall does not send v3-only repair frames to it.
-pub const MIN_PROTOCOL_VERSION: u32 = 2;
-/// Current frame-schema version.
-pub const PROTOCOL_VERSION: u32 = 3;
+/// Current frame-schema version. Hall accepts this exact version only.
+pub const PROTOCOL_VERSION: u32 = 1;
 
 /// Build identity: which build of the binary is speaking.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +48,11 @@ impl BuildVersion {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complete_frame_set_uses_protocol_v1() {
+        assert_eq!(PROTOCOL_VERSION, 1);
+    }
 
     #[test]
     fn build_version_round_trips_camel_case() {

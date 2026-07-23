@@ -182,8 +182,8 @@ button {
 
 
 /* ── Chat column ─────────────────────────────────── */
-.chatcol { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
-.transcript { flex: 1; overflow-y: auto; padding: var(--space-12) var(--space-12); }
+.chatcol { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.transcript { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-12) var(--space-12); }
 .tcol { width: 100%; max-width: var(--measure); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-12); }
 .msg-user { position: relative; align-self: flex-end; max-width: 80%; background: var(--elev); border: var(--border-w) solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius-lg); padding: var(--space-5) var(--space-6); font-size: var(--fs-13-5); line-height: var(--lh-normal); color: var(--text); }
 /* Steer — a user interrupt injected mid-turn. Distinct border + badge. */
@@ -883,6 +883,7 @@ input[type=range] { accent-color: var(--silver); height: 14px; cursor: pointer; 
   .sessions-dockview .dv-split-view-container, .sessions-dockview .dv-groupview, .sessions-dockview .dv-content-container { height: 100%; }
   .olympus-dockview .dv-content-container > * { height: 100%; min-height: 0; }
   .olympus-dockview .dv-react-part > * { height: 100%; min-height: 0; }
+  .sessions-dockview .dv-react-part { display: flex; min-height: 0; overflow: hidden; }
   .vault-view-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); padding: var(--space-5) var(--space-6); border-bottom: var(--border-w) solid var(--border); }
   .vault-view-header > div { display: flex; flex-direction: column; gap: var(--space-2); }
   .vault-view-header > span { color: var(--faint); font-size: var(--fs-11); }

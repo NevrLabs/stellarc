@@ -11,6 +11,16 @@ properties:
     timeout: 15000
 - assertVisible: "Graph View"
 - assertVisible: "Table View"
+- tapOn: "acp-wire-spike.md"
+- extendedWaitUntil:
+    visible: "Findings"
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Conflicted note"
+    commands:
+      - tapOn:
+          id: "Close Conflicted note"
 - tapOn: "Engineering"
 - assertVisible: "Create vault…"
 - takeScreenshot:
@@ -36,8 +46,6 @@ properties:
 - tapOn: "New Note"
 - tapOn: "Title"
 - inputText: "Maestro note"
-- tapOn: "File path"
-- inputText: "maestro-note.md"
 - tapOn: "Create note"
 - extendedWaitUntil:
     visible: "Maestro note"
@@ -46,9 +54,7 @@ properties:
     path: screenshots/note-created
 - tapOn: "New Note"
 - tapOn: "Title"
-- inputText: "Replacement"
-- tapOn: "File path"
-- inputText: "maestro-note.md"
+- inputText: "Maestro note"
 - tapOn: "Create note"
 - assertVisible: ".*note already exists.*"
 - tapOn: "Cancel"
