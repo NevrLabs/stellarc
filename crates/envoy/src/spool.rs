@@ -1,26 +1,21 @@
-//! Durable per-session outbound event spool (ADR 0008 §2).
+//! Transactional Envoy execution event outbox (ADR 0033).
 //!
-//! Records are compact JSON lines. An event is fsynced before it is eligible
-//! for transport; acknowledgements atomically rewrite the file to retain only
-//! records above Hall's durable watermark.
+//! Envoy owns active session/job-run history. Events and sequence allocation
+//! live in one SQLite transaction; Hall acknowledgements remove delivered
+//! outbox rows without resetting the monotonic sequence.
 
-use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use olympus_proto::frames::EnvoyFrame;
+use rusqlite::{params, Connection, OptionalExtension};
 
 pub const DEFAULT_SESSION_CAP: u64 = 512 * 1024 * 1024;
 
-/// A process-wide spool. Sequence allocation lives here rather than in a
-/// connection, so reconnects cannot reset a session's ordering key.
 pub struct EventSpool {
-    dir: PathBuf,
+    db: Mutex<Connection>,
     cap: u64,
-    next_seq: Mutex<HashMap<String, u64>>,
 }
 
 impl EventSpool {
@@ -29,213 +24,173 @@ impl EventSpool {
     }
 
     pub fn with_cap(state_dir: &Path, cap: u64) -> Result<Self> {
-        let dir = state_dir.join("spool");
-        fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
-        let spool = Self {
-            dir,
+        std::fs::create_dir_all(state_dir)
+            .with_context(|| format!("creating {}", state_dir.display()))?;
+        let db = Connection::open(state_dir.join("envoy.sqlite"))?;
+        db.pragma_update(None, "journal_mode", "WAL")?;
+        db.pragma_update(None, "foreign_keys", "ON")?;
+        db.execute_batch(
+            "CREATE TABLE IF NOT EXISTS execution_sequences (
+                 session_id TEXT PRIMARY KEY,
+                 next_seq INTEGER NOT NULL CHECK(next_seq >= 0)
+             );
+             CREATE TABLE IF NOT EXISTS execution_events (
+                 session_id TEXT NOT NULL,
+                 seq INTEGER NOT NULL CHECK(seq >= 0),
+                 frame BLOB NOT NULL,
+                 byte_len INTEGER NOT NULL CHECK(byte_len >= 0),
+                 acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged IN (0, 1)),
+                 PRIMARY KEY(session_id, seq)
+             );
+             CREATE INDEX IF NOT EXISTS execution_events_unacked
+                 ON execution_events(session_id, acknowledged, seq);",
+        )?;
+        Ok(Self {
+            db: Mutex::new(db),
             cap,
-            next_seq: Mutex::new(HashMap::new()),
-        };
-        spool.recover_all()?;
-        Ok(spool)
+        })
     }
 
+    /// Inspect the next sequence without consuming it.
     pub fn next_seq(&self, session_id: &str) -> Result<u64> {
-        let mut next = self.next_seq.lock().expect("spool sequence mutex poisoned");
-        let value = self.next_value(session_id, &next)?;
-        let following = value.checked_add(1).context("event sequence exhausted")?;
-        next.insert(session_id.to_owned(), following);
-        Ok(value)
+        let db = self.db.lock().expect("event store mutex poisoned");
+        next_value(&db, session_id)
     }
 
-    /// Allocate a sequence and durably append one frame as one operation.
-    /// Failed appends leave the in-memory allocator unchanged so a transient
-    /// filesystem failure cannot create a permanent hole in Hall's stream.
+    /// Allocate a sequence and durably append one frame atomically.
     pub fn append_next(&self, frame: &mut EnvoyFrame) -> Result<u64> {
         let session_id = event_identity(frame)
             .map(|(session_id, _)| session_id.to_owned())
             .context("only event frames are spoolable")?;
-        let mut next = self.next_seq.lock().expect("spool sequence mutex poisoned");
-        let value = self.next_value(&session_id, &next)?;
-        let following = value.checked_add(1).context("event sequence exhausted")?;
-        set_event_seq(frame, value).context("only event frames are spoolable")?;
-        self.append(frame)?;
-        next.insert(session_id, following);
-        Ok(value)
+        let mut db = self.db.lock().expect("event store mutex poisoned");
+        let tx = db.transaction()?;
+        let seq = next_value(&tx, &session_id)?;
+        set_event_seq(frame, seq).context("only event frames are spoolable")?;
+        insert_frame(&tx, frame, self.cap)?;
+        let next = seq.checked_add(1).context("event sequence exhausted")?;
+        tx.execute(
+            "INSERT INTO execution_sequences(session_id, next_seq) VALUES (?1, ?2)
+             ON CONFLICT(session_id) DO UPDATE SET next_seq = excluded.next_seq",
+            params![session_id, to_sql_i64(next)?],
+        )?;
+        tx.commit()?;
+        Ok(seq)
     }
 
-    /// Append and fsync an event before the caller sends it.
+    /// Append an already-sequenced frame and preserve monotonic allocation.
     pub fn append(&self, frame: &EnvoyFrame) -> Result<()> {
         let (session_id, seq) = event_identity(frame).context("only event frames are spoolable")?;
-        let bytes = serde_json::to_vec(frame).context("serializing spooled event")?;
-        let path = self.path(session_id);
-        let current = fs::metadata(&path).map_or(0, |meta| meta.len());
-        let projected = current
-            .checked_add(bytes.len() as u64 + 1)
-            .context("spool size overflow")?;
-        if projected > self.cap {
-            anyhow::bail!(
-                "SPOOL_OVERFLOW: session {session_id} exceeded {} bytes",
-                self.cap
-            );
-        }
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .with_context(|| format!("opening {}", path.display()))?;
-        file.write_all(&bytes)?;
-        file.write_all(b"\n")?;
-        file.sync_data()?;
-        self.persist_counter(
-            session_id,
-            seq.checked_add(1).context("event sequence exhausted")?,
+        let mut db = self.db.lock().expect("event store mutex poisoned");
+        let tx = db.transaction()?;
+        insert_frame(&tx, frame, self.cap)?;
+        let next = seq.checked_add(1).context("event sequence exhausted")?;
+        tx.execute(
+            "INSERT INTO execution_sequences(session_id, next_seq) VALUES (?1, ?2)
+             ON CONFLICT(session_id) DO UPDATE SET next_seq = MAX(next_seq, excluded.next_seq)",
+            params![session_id, to_sql_i64(next)?],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn read(&self, session_id: &str, after: Option<u64>) -> Result<Vec<EnvoyFrame>> {
+        let db = self.db.lock().expect("event store mutex poisoned");
+        let after = after.map(to_sql_i64).transpose()?.unwrap_or(-1);
+        let mut statement = db.prepare(
+            "SELECT frame FROM execution_events
+             WHERE session_id = ?1 AND acknowledged = 0 AND seq > ?2 ORDER BY seq",
+        )?;
+        let rows =
+            statement.query_map(params![session_id, after], |row| row.get::<_, Vec<u8>>(0))?;
+        rows.map(|row| {
+            serde_json::from_slice(&row?).context("decoding execution event from SQLite")
+        })
+        .collect()
+    }
+
+    pub fn acknowledge(&self, session_id: &str, watermark: u64) -> Result<()> {
+        let db = self.db.lock().expect("event store mutex poisoned");
+        db.execute(
+            "DELETE FROM execution_events WHERE session_id = ?1 AND seq <= ?2",
+            params![session_id, to_sql_i64(watermark)?],
         )?;
         Ok(())
     }
 
-    /// Return ordered records, optionally restricted to seq > watermark.
-    pub fn read(&self, session_id: &str, after: Option<u64>) -> Result<Vec<EnvoyFrame>> {
-        let path = self.path(session_id);
-        if !path.exists() {
-            return Ok(Vec::new());
-        }
-        let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
-        let mut frames = Vec::new();
-        for line in BufReader::new(file).lines() {
-            let line = line?;
-            if line.trim().is_empty() {
-                continue;
-            }
-            let frame: EnvoyFrame = serde_json::from_str(&line)
-                .with_context(|| format!("decoding recovered spool {}", path.display()))?;
-            let (_, seq) = event_identity(&frame).context("non-event record in event spool")?;
-            if after.is_none_or(|watermark| seq > watermark) {
-                frames.push(frame);
-            }
-        }
-        frames.sort_by_key(|frame| event_seq(frame).unwrap_or(u64::MAX));
-        Ok(frames)
-    }
-
-    /// Atomically retain only records above Hall's acknowledged watermark.
-    pub fn acknowledge(&self, session_id: &str, watermark: u64) -> Result<()> {
-        let retained = self.read(session_id, Some(watermark))?;
-        let path = self.path(session_id);
-        if retained.is_empty() {
-            match fs::remove_file(&path) {
-                Ok(()) => sync_parent(&self.dir)?,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error.into()),
-            }
-            return Ok(());
-        }
-        let tmp = path.with_extension("jsonl.tmp");
-        {
-            let mut file = File::create(&tmp)?;
-            for frame in retained {
-                serde_json::to_writer(&mut file, &frame)?;
-                file.write_all(b"\n")?;
-            }
-            file.sync_all()?;
-        }
-        fs::rename(&tmp, &path)?;
-        sync_parent(&self.dir)
-    }
-
     pub fn sessions(&self) -> Result<Vec<String>> {
-        let mut sessions = Vec::new();
-        for entry in fs::read_dir(&self.dir)? {
-            let entry = entry?;
-            let name = entry.file_name();
-            let Some(name) = name.to_str().and_then(|s| s.strip_suffix(".jsonl")) else {
-                continue;
-            };
-            sessions.push(decode_name(name)?);
-        }
-        sessions.sort();
+        let db = self.db.lock().expect("event store mutex poisoned");
+        let mut statement = db.prepare(
+            "SELECT session_id FROM execution_sequences
+             UNION SELECT session_id FROM execution_events ORDER BY session_id",
+        )?;
+        let sessions = statement
+            .query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(sessions)
     }
 
     pub fn last_seq(&self, session_id: &str) -> Result<Option<u64>> {
-        Ok(self.read(session_id, None)?.last().and_then(event_seq))
+        let db = self.db.lock().expect("event store mutex poisoned");
+        let value: Option<i64> = db
+            .query_row(
+                "SELECT MAX(seq) FROM execution_events WHERE session_id = ?1 AND acknowledged = 0",
+                [session_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        value.map(from_sql_i64).transpose()
     }
+}
 
-    fn recover_all(&self) -> Result<()> {
-        for session in self.sessions()? {
-            self.recover_file(&self.path(&session))?;
-        }
-        Ok(())
+fn insert_frame(db: &Connection, frame: &EnvoyFrame, cap: u64) -> Result<()> {
+    let (session_id, seq) = event_identity(frame).context("only event frames are spoolable")?;
+    let bytes = serde_json::to_vec(frame).context("serializing execution event")?;
+    let used: i64 = db.query_row(
+        "SELECT COALESCE(SUM(byte_len), 0) FROM execution_events
+         WHERE session_id = ?1 AND acknowledged = 0",
+        [session_id],
+        |row| row.get(0),
+    )?;
+    let projected = u64::try_from(used)?
+        .checked_add(bytes.len() as u64)
+        .context("spool size overflow")?;
+    if projected > cap {
+        anyhow::bail!("SPOOL_OVERFLOW: session {session_id} exceeded {cap} bytes");
     }
+    db.execute(
+        "INSERT INTO execution_events(session_id, seq, frame, byte_len)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            session_id,
+            to_sql_i64(seq)?,
+            bytes,
+            to_sql_i64(bytes.len() as u64)?
+        ],
+    )?;
+    Ok(())
+}
 
-    /// Keep the longest valid, newline-terminated prefix. A crash can leave
-    /// only the final append truncated; corruption in the middle discards the
-    /// corrupt record and everything after it rather than inventing ordering.
-    fn recover_file(&self, path: &Path) -> Result<()> {
-        let mut file = OpenOptions::new().read(true).write(true).open(path)?;
-        let mut reader = BufReader::new(file.try_clone()?);
-        let mut valid_len = 0_u64;
-        let mut line = Vec::new();
-        loop {
-            line.clear();
-            let read = reader.read_until(b'\n', &mut line)?;
-            if read == 0 {
-                break;
-            }
-            if !line.ends_with(b"\n") {
-                break;
-            }
-            let record = &line[..line.len() - 1];
-            let valid = serde_json::from_slice::<EnvoyFrame>(record)
-                .is_ok_and(|frame| event_identity(&frame).is_some());
-            if !valid {
-                break;
-            }
-            valid_len += read as u64;
-        }
-        if file.metadata()?.len() != valid_len {
-            file.set_len(valid_len)?;
-            file.seek(SeekFrom::Start(valid_len))?;
-            file.sync_all()?;
-        }
-        Ok(())
-    }
+fn next_value(db: &Connection, session_id: &str) -> Result<u64> {
+    let value: Option<i64> = db
+        .query_row(
+            "SELECT next_seq FROM execution_sequences WHERE session_id = ?1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    value
+        .map(from_sql_i64)
+        .transpose()
+        .map(|value| value.unwrap_or(0))
+}
 
-    fn path(&self, session_id: &str) -> PathBuf {
-        self.dir.join(format!("{}.jsonl", encode_name(session_id)))
-    }
+fn to_sql_i64(value: u64) -> Result<i64> {
+    i64::try_from(value).context("event sequence exceeds SQLite integer range")
+}
 
-    fn counter_path(&self, session_id: &str) -> PathBuf {
-        self.dir.join(format!("{}.seq", encode_name(session_id)))
-    }
-
-    fn persist_counter(&self, session_id: &str, next: u64) -> Result<()> {
-        let path = self.counter_path(session_id);
-        let tmp = path.with_extension("seq.tmp");
-        {
-            let mut file = File::create(&tmp)?;
-            writeln!(file, "{next}")?;
-            file.sync_all()?;
-        }
-        fs::rename(tmp, path)?;
-        sync_parent(&self.dir)
-    }
-
-    fn next_value(&self, session_id: &str, next: &HashMap<String, u64>) -> Result<u64> {
-        if let Some(value) = next.get(session_id).copied() {
-            return Ok(value);
-        }
-        let from_spool = self
-            .read(session_id, None)?
-            .last()
-            .and_then(event_seq)
-            .map_or(0, |seq| seq.saturating_add(1));
-        let from_counter = fs::read_to_string(self.counter_path(session_id))
-            .ok()
-            .and_then(|raw| raw.trim().parse::<u64>().ok())
-            .unwrap_or(0);
-        Ok(from_spool.max(from_counter))
-    }
+fn from_sql_i64(value: i64) -> Result<u64> {
+    u64::try_from(value).context("negative event sequence in SQLite")
 }
 
 fn event_identity(frame: &EnvoyFrame) -> Option<(&str, u64)> {
@@ -270,35 +225,10 @@ fn set_event_seq(frame: &mut EnvoyFrame, seq: u64) -> Option<()> {
     }
 }
 
-fn encode_name(value: &str) -> String {
-    value
-        .as_bytes()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
-fn decode_name(value: &str) -> Result<String> {
-    if !value.len().is_multiple_of(2) {
-        anyhow::bail!("invalid spool filename");
-    }
-    let bytes = (0..value.len())
-        .step_by(2)
-        .map(|index| u8::from_str_radix(&value[index..index + 2], 16))
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    String::from_utf8(bytes).context("spool filename is not utf-8")
-}
-
-fn sync_parent(dir: &Path) -> Result<()> {
-    File::open(dir)?.sync_all()?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use olympus_proto::agent::AgentEvent;
-
     use super::*;
+    use olympus_proto::agent::AgentEvent;
 
     fn event(session: &str, seq: u64) -> EnvoyFrame {
         EnvoyFrame::Event {
@@ -322,74 +252,59 @@ mod tests {
         assert_eq!(reopened.last_seq("s/1").unwrap(), Some(3));
         assert_eq!(reopened.next_seq("s/1").unwrap(), 4);
         reopened.acknowledge("s/1", 1).unwrap();
-        let replayed = reopened.read("s/1", Some(1)).unwrap();
         assert_eq!(
-            replayed.iter().filter_map(event_seq).collect::<Vec<_>>(),
+            reopened
+                .read("s/1", Some(1))
+                .unwrap()
+                .iter()
+                .filter_map(event_seq)
+                .collect::<Vec<_>>(),
             [2, 3]
         );
         reopened.acknowledge("s/1", 3).unwrap();
         assert!(reopened.read("s/1", None).unwrap().is_empty());
         drop(reopened);
-        let after_full_ack = EventSpool::open(dir.path()).unwrap();
-        assert_eq!(after_full_ack.next_seq("s/1").unwrap(), 4);
+        assert_eq!(
+            EventSpool::open(dir.path())
+                .unwrap()
+                .next_seq("s/1")
+                .unwrap(),
+            4
+        );
     }
 
     #[test]
-    fn truncated_tail_is_removed_on_reopen() {
+    fn stores_events_in_one_transactional_sqlite_database() {
         let dir = tempfile::tempdir().unwrap();
         let spool = EventSpool::open(dir.path()).unwrap();
-        spool.append(&event("s", 0)).unwrap();
-        let path = spool.path("s");
-        OpenOptions::new()
-            .append(true)
-            .open(&path)
-            .unwrap()
-            .write_all(b"{\"kind\":")
+        let mut frame = event("s/1", u64::MAX);
+        spool.append_next(&mut frame).unwrap();
+        drop(spool);
+
+        assert!(dir.path().join("envoy.sqlite").is_file());
+        assert!(!dir.path().join("spool").exists());
+        let db = Connection::open(dir.path().join("envoy.sqlite")).unwrap();
+        let row: (String, i64, i64) = db
+            .query_row(
+                "SELECT session_id, seq, acknowledged FROM execution_events",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
             .unwrap();
-        drop(spool);
-
-        let reopened = EventSpool::open(dir.path()).unwrap();
-        assert_eq!(reopened.read("s", None).unwrap(), vec![event("s", 0)]);
-        assert_eq!(reopened.next_seq("s").unwrap(), 1);
+        assert_eq!(row, ("s/1".into(), 0, 0));
     }
 
     #[test]
-    fn corrupt_record_discards_invalid_suffix() {
-        let dir = tempfile::tempdir().unwrap();
-        let spool = EventSpool::open(dir.path()).unwrap();
-        spool.append(&event("s", 0)).unwrap();
-        let path = spool.path("s");
-        let mut file = OpenOptions::new().append(true).open(path).unwrap();
-        file.write_all(b"not-json\n").unwrap();
-        serde_json::to_writer(&mut file, &event("s", 2)).unwrap();
-        file.write_all(b"\n").unwrap();
-        drop(spool);
-
-        let reopened = EventSpool::open(dir.path()).unwrap();
-        assert_eq!(reopened.read("s", None).unwrap(), vec![event("s", 0)]);
-    }
-
-    #[test]
-    fn cap_fails_closed_without_partial_record() {
-        let dir = tempfile::tempdir().unwrap();
-        let spool = EventSpool::with_cap(dir.path(), 1).unwrap();
-        let error = spool.append(&event("s", 0)).unwrap_err();
-        assert!(error.to_string().contains("SPOOL_OVERFLOW"));
-        assert!(spool.read("s", None).unwrap().is_empty());
-    }
-
-    #[test]
-    fn failed_atomic_append_does_not_consume_a_sequence() {
+    fn cap_fails_closed_without_consuming_sequence() {
         let dir = tempfile::tempdir().unwrap();
         let spool = EventSpool::with_cap(dir.path(), 1).unwrap();
         let mut first = event("s", u64::MAX);
         let mut second = event("s", u64::MAX);
-
         assert!(spool.append_next(&mut first).is_err());
         assert!(spool.append_next(&mut second).is_err());
         assert_eq!(event_seq(&first), Some(0));
         assert_eq!(event_seq(&second), Some(0));
-        assert!(!spool.counter_path("s").exists());
+        assert_eq!(spool.next_seq("s").unwrap(), 0);
         assert!(spool.read("s", None).unwrap().is_empty());
     }
 }
