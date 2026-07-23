@@ -208,10 +208,6 @@ fn event_identity(frame: &EnvoyFrame) -> Option<(&str, u64)> {
     }
 }
 
-fn event_seq(frame: &EnvoyFrame) -> Option<u64> {
-    event_identity(frame).map(|(_, seq)| seq)
-}
-
 fn set_event_seq(frame: &mut EnvoyFrame, seq: u64) -> Option<()> {
     match frame {
         EnvoyFrame::Event { seq: value, .. }
