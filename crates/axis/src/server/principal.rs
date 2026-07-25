@@ -82,6 +82,7 @@ pub fn route_class(path: &str) -> RouteClass<'_> {
         || path == "/api/organizations"
         || path == "/api/models"
         || path == "/api/agents"
+        || path == "/api/agents/catalog"
         || path == "/api/terminal/targets"
         || path == "/api/edge/static"
         || (path.starts_with("/api/agents/") && path.ends_with("/models"))
@@ -212,6 +213,24 @@ where
 mod tests {
     use super::*;
     use axum::http::StatusCode;
+
+    /// Regression: the session AgentPicker fetches /api/agents/catalog. It was
+    /// falling through to RouteClass::Operator, so browser logins got 403 and
+    /// the picker rendered "No matching agents" -- no session could be created
+    /// from the UI at all. Both agent read surfaces must stay User-class.
+    #[test]
+    fn agent_read_surfaces_are_user_class() {
+        for path in ["/api/agents", "/api/agents/catalog"] {
+            assert!(
+                matches!(route_class(path), RouteClass::User),
+                "{path} must be RouteClass::User so browser sessions can read it",
+            );
+        }
+        assert!(matches!(
+            route_class("/api/nodes/n1/agents/refresh"),
+            RouteClass::Operator
+        ));
+    }
 
     #[test]
     fn fleet_read_routes_are_admin_class() {
