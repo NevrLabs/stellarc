@@ -12,7 +12,7 @@ iroh public key.
 ## Root cause
 
 The first durable-inventory boot must seed legacy allowlist entries without a
-name because the old Hall persisted only public keys. `NodeRegistry::enroll`
+name because the old Axis persisted only public keys. `NodeRegistry::enroll`
 then inserted the supplied node ID without removing the placeholder carrying the
 same authenticated iroh identity. The later live-registration path already
 renamed by iroh identity, but the enrollment path did not share that invariant.

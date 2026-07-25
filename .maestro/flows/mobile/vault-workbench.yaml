@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/vaults
 name: Vault mobile Milkdown rich editor
 properties:
-  junitId: olympus-vault-workbench-mobile
+  junitId: stellarc-vault-workbench-mobile
   junitClassname: ui.mobile
 ---
 - launchApp

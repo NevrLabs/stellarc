@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Live project-workspace QA against an isolated Hall/Vite pair.
+"""Live project-workspace QA against an isolated Axis/Vite pair.
 
-Seeds disposable projects and draft sessions through Hall's installation token,
+Seeds disposable projects and draft sessions through Axis's installation token,
 then drives the real UI through Chromium CDP. The emitted state file can be
-verified from a second browser profile and again after a Hall restart.
+verified from a second browser profile and again after a Axis restart.
 """
 
 import argparse
@@ -18,7 +18,7 @@ import urllib.request
 import http.cookiejar
 from pathlib import Path
 
-qa_venv = os.path.expanduser(os.getenv("OLYMPUS_QA_VENV", "~/.cache/olympus-qa-venv"))
+qa_venv = os.path.expanduser(os.getenv("STELLARC_QA_VENV", "~/.cache/stellarc-qa-venv"))
 for site_packages in glob.glob(f"{qa_venv}/lib/python3.*/site-packages"):
     import sys
     sys.path.insert(0, site_packages)
@@ -54,7 +54,7 @@ def api_request(api_base, opener, origin, method, path, payload=None):
 
 def credentials():
     values = {}
-    source = Path.home() / ".config/olympus-dev/admin-credentials"
+    source = Path.home() / ".config/stellarc-dev/admin-credentials"
     for line in source.read_text().splitlines():
         key, value = line.split("=", 1)
         values[key] = value
@@ -202,7 +202,7 @@ async def project_panel_count(socket):
 
 
 async def refetch_project(socket, project_id):
-    await evaluate(socket, f"window.__olympusQa.refetchProject({json.dumps(project_id)})")
+    await evaluate(socket, f"window.__stellarcQa.refetchProject({json.dumps(project_id)})")
 
 
 async def wait_layout_idle(socket):
@@ -239,7 +239,7 @@ async def assert_project_layout_null(api_base, opener, ui_base, path, descriptio
     await asyncio.sleep(1)
     project = await asyncio.to_thread(api_request, api_base, opener, ui_base, "GET", path)
     if project.get("layout") is not None:
-        raise RuntimeError(f"{description} was written back instead of preserving Hall layout:null")
+        raise RuntimeError(f"{description} was written back instead of preserving Axis layout:null")
 
 
 async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, state_path):
@@ -290,7 +290,7 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, sta
             "Project A's two-pane layout",
         )
 
-        await evaluate(socket, f"localStorage.removeItem({json.dumps(f'olympus-project-layout:{project_a}')})")
+        await evaluate(socket, f"localStorage.removeItem({json.dumps(f'stellarc-project-layout:{project_a}')})")
         await command(socket, "Page.reload", {"ignoreCache": True})
         await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "server-only Project A restore")
 
@@ -330,13 +330,13 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, sta
         )
         await wait_layout_idle(socket)
 
-        # A fresh same-route Hall response must replace already-restored state.
+        # A fresh same-route Axis response must replace already-restored state.
         await asyncio.to_thread(
             api_request, api_base, opener, ui_base, "PUT",
             f"{scoped}/projects/{project_b}/layout", {"layout": None},
         )
         await refetch_project(socket, project_b)
-        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 0", "same-route Hall null for B")
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 0", "same-route Axis null for B")
         await wait_layout_idle(socket)
         await assert_project_layout_null(
             api_base, opener, ui_base, f"{scoped}/projects/{project_b}", "Project B clean authority",
@@ -346,9 +346,9 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, sta
             f"{scoped}/projects/{project_b}/layout", {"layout": remote_b["layout"]},
         )
         await refetch_project(socket, project_b)
-        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "same-route Hall recovery for B")
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "same-route Axis recovery for B")
 
-        # A cached React Query value must not beat a newer authoritative Hall
+        # A cached React Query value must not beat a newer authoritative Axis
         # null after that project has already been restored.
         await navigate_project(socket, ui_base, project_a)
         await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "Project A before authority refresh")
@@ -358,7 +358,7 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, sta
             f"{scoped}/projects/{project_a}/layout", {"layout": None},
         )
         await refetch_project(socket, project_a)
-        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 0", "same-route Hall null for A")
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 0", "same-route Axis null for A")
         await wait_layout_idle(socket)
         await assert_project_layout_null(
             api_base, opener, ui_base, f"{scoped}/projects/{project_a}", "Project A clean authority",
@@ -368,16 +368,16 @@ async def initial_probe(cdp, ui_base, api_base, opener, state, evidence_dir, sta
             f"{scoped}/projects/{project_a}/layout", {"layout": remote_a["layout"]},
         )
         await refetch_project(socket, project_a)
-        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "same-route Hall recovery for A")
+        await wait_for(socket, "document.querySelectorAll('.chat-view').length === 2", "same-route Axis recovery for A")
         await navigate_project(socket, ui_base, project_b)
         await wait_for(socket, "document.querySelectorAll('.chat-view').length === 1", "Project B after authority-cache check")
 
         cached_a = json.dumps(remote_a["layout"])
-        await evaluate(socket, f"localStorage.setItem({json.dumps(f'olympus-project-layout:{project_clean}')}, {json.dumps(cached_a)})")
+        await evaluate(socket, f"localStorage.setItem({json.dumps(f'stellarc-project-layout:{project_clean}')}, {json.dumps(cached_a)})")
         await navigate_project(socket, ui_base, project_clean)
         await asyncio.sleep(1)
         if await project_panel_count(socket) != 0:
-            raise RuntimeError("authoritative Hall layout:null was overridden by stale browser cache")
+            raise RuntimeError("authoritative Axis layout:null was overridden by stale browser cache")
 
         await navigate_project(socket, ui_base, project_deleted)
         await wait_for(socket, f"!!document.querySelector('[data-session-id={json.dumps(deleted_session)}]')", "deleted-project session row before deletion")

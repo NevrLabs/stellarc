@@ -22,7 +22,7 @@ export default defineConfig(({ mode, command }) => {
       allowedHosts,
       proxy: {
         // changeOrigin rewrites Host to the proxy target, which would make the
-        // Hall derive 127.0.0.1:8799 as its public base URL (breaks the
+        // Axis derive 127.0.0.1:8799 as its public base URL (breaks the
         // enrollment installer). Forward the original host so derive_base_url
         // sees the real external hostname.
         "/api": {
@@ -40,7 +40,7 @@ export default defineConfig(({ mode, command }) => {
       },
     },
     define: {
-      // Never compile mock mode or an alternate Hall into production. Source
+      // Never compile mock mode or an alternate Axis into production. Source
       // also checks development mode, but build configuration is the outer
       // fail-closed boundary.
       "import.meta.env.VITE_USE_MOCKS": JSON.stringify(

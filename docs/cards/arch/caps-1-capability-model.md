@@ -10,20 +10,20 @@ only on fork (never expanded), evaluated at the ARCH-A Principal/OrgScope seam.
   principles 9/12 and the capability-ID vocabulary reservation.
 - `docs/adrs/0011-jobs-mcp-capabilities-sandboxing.md` §4 — the spec: paths
   (readable/writable), allowed tools, linked repos/vaults, resource limits,
-  can_fork; signed by Hall; validated on every call.
+  can_fork; signed by Axis; validated on every call.
 - `docs/adrs/0013-workflow-kernel-bounded-chains.md` — capability re-check at
   step dispatch is a future consumer of your evaluation function; design the
   seam so it can be called per-operation, not just per-request.
-- `crates/control-plane/src/server/principal.rs` — the merged ARCH-A seam you
+- `crates/axis/src/server/principal.rs` — the merged ARCH-A seam you
   extend. Read its authorize() matrix and tests fully.
-- `crates/control-plane/src/server/routes/sessions.rs` — fork/subsession
+- `crates/axis/src/server/routes/sessions.rs` — fork/subsession
   creation paths (post-ARCH-B layout).
-- `crates/control-plane/src/event.rs` + `log.rs` — events are JSON+zstd now
+- `crates/axis/src/event.rs` + `log.rs` — events are JSON+zstd now
   (ARCH-D); additive fields use #[serde(default)]; NEVER positional reshaping.
 
 ## Build on
-Current main. ARCH-E/ARCH-F run concurrently in crates/envoy + sync/import —
-DO NOT touch crates/envoy, sync.rs, import.rs, or crates/proto. Your surface
+Current main. ARCH-E/ARCH-F run concurrently in crates/orbit + sync/import —
+DO NOT touch crates/orbit, sync.rs, import.rs, or crates/proto. Your surface
 is control-plane server/auth/views/event only. If you believe you need a proto
 change, STOP and signal blocked with the reason instead.
 
@@ -43,11 +43,11 @@ change, STOP and signal blocked with the reason instead.
    happens. Sessions with no capability record = full legacy grant (negative-
    polarity migration per operator convention: new enforcement ON for
    capability-carrying sessions, absent record = legacy behavior).
-4. Signing: capability sets are stamped by Hall with an HMAC (key material in
-   `~/.olympus/`, 0600, same pattern as the installation token) so envoy-side
-   validation is possible later WITHOUT a Hall round-trip (ADR 0011 says
-   "signed by Hall, validated on every call" — v1 validates Hall-side; the
-   signature makes envoy-side validation additive later). Do NOT log key or
+4. Signing: capability sets are stamped by Axis with an HMAC (key material in
+   `~/.stellarc/`, 0600, same pattern as the installation token) so orbit-side
+   validation is possible later WITHOUT a Axis round-trip (ADR 0011 says
+   "signed by Axis, validated on every call" — v1 validates Axis-side; the
+   signature makes orbit-side validation additive later). Do NOT log key or
    signature material.
 5. Reserve (constants + doc comment, no enforcement yet) the ADR 0012
    authority IDs: `workflow.{list,execute,draft.create,publish,...}`,

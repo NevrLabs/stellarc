@@ -2,7 +2,7 @@
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
-**Goal:** Migrate Olympus from the current Vue/Koa/SQLite-style web UI into a separated React + self-hosted Convex control plane with a thin Bun host runtime adapter over Hermes Agent.
+**Goal:** Migrate Stellarc from the current Vue/Koa/SQLite-style web UI into a separated React + self-hosted Convex control plane with a thin Bun host runtime adapter over Hermes Agent.
 
 **Architecture:** Convex owns durable truth, realtime subscriptions, agent/session/message state, tool-call lifecycle, and runtime command/event orchestration. A small Bun runtime runs on the host, claims runtime commands from Convex, executes privileged host effects through Hermes, and writes structured events back. React is a Convex-subscribed UI, not a second backend.
 
@@ -12,7 +12,7 @@
 
 ## Architecture Doctrine
 
-> Olympus is the product/control plane. Convex is the brain and memory. Bun is the host-side hands. Hermes remains the current execution engine behind a thin adapter.
+> Stellarc is the product/control plane. Convex is the brain and memory. Bun is the host-side hands. Hermes remains the current execution engine behind a thin adapter.
 
 ### Ownership Matrix
 
@@ -35,12 +35,12 @@
 
 ## Dev Environment Doctrine
 
-Development must be fully separated from the current installed Olympus/Hermes environment.
+Development must be fully separated from the current installed Stellarc/Hermes environment.
 
 ### Directory Layout
 
 ```text
-/home/rpw/olympus-next/
+/home/rpw/stellarc-next/
   apps/
     web/              # React frontend
     runtime/          # Bun host runtime adapter
@@ -60,10 +60,10 @@ Development must be fully separated from the current installed Olympus/Hermes en
 
 | Service | Port | Notes |
 |---|---:|---|
-| React dev server | 5177 | Avoid current Olympus/Vite defaults. |
+| React dev server | 5177 | Avoid current Stellarc/Vite defaults. |
 | Convex local/self-host | Convex default/local configured | Use isolated deployment name. |
 | Bun runtime health | 8791 | Localhost only. |
-| Current Olympus legacy | 8787 | Keep running separately for comparison. |
+| Current Stellarc legacy | 8787 | Keep running separately for comparison. |
 
 ### Environment Files
 
@@ -78,9 +78,9 @@ Required environment variables should be explicit:
 
 ```text
 CONVEX_URL=
-OLYMPUS_RUNTIME_ID=local-dev
-OLYMPUS_RUNTIME_TOKEN=
-OLYMPUS_RUNTIME_HEALTH_PORT=8791
+STELLARC_RUNTIME_ID=local-dev
+STELLARC_RUNTIME_TOKEN=
+STELLARC_RUNTIME_HEALTH_PORT=8791
 HERMES_HOME=/home/rpw/.hermes
 HERMES_BIN=hermes
 ```
@@ -121,7 +121,7 @@ Compile the Bun runtime adapter to a single executable:
 bun build apps/runtime/src/main.ts \
   --compile \
   --target=bun-linux-x64 \
-  --outfile=dist/olympus-runtime
+  --outfile=dist/stellarc-runtime
 ```
 
 The binary should include only the host adapter, not Convex itself.
@@ -143,7 +143,7 @@ For a self-contained local app, Bun can embed or copy static assets near the exe
 
 ```text
 dist/
-  olympus-runtime
+  stellarc-runtime
   web/
     index.html
     assets/...
@@ -217,10 +217,10 @@ Use a schema library that works in Bun and browser code. Prefer `zod` initially 
 
 ### Task 0.1: Create isolated workspace
 
-**Objective:** Keep the new architecture isolated from the current maintained Olympus runtime.
+**Objective:** Keep the new architecture isolated from the current maintained Stellarc runtime.
 
 **Files:**
-- Create: `/home/rpw/olympus-next/`
+- Create: `/home/rpw/stellarc-next/`
 
 **Steps:**
 1. Create repo/workspace directory.
@@ -231,7 +231,7 @@ Use a schema library that works in Bun and browser code. Prefer `zod` initially 
 **Verification:**
 
 ```bash
-cd /home/rpw/olympus-next
+cd /home/rpw/stellarc-next
 git status --short
 ```
 
@@ -250,7 +250,7 @@ Expected: clean after commit.
 
 ```json
 {
-  "name": "@ieatcodedaily/olympus-next",
+  "name": "@ieatcodedaily/stellarc-next",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.5",
@@ -259,12 +259,12 @@ Expected: clean after commit.
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter @olympus/web dev",
+    "dev": "bun run --filter @stellarc/web dev",
     "build": "bun run protocol:check && bun run web:build && bun run runtime:build",
     "protocol:check": "bun test packages/protocol",
-    "web:build": "bun run --filter @olympus/web build",
+    "web:build": "bun run --filter @stellarc/web build",
     "runtime:dev": "bun run apps/runtime/src/main.ts",
-    "runtime:build": "bun build apps/runtime/src/main.ts --compile --target=bun-linux-x64 --outfile=dist/olympus-runtime"
+    "runtime:build": "bun build apps/runtime/src/main.ts --compile --target=bun-linux-x64 --outfile=dist/stellarc-runtime"
   }
 }
 ```
@@ -284,7 +284,7 @@ Expected: succeeds with `bun.lock`, no `package-lock.json`.
 
 ### Task 1.1: Add Convex project
 
-**Objective:** Create local Convex backend structure without replacing existing Olympus APIs.
+**Objective:** Create local Convex backend structure without replacing existing Stellarc APIs.
 
 **Files:**
 - Create: `convex/schema.ts`
@@ -365,7 +365,7 @@ Expected: protocol parsing tests pass.
 - Create: `apps/runtime/src/heartbeat.ts`
 
 **Behavior:**
-- Reads `CONVEX_URL`, `OLYMPUS_RUNTIME_ID`, `OLYMPUS_RUNTIME_TOKEN`.
+- Reads `CONVEX_URL`, `STELLARC_RUNTIME_ID`, `STELLARC_RUNTIME_TOKEN`.
 - Writes heartbeat every 10s.
 - Exposes `GET /healthz` on localhost.
 
@@ -436,7 +436,7 @@ export interface AgentRuntime {
 ```bash
 bun add -d vite typescript @vitejs/plugin-react
 bun add react react-dom convex
-bun run --filter @olympus/web dev --host 127.0.0.1 --port 5177
+bun run --filter @stellarc/web dev --host 127.0.0.1 --port 5177
 ```
 
 **Verification:**
@@ -492,7 +492,7 @@ React submit message
 
 ```bash
 bun run runtime:build
-./dist/olympus-runtime --version
+./dist/stellarc-runtime --version
 ```
 
 **Expected:** version output and no Bun install required for runtime execution.
@@ -519,7 +519,7 @@ bun run web:build
 
 ## Phase 7 — Migration Gates
 
-Do not retire current Olympus until these pass:
+Do not retire current Stellarc until these pass:
 
 - [ ] Runtime heartbeat visible in React.
 - [ ] One chat run works end-to-end.
@@ -527,7 +527,7 @@ Do not retire current Olympus until these pass:
 - [ ] Tool-call event lifecycle works.
 - [ ] Terminal prototype works or is explicitly deferred.
 - [ ] File read prototype works with path guardrails.
-- [ ] Existing Olympus remains runnable on `8787` during migration.
+- [ ] Existing Stellarc remains runnable on `8787` during migration.
 - [ ] New stack runs on separate ports and separate Convex deployment.
 - [ ] No production profile/secrets are copied into Convex unintentionally.
 
@@ -535,12 +535,12 @@ Do not retire current Olympus until these pass:
 
 ## Open Decisions
 
-1. Should `/home/rpw/olympus-next` be a separate repo or a branch/subdirectory inside `IEatCodeDaily/olympus`?
+1. Should `/home/rpw/stellarc-next` be a separate repo or a branch/subdirectory inside `nevrlabs/stellarc`?
    - Recommendation: separate workspace/repo until first E2E slice works, then merge or replace.
 2. Should runtime command delivery use polling first or Convex subscriptions?
    - Recommendation: polling first for simplicity; subscription later if latency matters.
 3. Should static frontend assets be embedded in the Bun binary for v1?
-   - Recommendation: no. Ship `dist/olympus-runtime` + `dist/web/` first. Embed later.
+   - Recommendation: no. Ship `dist/stellarc-runtime` + `dist/web/` first. Embed later.
 4. Should Hermes bridge access be via CLI, Python bridge socket, or direct module call?
    - Recommendation: CLI/socket first; direct module only after adapter tests exist.
 
@@ -554,13 +554,13 @@ Milestone 1 is complete when this command sequence works from a clean dev checko
 bun install
 bunx convex dev
 bun run runtime:dev
-bun run --filter @olympus/web dev --port 5177
+bun run --filter @stellarc/web dev --port 5177
 ```
 
 And the React app shows:
 
 ```text
-Olympus Runtime: online
+Stellarc Runtime: online
 Convex: connected
 Hermes adapter: detected
 ```

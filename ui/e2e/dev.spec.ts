@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const baseURL = process.env.OLYMPUS_DEV_BASE_URL ?? "http://127.0.0.1:5177";
-const username = process.env.OLYMPUS_DEV_USERNAME;
-const password = process.env.OLYMPUS_DEV_PASSWORD;
+const baseURL = process.env.STELLARC_DEV_BASE_URL ?? "http://127.0.0.1:5177";
+const username = process.env.STELLARC_DEV_USERNAME;
+const password = process.env.STELLARC_DEV_PASSWORD;
 
 async function drag(page: Page, handle: Locator, dx: number, dy: number) {
   const box = await handle.boundingBox();

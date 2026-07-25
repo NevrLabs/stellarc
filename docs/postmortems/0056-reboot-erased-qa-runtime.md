@@ -14,8 +14,8 @@ The harness treated `/tmp` as both disposable artifact storage and dependency st
 
 ## Fix
 
-- Default all committed CDP probes to `~/.cache/olympus-qa-venv`.
-- Support `OLYMPUS_QA_VENV` as an explicit override.
+- Default all committed CDP probes to `~/.cache/stellarc-qa-venv`.
+- Support `STELLARC_QA_VENV` as an explicit override.
 - Document `uv venv`/`uv pip install` setup and keep only profiles, screenshots, and disposable state under `/tmp/oly-qa`.
 
 ## Prevention

@@ -107,7 +107,7 @@ interface ProjectLayoutStorage {
   removeItem(key: string): void;
 }
 
-/** Browser-side write journal for layouts not yet acknowledged by Hall. */
+/** Browser-side write journal for layouts not yet acknowledged by Axis. */
 export class ProjectLayoutJournal<T> {
   constructor(
     private readonly storage: () => ProjectLayoutStorage,
@@ -120,7 +120,7 @@ export class ProjectLayoutJournal<T> {
       this.storage().setItem(this.cacheKey(projectId), encoded);
       this.storage().setItem(this.pendingKey(projectId), encoded);
     } catch {
-      // Hall persistence still runs; callers surface its failures separately.
+      // Axis persistence still runs; callers surface its failures separately.
     }
   }
 
@@ -173,10 +173,10 @@ export class ProjectLayoutJournal<T> {
   }
 
   private cacheKey(projectId: string): string {
-    return `olympus-project-layout:${projectId}`;
+    return `stellarc-project-layout:${projectId}`;
   }
 
   private pendingKey(projectId: string): string {
-    return `olympus-project-layout-pending:${projectId}`;
+    return `stellarc-project-layout-pending:${projectId}`;
   }
 }

@@ -65,7 +65,7 @@ done
 
 # 5. Summary manifest
 cat > "$OUT/manifest.txt" <<EOF
-Olympus E2E Evidence Bundle
+Stellarc E2E Evidence Bundle
 Timestamp: $TS
 Videos: $count_videos
 Screenshots: $count_shots

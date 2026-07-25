@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions/history
 name: Observed session forks into a managed session
 properties:
-  junitId: olympus-session-fork
+  junitId: stellarc-session-fork
   junitClassname: ui.mock
 ---
 - launchApp

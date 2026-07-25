@@ -152,7 +152,7 @@ export function VaultWorkspace({
           savedVaultLayouts.set(surface, remote);
           if (initialTab) openPanel(initialTab);
         } catch {
-          // Keep the local/default dock layout if Hall has stale state.
+          // Keep the local/default dock layout if Axis has stale state.
         }
       });
       if (initialTab) openPanel(initialTab);
@@ -167,10 +167,10 @@ export function VaultWorkspace({
         if (tab) onCloseTab(tab);
       });
       const dragOverDisposable = event.api.onUnhandledDragOver((dragEvent) => {
-        if (hasDragType(dragEvent.nativeEvent, "application/x-olympus-vault-note")) dragEvent.accept();
+        if (hasDragType(dragEvent.nativeEvent, "application/x-stellarc-vault-note")) dragEvent.accept();
       });
       const dropDisposable = event.api.onDidDrop((dropEvent) => {
-        const payload = dragPayload(dropEvent.nativeEvent, "application/x-olympus-vault-note") as { path?: string; title?: string } | null;
+        const payload = dragPayload(dropEvent.nativeEvent, "application/x-stellarc-vault-note") as { path?: string; title?: string } | null;
         if (payload?.path) openPanel(noteTab(payload.path, payload.title), dropEvent);
       });
       return () => {
@@ -187,7 +187,7 @@ export function VaultWorkspace({
   return (
     <div className="vault-workspace-shell">
       <DockviewReact
-        className="dockview-theme-abyss olympus-dockview vault-dockview"
+        className="dockview-theme-abyss stellarc-dockview vault-dockview"
         components={{ "vault-panel": VaultPanel }}
         defaultTabComponent={VaultTab}
         onReady={handleReady}

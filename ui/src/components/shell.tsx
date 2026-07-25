@@ -1,4 +1,4 @@
-// Shared shell primitives for Olympus views. View workers build on these so
+// Shared shell primitives for Stellarc views. View workers build on these so
 // every screen feels consistent. All styling via CSS-variable classes (themeable).
 //
 // IMPORTANT: these emit the LIVE class vocabulary in ui/src/index.css

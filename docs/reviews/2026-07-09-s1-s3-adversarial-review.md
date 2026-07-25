@@ -1,29 +1,29 @@
-# Adversarial Code Review — S1/S2/S3 Hall-Envoy Split
+# Adversarial Code Review — S1/S2/S3 Axis-Orbit Split
 
 **Date:** 2026-07-09  
 **Reviewer:** Hermes Agent (adversarial subagent)  
-**Scope:** all commits since `652bf94` (S1 proto, S2 envoy lib, S3 partial)  
+**Scope:** all commits since `652bf94` (S1 proto, S2 orbit lib, S3 partial)  
 **Commits reviewed:**
-- `652bf94` feat(proto): extract olympus-proto shared wire-type crate (S1)
-- `e5fa237` feat(envoy): extract envoy library crate (S2)
-- `9892fae` feat(envoy): olympus-envoy binary + olympus-hall bin name + envoy_conn module (S3 partial)
+- `652bf94` feat(proto): extract stellarc-proto shared wire-type crate (S1)
+- `e5fa237` feat(orbit): extract orbit library crate (S2)
+- `9892fae` feat(orbit): stellarc-orbit binary + stellarc-axis bin name + orbit_conn module (S3 partial)
 
-**Design references:** ADR 0008 (`docs/adrs/0008-hall-envoy-split-rolling-deploy.md`),  
-plan (`docs/plans/2026-07-09-hall-envoy-split.md`), postmortem 0001.
+**Design references:** ADR 0008 (`docs/adrs/0008-axis-orbit-split-rolling-deploy.md`),  
+plan (`docs/plans/2026-07-09-axis-orbit-split.md`), postmortem 0001.
 
 ---
 
 ## Summary
 
 The code compiles (`cargo check --workspace` passes, proto tests: 14/14 green). The
-crate graph is acyclic (`proto` is a true leaf, `envoy → proto`, `control-plane → proto + envoy`). The
-serde tag strategy is consistent (`tag = "kind"`, `rename_all = "snake_case"` on both `HallFrame` and
-`EnvoyFrame`, with explicit camelCase renames on field names). The ADR §1 frame families are complete.
+crate graph is acyclic (`proto` is a true leaf, `orbit → proto`, `control-plane → proto + orbit`). The
+serde tag strategy is consistent (`tag = "kind"`, `rename_all = "snake_case"` on both `AxisFrame` and
+`OrbitFrame`, with explicit camelCase renames on field names). The ADR §1 frame families are complete.
 
 However, there are **3 BLOCKERs**, **5 RISKs**, and several NITs. The most critical: the
 postmortem 0001 error-rendering fix (`{e:#}`) was **never applied** — it's still plain `{e}` at
-every user-facing error site. The `envoy_conn` module is entirely dead code (S3 is partial). And
-the envoy binary's event drain loop will **hang forever** on real ACP runtimes because it never
+every user-facing error site. The `orbit_conn` module is entirely dead code (S3 is partial). And
+the orbit binary's event drain loop will **hang forever** on real ACP runtimes because it never
 breaks on `AgentEvent::Done`.
 
 ---
@@ -32,7 +32,7 @@ breaks on `AgentEvent::Done`.
 
 ### B1 — Postmortem 0001 error fix was never applied: all user-facing errors still use `{e}` not `{e:#}`
 
-**File:** `crates/control-plane/src/server/mod.rs:2493` (and 14+ other sites)  
+**File:** `crates/axis/src/server/mod.rs:2493` (and 14+ other sites)  
 **Classification:** BLOCKER  
 **Postmortem ref:** `docs/postmortems/0001-acp-deps-missing.md` §"Fix" item 1
 
@@ -43,9 +43,9 @@ codebase.** The postmortem claims the fix was applied and verified end-to-end, b
 disagrees:
 
 ```
-$ grep -c '{e:#}' crates/control-plane/src/server/mod.rs
+$ grep -c '{e:#}' crates/axis/src/server/mod.rs
 0
-$ grep -c '{e}' crates/control-plane/src/server/mod.rs
+$ grep -c '{e}' crates/axis/src/server/mod.rs
 14
 ```
 
@@ -65,7 +65,7 @@ And the same pattern at every other user-facing error surface:
 that hide the real cause — is still live. The plan's standing rule explicitly states:
 > "anyhow errors rendered `{e:#}` (postmortem 0001)"
 
-This is violated everywhere in the existing monolith code. (The new envoy binary at `main.rs:250`
+This is violated everywhere in the existing monolith code. (The new orbit binary at `main.rs:250`
 etc. correctly uses `{e:#}`, making the inconsistency more egregious.)
 
 **Fix:** `grep -rn 'format!("{e}")' crates/` and replace every user-facing occurrence with
@@ -73,15 +73,15 @@ etc. correctly uses `{e:#}`, making the inconsistency more egregious.)
 
 ---
 
-### B2 — Envoy binary event drain loop never terminates: hangs on real ACP runtimes
+### B2 — Orbit binary event drain loop never terminates: hangs on real ACP runtimes
 
-**File:** `crates/envoy/src/main.rs:354-368`  
+**File:** `crates/orbit/src/main.rs:354-368`  
 **Classification:** BLOCKER
 
 ```rust
 let mut events = runtime.events();       // broadcast stream
 while let Some(event) = events.next().await {   // <-- never breaks
-    // ... forward as EnvoyFrame::Event ...
+    // ... forward as OrbitFrame::Event ...
 }
 ```
 
@@ -102,22 +102,22 @@ AgentEvent::Done { finish_reason } => {
 }
 ```
 
-The envoy binary has no such `break`. This means:
+The orbit binary has no such `break`. This means:
 - With the mock runtime, the drain happens to work because the mock sends Text + Done in a single
   spawned task, and then the stream blocks (the spawned dispatch task never returns, but the next
   prompt arrives and the same runtime is reused, so the blocked stream sees the next turn's events
   too — interleaving events from different turns).
 - With a real ACP runtime, the first prompt's drain will block forever after `Done`, the
-  `send_resp` for that prompt's `reqId` will never fire, and Hall will time out waiting for the
+  `send_resp` for that prompt's `reqId` will never fire, and Axis will time out waiting for the
   response. Subsequent prompts for the same session will be queued behind the blocked drain.
 
-**Impact:** The envoy binary is non-functional for real agent sessions. Every prompt hangs after
-the turn completes. The envoy can never send a `resp` back for any prompt/steer.
+**Impact:** The orbit binary is non-functional for real agent sessions. Every prompt hangs after
+the turn completes. The orbit can never send a `resp` back for any prompt/steer.
 
 **Fix:** Break on terminal events:
 ```rust
 while let Some(event) = events.next().await {
-    // ... forward as EnvoyFrame::Event ...
+    // ... forward as OrbitFrame::Event ...
     let is_terminal = matches!(
         &event,
         AgentEvent::Done { .. } | AgentEvent::Error(_)
@@ -133,7 +133,7 @@ while let Some(event) = events.next().await {
 
 ### B3 — `send_and_stream` races: subscribes to events AFTER sending the command
 
-**File:** `crates/envoy/src/main.rs:348-354`  
+**File:** `crates/orbit/src/main.rs:348-354`  
 **Classification:** BLOCKER
 
 ```rust
@@ -157,7 +157,7 @@ The monolith explicitly documents this and avoids it (`server/mod.rs:2572-2574`)
 
 But it subscribes on line 2552 (`let mut stream = runtime.events();`) before `send()` on line 2575.
 
-The envoy binary does it in the wrong order.
+The orbit binary does it in the wrong order.
 
 **Impact:** Events from the beginning of a turn (or the entire turn if fast) are silently dropped.
 The drain loop may hang (no events to drain, channel stays open) or deliver a truncated reply.
@@ -172,24 +172,24 @@ runtime.send(cmd).await.context("sending command to runtime")?;
 
 ## RISKs
 
-### R1 — EnvoyConn module is entirely dead code; S3 is more partial than the plan claims
+### R1 — OrbitConn module is entirely dead code; S3 is more partial than the plan claims
 
-**File:** `crates/control-plane/src/server/envoy_conn.rs` (entire file, 209 lines)  
+**File:** `crates/axis/src/server/orbit_conn.rs` (entire file, 209 lines)  
 **Classification:** RISK
 
-`EnvoyConnection::new` is never called anywhere in the codebase (confirmed by grep + cargo dead-code
-warning). `EnvoyConnections` is never instantiated. `EventSink` is defined but never used. The
-module is `pub mod envoy_conn;` in `mod.rs` but nothing references it.
+`OrbitConnection::new` is never called anywhere in the codebase (confirmed by grep + cargo dead-code
+warning). `OrbitConnections` is never instantiated. `EventSink` is defined but never used. The
+module is `pub mod orbit_conn;` in `mod.rs` but nothing references it.
 
 The plan's Status Ledger says:
-> S3 binaries+RPC | PARTIAL | ... envoy bin + hall bin name + envoy_conn module; RemoteRuntime +
+> S3 binaries+RPC | PARTIAL | ... orbit bin + axis bin name + orbit_conn module; RemoteRuntime +
 > UDS session dispatch + integration test TODO
 
-This is accurate — the Hall side of the UDS session-RPC (the read loop dispatch, `RemoteRuntime`
-factory, integration test) is not implemented. But the `envoy_conn.rs` code as committed cannot be
+This is accurate — the Axis side of the UDS session-RPC (the read loop dispatch, `RemoteRuntime`
+factory, integration test) is not implemented. But the `orbit_conn.rs` code as committed cannot be
 exercised or tested — it's dead code that will likely bit-rot before S3 completion.
 
-**Impact:** No functional impact yet (dead code), but the `EnvoyConnection` design has not been
+**Impact:** No functional impact yet (dead code), but the `OrbitConnection` design has not been
 validated against the actual node.rs read loop. When S3 is completed, the wiring may reveal design
 flaws that could have been caught now.
 
@@ -200,14 +200,14 @@ gate the module behind `#[cfg(test)]` until it's wired. At minimum, document tha
 
 ### R2 — Heartbeat task leaks on disconnect (never aborted)
 
-**File:** `crates/envoy/src/main.rs:176-191`  
+**File:** `crates/orbit/src/main.rs:176-191`  
 **Classification:** RISK
 
 ```rust
 tokio::spawn(async move {
     loop {
         tokio::time::sleep(HEARTBEAT_INTERVAL).await;
-        let hb = EnvoyFrame::Heartbeat { ... };
+        let hb = OrbitFrame::Heartbeat { ... };
         if hb_conn.send_frame(&hb).await.is_err() {
             break;
         }
@@ -216,10 +216,10 @@ tokio::spawn(async move {
 ```
 
 The heartbeat task is spawned and then forgotten — its `JoinHandle` is dropped (not stored). When
-the read loop exits (line 198-228, Hall disconnect), `run_connection` returns `Ok(())` and the
+the read loop exits (line 198-228, Axis disconnect), `run_connection` returns `Ok(())` and the
 function exits. The heartbeat task is still running.
 
-The heartbeat task **will** eventually break on its own: when Hall disconnects, `send_frame` will
+The heartbeat task **will** eventually break on its own: when Axis disconnects, `send_frame` will
 error (the UDS write half is broken), and the `is_err()` check will break the loop. But there's a
 race: between the read loop detecting EOF and the heartbeat task's next `send_frame` attempt (up to
 `HEARTBEAT_INTERVAL` = 10 seconds later), the heartbeat task holds an `Arc<Conn>` clone, keeping the
@@ -239,7 +239,7 @@ reconnect semantics require), this pattern will leak a heartbeat task per reconn
 
 ### R3 — `stderr` still uses `Stdio::inherit()` despite postmortem 0001 claiming it was fixed
 
-**File:** `crates/envoy/src/bridge/hermes.rs:534, 632`  
+**File:** `crates/orbit/src/bridge/hermes.rs:534, 632`  
 **Classification:** RISK
 
 Postmortem 0001 §"Fix" item 3 states:
@@ -254,7 +254,7 @@ cmd.stderr(Stdio::inherit());                                 (line 632, in fork
 
 There is no `spawn_stderr_capture`, no `tail_or_empty`, no `try_wait` early-exit detection. The
 postmortem describes fixes that are not in the code. (They may have been lost during the S2 move
-from `control-plane/src/bridge/` to `envoy/src/bridge/`, or they were never committed.)
+from `control-plane/src/bridge/` to `orbit/src/bridge/`, or they were never committed.)
 
 **Impact:** When the agent child dies early (e.g., binary not found, crash during init), the error
 runs out the full 30-second `start_timeout_secs` timeout instead of failing fast with the stderr
@@ -265,9 +265,9 @@ postmortem to reflect the actual state.
 
 ---
 
-### R4 — `send_request` in envoy_conn holds pending lock during writer lock acquisition — potential deadlock under load
+### R4 — `send_request` in orbit_conn holds pending lock during writer lock acquisition — potential deadlock under load
 
-**File:** `crates/control-plane/src/server/envoy_conn.rs:73-84`  
+**File:** `crates/axis/src/server/orbit_conn.rs:73-84`  
 **Classification:** RISK
 
 ```rust
@@ -318,23 +318,23 @@ Or use a single combined lock. At minimum, document the lock ordering requiremen
 pub fn current() -> Self {
     Self {
         semver: env!("CARGO_PKG_VERSION").to_string(),     // always "0.1.0" (proto crate version)
-        git_hash: env!("OLYMPUS_GIT_HASH").to_string(),
-        built_at: env!("OLYMPUS_BUILT_AT").to_string(),
+        git_hash: env!("STELLARC_GIT_HASH").to_string(),
+        built_at: env!("STELLARC_BUILT_AT").to_string(),
     }
 }
 ```
 
-`env!("CARGO_PKG_VERSION")` is evaluated in the crate where `current()` is defined (`olympus-proto`),
+`env!("CARGO_PKG_VERSION")` is evaluated in the crate where `current()` is defined (`stellarc-proto`),
 so `semver` is always `"0.1.0"` (the proto crate's version from `Cargo.toml`), regardless of which
-binary calls it. ADR §1 says `version` is the envoy's **build identity** — the version of the envoy
+binary calls it. ADR §1 says `version` is the orbit's **build identity** — the version of the orbit
 binary, not the proto crate.
 
 The git hash and build timestamp come from `build.rs` and are workspace-wide (correct), but the
-semver is misleading. If `olympus-envoy` is at version `0.2.0` and `olympus-proto` is at `0.1.0`,
+semver is misleading. If `stellarc-orbit` is at version `0.2.0` and `stellarc-proto` is at `0.1.0`,
 the hello frame will report `semver: "0.1.0"`.
 
 **Impact:** The Nodes UI and drain decisions that key on `version.semver` will see the proto
-crate version, not the envoy binary version. The git hash is the real discriminator, so this is
+crate version, not the orbit binary version. The git hash is the real discriminator, so this is
 not blocking, but the semver field is semantically wrong.
 
 **Fix:** Either remove `semver` from `BuildVersion` (git hash is sufficient per ADR), pass the
@@ -346,7 +346,7 @@ binary's version as a parameter, or use `option_env!` in the binary and pass it 
 
 ### N1 — `_turn_id` assigned but never used in `send_and_stream`
 
-**File:** `crates/envoy/src/main.rs:346`  
+**File:** `crates/orbit/src/main.rs:346`  
 **Classification:** NIT
 
 ```rust
@@ -366,7 +366,7 @@ effect.
 
 ### N2 — `next_turn` increments before formatting, but `next_turn_id_for_event` reads without incrementing — naming mismatch
 
-**File:** `crates/envoy/src/main.rs:111-116, 379-384`  
+**File:** `crates/orbit/src/main.rs:111-116, 379-384`  
 **Classification:** NIT
 
 `next_turn` (line 111) increments the counter then returns `format!("turn-{}", v)` with the
@@ -380,31 +380,31 @@ incrementing. This means the first turn gets id `turn-1` (from `next_turn`), and
 
 ---
 
-### N3 — Postmortem 0001 references stale file paths (`crates/control-plane/src/bridge/hermes.rs`)
+### N3 — Postmortem 0001 references stale file paths (`crates/axis/src/bridge/hermes.rs`)
 
 **File:** `docs/postmortems/0001-acp-deps-missing.md:6, 149`  
 **Classification:** NIT
 
-The postmortem references `crates/control-plane/src/bridge/hermes.rs` which has been moved to
-`crates/envoy/src/bridge/hermes.rs` by the S2 extraction. The "Affected code" and "Related" sections
+The postmortem references `crates/axis/src/bridge/hermes.rs` which has been moved to
+`crates/orbit/src/bridge/hermes.rs` by the S2 extraction. The "Affected code" and "Related" sections
 should be updated.
 
 ---
 
 ### N4 — `Probe` handler re-runs `discover_local_agents()` on every probe — potentially slow
 
-**File:** `crates/envoy/src/main.rs:322`  
+**File:** `crates/orbit/src/main.rs:322`  
 **Classification:** NIT
 
 ```rust
-HallFrame::Probe { req_id } => {
+AxisFrame::Probe { req_id } => {
     let agents = discovery::discover_local_agents();   // fresh discovery each time
 ```
 
 This is intentional per the ADR ("no process-lifetime cache, so a manual refresh picks up newly-
 installed CLIs") and matches the `discover_cli_harnesses_now` doc comment. But
 `discover_local_agents()` calls `command_version_with_timeout` with a 2-second timeout per CLI, so
-a probe on a host with both `claude` and `codex` installed takes up to 4 seconds. Hall's health-gate
+a probe on a host with both `claude` and `codex` installed takes up to 4 seconds. Axis's health-gate
 per the ADR §5 choreography polls probe — this could slow the gate.
 
 **Fix:** Consider a short TTL cache (e.g., 30s) for probe results, or accept the latency.
@@ -413,10 +413,10 @@ per the ADR §5 choreography polls probe — this could slow the gate.
 
 ### N5 — `format!` warning on unreachable pattern in `dispatch_frame`
 
-**File:** `crates/envoy/src/main.rs:232`  
+**File:** `crates/orbit/src/main.rs:232`  
 **Classification:** NIT
 
-The `dispatch_frame` function handles all 10 `HallFrame` variants explicitly. This is correct and
+The `dispatch_frame` function handles all 10 `AxisFrame` variants explicitly. This is correct and
 exhaustive (no `_ =>` catch-all), which is good — it means a future variant addition will be a
 compile error. No action needed; this is praise, not a nit.
 
@@ -424,7 +424,7 @@ compile error. No action needed; this is praise, not a nit.
 
 ### N6 — `MockAgentRuntime` does not override `resumable()` — returns `false` by default
 
-**File:** `crates/envoy/src/mock_runtime.rs` (no `resumable` override)  
+**File:** `crates/orbit/src/mock_runtime.rs` (no `resumable` override)  
 **Classification:** NIT
 
 The mock runtime inherits the default `resumable() -> false` from the `AgentRuntime` trait
@@ -454,18 +454,18 @@ integration test (when written) should verify that `resumable` is actually `fals
 The chain is correct. The default trait method returns `false` (fail closed), and `MockAgentRuntime`
 inherits that. `HermesAgentRuntime` overrides it with the real capability. **This is not a bug.**
 
-### Q2: Any deadlocks in `envoy_conn`?
+### Q2: Any deadlocks in `orbit_conn`?
 
 **No deadlock today**, but R4 (lock-ordering fragility) applies. The `send_request` method acquires
 `pending → writer` locks sequentially (pending held across writer await). No reverse ordering
 exists in the current code (`resolve` and `fail_all` only touch `pending`). See R4 for details.
 
-### Q3: Does the envoy binary's event drain terminate correctly?
+### Q3: Does the orbit binary's event drain terminate correctly?
 
 **No — this is B2 (BLOCKER).** The drain loop (`main.rs:355`) iterates a broadcast stream that is
 never closed and never breaks on terminal events. It hangs forever after the first turn's `Done`.
 
-### Q4: Are there missing `HallFrame` variants in the dispatch?
+### Q4: Are there missing `AxisFrame` variants in the dispatch?
 
 **No — all 10 variants are handled.** The `dispatch_frame` match (line 232-333) covers
 `EnsureRuntime`, `Prompt`, `Steer`, `Cancel`, `Stop`, `RespondPermission`, `Drain`, `Probe`, `Ack`,
@@ -478,24 +478,24 @@ error — good practice.
 ```
 proto (leaf: serde, serde_json only)
   ↑
-envoy → proto
+orbit → proto
   ↑
-control-plane → proto + envoy
+control-plane → proto + orbit
 ```
-`proto` is a true leaf with no workspace deps. `envoy` depends only on `proto`. `control-plane`
+`proto` is a true leaf with no workspace deps. `orbit` depends only on `proto`. `control-plane`
 depends on both. No circular dependencies.
 
 ---
 
 ## Verdict
 
-The S1 (proto) and S2 (envoy lib extraction) milestones are well-executed: clean separation,
+The S1 (proto) and S2 (orbit lib extraction) milestones are well-executed: clean separation,
 correct serde strategy, good test coverage, complete frame types. The ADR §1 wire protocol is fully
 realized in types.
 
-S3 is correctly labeled "PARTIAL" — the envoy binary exists and compiles, but has two critical bugs
+S3 is correctly labeled "PARTIAL" — the orbit binary exists and compiles, but has two critical bugs
 (B2: drain never terminates, B3: subscribe-after-send race) that make it non-functional for real
-sessions. The Hall-side wiring (`envoy_conn`) is dead code.
+sessions. The Axis-side wiring (`orbit_conn`) is dead code.
 
 The most concerning finding is B1: the postmortem 0001 error-rendering fix — the impetus for this
 entire work cycle's error-chain discipline — was never applied. The plan's standing rule ("anyhow

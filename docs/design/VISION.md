@@ -1,6 +1,6 @@
-# Olympus Vision — North Star
+# Stellarc Vision — North Star
 
-> **What Olympus should FEEL like.** The product personality, the emotional
+> **What Stellarc should FEEL like.** The product personality, the emotional
 > target, the references we steal from, and the path from "it works" to
 > "it's beautiful." Owned by `design-lead`.
 
@@ -8,7 +8,7 @@
 
 ## 1. The Feeling (in one sentence)
 
-**Olympus feels like sitting at a mission-control console for your own AI
+**Stellarc feels like sitting at a mission-control console for your own AI
 fleet — calm, dense, trustworthy, and quietly powerful.**
 
 Not a chat window. Not a dashboard. A **cockpit**: everything you need to see
@@ -19,7 +19,7 @@ think.
 
 ## 2. Personality Adjectives
 
-| Adjective | What it means for Olympus | What it rejects |
+| Adjective | What it means for Stellarc | What it rejects |
 |-----------|--------------------------|-----------------|
 | **Calm** | Dark, low-contrast surfaces. No pop, no pulse, no notification anxiety. Motion is sub-perceptual (≤150ms). | Flashy, attention-grabbing, gamified |
 | **Dense** | Information-rich screens. High data-per-pixel. Small type that's still readable. Monospace metadata everywhere. | Wasted whitespace, hero banners, marketing layout |
@@ -106,7 +106,7 @@ Chat), others feel like wireframes (Usage, Nodes).
   for theme switch, etc.) with visible shortcut hints.
 - The composer feels great: auto-resize, smooth focus transitions, attachment
   preview, clean error/retry states.
-- **Polish bar:** using Olympus for 10 minutes feels satisfying, not just
+- **Polish bar:** using Stellarc for 10 minutes feels satisfying, not just
   functional. No jank, no layout shift, no flash-of-wrong-theme.
 
 ### Phase v1.0 — "Control Plane"
@@ -123,7 +123,7 @@ Chat), others feel like wireframes (Usage, Nodes).
   events (task complete, node disconnected, sync error).
 - Split-view / multi-pane support: compare two sessions, side-by-side board +
   chat, etc.
-- **V1 bar:** A developer chooses to use Olympus over their terminal + grep
+- **V1 bar:** A developer chooses to use Stellarc over their terminal + grep
   for daily agent-fleet management because it's faster, clearer, and more
   pleasant. It looks like a product they'd pay for.
 
@@ -131,7 +131,7 @@ Chat), others feel like wireframes (Usage, Nodes).
 
 ## 5. Non-goals (explicitly out of scope)
 
-- **Mobile / responsive** — Olympus is a desktop cockpit. We don't design for
+- **Mobile / responsive** — Stellarc is a desktop cockpit. We don't design for
   phones. Basic tablet tolerance is nice-to-have.
 - **Animation-heavy** — We're not building Framer prototypes. Motion is
   confirmatory, not decorative.

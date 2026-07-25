@@ -1,8 +1,8 @@
 {
-  "name": "olympus-claude-agent-acp-runtime",
+  "name": "stellarc-claude-agent-acp-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Locked Claude ACP adapter runtime provisioned by Olympus Envoy",
+  "description": "Locked Claude ACP adapter runtime provisioned by Stellarc Orbit",
   "engines": {
     "node": ">=22"
   },

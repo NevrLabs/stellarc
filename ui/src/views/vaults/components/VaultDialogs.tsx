@@ -61,7 +61,7 @@ export function CreateVaultDialog({
           <label><span>Backend store</span><select value="github" disabled><option value="github">GitHub repository</option></select></label>
           <label><span>Repository</span><input value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="owner/repository" pattern="[^/\s]+/[^/\s]+" required /></label>
           <label><span>Default branch</span><input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="main" required /></label>
-          <div className="vault-form-note">Hall creates a local jj working copy and configures this existing GitHub repository as its durable remote. Credentials stay in Hall's Git environment.</div>
+          <div className="vault-form-note">Axis creates a local jj working copy and configures this existing GitHub repository as its durable remote. Credentials stay in Axis's Git environment.</div>
           {error && <div className="vault-form-error" role="alert">{error}</div>}
         </div>
         <div className="ol-dialog-foot">

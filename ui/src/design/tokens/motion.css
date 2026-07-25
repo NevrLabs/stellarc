@@ -1,4 +1,4 @@
-/* Olympus — Motion.
+/* Stellarc — Motion.
    Confirmatory, never decorative. Interaction transitions are sub-perceptual
    (≤150ms). Looping animations (live-dot pulse, spinner, skeleton shimmer)
    own their rhythm. Reduced-motion collapses everything to a static end-state.
@@ -21,15 +21,15 @@
   --loop-blink:   1.5s;   /* @kind other */  /* streaming tag blink */
 }
 
-@keyframes olympus-pulse {
+@keyframes stellarc-pulse {
   0%   { box-shadow: 0 0 0 0 var(--accent-glow); }
   70%  { box-shadow: 0 0 0 6px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
-@keyframes olympus-spin   { to { transform: rotate(360deg); } }
-@keyframes olympus-shimmer{ 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-@keyframes olympus-blink  { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-@keyframes olympus-bounce { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@keyframes stellarc-spin   { to { transform: rotate(360deg); } }
+@keyframes stellarc-shimmer{ 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes stellarc-blink  { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes stellarc-bounce { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

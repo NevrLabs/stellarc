@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/vaults
 name: Vault editor workbench — rich editing, mode switching, conflicts
 properties:
-  junitId: olympus-vault-workbench
+  junitId: stellarc-vault-workbench
   junitClassname: ui.mock
 ---
 - launchApp

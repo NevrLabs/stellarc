@@ -21,31 +21,31 @@ Visual model:
 [`observability-dataflow.html`](../diagrams/observability-dataflow.html) ·
 [`PNG`](../diagrams/observability-dataflow.png)
 
-Relates to: ADR 0002 (§10B observability), ADR 0008 (Hall/Envoy transport),
-ADR 0009 (SQLite substrate), ADR 0010 (Hall auth), ADR 0017 (session cutover and
+Relates to: ADR 0002 (§10B observability), ADR 0008 (Axis/Orbit transport),
+ADR 0009 (SQLite substrate), ADR 0010 (Axis auth), ADR 0017 (session cutover and
 remote development plane).
 
 ## Context
 
-Olympus currently emits structured Rust `tracing` records to process output, and
+Stellarc currently emits structured Rust `tracing` records to process output, and
 ADR 0002 reserves a separate operator surface with traces, logs, metrics, an
-event tail, and optional OTLP export. Diagnostic telemetry is not durable. A Hall
-or Envoy restart therefore destroys the evidence most useful for explaining a
+event tail, and optional OTLP export. Diagnostic telemetry is not durable. A Axis
+or Orbit restart therefore destroys the evidence most useful for explaining a
 failed session.
 
-Olympus needs LangSmith-class debugging across heterogeneous runtimes without
+Stellarc needs LangSmith-class debugging across heterogeneous runtimes without
 making LangSmith, an OpenTelemetry Collector, or an external database a runtime
 requirement. An operator must be able to determine:
 
 - which turn, tool, job, workflow, node, runtime attempt, and model operation was
   active;
 - where time was spent and where an error originated;
-- what Hall and Envoy recorded around a failure;
+- what Axis and Orbit recorded around a failure;
 - whether the requested telemetry interval is complete, incomplete, expired, or
   unknown;
 - which build and package versions produced the behavior.
 
-The permanent Olympus event log is product and audit truth. Raw logs and detailed
+The permanent Stellarc event log is product and audit truth. Raw logs and detailed
 spans are high-volume diagnostic evidence with a different lifecycle. Appending
 all telemetry to the permanent journal would couple product history to log
 verbosity and make TTL deletion incompatible with append-only truth.
@@ -55,7 +55,7 @@ record expires. Retention needs age, physical quotas, and reserved free space.
 
 ## Doctrine
 
-**Olympus keeps product and audit truth permanently in its event log; it keeps
+**Stellarc keeps product and audit truth permanently in its event log; it keeps
 correlated diagnostic logs and spans in a separate TTL store; it uses
 OpenTelemetry as the telemetry vocabulary and interchange format, not as a
 required external service.**
@@ -65,7 +65,7 @@ screen is not an oracle for transcript, job, workflow, deployment, permission, o
 capability state.
 
 LangSmith is a product reference for trace exploration, session debugging,
-feedback, datasets, and evaluations. Olympus does not depend on the LangSmith
+feedback, datasets, and evaluations. Stellarc does not depend on the LangSmith
 deployment platform.
 
 ## Hard prerequisite ordering
@@ -79,16 +79,16 @@ atomic session payload/reference + transport watermark persistence
   -> ADR 0017 Tasks 1.2–1.4
      authoritative runtime-attempt inventory + unified runtime controls +
      authenticated peer/OS identity to logical-node binding and takeover rejection
-       -> OBS local telemetry model/store + Hall-only instrumentation
+       -> OBS local telemetry model/store + Axis-only instrumentation
          -> authenticated telemetry source/epoch/record protocol
-           -> Envoy telemetry transport and query claims
+           -> Orbit telemetry transport and query claims
 
 ADR 0017 Tasks 2.1–2.4
-Envoy job-attempt truth + terminal spool correctness + durable JobService
+Orbit job-attempt truth + terminal spool correctness + durable JobService
   -> job-output/result telemetry and complete job timelines
 ```
 
-Before the first chain completes, Hall-local instrumentation may exist, but no
+Before the first chain completes, Axis-local instrumentation may exist, but no
 remote session telemetry gate may claim completeness. Before the second chain
 completes, job telemetry is explicitly a non-authoritative process observation;
 it cannot claim a complete job timeline.
@@ -102,15 +102,15 @@ fault, never papered over by available TTL records.
 
 ### 1. OpenTelemetry is the canonical telemetry model
 
-Olympus uses Rust `tracing` as its native emission interface and maps it to OTel:
+Stellarc uses Rust `tracing` as its native emission interface and maps it to OTel:
 
 - traces/spans for bounded operations;
-- structured log records correlated to trace and Olympus resources;
+- structured log records correlated to trace and Stellarc resources;
 - counters, gauges, and histograms;
 - W3C trace context where a text carrier exists;
 - OTLP as an optional export adapter.
 
-OpenTelemetry is a seam, not a second kernel. Olympus starts and remains useful
+OpenTelemetry is a seam, not a second kernel. Stellarc starts and remains useful
 without a Collector or network dependency.
 
 A versioned internal contract is checked into `crates/proto` before telemetry DB
@@ -163,7 +163,7 @@ max_inline_body = "64KiB"
 Overflow truncates or starts a linked continuation trace and records positive
 coverage loss. It never grows an unbounded in-memory trace.
 
-Every record carries or is joined to Hall-derived correlation:
+Every record carries or is joined to Axis-derived correlation:
 
 ```text
 org_id, project_id, session_id, turn_id
@@ -176,8 +176,8 @@ agent_kind, model, build digest, package digest
 
 | Data class | Examples | Authority | Retention |
 |---|---|---|---|
-| Product/audit truth | transcript, tool outcome, permission/capability decision, session/job/workflow/deployment lifecycle, product-integrity and telemetry-store-reset incident facts | `olympus.db` append-only event log + projections | permanent under owning resource policy |
-| Diagnostic telemetry | Hall/Envoy/runtime logs, protocol diagnostics, retries, span timing, stack/error detail, resource observations | `telemetry.db` + telemetry-only blobs | TTL + physical quotas |
+| Product/audit truth | transcript, tool outcome, permission/capability decision, session/job/workflow/deployment lifecycle, product-integrity and telemetry-store-reset incident facts | `stellarc.db` append-only event log + projections | permanent under owning resource policy |
+| Diagnostic telemetry | Axis/Orbit/runtime logs, protocol diagnostics, retries, span timing, stack/error detail, resource observations | `telemetry.db` + telemetry-only blobs | TTL + physical quotas |
 | Live metrics | counters, gauges, histograms, health | in-process registry; optional OTLP/Prometheus export | current process lifetime locally in v1 |
 
 A durable transition is never recoverable only from TTL logs. Verbose diagnostics
@@ -190,9 +190,9 @@ results already captured as product records are referenced by ID/digest. Child
 stderr and supervisor messages are diagnostics. ACP stdout is protocol, not a log
 stream; raw protocol bodies require an explicit diagnostic-capture grant.
 
-### 4. Hall owns a separate disposable SQLite store
+### 4. Axis owns a separate disposable SQLite store
 
-V1 uses `~/.olympus/telemetry.db`, independent from `olympus.db`, with its own WAL,
+V1 uses `~/.stellarc/telemetry.db`, independent from `stellarc.db`, with its own WAL,
 migrations, retention, backup exclusion, and corruption recovery. Deleting it
 must degrade debugging without affecting product operation.
 
@@ -240,7 +240,7 @@ Explicit policies cover BUSY, IOERR, FULL, CORRUPT, corrupt WAL, failed migratio
 shutdown with queued batches, and cancellation. A long query or prune cannot hold
 the sole writer connection as the permanent `Log` currently does.
 
-Producer timestamps describe occurrence but do not control retention. Hall uses a
+Producer timestamps describe occurrence but do not control retention. Axis uses a
 persisted **retention clock**: monotonic elapsed time within a boot and a
 nondecreasing persisted checkpoint across restarts. A wall-clock discontinuity
 beyond the configured tolerance pauses expiry and marks retention health degraded
@@ -252,9 +252,9 @@ cannot join or overwrite another organization's trace.
 
 ### 5. One ordered source sequence, range-consuming coverage, atomic batches
 
-A telemetry producer has an `enrolled_source_id` derived by Hall from authenticated
+A telemetry producer has an `enrolled_source_id` derived by Axis from authenticated
 peer enrollment. A random `source_epoch` is created and durably registered through
-an authenticated reset/start protocol. It is persisted beside the Envoy spool and
+an authenticated reset/start protocol. It is persisted beside the Orbit spool and
 changes only when that protocol authorizes a new stream.
 
 Every admitted observation receives a source position. Data consumes one
@@ -280,10 +280,10 @@ TelemetryAck {
 Rules:
 
 1. A preallocated durable **source journal** is the sequence authority. Before
-   attempting a data-spool append, Envoy fsyncs a journal reservation containing
+   attempting a data-spool append, Orbit fsyncs a journal reservation containing
    source range, expected item count/digests, and state `pending`. No journal
    reservation means no sequence was consumed.
-2. Envoy appends and fsyncs the complete data batch, then finalizes the journal
+2. Orbit appends and fsyncs the complete data batch, then finalizes the journal
    range as `received`. If data append/fsync fails, it finalizes the same reserved
    range as `dropped{reason}`. If finalization itself fails, durable `pending`
    means `unknown`, never complete.
@@ -296,21 +296,21 @@ Rules:
    `first_seq`; each next item starts at the prior `item_last_seq + 1`; the last
    item ends at `last_seq`. A data item has equal first/last; a coverage item may
    span many positions. Replay merges data and coverage items in this order.
-5. Hall validates authenticated source/ownership, range contiguity, deterministic
+5. Axis validates authenticated source/ownership, range contiguity, deterministic
    IDs, digests, size, and redaction envelope. It inserts every item, coverage,
    and the new contiguous watermark in one transaction. A coverage item advances
    the watermark through its `item_last_seq`. Partial/corrupt batches are rejected
    and not ACKed.
-6. Hall ACKs only committed contiguous `through_seq`. A wholly duplicate batch is
+6. Axis ACKs only committed contiguous `through_seq`. A wholly duplicate batch is
    ACKed without reinsertion only when every item range/ID/digest equals committed
    state. Partial overlap or same range with different identity is rejected.
 7. ACK cleanup advances both the source journal and data segments through the
    acknowledged position. Duplicate ACK is idempotent. Cleanup failure leaves
    replayable state and cannot advance local deletion metadata.
 8. The journal has capacity and filesystem reserve outside telemetry data. At
-   journal high water Envoy stops admitting observations before exhaustion and
+   journal high water Orbit stops admitting observations before exhaustion and
    enters `coverage_unknown`; unadmitted observations consume no positions and
-   cannot later be called dropped by sequence. Hall learns the unknown interval
+   cannot later be called dropped by sequence. Axis learns the unknown interval
    from source health/reconnect and the permanent low-volume loss fact. Absence of
    a coverage item never means complete.
 9. Sequence exhaustion, epoch reset, corrupt journal/data, ACK failure,
@@ -318,32 +318,32 @@ Rules:
    never invent continuity.
 
 Crash-point tests cover journal reservation, data append/fsync, journal
-finalization, merged replay, send, every Hall insert stage, watermark commit, ACK
+finalization, merged replay, send, every Axis insert stage, watermark commit, ACK
 send, and cleanup of both stores. They include later successful data after a
 dropped range, duplicate range replay, partial overlap, journal exhaustion, and
-pending recovery. Producer and Hall manifests compare source/epoch, consumed data
+pending recovery. Producer and Axis manifests compare source/epoch, consumed data
 and coverage ranges, normalized digests, trace/span IDs, and watermark.
 
-### 6. Hall derives tenancy and runtime ownership at ingest
+### 6. Axis derives tenancy and runtime ownership at ingest
 
-No Envoy-provided `org_id`, `node_id`, `session_id`, `turn_id`, or
+No Orbit-provided `org_id`, `node_id`, `session_id`, `turn_id`, or
 `runtime_attempt_id` is authority.
 
-Hall derives/validates ownership from:
+Axis derives/validates ownership from:
 
 1. authenticated iroh peer/UDS credentials;
 2. durable enrollment binding peer key/OS identity to logical node and source;
 3. permanent session/job/runtime-attempt projections;
 4. current revocation and organization policy.
 
-Hall rewrites correlation fields to canonical values or rejects the record. It
+Axis rewrites correlation fields to canonical values or rejects the record. It
 rejects unknown source epochs, duplicate-node takeover, wrong-org/session,
 stale/mismatched attempt, revoked node/source, and unauthorized diagnostic
 capture. Terminal attempts may accept late telemetry only during a bounded grace
 period while source and attempt ownership still validate; records are marked
 late. Archived/revoked resources do not accept new session diagnostics.
 
-Node-wide Hall/Envoy logs live in an operator-only system scope. Olympus never
+Node-wide Axis/Orbit logs live in an operator-only system scope. Stellarc never
 invents a session or organization for them.
 
 This depends specifically on ADR 0017 Tasks 1.2–1.4: authoritative runtime
@@ -352,7 +352,7 @@ takeover rejection. Query authorization cannot repair poisoned ingest metadata.
 
 ### 7. Positive coverage defines completeness
 
-Completeness is not “no gap row found.” For a requested interval Hall identifies
+Completeness is not “no gap row found.” For a requested interval Axis identifies
 the expected authenticated producer/attempt set from permanent truth, then
 compares positive source manifests and coverage intervals.
 
@@ -366,8 +366,8 @@ The result is one of:
 - `expired`: the requested interval is wholly outside configured retention and no
   incident bundle was exported.
 
-A new/quarantined telemetry DB generation starts `unknown`. Hall-local channel
-loss and Envoy loss advance explicit dropped ranges where possible. Coverage is
+A new/quarantined telemetry DB generation starts `unknown`. Axis-local channel
+loss and Orbit loss advance explicit dropped ranges where possible. Coverage is
 itself TTL metadata, but the generation boundary and permanent low-volume reset/
 loss incident fact prevent false completeness after it disappears.
 
@@ -376,7 +376,7 @@ presents an incomplete or unknown trace/log range as complete.
 
 ### 8. Retention is TTL plus physical quotas and reserves
 
-Initial Hall defaults:
+Initial Axis defaults:
 
 ```toml
 [telemetry]
@@ -391,10 +391,10 @@ clock_step_tolerance = "5m"
 ```
 
 `max_bytes` accounts for DB, WAL/SHM, SQLite temp/headroom, and telemetry-only
-blobs—not logical payload sums. `min_free_bytes` is reserved for `olympus.db` and
-normal Hall operation. Hall stops telemetry admission before entering the reserve.
+blobs—not logical payload sums. `min_free_bytes` is reserved for `stellarc.db` and
+normal Axis operation. Axis stops telemetry admission before entering the reserve.
 
-The Envoy telemetry spool has a separate physical budget and reserve on the
+The Orbit telemetry spool has a separate physical budget and reserve on the
 filesystem containing product spool/runtime state. V1 uses segmented append-only
 files so ACK cleanup deletes complete segments and bounded tail compaction never
 needs a full-cap duplicate rewrite. Admission accounts for current segments,
@@ -418,14 +418,14 @@ not be recorded in the first place.
 
 ### 9. Producer-side redaction is a serialization firewall
 
-Hall and Envoy each own typed safe telemetry emission:
+Axis and Orbit each own typed safe telemetry emission:
 
 - stable error code;
 - allowlisted typed fields;
 - bounded scrubbed message;
 - optional opaque diagnostic digest.
 
-A final default-deny validator runs immediately before local persistence, Envoy
+A final default-deny validator runs immediately before local persistence, Orbit
 spool append, or telemetry wire serialization. Child stderr passes through a
 streaming bounded scrubber and is never retained raw. Existing arbitrary response
 errors are not automatically promoted into diagnostic telemetry.
@@ -460,14 +460,14 @@ bounded with explicit backpressure/drop policy. Product/control queues never
 share telemetry capacity.
 
 The implementation spike selects measured queue sizes and quanta. The acceptance
-oracle is a stated p99 heartbeat/control latency below the Hall liveness budget
+oracle is a stated p99 heartbeat/control latency below the Axis liveness budget
 under simultaneous product replay, telemetry replay, live output, ACK flood, slow
 peer, and reconnect, while both spools eventually drain. Freeing the read loop,
 as postmortem 0021 did, is necessary but not sufficient fairness.
 
 ### 11. Metrics remain low-cardinality
 
-V1 metrics live in process and are optionally exported. Olympus does not build a
+V1 metrics live in process and are optionally exported. Stellarc does not build a
 local time-series database.
 
 Metric label keys are compile-time allowlisted. Each family has a finite
@@ -496,7 +496,7 @@ transactionally removes the telemetry row, FTS entry, blob reference, and expiry
 metadata, with an idempotent blob-GC journal for physical deletion.
 
 Incident export requires `incident.export`, separate from
-`session.diagnostics.read`. The bundle derives organization ownership from Hall,
+`session.diagnostics.read`. The bundle derives organization ownership from Axis,
 requires explicit classification and retention, follows encryption-at-rest policy,
 and records a permanent audit event containing manifest/digests—not bodies.
 Export is failure-atomic. Shared content, partial export, concurrent expiry,
@@ -505,9 +505,9 @@ org/session deletion, and cross-org digest collision are tested.
 There is no hidden telemetry `pinned` flag. Preservation is an explicit copy into
 an authoritative artifact.
 
-### 13. Query and admin authentication are one Hall policy
+### 13. Query and admin authentication are one Axis policy
 
-The public browser route is same-origin under Hall/Caddy:
+The public browser route is same-origin under Axis/Caddy:
 
 ```text
 /admin/observability/
@@ -519,7 +519,7 @@ The public browser route is same-origin under Hall/Caddy:
 ```
 
 Caddy routes that path to the server-rendered admin handler, which remains
-independent of the React build. It uses the normal Hall secure session cookie,
+independent of the React build. It uses the normal Axis secure session cookie,
 validated organization membership, exact public Origin/Fetch Metadata rules, and
 CSRF protection for incident export or other mutations. Organization never comes
 from an untrusted query parameter.
@@ -530,7 +530,7 @@ explicit operator credential and denies installation tokens for diagnostics.
 Forwarded headers are trusted only from the configured edge. Remote exposure
 requires TLS through Caddy.
 
-System-wide node/Hall diagnostics require Admin/operator authority. Session
+System-wide node/Axis diagnostics require Admin/operator authority. Session
 records additionally require `session.diagnostics.read`; incident export requires
 `incident.export`. Revocation terminates live streams and denies subsequent reads.
 Tests cover cross-origin, CSRF, cross-org, non-member, ordinary session reader,
@@ -544,7 +544,7 @@ lifecycles. They consume telemetry but do not make raw telemetry permanent truth
 
 LangChain/LangGraph or other managed applications may ingest/export OTLP. Their
 agent loops and internal graph checkpoints remain external and do not become
-Olympus workflow semantics.
+Stellarc workflow semantics.
 
 ## Rejected alternatives
 
@@ -560,10 +560,10 @@ Olympus workflow semantics.
 
 ## Consequences
 
-- Olympus gains restart-surviving session diagnostics without changing product
+- Stellarc gains restart-surviving session diagnostics without changing product
   truth semantics.
 - ADR 0017 session/job durability is a hard predecessor, not adjacent work.
-- Hall adds a disposable SQLite database; Envoy adds a separately sequenced,
+- Axis adds a disposable SQLite database; Orbit adds a separately sequenced,
   segmented telemetry spool and fair outbound scheduler.
 - The protocol and coverage model are more work than an in-memory ring, but they
   make ACK, replay, completeness, and loss claims testable.
@@ -578,14 +578,14 @@ Architecture review confirms that the ADR and plan enforce:
 1. permanent session/job truth before corresponding telemetry claims;
 2. authenticated source/epoch ordered sequencing, range-consuming coverage,
    all-or-nothing batch commit, contiguous ACK, and durable source journal;
-3. Hall-derived tenant/session/runtime-attempt ownership at ingest;
-4. physical Hall/Envoy accounting, reserves, and real disk-failure tests;
+3. Axis-derived tenant/session/runtime-attempt ownership at ingest;
+4. physical Axis/Orbit accounting, reserves, and real disk-failure tests;
 5. one byte-quantized fair writer scheduler with heartbeat latency oracle;
 6. positive complete/incomplete/unknown/expired coverage semantics;
 7. producer-side default-deny redaction proven on serialized bytes;
 8. versioned OTel contract round-tripping through SQLite and OTLP;
 9. explicit same-origin admin and break-glass `:8788` policy;
-10. exact source/Hall manifests at every crash point.
+10. exact source/Axis manifests at every crash point.
 
 Implementation dispatch nevertheless remains blocked until PRE-OBS proves ADR
 0017 Tasks 1.1–1.4 are implemented and supplies the named permanent-ingress,

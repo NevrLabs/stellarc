@@ -1,6 +1,6 @@
-# Olympus — Port & Workspace Allocation (source of truth)
+# Stellarc — Port & Workspace Allocation (source of truth)
 
-Each Hermes profile gets its own git clone of the olympus repo and a reserved,
+Each Hermes profile gets its own git clone of the stellarc repo and a reserved,
 non-overlapping port range so agent runtimes/Convex/web/e2e never collide with
 the protected owner deployment or with each other.
 
@@ -13,10 +13,10 @@ workspace clones provide the isolation instead.
 
 | Owner | Workspace | Convex cloud | Convex site | Convex dashboard | runtime /healthz | web (Vite) | e2e range |
 |---|---|---:|---:|---:|---:|---:|---:|
-| **owner deployment (PROTECTED)** | `/home/rpw/olympus` | 3210 | 3211 | 6791 | 8791 | 5177 | — |
-| coding-agent | `~/.hermes/profiles/coding-agent/workspace/olympus` | 3220 | 3221 | 6792 | 8792 | 5178 | — |
-| code-reviewer | `~/.hermes/profiles/code-reviewer/workspace/olympus` | 3230 | 3231 | 6793 | 8793 | 5179 | — |
-| tester | `~/.hermes/profiles/tester/workspace/olympus` | 3240 (ephemeral) | 3241 | 6794 | 8794 | 5180 | 5190–5199 |
+| **owner deployment (PROTECTED)** | `/home/rpw/stellarc` | 3210 | 3211 | 6791 | 8791 | 5177 | — |
+| coding-agent | `~/.hermes/profiles/coding-agent/workspace/stellarc` | 3220 | 3221 | 6792 | 8792 | 5178 | — |
+| code-reviewer | `~/.hermes/profiles/code-reviewer/workspace/stellarc` | 3230 | 3231 | 6793 | 8793 | 5179 | — |
+| tester | `~/.hermes/profiles/tester/workspace/stellarc` | 3240 (ephemeral) | 3241 | 6794 | 8794 | 5180 | 5190–5199 |
 
 ## Rules
 
@@ -27,10 +27,10 @@ workspace clones provide the isolation instead.
   after. No persistent tester Convex container.
 - coding-agent / code-reviewer rarely need a live backend; when they do, they use
   their reserved ports, never the owner's.
-- Studio (hermes-web-ui) owns :8787 and must never be touched by Olympus work.
+- Studio (hermes-web-ui) owns :8787 and must never be touched by Stellarc work.
 
 ## Owner systemd services (durable)
 
-- `olympus-convex.service` — docker compose (3210/3211/6791)
-- `olympus-runtime.service` — Bun runtime (8791)
-- `olympus-web.service` — Vite web (5177)
+- `stellarc-convex.service` — docker compose (3210/3211/6791)
+- `stellarc-runtime.service` — Bun runtime (8791)
+- `stellarc-web.service` — Vite web (5177)

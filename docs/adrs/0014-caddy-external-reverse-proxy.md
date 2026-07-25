@@ -9,7 +9,7 @@ survey, 3-year CVE analysis, 39 sources) and
 `docs/research/identity-aware-proxy-auth-delegation-research.md` (SSO/auth
 delegation deep-dive, 26 sources). Relates to: ADR 0012 (workspace
 applications), ADR 0011 (§2 iroh — unchanged as the inter-node transport;
-Caddy is the HTTP edge), ADR 0010 (Hall auth authority).
+Caddy is the HTTP edge), ADR 0010 (Axis auth authority).
 
 ## Context
 
@@ -18,9 +18,9 @@ workspace applications (IDE, diagram editors, DB browsers), dev environments,
 per-session proxied apps, and static content (agent HTML, artifacts). All
 need stable URLs, edge authentication (SSO), and static file serving. The
 built-in axum proxy buffers whole responses, is HTTP/1-only, has no static
-story, and makes Olympus the security-response owner for an edge component.
+story, and makes Stellarc the security-response owner for an edge component.
 
-A full landscape survey (25 candidates: HAProxy, Envoy, nginx/OpenResty/Unit,
+A full landscape survey (25 candidates: HAProxy, Orbit, nginx/OpenResty/Unit,
 Apache httpd/ATS, Caddy, Traefik, YARP, Pingora/River, Sozu, rpxy, lighttpd,
 h2o, Varnish, APISIX, Kong, Skipper, Zoraxy, NPM, and identity-aware proxies)
 was run against nine axes. Key eliminations:
@@ -31,7 +31,7 @@ was run against nine axes. Key eliminations:
 - **nginx OSS**: no first-class route CRUD API (config rewrite + reload).
 - **HAProxy**: runtime API adds servers to existing backends; new routes
   still require config/reload. No static serving.
-- **Envoy**: strongest fleet protocol (xDS) but fails both mandatory axes
+- **Orbit**: strongest fleet protocol (xDS) but fails both mandatory axes
   (no file server, no ACME) + 18 memory-safety-class CVEs in 3 years (C++).
 - **NGINX Unit**: the one dynamic-API+static contender — **archived 2025**,
   fails the external-CVE-owner requirement outright.
@@ -41,7 +41,7 @@ was run against nine axes. Key eliminations:
 - **Sozu**: genuinely runtime-configurable and alive (2.0, May 2026), but no
   static serving, no forward-auth ecosystem, give-back license clause.
 - **Pomerium/Authelia/oauth2-proxy/Teleport**: rejected — each duplicates
-  identity/session authority that Hall already owns (ADR 0010).
+  identity/session authority that Axis already owns (ADR 0010).
 
 ## Decision
 
@@ -59,7 +59,7 @@ ADR 0012 workspace-application contract requires it.
 
 ### The EdgeDriver seam (vendor neutrality)
 
-Hall models desired edge state vendor-neutrally and never leaks Caddy's JSON
+Axis models desired edge state vendor-neutrally and never leaks Caddy's JSON
 shape into the domain model:
 
 ```rust
@@ -83,41 +83,41 @@ removed after Caddy paths are verified.
 - Admin API on localhost only, **`enforce_origin` enabled**
   (CVE-2026-27589: CSRF config-replacement on the admin API, fixed 2.11.1 —
   the reason both the version floor and origin enforcement are mandatory).
-- Caddy runs unprivileged, same user as envoy; no admin API route is ever
+- Caddy runs unprivileged, same user as orbit; no admin API route is ever
   exposed through Caddy itself.
 - Artifact roots are **symlink-free by construction** (amended 2026-07-12:
   stock Caddy has no symlink-disable option in file_server — the guarantee
-  moves to the writer, which Olympus fully controls): the `static.publish`
+  moves to the writer, which Stellarc fully controls): the `static.publish`
   write path rejects symlinks (lstat every created entry; refuse symlink
   sources), route registration validates the root contains no symlinks
   before EdgeDriver applies it, and path-traversal tests stay in the
   acceptance suite. Caddy stays stock — no custom modules.
 
-### Auth architecture (Hall is the sole authority)
+### Auth architecture (Axis is the sole authority)
 
 Per the identity research — dumb proxy + forward-auth; no second identity
 product:
 
-1. Every non-public route: Caddy `forward_auth` → Hall `/api/edge/auth`.
-   Hall answers allow/deny from the session-cookie/capability seam (ARCH-A,
+1. Every non-public route: Caddy `forward_auth` → Axis `/api/edge/auth`.
+   Axis answers allow/deny from the session-cookie/capability seam (ARCH-A,
    CAPS-1) and returns namespaced identity headers. **Strip-then-set**: the
-   edge strips all `X-Olympus-*` headers from client requests before setting
+   edge strips all `X-Stellarc-*` headers from client requests before setting
    its own; upstreams are network-non-bypassable (loopback binds).
-2. Primary Hall session stays in a `__Host-` Secure HttpOnly cookie; never
+2. Primary Axis session stays in a `__Host-` Secure HttpOnly cookie; never
    forwarded to apps; no `Domain=` cookies.
-3. **Sandboxed iframe apps get single-use launch codes**: the shell asks Hall
+3. **Sandboxed iframe apps get single-use launch codes**: the shell asks Axis
    for a launch code → redeemed at the edge → opaque host-only per-app grant
    cookie `{user, org, app instance, allowed actions, expiry}` → redirect to
-   clean URL. The app never holds the primary session and cannot call Hall
+   clean URL. The app never holds the primary session and cannot call Axis
    generally. (Path-based routing keeps this same-origin — simpler.)
-4. Apps that verify assertions: Hall-signed short-lived JWT with exact
+4. Apps that verify assertions: Axis-signed short-lived JWT with exact
    `aud = app-instance/route`; gateway strips any client-supplied copy.
 5. WebSockets: authenticated at upgrade; 30–60s single-use audience-bound
    tickets for cookie-less sockets; connection TTL + revocation hooks;
    Origin allowlist (cross-site WS hijacking).
 6. Forward-auth is not CSRF protection — apps keep SameSite/token discipline.
 7. Identity headers, launch codes, and tickets never appear in logs.
-8. Fail closed: Hall unreachable → protected routes deny; only explicit
+8. Fail closed: Axis unreachable → protected routes deny; only explicit
    `public` static routes continue serving.
 
 ## Acceptance proof (before the axum path is removed)
@@ -140,11 +140,11 @@ refuse app/static registration (fail closed).
 
 - proxy.rs forwarding deprecated; route table + API live on behind
   EdgeDriver. Net Rust code shrinks; HTTP-edge features (H2/H3, streaming,
-  compression, TLS, range requests) stop accreting in Olympus.
+  compression, TLS, range requests) stop accreting in Stellarc.
 - New supervised dependency + version pinning in installers. Accepted.
-- SSO becomes one Hall endpoint + header contract; per-app auth work
+- SSO becomes one Axis endpoint + header contract; per-app auth work
   collapses into the launch-code/grant-cookie pattern.
-- Multi-node later: one Caddy per node, Hall broadcasts the same desired
+- Multi-node later: one Caddy per node, Axis broadcasts the same desired
   state through EdgeDriver per node — fan-out/convergence/rollback is
-  explicitly Olympus's job (the survey's strongest argument against Caddy,
+  explicitly Stellarc's job (the survey's strongest argument against Caddy,
   accepted consciously).

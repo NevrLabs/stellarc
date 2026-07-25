@@ -1,12 +1,12 @@
-# Olympus Autonomous Migration Loop
+# Stellarc Autonomous Migration Loop
 
 Status: **PAUSED** — built but cron NOT enabled. One tick will be hand-run to prove
 the flow before any cron is activated. (Per owner directive.)
 
 > **Task source (CURRENT):** the long-horizon roadmap
-> `docs/plans/2026-06-29-olympus-long-horizon-roadmap.md` is the source of truth
+> `docs/plans/2026-06-29-stellarc-long-horizon-roadmap.md` is the source of truth
 > for *what to build next* (epics A→P, milestone briefs, gates, Status Ledger).
-> Granular Epic A/B tasks live in `docs/plans/2026-06-28-olympus-mvp.md`
+> Granular Epic A/B tasks live in `docs/plans/2026-06-28-stellarc-mvp.md`
 > (Phases 4–5). The Convex/bun references below are from the superseded
 > migration plan and apply only to that legacy track — the live substrate is
 > Rust (gates: `make verify`, not `bun test`).
@@ -22,8 +22,8 @@ the flow before any cron is activated. (Per owner directive.)
 
 ## Board
 
-- Board: `olympus-migration`
-- Default workdir: `/home/rpw/.hermes/profiles/coding-agent/workspace/olympus` (coding-agent's isolated clone — NEVER the owner deploy repo `/home/rpw/olympus`)
+- Board: `stellarc-migration`
+- Default workdir: `/home/rpw/.hermes/profiles/coding-agent/workspace/stellarc` (coding-agent's isolated clone — NEVER the owner deploy repo `/home/rpw/stellarc`)
 - Source of truth tasks: `docs/plans/2026-06-24-react-convex-bun-migration.md`
 
 ## Flow (per task)
@@ -59,7 +59,7 @@ the flow before any cron is activated. (Per owner directive.)
 - Workers DO NOT merge to main. Workers open PRs; orchestrator merges after the gate.
 - Workers operate ONLY in their own profile clone + reserved ports (see docs/ports.md).
 - coding-agent never binds owner ports (3210/8791/5177).
-- Branch naming: `feat/olympus-<task-code>`.
+- Branch naming: `feat/stellarc-<task-code>`.
 
 ## Cron (NOT yet enabled)
 

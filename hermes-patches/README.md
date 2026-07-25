@@ -1,8 +1,8 @@
-# Olympus → Hermes patches
+# Stellarc → Hermes patches
 
-Olympus requires a few changes to **Hermes Agent**. We **patch, never fork** —
+Stellarc requires a few changes to **Hermes Agent**. We **patch, never fork** —
 every change lives here as a reviewable `git`-format `.patch` file, committed to
-the Olympus repo, so that:
+the Stellarc repo, so that:
 
 - **All changes are visible in one place** (this directory + `manifest.toml`).
 - They are **re-appliable** after `hermes update` (which autostashes and silently
@@ -12,11 +12,11 @@ the Olympus repo, so that:
 
 ## Scope
 
-This registry is for **Olympus-required Hermes changes only** — changes Olympus
+This registry is for **Stellarc-required Hermes changes only** — changes Stellarc
 depends on to function. It is NOT the place for the operator's general
 dev-environment Hermes patches (WSL startup speed, TUI fixes, billing bypass) —
 those are tracked in the `cli-startup-performance` skill. Keep the two separate:
-Olympus's patches ship with the product; the dev-env patches are host-local.
+Stellarc's patches ship with the product; the dev-env patches are host-local.
 
 ## Target
 
@@ -42,13 +42,13 @@ Olympus's patches ship with the product; the dev-env patches are host-local.
 #   (edit files in ~/.hermes/hermes-agent first, then:)
 ./patchctl.sh save 001-sessiondb-create-fork hermes_state.py
 #   → writes patches/001-sessiondb-create-fork.patch from the working-tree diff
-#   → then add it to manifest.toml and commit to the Olympus repo
+#   → then add it to manifest.toml and commit to the Stellarc repo
 ```
 
 ### After `hermes update`
 
 `hermes update` resets the checkout to upstream and stashes local edits. To
-restore Olympus's patches: `./patchctl.sh apply`. If a patch no longer applies
+restore Stellarc's patches: `./patchctl.sh apply`. If a patch no longer applies
 cleanly (upstream moved the code), use `git -C ~/.hermes/hermes-agent apply
 --3way patches/<file>` to do a 3-way merge, re-save the resolved diff with
 `patchctl save`, and bump `base_commit` in the manifest.
@@ -60,7 +60,7 @@ cleanly (upstream moved the code), use `git -C ~/.hermes/hermes-agent apply
 - **Prefer additive, structural changes** (new methods/functions) over edits to
   hot upstream code — they survive upstream drift better.
 - **Every patch needs a `manifest.toml` entry** stating its purpose, the
-  Olympus feature that needs it (ADR §ref), and the files it touches.
+  Stellarc feature that needs it (ADR §ref), and the files it touches.
 - **Verification:** a patch entry should name the Hermes test(s) that prove it
   works, so re-application can be validated, not assumed.
 
@@ -68,7 +68,7 @@ cleanly (upstream moved the code), use `git -C ~/.hermes/hermes-agent apply
 
 | # | Patch | Purpose | Status |
 |---|---|---|---|
-| 001 | `sessiondb-create-fork` | `SessionDB.create_fork()` — atomic, invariant-correct session fork (source=`acp`, `_branched_from`, counters, FTS, lineage) for Olympus cross-channel resume (ADR 0002 §6.6) | **pending fork-spike** (must be proven on a COPIED state.db first — adversarial review blocker #2) |
+| 001 | `sessiondb-create-fork` | `SessionDB.create_fork()` — atomic, invariant-correct session fork (source=`acp`, `_branched_from`, counters, FTS, lineage) for Stellarc cross-channel resume (ADR 0002 §6.6) | **pending fork-spike** (must be proven on a COPIED state.db first — adversarial review blocker #2) |
 
 No patch files exist yet — `create_fork` is gated on the fork spike. This commit
 establishes the system; the first patch lands after the spike.

@@ -1,0 +1,22 @@
+[Unit]
+Description=Stellarc Axis — control plane (event log, views, REST/WS API)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rpw/stellarc
+Environment="STELLARC_BIND=127.0.0.1:8799"
+Environment="STELLARC_UI_DIST=/home/rpw/stellarc/ui/dist"
+Environment="STELLARC_ALLOWED_ORIGINS=stellarc.entelechia.cloud"
+# PATH must include ~/.local/bin for Hermes and ~/.bun/bin for ACP adapters.
+Environment="PATH=/home/rpw/.local/bin:/home/rpw/.bun/bin:/home/rpw/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/rpw/.stellarc/bin/stellarc-axis
+Restart=always
+RestartSec=5
+RestartMaxDelaySec=60
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

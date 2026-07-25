@@ -4,7 +4,7 @@ import { Cockpit } from "./Cockpit";
 import { useCockpit } from "./store";
 
 const fetchTerminalTargets = vi.hoisted(() =>
-  vi.fn().mockResolvedValue([{ id: "hall", label: "Hall", kind: "hall", default: true }]),
+  vi.fn().mockResolvedValue([{ id: "axis", label: "Axis", kind: "axis", default: true }]),
 );
 
 vi.mock("./tabs", () => {
@@ -30,7 +30,7 @@ describe("Cockpit visibility", () => {
     fetchTerminalTargets.mockClear();
     useCockpit.setState({
       open: true,
-      tabs: [{ id: "tab-a", kind: "terminal", title: "Hall 1", target: { nodeId: "hall" } }],
+      tabs: [{ id: "tab-a", kind: "terminal", title: "Axis 1", target: { nodeId: "axis" } }],
       activeTabId: "tab-a",
       geometry: { x: 120, y: 96, w: 820, h: 520 },
     });
@@ -62,7 +62,7 @@ describe("Cockpit visibility", () => {
     fireEvent.click(screen.getByTitle("New tab"));
     fireEvent.mouseEnter(screen.getByRole("menuitem", { name: /Terminal/ }));
 
-    await waitFor(() => expect(screen.getByRole("menuitem", { name: /Hall/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: /Axis/ })).toBeInTheDocument());
     expect(fetchTerminalTargets).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   Olympus UI — App shell layout
+   Stellarc UI — App shell layout
    ═══════════════════════════════════════════════════
 
    The canonical design tokens, fonts, and component classes (.ol-*) live in
@@ -111,7 +111,7 @@ button {
 .rz-x:hover { background: var(--silver-wash); }
 .rz-y { height: 4px; cursor: row-resize; flex-shrink: 0; }
 .rz-y:hover { background: var(--silver-wash); }
-.spin { width: 9px; height: 9px; border-radius: var(--radius-full); border: 1.5px solid var(--border-strong); border-top-color: var(--silver); animation: olympus-spin var(--loop-spin) linear infinite; flex-shrink: 0; }
+.spin { width: 9px; height: 9px; border-radius: var(--radius-full); border: 1.5px solid var(--border-strong); border-top-color: var(--silver); animation: stellarc-spin var(--loop-spin) linear infinite; flex-shrink: 0; }
 
 /* ── Session rows ────────────────────────────────── */
 .sec-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4-5) var(--space-6) var(--space-2); }
@@ -132,7 +132,7 @@ button {
 /* 14px mirrors the nav icon glyph (Icon size={14}) so idle & live rows keep a
    stable title column aligned with navitem labels. */
 .srow-icon { display: flex; align-items: center; justify-content: center; width: 14px; flex-shrink: 0; }
-.srow-spinner { width: 10px; height: 10px; border: 1.5px solid var(--border-strong); border-top-color: var(--accent); border-radius: var(--radius-full); animation: olympus-spin var(--loop-spin) linear infinite; }
+.srow-spinner { width: 10px; height: 10px; border: 1.5px solid var(--border-strong); border-top-color: var(--accent); border-radius: var(--radius-full); animation: stellarc-spin var(--loop-spin) linear infinite; }
 .srow-dot.done { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ok); }
 .srow-dot.needs-input { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--amber); box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 25%, transparent); }
 .srow-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: var(--space-1); }
@@ -866,23 +866,23 @@ input[type=range] { accent-color: var(--silver); height: 14px; cursor: pointer; 
   .btn.danger { color: var(--danger); border-color: var(--danger); }
   .vault-viewport { min-width: 0; overflow: hidden; }
   .vault-workspace-shell { display: flex; min-width: 0; height: 100%; flex-direction: column; }
-  .olympus-dockview { flex: 1; min-width: 0; min-height: 0; background: var(--bg); color: var(--text); --dv-background-color: var(--bg); --dv-paneview-active-outline-color: var(--accent); --dv-tabs-and-actions-container-background-color: var(--surface); --dv-activegroup-visiblepanel-tab-background-color: var(--bg); --dv-activegroup-hiddenpanel-tab-background-color: var(--surface); --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg); --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface); --dv-separator-border: var(--border); --dv-tabs-container-scrollbar-color: var(--scrollbar); --dv-icon-foreground: var(--faint); --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--faint); --dv-inactivegroup-visiblepanel-tab-color: var(--text); --dv-inactivegroup-hiddenpanel-tab-color: var(--faint); }
-  .olympus-dockview .dv-groupview { background: var(--bg); }
-  .olympus-dockview .dv-tabs-and-actions-container { min-height: 34px; border-bottom: var(--border-w) solid var(--border); font: var(--fs-12)/1 var(--font-sans); }
-  .olympus-dockview .dv-tab { border-right: var(--border-w) solid var(--border); }
-  .olympus-dockview .dv-tab.dv-active-tab { box-shadow: inset 0 2px 0 var(--accent); }
+  .stellarc-dockview { flex: 1; min-width: 0; min-height: 0; background: var(--bg); color: var(--text); --dv-background-color: var(--bg); --dv-paneview-active-outline-color: var(--accent); --dv-tabs-and-actions-container-background-color: var(--surface); --dv-activegroup-visiblepanel-tab-background-color: var(--bg); --dv-activegroup-hiddenpanel-tab-background-color: var(--surface); --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg); --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface); --dv-separator-border: var(--border); --dv-tabs-container-scrollbar-color: var(--scrollbar); --dv-icon-foreground: var(--faint); --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--faint); --dv-inactivegroup-visiblepanel-tab-color: var(--text); --dv-inactivegroup-hiddenpanel-tab-color: var(--faint); }
+  .stellarc-dockview .dv-groupview { background: var(--bg); }
+  .stellarc-dockview .dv-tabs-and-actions-container { min-height: 34px; border-bottom: var(--border-w) solid var(--border); font: var(--fs-12)/1 var(--font-sans); }
+  .stellarc-dockview .dv-tab { border-right: var(--border-w) solid var(--border); }
+  .stellarc-dockview .dv-tab.dv-active-tab { box-shadow: inset 0 2px 0 var(--accent); }
   .vault-dock-tab { display: flex; min-width: 0; height: 100%; align-items: center; gap: var(--space-2); padding-left: var(--space-3); }
   .vault-dock-tab > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .vault-dock-tab > button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--faint); }
   .vault-dock-tab > button:hover { background: var(--elev); color: var(--text); }
-  .olympus-dockview .dv-content-container { min-width: 0; min-height: 0; background: var(--bg); }
+  .stellarc-dockview .dv-content-container { min-width: 0; min-height: 0; background: var(--bg); }
   .sessions-dock-shell { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
   .sessions-dock-empty { position: absolute; inset: 0; display: flex; flex-direction: column; pointer-events: none; }
   .sessions-dockview .dv-tabs-and-actions-container { display: none; }
   .sessions-dockview.multi-group .dv-tabs-and-actions-container { display: flex; }
   .sessions-dockview .dv-split-view-container, .sessions-dockview .dv-groupview, .sessions-dockview .dv-content-container { height: 100%; }
-  .olympus-dockview .dv-content-container > * { height: 100%; min-height: 0; }
-  .olympus-dockview .dv-react-part > * { height: 100%; min-height: 0; }
+  .stellarc-dockview .dv-content-container > * { height: 100%; min-height: 0; }
+  .stellarc-dockview .dv-react-part > * { height: 100%; min-height: 0; }
   .sessions-dockview .dv-react-part { display: flex; min-height: 0; overflow: hidden; }
   .vault-view-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); padding: var(--space-5) var(--space-6); border-bottom: var(--border-w) solid var(--border); }
   .vault-view-header > div { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -1082,11 +1082,11 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
 /* ═══════════════════════════════════════════════════
    AUTH / LOGIN SCREEN  (auth.tsx)
    ═══════════════════════════════════════════════════
-   The standalone unauthenticated surface: the "Connecting to Hall" loading
+   The standalone unauthenticated surface: the "Connecting to Axis" loading
    state and the sign-in form. The cockpit is desktop-first, but this screen is
    the one place a user may arrive on a phone, so it stays graceful to mobile.
    Editorial-terminal identity: mono kicker + wordmark + accent peak mark,
-   hairline card on chrome, a mono status footer naming the Hall origin. */
+   hairline card on chrome, a mono status footer naming the Axis origin. */
 .auth-screen {
   min-height: 100vh;
   min-height: 100dvh;
@@ -1144,7 +1144,7 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
 .auth-status { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-4) 0; }
 .auth-status-text { font-size: var(--fs-13); color: var(--text-dim); }
 
-/* Footer — mono status line naming the Hall origin */
+/* Footer — mono status line naming the Axis origin */
 .auth-foot {
   display: flex; align-items: center; gap: var(--space-4);
   padding-top: var(--space-8); border-top: var(--border-w) solid var(--border-faint);

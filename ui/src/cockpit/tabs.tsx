@@ -88,7 +88,7 @@ function TerminalPane({ tab, visible }: { tab: CockpitTab; visible: boolean }) {
   const updateTab = useCockpit((s) => s.updateTab);
 
   const terminalId = stableTerminalId(tab);
-  const node = tab.target?.nodeId ?? "hall";
+  const node = tab.target?.nodeId ?? "axis";
 
   // Connect / reconnect to the WS. Called on mount and on socket close.
   const connect = useCallback(() => {
@@ -334,7 +334,7 @@ function EditorPane({ tab }: { tab: CockpitTab; visible: boolean }) {
     <div className="cockpit-pane-empty">
       <Icon name="file" size={24} />
       <span>
-        Code editor — needs the node file API (list/read/write over the envoy
+        Code editor — needs the node file API (list/read/write over the orbit
         channel) before it can browse {tab.target?.nodeId ?? "a node"}'s files.
       </span>
       <span className="gtag">COMING · CARD CP-EDITOR</span>

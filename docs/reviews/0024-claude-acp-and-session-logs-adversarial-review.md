@@ -1,20 +1,20 @@
-# 0024 — Claude ACP startup and Hall-backed session logs: adversarial review
+# 0024 — Claude ACP startup and Axis-backed session logs: adversarial review
 
 **Date:** 2026-07-13  
 **Status:** Pre-implementation adversarial review  
-**Verdict:** **NO-GO as one combined slice.** The Claude framing diagnosis is correct, but the proposed command pin and direct-child reap are not sufficient for deterministic startup or leak-free failure handling. A new Hall `SessionLog` store is also not admissible before ADR 0018's prerequisites. The acceptable immediate logs slice is only a UI projection of existing Hall product truth, with live diagnostics remaining explicitly ephemeral.
+**Verdict:** **NO-GO as one combined slice.** The Claude framing diagnosis is correct, but the proposed command pin and direct-child reap are not sufficient for deterministic startup or leak-free failure handling. A new Axis `SessionLog` store is also not admissible before ADR 0018's prerequisites. The acceptable immediate logs slice is only a UI projection of existing Axis product truth, with live diagnostics remaining explicitly ephemeral.
 
 ## 1. Scope and reviewed snapshot
 
-Repository: `/home/rpw/olympus`
+Repository: `/home/rpw/stellarc`
 
 - HEAD: `f784b04aa6d04e6759eef999012f48ac3f0f1622`
 - Pre-report tracked diff SHA-256: `64174873dc5f00f75454ca059913590a0820d4941caef852c1d81b3afda8b9bc`
 - Relevant reviewed file hashes:
-  - `crates/envoy/src/bridge/hermes.rs`: `6d879b7e03e21cbf3a33e4facb2389a0b9cb1a6f6a5b3551541899ac7a3e2424`
-  - `crates/envoy/src/bridge/child.rs`: `66b909564f443eb92772f2752b584271a8944ca85087b3a4f02640c0b52f8130`
-  - `crates/envoy/src/bridge/client.rs`: `67eb124774104026d0a807704562ce87c8db6baea09654230839c4ca1132602d`
-  - `crates/envoy/src/runtime_table.rs`: `48e9e1a470ced0835627e513fbb7a4228bd8d2de53c60023a9fc0e6a15528a61`
+  - `crates/orbit/src/bridge/hermes.rs`: `6d879b7e03e21cbf3a33e4facb2389a0b9cb1a6f6a5b3551541899ac7a3e2424`
+  - `crates/orbit/src/bridge/child.rs`: `66b909564f443eb92772f2752b584271a8944ca85087b3a4f02640c0b52f8130`
+  - `crates/orbit/src/bridge/client.rs`: `67eb124774104026d0a807704562ce87c8db6baea09654230839c4ca1132602d`
+  - `crates/orbit/src/runtime_table.rs`: `48e9e1a470ced0835627e513fbb7a4228bd8d2de53c60023a9fc0e6a15528a61`
   - `ui/src/views/sessions/components/BottomPanel.tsx`: `0e963b56af5f5525f3befc80333082d13801ccd6b9bfc8ae44b0ba81e3b8305e`
   - ADR 0018: `f2df8e838a378798d2290dd79df83441b342feb5ab870ce8cc0bdaf5a7cde330`
 
@@ -56,12 +56,12 @@ The draft pins the top-level package name and version, but runtime still depends
 
 - `npx`, `node`, registry availability, DNS/TLS, npm configuration and cache state;
 - the package remaining available from the configured registry;
-- runtime dependency resolution. The published tarball does not ship its upstream `package-lock.json`; its manifest includes ranges/peers, so the full graph is not locked by Olympus;
+- runtime dependency resolution. The published tarball does not ship its upstream `package-lock.json`; its manifest includes ranges/peers, so the full graph is not locked by Stellarc;
 - a cold download completing inside the same 30-second ACP startup timeout.
 
-Deployment currently fails closed only for `hermes`. `scripts/install-envoy.sh:155-171` does not require `node >=22` or `npx`; it merely warns about `bunx`. The systemd unit's PATH comment still describes Bun adapters (`systemd/olympus-envoy@.service:11-13`). A string-equality unit test cannot detect any of these failures.
+Deployment currently fails closed only for `hermes`. `scripts/install-orbit.sh:155-171` does not require `node >=22` or `npx`; it merely warns about `bunx`. The systemd unit's PATH comment still describes Bun adapters (`systemd/stellarc-orbit@.service:11-13`). A string-equality unit test cannot detect any of these failures.
 
-**Failure scenario:** a clean or offline envoy starts correctly for Hermes but every first Claude session blocks on package acquisition, fails because Node is too old/missing, or resolves a different transitive graph. The user sees the same generic 30-second timeout and startup behavior differs by host/cache.
+**Failure scenario:** a clean or offline orbit starts correctly for Hermes but every first Claude session blocks on package acquisition, fails because Node is too old/missing, or resolves a different transitive graph. The user sees the same generic 30-second timeout and startup behavior differs by host/cache.
 
 **Required correction:** provision the adapter during install/deploy from a checked-in consumer lockfile with recorded integrity, then invoke its installed binary by a fixed path. Validate Node `>=22` and the binary's `--version` before starting the service. Runtime session startup must not install software or require the network.
 
@@ -125,19 +125,19 @@ Minimum regression cases:
 
 New sessions include `self.config.mcp_servers` (`hermes.rs:193-197`; `client.rs:296-303`). Resumes call `build_session_resume_request(..., &[])` (`client.rs:305-315`). Fork has the same omission.
 
-The exact Claude adapter fingerprints session-defining parameters as `{cwd, mcpServers}` and recreates the underlying Query when they differ. Its cross-process resume path creates the resumed session with the provided `cwd` and `mcpServers`. Passing an empty list therefore does not preserve the session environment created by Olympus.
+The exact Claude adapter fingerprints session-defining parameters as `{cwd, mcpServers}` and recreates the underlying Query when they differ. Its cross-process resume path creates the resumed session with the provided `cwd` and `mcpServers`. Passing an empty list therefore does not preserve the session environment created by Stellarc.
 
-**Failure scenario:** a Claude session created with Olympus MCP servers resumes without them after an envoy restart. Tools disappear or behavior changes even though the UI reports a resumed session.
+**Failure scenario:** a Claude session created with Stellarc MCP servers resumes without them after an orbit restart. Tools disappear or behavior changes even though the UI reports a resumed session.
 
 **Required correction:** pass the same normalized MCP configuration to new, resume, and fork requests. Add a real exact-adapter smoke test that creates a session, restarts the adapter process, resumes the returned session ID with the same cwd/MCP set, and confirms a successful response. Also test an intentional configuration change so recreation semantics are understood rather than accidental.
 
-### B5 — a new durable Hall `SessionLog` store would contradict ADR 0018
+### B5 — a new durable Axis `SessionLog` store would contradict ADR 0018
 
 **Severity:** Architecture blocker
 
-`SessionLog` is currently a WS frame only (`crates/control-plane/src/server/ws.rs:125-136`). Its producers are human-oriented lifecycle strings in `sessions.rs`; some include arbitrary adapter errors and warnings, and `steer.delivered` includes the first 80 characters of steering text (`sessions.rs:1839-1847`). The browser also synthesizes lifecycle entries from other frames using client timestamps.
+`SessionLog` is currently a WS frame only (`crates/axis/src/server/ws.rs:125-136`). Its producers are human-oriented lifecycle strings in `sessions.rs`; some include arbitrary adapter errors and warnings, and `steer.delivered` includes the first 80 characters of steering text (`sessions.rs:1839-1847`). The browser also synthesizes lifecycle entries from other frames using client timestamps.
 
-Persisting this stream directly in `olympus.db`, adding a second ad-hoc Hall table, or treating it as permanent event-log product truth would create an unbounded, sensitive diagnostic authority outside the approved architecture:
+Persisting this stream directly in `stellarc.db`, adding a second ad-hoc Axis table, or treating it as permanent event-log product truth would create an unbounded, sensitive diagnostic authority outside the approved architecture:
 
 - ADR 0018 separates permanent product truth from TTL diagnostics (`ADR 0018:48-65,175-191`).
 - Durable diagnostics belong in local `telemetry.db` with explicit TTL, row/byte caps, bounded pagination, pressure behavior and delete semantics (`ADR 0018:193-241`).
@@ -149,7 +149,7 @@ There is also no stable log ID or sequence. A fetch-plus-WS merge would miss or 
 
 **Required correction:** do not add a new `SessionLog` event, table, endpoint, or retention path in this immediate fix.
 
-The acceptable immediate interpretation of “Hall-backed” is narrower: rebuild a **recent product lifecycle view** from the existing Hall message projection, whose authority and retention already exist, and keep `session.log` as a clearly labelled live-only tail. The concurrent `logsFromMessages()` draft in `BottomPanel.tsx:88-142,174-190` follows that direction and does not create a second store. It must not be described as durable diagnostic-log persistence.
+The acceptable immediate interpretation of “Axis-backed” is narrower: rebuild a **recent product lifecycle view** from the existing Axis message projection, whose authority and retention already exist, and keep `session.log` as a clearly labelled live-only tail. The concurrent `logsFromMessages()` draft in `BottomPanel.tsx:88-142,174-190` follows that direction and does not create a second store. It must not be described as durable diagnostic-log persistence.
 
 If strict “query only; no client ring” semantics are required, omit live `session.log` rows from the Logs tab for now. Do not persist them merely to make the tab look complete.
 
@@ -180,7 +180,7 @@ The live IDs built from timestamp/source/message can collide for repeated diagno
 
 ### P1 — do not persist raw stderr or arbitrary adapter strings
 
-The bounded 8 KiB stderr tail improves local diagnosis, but adapter/npm stderr can contain filesystem paths, registry URLs, headers, environment-derived values or user content. Do not copy it verbatim into a permanent system message or future Hall log store. Persist a structured/sanitized error class and keep raw process stderr in local service diagnostics until ADR 0018's redaction firewall exists.
+The bounded 8 KiB stderr tail improves local diagnosis, but adapter/npm stderr can contain filesystem paths, registry URLs, headers, environment-derived values or user content. Do not copy it verbatim into a permanent system message or future Axis log store. Persist a structured/sanitized error class and keep raw process stderr in local service diagnostics until ADR 0018's redaction firewall exists.
 
 ### P2 — `session.log` is also being used as a control signal
 
@@ -202,10 +202,10 @@ This is the smallest root-cause fix that does not leave the next outage in place
 ### 5.2 Logs — admissible slice
 
 1. Add no storage schema, event variant, telemetry DB or log endpoint.
-2. Derive recent durable lifecycle rows from Hall's existing message query with stable message-derived IDs. Do not copy user prompts, reasoning, tool arguments or tool results.
+2. Derive recent durable lifecycle rows from Axis's existing message query with stable message-derived IDs. Do not copy user prompts, reasoning, tool arguments or tool results.
 3. Either:
    - keep `session.log` as an explicitly live-only tail merged in memory, or
-   - for strict Hall-only behavior, omit `session.log` from the rehydrated tab.
+   - for strict Axis-only behavior, omit `session.log` from the rehydrated tab.
 4. Make “clear” explicitly clear the current view only; it must not imply server deletion.
 5. Label the view recent/partial. Persisted TTL diagnostics remain ADR 0018 OBS work after PRE-OBS, not part of this bug fix.
 
@@ -238,7 +238,7 @@ Run against the provisioned `0.58.1` binary with runtime network disabled:
 ### Operational
 
 - Install on a clean host with no npm cache.
-- Start the systemd envoy with its exact service PATH/environment.
+- Start the systemd orbit with its exact service PATH/environment.
 - Confirm runtime startup performs no registry/network access.
 - Confirm failed startup stores no raw secret-bearing stderr and leaves no `npx`/Node/Claude descendants.
 
@@ -250,8 +250,8 @@ Run against the provisioned `0.58.1` binary with runtime network disabled:
 | Claude Content-Length → newline JSON | **Approve** | Confirmed against exact `0.58.1`; keep the change Claude-scoped. |
 | “Reap failed child” | **Approve only with process-tree semantics** | Direct PID SIGKILL is insufficient and bypasses adapter cleanup. |
 | Current handshake/resume behavior | **Reject** | Swallows JSON-RPC errors, can falsely succeed on failed resume, drops MCP config. |
-| New permanent Hall `SessionLog` store | **Reject** | Duplicates authority and bypasses ADR 0018 TTL/redaction/prerequisites. |
-| Rehydrate recent lifecycle from existing Hall messages | **Approve with honest partial/live-only labels** | Reuses product truth; no new retention architecture. |
+| New permanent Axis `SessionLog` store | **Reject** | Duplicates authority and bypasses ADR 0018 TTL/redaction/prerequisites. |
+| Rehydrate recent lifecycle from existing Axis messages | **Approve with honest partial/live-only labels** | Reuses product truth; no new retention architecture. |
 | Full TTL diagnostic history | **Defer to ADR 0018 after PRE-OBS** | Already approved and sequenced; do not build a competing shortcut. |
 
 **Overall: NO-GO until B1-B4 are resolved. Do not couple the startup repair to new diagnostic persistence.**

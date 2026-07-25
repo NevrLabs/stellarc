@@ -140,7 +140,7 @@
         "method": "session/resume",
         "params": {
           "sessionId": "2651c325-3bea-426a-a94f-89a3987e6398",
-          "cwd": "/home/rpw/olympus",
+          "cwd": "/home/rpw/stellarc",
           "mcpServers": []
         }
       }
@@ -511,7 +511,7 @@
           "protocolVersion": 1,
           "clientCapabilities": {},
           "clientInfo": {
-            "name": "olympus-acp-wire-spike-resume",
+            "name": "stellarc-acp-wire-spike-resume",
             "version": "0.1.0"
           }
         }
@@ -568,7 +568,7 @@
         "method": "session/resume",
         "params": {
           "sessionId": "2651c325-3bea-426a-a94f-89a3987e6398",
-          "cwd": "/home/rpw/olympus",
+          "cwd": "/home/rpw/stellarc",
           "mcpServers": []
         }
       }
@@ -932,7 +932,7 @@
     "2026-06-28 23:16:30 [INFO] acp_adapter.entry: Starting hermes-agent ACP adapter",
     "2026-06-28 23:16:31 [INFO] acp_adapter.server: ACP client connected",
     "2026-06-28 23:16:33 [INFO] hermes_cli.auth: Z.AI: auto-detected endpoint Global (Coding Plan) (https://api.z.ai/api/coding/paas/v4)",
-    "2026-06-28 23:16:33 [INFO] acp_adapter.server: Initialize from olympus-acp-wire-spike-resume (protocol v1)",
+    "2026-06-28 23:16:33 [INFO] acp_adapter.server: Initialize from stellarc-acp-wire-spike-resume (protocol v1)",
     "2026-06-28 23:16:33 [INFO] run_agent: Loaded environment variables from /tmp/hermes-acp-spike-50hy6cv3/.env",
     "2026-06-28 23:16:37 [INFO] hermes_cli.auth: Z.AI: auto-detected endpoint Global (Coding Plan) (https://api.z.ai/api/coding/paas/v4)",
     "2026-06-28 23:16:38 [INFO] run_agent: OpenAI client created (agent_init, shared=True) thread=MainThread:139032570709824 provider=zai base_url=https://api.z.ai/api/coding/paas/v4 model=glm-4.5",

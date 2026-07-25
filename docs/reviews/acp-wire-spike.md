@@ -9,7 +9,7 @@ Scope: drove the real `hermes acp` subprocess over stdio with a throwaway `HERME
 
 ## Verdict
 
-ACP is viable for the Olympus bridge, but only as the real Agent Client Protocol method set. There is no ACP `steer` method and no generic ACP `slash` method. Slash commands are prompt text sent through `session/prompt`.
+ACP is viable for the Stellarc bridge, but only as the real Agent Client Protocol method set. There is no ACP `steer` method and no generic ACP `slash` method. Slash commands are prompt text sent through `session/prompt`.
 
 Transport is newline-delimited JSON-RPC 2.0 over stdio. The Python ACP connection reads stdout with `readline()` and writes one JSON object per line; no `Content-Length` framing was observed or required.
 
@@ -44,7 +44,7 @@ Session ID from this run: `2651c325-3bea-426a-a94f-89a3987e6398`.
 Client request:
 
 ```json
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true}},"clientInfo":{"name":"olympus-acp-wire-spike","version":"0.1.0"}}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true}},"clientInfo":{"name":"stellarc-acp-wire-spike","version":"0.1.0"}}}
 ```
 
 Agent response:
@@ -58,7 +58,7 @@ Agent response:
 Client request:
 
 ```json
-{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/home/rpw/olympus","mcpServers":[]}}
+{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/home/rpw/stellarc","mcpServers":[]}}
 ```
 
 Agent response shape, with the full frame in `acp-wire-spike-capture.json`:
@@ -202,7 +202,7 @@ A new `hermes acp` subprocess was started against the same throwaway `HERMES_HOM
 Client request:
 
 ```json
-{"jsonrpc":"2.0","id":2,"method":"session/resume","params":{"sessionId":"2651c325-3bea-426a-a94f-89a3987e6398","cwd":"/home/rpw/olympus","mcpServers":[]}}
+{"jsonrpc":"2.0","id":2,"method":"session/resume","params":{"sessionId":"2651c325-3bea-426a-a94f-89a3987e6398","cwd":"/home/rpw/stellarc","mcpServers":[]}}
 ```
 
 History replay happened before the response via `session/update`, for example:
@@ -221,7 +221,7 @@ Then the response returned current session state:
 {"jsonrpc":"2.0","id":2,"result":{"_meta":{"hermes":{"sessionProvenance":{"acpSessionId":"2651c325-3bea-426a-a94f-89a3987e6398","currentHermesSessionId":"2651c325-3bea-426a-a94f-89a3987e6398","rootHermesSessionId":"2651c325-3bea-426a-a94f-89a3987e6398","parentHermesSessionId":null,"sessionKind":"root","compressionDepth":0}}},"models":{"currentModelId":"zai:glm-4.5"},"modes":{"currentModeId":"default"}}}
 ```
 
-Important limitation: `session/resume` exists, but Hermes `SessionManager._restore` only restores persisted rows where `source == "acp"`. A non-ACP external row is treated as not restorable by ACP. For Olympus, cross-channel continuation must fork/copy into an ACP-owned session through a Hermes-owned invariant-preserving path; do not expect `session/resume` to attach directly to arbitrary `telegram`, `cli`, `cron`, `discord`, etc. sessions.
+Important limitation: `session/resume` exists, but Hermes `SessionManager._restore` only restores persisted rows where `source == "acp"`. A non-ACP external row is treated as not restorable by ACP. For Stellarc, cross-channel continuation must fork/copy into an ACP-owned session through a Hermes-owned invariant-preserving path; do not expect `session/resume` to attach directly to arbitrary `telegram`, `cli`, `cron`, `discord`, etc. sessions.
 
 ## Surprises vs the prior documented contract
 

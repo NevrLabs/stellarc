@@ -113,7 +113,7 @@ export function SessionSidebar({
   // Vertical resize between RECENT and PROJECTS sections.
   const recentResize = useResizable({
     axis: "y", min: 80, max: 500, initial: 200, direction: "down",
-    persistKey: "olympus-sidebar-recent-h",
+    persistKey: "stellarc-sidebar-recent-h",
   });
 
   const handleNewSession = useCallback(() => {
@@ -367,7 +367,7 @@ function projectName(projects: Project[], id: string | null | undefined): string
 
 function sessionDragId(dataTransfer: DataTransfer): string | null {
   try {
-    const payload = JSON.parse(dataTransfer.getData("application/x-olympus-session")) as unknown;
+    const payload = JSON.parse(dataTransfer.getData("application/x-stellarc-session")) as unknown;
     if (!payload || typeof payload !== "object" || !("sessionId" in payload)) return null;
     return typeof (payload as Record<string, unknown>).sessionId === "string"
       ? (payload as Record<string, string>).sessionId
@@ -573,7 +573,7 @@ function SessionRow({
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = "copy";
         event.dataTransfer.setData(
-          "application/x-olympus-session",
+          "application/x-stellarc-session",
           JSON.stringify({ type: "session", sessionId: session.id, projectId: session.projectId, title }),
         );
       }}
@@ -584,7 +584,7 @@ function SessionRow({
         <span className="hc-row"><span className="hc-k">project</span><span className="hc-v">{projectName ?? "—"}</span></span>
         <span className="hc-row"><span className="hc-k">agent</span><span className="hc-v">{session.agent ?? "—"}</span></span>
         <span className="hc-row"><span className="hc-k">model</span><span className="hc-v">{session.model ?? "—"}</span></span>
-        <span className="hc-row"><span className="hc-k">node</span><span className="hc-v">{session.node ?? "olympus"}</span></span>
+        <span className="hc-row"><span className="hc-k">node</span><span className="hc-v">{session.node ?? "stellarc"}</span></span>
         {subsessionCount && subsessionCount > 0 && (
           <span className="hc-row"><span className="hc-k">subs</span><span className="hc-v">{subsessionCount}</span></span>
         )}

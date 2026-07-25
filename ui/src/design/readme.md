@@ -1,23 +1,23 @@
-# Olympus Design System
+# Stellarc Design System
 
-> The visual language, tokens, components, and UI kits for **Olympus** — a
+> The visual language, tokens, components, and UI kits for **Stellarc** — a
 > local-first AI control plane for supervising an autonomous software-agent
 > fleet.
 
-This is the design language of the **shipped Olympus app** (the "Instrument"
+This is the design language of the **shipped Stellarc app** (the "Instrument"
 direction): the app itself is the groundtruth, and everything here — tokens,
 component classes, kits — is extracted from and kept consistent with it
-(`ui_kits/olympus-app/index.html` is the canonical reference).
+(`ui_kits/stellarc-app/index.html` is the canonical reference).
 
 ---
 
-## 1. What Olympus is
+## 1. What Stellarc is
 
-Olympus is an **operating environment for AI-assisted development**: part
+Stellarc is an **operating environment for AI-assisted development**: part
 workspace manager, part agent command center, part observability console, part
 durable project archive. A power user runs a fleet of autonomous agent sessions
 across many channels (CLI, Telegram, Discord, web, cron, subagents, ACP) and
-Olympus unifies them into one searchable, resumable cockpit.
+Stellarc unifies them into one searchable, resumable cockpit.
 
 Core surfaces (from the real product):
 
@@ -35,7 +35,7 @@ Core surfaces (from the real product):
 
 ### Sources (store for reference; reader may not have access)
 
-- **GitHub:** `https://github.com/IEatCodeDaily/olympus` (branch `main`).
+- **GitHub:** `https://github.com/nevrlabs/stellarc` (branch `main`).
   - `ui/src/index.css` — the *previous* design system's tokens (intentionally
     not carried forward here).
   - `ui/src/views/*.tsx`, `ui/src/components/shell.tsx`, `ui/src/types.ts`,
@@ -48,12 +48,12 @@ Core surfaces (from the real product):
 
 ---
 
-## 2. Content fundamentals — how Olympus writes
+## 2. Content fundamentals — how Stellarc writes
 
 - **Voice:** terse, technical, operator-to-operator. Confident, never chatty.
   It respects that the reader is a power user.
-- **Person:** addresses the user as **you** ("Fork it to continue from Olympus",
-  "Message this session…"). The product refers to itself as **Olympus**, not "we".
+- **Person:** addresses the user as **you** ("Fork it to continue from Stellarc",
+  "Message this session…"). The product refers to itself as **Stellarc**, not "we".
 - **Casing:** **sentence case** for all prose, buttons, titles, and nav ("New
   session", "Fork to continue", not "New Session"). The one deliberate exception
   is **UPPERCASE mono micro-labels** — field labels, badges, column titles,
@@ -66,14 +66,14 @@ Core surfaces (from the real product):
   `2m ago`, `5 / 6 slots`. Timestamps are relative ("just now", "3h ago", "Jun 24").
 - **No emoji.** No exclamation marks in UI copy. No marketing adjectives.
 - **Terminology:** *session* (an agent conversation), *managed* vs *observed*
-  (Olympus-driven vs read-only imported), *fork* (never edit a source session in
+  (Stellarc-driven vs read-only imported), *fork* (never edit a source session in
   place — forking is the continuation primitive), *node* (a runtime host),
   *slot* (a concurrency unit), *source/channel* (origin: cli, telegram, acp…).
 
 Example copy, in-voice:
 
 > **This is an observed telegram session — read-only. Fork it to continue from
-> Olympus.**   ·   **New session**   ·   **Stop agent**   ·   **runtime live ·
+> Stellarc.**   ·   **New session**   ·   **Stop agent**   ·   **runtime live ·
 > binding locked**
 
 ---
@@ -158,8 +158,8 @@ where the "color" of action is light itself.
 - **Emoji:** never. **Unicode glyphs as icons:** only the tool-call status marks
   reused from the product (`◌` running / `✓` done) and the send/stop composer
   glyphs, all rendered as SVG where possible.
-- **Brand mark:** `assets/olympus-mark.svg` — a **placeholder** geometric "summit"
-  (two nested sharp chevrons = a peak; Olympus). It uses `currentColor` so it
+- **Brand mark:** `assets/stellarc-mark.svg` — a **placeholder** geometric "summit"
+  (two nested sharp chevrons = a peak; Stellarc). It uses `currentColor` so it
   themes. **This is not a real logo** — no brand mark was provided; replace it
   with the official asset when available. Never treat the placeholder as final.
 
@@ -173,13 +173,13 @@ where the "color" of action is light itself.
   `radius.css`, `motion.css`, `base.css`.
 - `styles/components.css` — the `.ol-*` class contract the React components render
   against (shipped through `styles.css`).
-- `assets/` — `olympus-mark.svg` (placeholder brand mark).
+- `assets/` — `stellarc-mark.svg` (placeholder brand mark).
 - `guidelines/` — foundation specimen cards (Colors, Type, Spacing, Brand).
 - `components/` — reusable React primitives (below).
 - `ui_kits/` — full-screen product recreations (below).
 - `SKILL.md` — Agent-Skill wrapper for downloaded use.
 
-### Components (`window.OlympusDesignSystem_516a9b.*`)
+### Components (`window.StellarcDesignSystem_516a9b.*`)
 - **core** — `Button`, `IconButton`, `Badge`, `StatusDot`, `Tag`, `Spinner`, `Kbd`
 - **forms** — `Input`, `Textarea`, `Select`, `SearchInput`, `Checkbox`, `Radio`, `Switch`
 - **data** — `Card`, `StatPill`, `ProgressBar`, `Avatar`, `Skeleton`
@@ -190,7 +190,7 @@ Each component has a sibling `.d.ts` (props contract) and most a `.prompt.md`
 (usage). Each directory has one `@dsCard` HTML showcasing states.
 
 ### UI kits (`ui_kits/`)
-- `olympus-app/` — **the groundtruth.** `index.html` is the shipped app itself
+- `stellarc-app/` — **the groundtruth.** `index.html` is the shipped app itself
   (sessions + transcript + composer with context/model popovers, vaults,
   projects, workflow, plugins, fleet, settings, ⌘K palette, bottom terminal
   panel, right info sidebar). Copy patterns from here first. `states.html` is a
@@ -206,4 +206,4 @@ Each component has a sibling `.d.ts` (props contract) and most a `.prompt.md`
   swap the `@import` for self-hosted `@font-face` if you need offline/pinned fonts.
   (Because they load via a remote `@import`, the compiler's "Fonts" count reads 0
   — the fonts still load at runtime.)
-- **Brand mark is a placeholder** — replace `assets/olympus-mark.svg`.
+- **Brand mark is a placeholder** — replace `assets/stellarc-mark.svg`.

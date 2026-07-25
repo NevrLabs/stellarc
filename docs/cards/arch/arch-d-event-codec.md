@@ -8,11 +8,11 @@ from the workspace. Existing rows are re-encoded ONCE by an idempotent boot
 migration.
 
 ## Read FIRST
-- `crates/control-plane/src/event.rs` — the Event enum.
-- `crates/control-plane/src/log.rs` — append/read, `events` schema, the
+- `crates/axis/src/event.rs` — the Event enum.
+- `crates/axis/src/log.rs` — append/read, `events` schema, the
   existing idempotent-migration pattern (see commit `925f7c2` for the
   organization-column precedent).
-- `crates/control-plane/src/compress.rs` — zstd layer stays.
+- `crates/axis/src/compress.rs` — zstd layer stays.
 - ARCH-C's merged result: legacy redb code is already gone.
 
 ## Build on
@@ -27,7 +27,7 @@ Branch from main AFTER ARCH-C merges.
    (decode-old == decode-new) during the migration.
 2. After migration lands: all writes json+zstd; the postcard decode path and
    the `postcard` dependency are DELETED from the workspace (check crates/proto
-   and envoy for other postcard users first — if the wire protocol uses it,
+   and orbit for other postcard users first — if the wire protocol uses it,
    scope deletion to control-plane and say so in the summary; proto frames are
    ADR 0008 JSON-lines, so postcard there is unlikely but VERIFY).
 3. Round-trip property test: every Event variant encodes→decodes identically.
@@ -51,7 +51,7 @@ Branch from main AFTER ARCH-C merges.
 
 ## Gates
 - `cargo test --workspace` + clippy `-D warnings` + fmt green.
-- Fixtures only — do NOT run against `~/.olympus/olympus.db`. The controller
+- Fixtures only — do NOT run against `~/.stellarc/stellarc.db`. The controller
   runs the live-DB migration at deploy.
-- Do NOT start/restart olympus services.
+- Do NOT start/restart stellarc services.
 - Do not push to main. Green → `blocked: review-required`.

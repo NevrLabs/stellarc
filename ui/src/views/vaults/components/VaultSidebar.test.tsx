@@ -59,7 +59,7 @@ describe("VaultSidebar", () => {
       },
     });
 
-    expect(JSON.parse(data.get("application/x-olympus-vault-note") ?? "{}")).toMatchObject({
+    expect(JSON.parse(data.get("application/x-stellarc-vault-note") ?? "{}")).toMatchObject({
       type: "vault-note",
       path: "one.md",
       title: "One",

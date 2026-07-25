@@ -194,7 +194,7 @@ function FileTreeEntry({
           if (folder) return;
           event.dataTransfer.effectAllowed = "copy";
           event.dataTransfer.setData(
-            "application/x-olympus-vault-note",
+            "application/x-stellarc-vault-note",
             JSON.stringify({ type: "vault-note", path: entry.path, title: entry.title }),
           );
         }}

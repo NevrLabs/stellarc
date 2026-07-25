@@ -14,7 +14,7 @@ guard before an agent reads a worktree?
 
 ## Spike
 
-Implemented in `crates/control-plane/src/edit_model.rs`.
+Implemented in `crates/axis/src/edit_model.rs`.
 
 The spike implements omp's hashline model:
 

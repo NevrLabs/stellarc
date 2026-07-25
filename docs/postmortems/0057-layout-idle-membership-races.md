@@ -9,7 +9,7 @@ Final race review found two asynchronous completion gaps:
 
 ## Impact
 
-A Hall response arriving while a layout save drained could leave project restore stalled until another unrelated render. A failed post-association refetch could open a pane without a verified authoritative membership projection, violating the fail-closed workspace invariant.
+A Axis response arriving while a layout save drained could leave project restore stalled until another unrelated render. A failed post-association refetch could open a pane without a verified authoritative membership projection, violating the fail-closed workspace invariant.
 
 ## Root cause
 

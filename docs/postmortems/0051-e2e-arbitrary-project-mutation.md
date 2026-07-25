@@ -6,7 +6,7 @@ The live project-workspace E2E selected the first project with at least two memb
 
 ## Impact
 
-The E2E changed Project B from its expected one-pane layout to two panes. The subsequent fresh-browser check after a Hall restart correctly failed. More broadly, running the canonical E2E against dev could overwrite an operator's workspace layout.
+The E2E changed Project B from its expected one-pane layout to two panes. The subsequent fresh-browser check after a Axis restart correctly failed. More broadly, running the canonical E2E against dev could overwrite an operator's workspace layout.
 
 ## Root cause
 

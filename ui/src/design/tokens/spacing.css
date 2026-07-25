@@ -1,4 +1,4 @@
-/* Olympus — Spacing & layout.
+/* Stellarc — Spacing & layout.
    A tight 2px-quantum scale (the app is DENSE). Named --space-N by pixel value
    so math stays obvious. Layout constants mirror the shipped app's chrome
    measurements exactly.

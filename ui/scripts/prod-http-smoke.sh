@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${1:-${OLYMPUS_PROD_BASE:-http://127.0.0.1:8799}}"
+BASE="${1:-${STELLARC_PROD_BASE:-http://127.0.0.1:8799}}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -29,7 +29,7 @@ grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' "$TMP_DIR/health.body"
 
 request unauthenticated 401 /api/sessions
 request foreign-origin 403 /api/sessions -H 'Origin: https://evil.example.com'
-request tunnel-origin 200 /api/health -H 'Origin: https://olympus.entelechia.cloud'
+request tunnel-origin 200 /api/health -H 'Origin: https://stellarc.entelechia.cloud'
 
 asset="$(grep -oE 'src="/assets/[^"]+\.js"' "$TMP_DIR/index.body" | head -1 | cut -d'"' -f2)"
 [[ -n "$asset" ]] || { echo "ERROR: index.html has no JavaScript asset" >&2; exit 1; }

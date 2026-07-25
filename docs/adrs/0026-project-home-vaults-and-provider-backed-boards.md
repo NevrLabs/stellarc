@@ -3,19 +3,19 @@
 - Status: Accepted
 - Date: 2026-07-17
 - Supersedes in part: ADR 0005's optional-vault Project definition, “project has no working files” hierarchy, and two-database authority summary
-- Amends: ADR 0004's structured-vault examples and sync boundary; ADR 0009's Hall-owned card projection; ADR 0016's vault sync/backup scope
+- Amends: ADR 0004's structured-vault examples and sync boundary; ADR 0009's Axis-owned card projection; ADR 0016's vault sync/backup scope
 - Depends on: ADR 0010 (identity/RBAC), ADR 0024 (Auth Broker), ADR 0025 (Repo/GitHub)
 
 > **Amended by ADR 0028 (2026-07-19).** A Project is additionally an
 > attachable context surface for sessions: a session has exactly one primary
 > project and may attach other same-org projects as context (mode read|write),
-> accessed through Hall APIs/agent tools under this ADR’s authority matrix —
+> accessed through Axis APIs/agent tools under this ADR’s authority matrix —
 > never by materializing the context project’s home vault into the session
 > space.
 
 ## 1. Context
 
-Projects need sovereign, recoverable project content: description, durable contexts, documentation, settings, boards, and card prose. Olympus must be able to discover project content by attaching a vault without treating portable files as authority to create identities or privileges.
+Projects need sovereign, recoverable project content: description, durable contexts, documentation, settings, boards, and card prose. Stellarc must be able to discover project content by attaching a vault without treating portable files as authority to create identities or privileges.
 
 Boards need both a native local-first backend and provider-backed implementations. In particular, a project board may directly present GitHub Issues while GitHub remains authoritative. Pull requests remain Repo entities under ADR 0025.
 
@@ -24,11 +24,11 @@ Native board data has two different writer models:
 - prose benefits from visible Markdown and jj history;
 - structured state needs relational queries and CRDT convergence.
 
-Mirroring either model into the other would create two writable truths. One project-wide database would also make every board share a lock, replication stream, migration, backup, and corruption domain. Olympus chooses an independently synchronized structured store per native board and accepts the resulting lifecycle obligations.
+Mirroring either model into the other would create two writable truths. One project-wide database would also make every board share a lock, replication stream, migration, backup, and corruption domain. Stellarc chooses an independently synchronized structured store per native board and accepts the resulting lifecycle obligations.
 
 ### Current implementation, verified
 
-The current Project filesystem mirror lives under Hall state and initializes optional `vaults`, `repos`, and `boards` lists as empty (`crates/control-plane/src/projects.rs:1-64`); there is no mandatory home Vault. Card creation uses `card-<UUID>` (`crates/control-plane/src/server/routes/cards.rs:101`) and Hall's central SQLite schema owns the canonical `cards` table (`crates/control-plane/src/log.rs:1093`). The current Vault creation request still requires a backend and passes it directly into creation (`crates/control-plane/src/server/routes/vaults.rs:40-75`), contrary to accepted ADR 0016. There is no board-local database, description lifecycle, move saga, provider-backed Board contract, or safe Project scan/import path. Section 15 makes these migrations prerequisites and forbids a dual-write compatibility architecture.
+The current Project filesystem mirror lives under Axis state and initializes optional `vaults`, `repos`, and `boards` lists as empty (`crates/axis/src/projects.rs:1-64`); there is no mandatory home Vault. Card creation uses `card-<UUID>` (`crates/axis/src/server/routes/cards.rs:101`) and Axis's central SQLite schema owns the canonical `cards` table (`crates/axis/src/log.rs:1093`). The current Vault creation request still requires a backend and passes it directly into creation (`crates/axis/src/server/routes/vaults.rs:40-75`), contrary to accepted ADR 0016. There is no board-local database, description lifecycle, move saga, provider-backed Board contract, or safe Project scan/import path. Section 15 makes these migrations prerequisites and forbids a dual-write compatibility architecture.
 
 ## 2. Decision
 
@@ -39,7 +39,7 @@ A Project owns one or more durable Board resources. Each Board selects exactly o
 - `native`: structured state in one board-local cr-sqlite database; prose in Markdown;
 - `github_issues`: GitHub Issues and comments in one referenced Repo are authoritative.
 
-**Doctrine:** Hall owns registration, authorization, allocations, and distributed operations; the home vault owns project prose; each native board database owns admitted structured board state; an external provider owns provider-backed state; Hall's cross-board views are rebuildable projections.
+**Doctrine:** Axis owns registration, authorization, allocations, and distributed operations; the home vault owns project prose; each native board database owns admitted structured board state; an external provider owns provider-backed state; Axis's cross-board views are rebuildable projections.
 
 No field has two canonical writable owners.
 
@@ -127,7 +127,7 @@ NativeCardLocator { project_id, board_id, local_number }
 GitHubIssueLocator { repo_id, issue_number }
 ```
 
-Only native Cards receive Hall numbers and human keys such as `<BOARD_SLUG>-<NUMBER>`. A GitHub issue is canonically located by Hall's immutable `repo_id` plus issue number. Provider repository ID is resolved only through that Repo's current immutable binding and is not caller-supplied locator authority; admission, lookup, authorization, dispatch, durable operations, and restore reject a missing, retired, stale, or mismatched binding before provider access. `owner/name#number` is display/routing metadata, not a second identity. Every Card/Thread API returns `backend_kind`, the tagged canonical locator, and an optional display key. Durable links and sagas store tagged locators, never an ambiguous string. Tests cover forged provider-ID hints, rename/transfer, retired Repo, and stale binding.
+Only native Cards receive Axis numbers and human keys such as `<BOARD_SLUG>-<NUMBER>`. A GitHub issue is canonically located by Axis's immutable `repo_id` plus issue number. Provider repository ID is resolved only through that Repo's current immutable binding and is not caller-supplied locator authority; admission, lookup, authorization, dispatch, durable operations, and restore reject a missing, retired, stale, or mismatched binding before provider access. `owner/name#number` is display/routing metadata, not a second identity. Every Card/Thread API returns `backend_kind`, the tagged canonical locator, and an optional display key. Durable links and sagas store tagged locators, never an ambiguous string. Tests cover forged provider-ID hints, rename/transfer, retired Repo, and stale binding.
 
 A `github_issues` Board stores a rebuildable membership projection from its provider query. An issue entering or leaving that filter changes Board membership only; it does not create, delete, or change the issue's canonical identity.
 
@@ -135,47 +135,47 @@ A `github_issues` Board stores a rebuildable membership projection from its prov
 
 | Concern | Canonical authority | Derived/portable form | Forbidden inference |
 |---|---|---|---|
-| Project/Board registration, org, grants, tombstones | Hall security/domain stores | sanitized manifests | filesystem presence cannot create or resurrect an entity |
-| Home-vault and Repo references | Hall Project revision | manifest declarations | manifest edits cannot grant access or bind credentials |
-| Project contexts/docs | Markdown bytes and jj history in home vault | search/index cache | Hall projection cannot overwrite prose |
-| Native structured board/card fields | board's cr-sqlite tables after Hall admission | deterministic export and Hall index | Markdown/frontmatter cannot override them |
+| Project/Board registration, org, grants, tombstones | Axis security/domain stores | sanitized manifests | filesystem presence cannot create or resurrect an entity |
+| Home-vault and Repo references | Axis Project revision | manifest declarations | manifest edits cannot grant access or bind credentials |
+| Project contexts/docs | Markdown bytes and jj history in home vault | search/index cache | Axis projection cannot overwrite prose |
+| Native structured board/card fields | board's cr-sqlite tables after Axis admission | deterministic export and Axis index | Markdown/frontmatter cannot override them |
 | Native card description | `cards/<card-key>.md` and jj | search/index cache | database cannot silently overwrite prose |
-| Native card comments | board cr-sqlite comment tables, Markdown bodies | Hall thread projection/export | filesystem files do not mint comments |
-| GitHub-backed cards/descriptions/comments | GitHub Issues API | bounded Hall cache/export | local cache or Markdown cannot write provider truth |
-| Native card numbers and all move sagas | Hall durable allocation/operation records | admitted participant markers | `MAX()+1`, filename, or CRDT merge cannot allocate identity |
-| PRs/reviews/checks | Repo/provider under ADR 0025 | Hall projection | Board does not own PR lifecycle |
-| Physical files/DB health | Envoy observation | Hall health status | presence does not imply authorization |
+| Native card comments | board cr-sqlite comment tables, Markdown bodies | Axis thread projection/export | filesystem files do not mint comments |
+| GitHub-backed cards/descriptions/comments | GitHub Issues API | bounded Axis cache/export | local cache or Markdown cannot write provider truth |
+| Native card numbers and all move sagas | Axis durable allocation/operation records | admitted participant markers | `MAX()+1`, filename, or CRDT merge cannot allocate identity |
+| PRs/reviews/checks | Repo/provider under ADR 0025 | Axis projection | Board does not own PR lifecycle |
+| Physical files/DB health | Orbit observation | Axis health status | presence does not imply authorization |
 | Editable Markdown replication | jj through approved vault adapters | binding status | cr-sqlite does not transport Markdown |
 | Editable native structured replication | logical cr-sqlite protocol | peer status/cursors | jj or file copy does not replicate live DBs |
 | Backups | immutable snapshot service | encrypted manifest/object set | backup objects do not become live replicas implicitly |
 
 ## 5. Project home vault
 
-Project creation requires `home_vault_id`. The default UX creates a dedicated Vault, while advanced users may select an existing same-organization Vault they are authorized to use. Creation validates path availability and writes Hall registration before materialization; failures are reconciled through a durable creation operation.
+Project creation requires `home_vault_id`. The default UX creates a dedicated Vault, while advanced users may select an existing same-organization Vault they are authorized to use. Creation validates path availability and writes Axis registration before materialization; failures are reconciled through a durable creation operation.
 
 A Vault may host multiple Projects under separate roots. A Project may reference multiple additional Vaults, but has exactly one home Vault at a time. Project access and home-vault access are independently checked; access to the Project does not broaden Vault grants.
 
-Deleting/retiring a Project removes Hall references and disables new operations. It never implicitly deletes the Vault or project bytes. Deleting/retiring a Vault is denied while it is a Project home unless each Project is explicitly retired or rehomed.
+Deleting/retiring a Project removes Axis references and disables new operations. It never implicitly deletes the Vault or project bytes. Deleting/retiring a Vault is denied while it is a Project home unless each Project is explicitly retired or rehomed.
 
 Rehoming is a durable, audited saga that:
 
 1. validates same-org target and grants;
 2. freezes project content mutations or establishes an explicit revision/vector barrier;
 3. copies/verifies Markdown, descriptors, native board snapshots, and attachment references;
-4. switches `home_vault_id` in Hall;
+4. switches `home_vault_id` in Axis;
 5. leaves a non-authoritative relocation marker at the source;
 6. resumes writes only after verification.
 
-If the home Vault is unavailable, Hall retains Project identity and metadata, shows the Project degraded/read-only where required, and does not synthesize missing content from caches.
+If the home Vault is unavailable, Axis retains Project identity and metadata, shows the Project degraded/read-only where required, and does not synthesize missing content from caches.
 
 ### Mandatory-home-Vault cutover
 
 This is a one-time hard migration, not a nullable compatibility mode:
 
-1. First fix Vault creation so an Olympus-only Vault is the default and no GitHub backend is required.
+1. First fix Vault creation so an Stellarc-only Vault is the default and no GitHub backend is required.
 2. Freeze Project creation/content mutation and inventory every live/tombstoned Project, manifest, legacy content root, Board/Card reference, and hash.
 3. For each live Project, require an explicitly authorized same-org target Vault or create a dedicated Vault through a resumable `ProjectHomeMigration` operation. Copy content, rewrite portable descriptors deterministically, and record source revision/hash and target provenance.
-4. Verify Project/Board/Card counts, bytes, hashes, references, and tombstones. Crash/restart tests cover Vault creation, Hall relation write, content copy, verification, cutover, and retirement.
+4. Verify Project/Board/Card counts, bytes, hashes, references, and tombstones. Crash/restart tests cover Vault creation, Axis relation write, content copy, verification, cutover, and retirement.
 5. Only after every live Project is verified, atomically deploy the event/schema and API cutover in which `home_vault_id` is required/non-null and old create/update shapes are rejected.
 6. Delete the legacy Project-content mutation and fallback-read paths. Retain only an immutable migration report; the legacy directory is not a runtime content authority.
 
@@ -203,7 +203,7 @@ Migration cannot partially enable the new model. A failed Project remains in the
 
 `project.json` and `board.json` are strict, versioned, portable descriptors. They contain immutable content identity, display metadata, backend kind, schema version, and portable resource declarations. They contain no access policy, role, credential/secret reference, executable hook, absolute host path, sync endpoint, refresh state, peer cursor, or runtime lease.
 
-Human-facing project context is visible Markdown, not hidden under `.olympus/`. Context files are deliberately promoted project knowledge—conventions, domain model, settled decisions, operating notes—not automatic transcript dumps.
+Human-facing project context is visible Markdown, not hidden under `.stellarc/`. Context files are deliberately promoted project knowledge—conventions, domain model, settled decisions, operating notes—not automatic transcript dumps.
 
 For a native board, `board.db`, `board.db-wal`, and `board.db-shm` are normatively excluded from jj and every file-copy sync adapter. `board.db` remains at the user-visible requested path but is a live structured artifact. Only the logical CRDT replication protocol transports editable structured state. A deterministic portable export or coherent closed snapshot is used for transfer and recovery.
 
@@ -211,7 +211,7 @@ Symlinks are rejected for manifests, board databases, card descriptions, and sca
 
 ## 7. Native board storage
 
-Each native Board has one independent SQLite database extended with Superfly's maintained `cr-sqlite` fork. Olympus must pin an immutable reviewed source commit and verified artifacts/checksums in the dependency/build lock; it does not track an unpinned branch or the stale original `vlcn-io` repository. The implementation must pass the substrate gate below before the first production board.
+Each native Board has one independent SQLite database extended with Superfly's maintained `cr-sqlite` fork. Stellarc must pin an immutable reviewed source commit and verified artifacts/checksums in the dependency/build lock; it does not track an unpinned branch or the stale original `vlcn-io` repository. The implementation must pass the substrate gate below before the first production board.
 
 One database per Board is intentional:
 
@@ -220,11 +220,11 @@ One database per Board is intentional:
 - corruption and schema-migration blast radius is bounded;
 - Board ownership and provider abstraction stay explicit.
 
-The operational cost is also explicit: every Board is its own connection, extension initialization, CRDT site, schema migration, replication cursor, WAL/checkpoint, health, backup, and restore domain. Envoy owns this lifecycle and opens databases lazily with bounded pools. Hall projections provide cross-board listing, search, and reporting; Olympus does not open every Board DB or add a second writable aggregation database for global queries.
+The operational cost is also explicit: every Board is its own connection, extension initialization, CRDT site, schema migration, replication cursor, WAL/checkpoint, health, backup, and restore domain. Orbit owns this lifecycle and opens databases lazily with bounded pools. Axis projections provide cross-board listing, search, and reporting; Stellarc does not open every Board DB or add a second writable aggregation database for global queries.
 
 Structured card fields include title, workflow state/column, assignee references, labels, priority, due date, position, lineage, and admitted operation markers. Card descriptions exist only in Markdown. Structured fields are not mirrored into Markdown/frontmatter.
 
-cr-sqlite is a convergence substrate, not a complete replication service. Olympus owns:
+cr-sqlite is a convergence substrate, not a complete replication service. Stellarc owns:
 
 - authenticated peer admission and per-Board authorization;
 - site identity and schema-version negotiation;
@@ -243,7 +243,7 @@ Receivers acknowledge complete version manifests, never inferred continuity of s
 
 The database row is authoritative for native Card existence. A missing Markdown file means an empty or temporarily unavailable description and is recoverable; it does not delete the Card. An orphan description is quarantined and offered for recovery; it does not mint a Card.
 
-Creating a native Card is a durable operation across Hall allocation, Board DB, Markdown, and jj. Conceptual states are:
+Creating a native Card is a durable operation across Axis allocation, Board DB, Markdown, and jj. Conceptual states are:
 
 ```text
 allocated -> db_created -> description_created -> committed
@@ -263,15 +263,15 @@ card_comments(
 )
 ```
 
-Native `CommentLocator { board_id, site_id, site_counter }` is collision-free without Hall coordination: each admitted replica durably increments its own counter under its immutable CRDT site identity. A unique `client_operation_id` makes retries create one comment. Deterministic thread order is `(order_hlc, site_id, site_counter)` rather than wall-clock arrival. GitHub comments use tagged `GitHubCommentLocator { repo_id, provider_comment_id }` and retain provider order.
+Native `CommentLocator { board_id, site_id, site_counter }` is collision-free without Axis coordination: each admitted replica durably increments its own counter under its immutable CRDT site identity. A unique `client_operation_id` makes retries create one comment. Deterministic thread order is `(order_hlc, site_id, site_counter)` rather than wall-clock arrival. GitHub comments use tagged `GitHubCommentLocator { repo_id, provider_comment_id }` and retain provider order.
 
-Author principal is immutable and Hall-derived at admission. Offline comment creation requires an unexpired Hall-signed capability lease bound to user, Board, replica site, and actions; without one, the UI may retain a local draft but may not admit/replicate a comment. Reply targets must exist or have a retained tombstone. Edit/delete checks the original author or a stronger moderation capability; deletion retains a tombstone until every admitted peer acknowledgement or eviction. Reply edges survive parent deletion/restore, and attachment reachability follows retained comments/tombstones. Acceptance tests cover simultaneous two-site create, duplicate replay, skewed clocks, edit/delete races, reply-to-deleted, forged author, expired offline lease, restore, and compaction.
+Author principal is immutable and Axis-derived at admission. Offline comment creation requires an unexpired Axis-signed capability lease bound to user, Board, replica site, and actions; without one, the UI may retain a local draft but may not admit/replicate a comment. Reply targets must exist or have a retained tombstone. Edit/delete checks the original author or a stronger moderation capability; deletion retains a tombstone until every admitted peer acknowledgement or eviction. Reply edges survive parent deletion/restore, and attachment reachability follows retained comments/tombstones. Acceptance tests cover simultaneous two-site create, duplicate replay, skewed clocks, edit/delete races, reply-to-deleted, forged author, expired offline lease, restore, and compaction.
 
 Comments are not individual files: authorship, ordering, edits, tombstones, and reply relations are structured state, while the body remains portable Markdown text. Attachment bytes live in Vault content-addressed storage and comments/cards retain stable references.
 
 ## 9. Native card identity
 
-Hall durably allocates monotonically increasing, never-reused numbers per Board inside one serialized allocation write boundary. Allocation must not derive from a stale projection or `MAX()+1`. ADR 0020 identifies the current append-then-apply seam as non-serialized; that seam must be replaced or a dedicated transactional allocation table added before this invariant can be claimed in code.
+Axis durably allocates monotonically increasing, never-reused numbers per Board inside one serialized allocation write boundary. Allocation must not derive from a stale projection or `MAX()+1`. ADR 0020 identifies the current append-then-apply seam as non-serialized; that seam must be replaced or a dedicated transactional allocation table added before this invariant can be claimed in code.
 
 The canonical human key is:
 
@@ -281,15 +281,15 @@ The canonical human key is:
 
 Examples: `DEV-0001`, `DEV-0042`, `DEV-10000`. Four digits are minimum display padding, not a maximum. APIs may accept case-insensitive/unpadded input such as `dev-42`, but return canonical `DEV-0042`. Mutation lookup is exact after normalization; fuzzy matches may be suggested but never mutated automatically.
 
-Board slug is immutable after first card allocation; a separate display name may change. New durable Card creation requires Hall connectivity. Existing admitted Card edits may remain local/offline subject to Board CRDT policy. Olympus deliberately rejects offline central-number guessing and leased ranges until a demonstrated use case justifies their complexity.
+Board slug is immutable after first card allocation; a separate display name may change. New durable Card creation requires Axis connectivity. Existing admitted Card edits may remain local/offline subject to Board CRDT policy. Stellarc deliberately rejects offline central-number guessing and leased ranges until a demonstrated use case justifies their complexity.
 
 ## 10. GitHub Issues board backend
 
 A `github_issues` Board references exactly one Repo already referenced by the Project and records a versioned issue query/filter plus explicit field mappings. It stores no GitHub credential. ADR 0024/0025 resolve authorization and actor identity.
 
-Olympus normalizes the provider into Board/Card/Thread APIs, but GitHub remains canonical:
+Stellarc normalizes the provider into Board/Card/Thread APIs, but GitHub remains canonical:
 
-| Olympus surface | GitHub authority |
+| Stellarc surface | GitHub authority |
 |---|---|
 | Card locator | `GitHubIssueLocator { repo_id, issue_number }`; provider repository ID derives from the Repo binding, `owner/repository#number` is the display key, and `#number` may be shown in a single-repo Board |
 | Title and description | issue title and body |
@@ -298,9 +298,9 @@ Olympus normalizes the provider into Board/Card/Thread APIs, but GitHub remains 
 | Assignee, labels, milestone | corresponding issue fields |
 | Activity | issue timeline/events |
 
-No editable `cards/*.md` or native `board.db` mirror is created for a GitHub-backed Board. Hall may retain a bounded derived projection for search, offline reads, and cross-board views.
+No editable `cards/*.md` or native `board.db` mirror is created for a GitHub-backed Board. Axis may retain a bounded derived projection for search, offline reads, and cross-board views.
 
-Arbitrary Kanban columns require explicit mapping. An initial label mapping may define status labels and closed-state behavior. No configured status label maps to `Unclassified`; multiple configured status labels map to `Mapping conflict`. Olympus never silently chooses one and mutates the issue. A future GitHub Projects v2 integration is a distinct backend because its permissions, fields, and semantics differ.
+Arbitrary Kanban columns require explicit mapping. An initial label mapping may define status labels and closed-state behavior. No configured status label maps to `Unclassified`; multiple configured status labels map to `Mapping conflict`. Stellarc never silently chooses one and mutates the issue. A future GitHub Projects v2 integration is a distinct backend because its permissions, fields, and semantics differ.
 
 Board capabilities are advertised by the backend—create, edit description, comments, custom columns, assignees, milestones, attachments, offline write, and move. Unsupported controls remain visible but disabled with an explanation.
 
@@ -312,17 +312,17 @@ PR changes do not implicitly mutate Card state. Project workflow rules may opt i
 
 ## 12. Cross-board copy/move saga
 
-A Card move never mutates identity. It creates a destination Card with a new destination identity and preserves the source. Hall records cross-backend lineage under `CardMoveOperation`/relationship authority:
+A Card move never mutates identity. It creates a destination Card with a new destination identity and preserves the source. Axis records cross-backend lineage under `CardMoveOperation`/relationship authority:
 
 ```text
 source_locator -> destination_locator, operation_id, captured_revision
 ```
 
-Native participants may additionally persist admitted operation markers for local recovery. A GitHub issue never acquires an Olympus-native `moved` field; optional close, comment, or cross-link is a separate explicit provider operation.
+Native participants may additionally persist admitted operation markers for local recovery. A GitHub issue never acquires an Stellarc-native `moved` field; optional close, comment, or cross-link is a separate explicit provider operation.
 
 Descriptions are copied at one captured revision and then diverge independently. The destination maps its column explicitly. Current title, labels, priority, assignee, due date, and relevant metadata are copied; attachments remain content references rather than duplicated bytes. Source history remains addressable.
 
-Because Boards and providers cannot share one transaction, Hall owns a durable `CardMoveOperation`:
+Because Boards and providers cannot share one transaction, Axis owns a durable `CardMoveOperation`:
 
 ```text
 requested -> destination_allocated -> destination_created
@@ -342,13 +342,13 @@ Provider writes use ADR 0025 durable operations. Closing a source issue is an ex
 
 ## 13. Discovery, import, and re-registration
 
-Scanning an attached Vault produces **untrusted discovery candidates**, not Hall entities. Content write access is not registration or privilege authority.
+Scanning an attached Vault produces **untrusted discovery candidates**, not Axis entities. Content write access is not registration or privilege authority.
 
 Import/re-registration requires explicit capabilities rather than mere authentication. `project.import` creates a new Project candidate; `project.restore` targets a retired/tombstoned Project and is stronger; `board.import` imports a Board; `resource_reference.bind` binds existing Vault/Repo resources. Destructive replacement/tombstone resurrection requires a separate restore capability naming the exact target.
 
 No ordinary role—including member, content writer, Project member, or dynamically named administrator—implicitly grants these capabilities. A current organization owner may issue/revoke an explicit capability delegation: `project.import` is scoped to an organization; `board.import` to an organization/Project; `resource_reference.bind` to the exact target organization and resource kind/identity constraints; `project.restore` and destructive resurrection are single-target, single-use grants requiring a separate approval after preview. Self-delegation is forbidden in the same transaction; an owner's self-directed operation requires approval by another current owner or audited installation-token break-glass. Exercise always requires the explicit unexpired delegation, not merely the delegator's role. Installation-token use is a distinct audited break-glass actor mode and is never silently equivalent to org administration.
 
-The importing principal must simultaneously hold candidate-Vault read permission, target Project/Board create-or-restore permission, and current access to every referenced Vault/Repo. Hall recomputes this intersection and authorization epoch at commit. Import/re-registration then requires:
+The importing principal must simultaneously hold candidate-Vault read permission, target Project/Board create-or-restore permission, and current access to every referenced Vault/Repo. Axis recomputes this intersection and authorization epoch at commit. Import/re-registration then requires:
 
 1. strict versioned schemas and rejection of unknown security-relevant fields;
 2. immutable manifest project/Board identities plus organization selection;
@@ -362,7 +362,7 @@ The importing principal must simultaneously hold candidate-Vault read permission
 10. idempotency by organization, manifest identity, and revision/hash;
 11. compare-and-swap commit of that exact preview digest and authorization epoch; changed content/bindings or revoked access invalidates approval.
 
-Portable content and descriptors may be restored verbatim. Access policy is reconstructed from current Hall policy, not imported. Repo and additional-Vault references are unresolved proposals until a principal holding `resource_reference.bind` for the exact current resource and target organization binds them. Cryptographic signatures improve provenance but never replace authorization. Authorization tests cover ordinary member, content writer, Project member, delegated importer, restore administrator, stale delegation epoch, owner self-delegation, and installation-token break-glass.
+Portable content and descriptors may be restored verbatim. Access policy is reconstructed from current Axis policy, not imported. Repo and additional-Vault references are unresolved proposals until a principal holding `resource_reference.bind` for the exact current resource and target organization binds them. Cryptographic signatures improve provenance but never replace authorization. Authorization tests cover ordinary member, content writer, Project member, delegated importer, restore administrator, stale delegation epoch, owner self-delegation, and installation-token break-glass.
 
 A vault tree without native Board structured snapshots cannot recreate structured Card state; it can recreate the Project/Board candidates and prose only. Complete sovereign recovery therefore requires the snapshot/export contract below as well as jj content.
 
@@ -373,7 +373,7 @@ Editable synchronization is split by data shape:
 - Markdown/descriptors: jj through ADR 0016-approved adapters;
 - native structured state: authenticated logical cr-sqlite change exchange;
 - GitHub-backed state: GitHub API/webhooks/reconciliation;
-- cross-board views: rebuildable Hall projections.
+- cross-board views: rebuildable Axis projections.
 
 Blind copying of live `board.db`, `-wal`, or `-shm` is forbidden. Native Board backup produces two artifacts:
 
@@ -382,39 +382,39 @@ Blind copying of live `board.db`, `-wal`, or `-shm` is forbidden. Native Board b
 
 A replacement restore and a fork restore are different operations. They explicitly handle CRDT site identity, peer cursors, stale replicas, tombstones, and original-site fencing.
 
-A Project backup is a manifest of one jj revision, per-Board snapshot/version vectors and timestamps, attachment hashes, and any in-flight Hall saga records. It does not claim a global instant unless writes were fenced across all participants. Restore surfaces mismatched points and reconciles incomplete creation/move operations before accepting writes.
+A Project backup is a manifest of one jj revision, per-Board snapshot/version vectors and timestamps, attachment hashes, and any in-flight Axis saga records. It does not claim a global instant unless writes were fenced across all participants. Restore surfaces mismatched points and reconciles incomplete creation/move operations before accepting writes.
 
-Restored external-effect saga records are recovery evidence, never automatic retry authority. They enter `recovery_required`. Replacement restore first fences the original Hall/Envoy, operation namespace, and CRDT sites; fork restore mints new operation/site namespaces. Before retry, Olympus discovers current provider truth using immutable result ID, stable operation marker, target precondition, and current provider state. A found result is attached; ambiguity stops for reconciliation. Current membership/RBAC/capabilities/grants and the original actor connection are re-evaluated, and actor mode never falls back from user to App. Restore tests cover every move/provider-write crash point, including provider commit plus lost response followed by restore.
+Restored external-effect saga records are recovery evidence, never automatic retry authority. They enter `recovery_required`. Replacement restore first fences the original Axis/Orbit, operation namespace, and CRDT sites; fork restore mints new operation/site namespaces. Before retry, Stellarc discovers current provider truth using immutable result ID, stable operation marker, target precondition, and current provider state. A found result is attached; ambiguity stops for reconciliation. Current membership/RBAC/capabilities/grants and the original actor connection are re-evaluated, and actor mode never falls back from user to App. Restore tests cover every move/provider-write crash point, including provider commit plus lost response followed by restore.
 
 ## 15. Implementation prerequisites and migration debt
 
 Before native Boards ship:
 
-1. supersede the current central Hall-card write model while retaining only allocation, registration, saga/audit, and rebuildable cross-board projections;
+1. supersede the current central Axis-card write model while retaining only allocation, registration, saga/audit, and rebuildable cross-board projections;
 2. complete the mandatory-home-Vault migration and hard API/event/schema cutover above; no nullable field, old-root fallback, or dual content writer is permitted;
 3. implement the serialized durable card-number allocator and prove no reuse across delete/restore;
 4. run a disposable cr-sqlite substrate gate covering extension packaging/loading on every connection, WAL, schema migration, two-peer convergence, duplicates, gaps, out-of-order and partial transactions, delete/update races, compaction, backup/restore/resync, and extension upgrade; specifically prove all rows of an old version may be superseded before a peer asks, crash between DB commit and manifest durability is fail-closed/recoverable, reconnect behind compaction uses a snapshot barrier, and replacement restore fences the original site;
 5. implement Board lifecycle, bounded connection pools, replication protocol, admission, invariant repair, health, and snapshots;
 6. implement durable creation and move operations with crash-point tests at every transition;
 7. implement strict manifests, scan limits, import preview, provenance, collision/tombstone checks, and no-privilege-import tests;
-8. migrate existing Hall cards through a deterministic one-time exporter/importer, verify counts/content/lineage, then delete superseded central mutation paths rather than maintaining dual write;
+8. migrate existing Axis cards through a deterministic one-time exporter/importer, verify counts/content/lineage, then delete superseded central mutation paths rather than maintaining dual write;
 9. correct the current Vault API drift that requires a GitHub backend before starting the home-Vault migration.
 
 Before GitHub-backed Boards ship, ADR 0024 and ADR 0025 implementation gates must pass, including user/App attribution and webhook reconciliation.
 
 ## 16. Consequences
 
-- Users retain inspectable Markdown and SQLite/open exports rather than depending on an opaque Olympus-only database.
+- Users retain inspectable Markdown and SQLite/open exports rather than depending on an opaque Stellarc-only database.
 - A Vault scan can recover content safely without turning synced files into authority over privileges.
 - Native Boards are independent sync/failure domains, at the cost of explicit lifecycle, projection, saga, and backup machinery.
 - GitHub Issues can be used directly without a conflicting native mirror.
 - Pull requests remain correctly scoped to Repos while Projects aggregate planning context.
-- Hall remains required for new Card identity and distributed operations; existing native Board edits can continue under local-first policy.
+- Axis remains required for new Card identity and distributed operations; existing native Board edits can continue under local-first policy.
 - Complete recovery requires both jj content and structured snapshots/exports.
 
 ## 17. Rejected alternatives
 
-- **All project data only in Hall SQLite:** weakens user-held content recovery and makes Hall an unnecessary prose authority.
+- **All project data only in Axis SQLite:** weakens user-held content recovery and makes Axis an unnecessary prose authority.
 - **Everything in Markdown:** poor transactional/query behavior for structured Board state and comments.
 - **Mirror DB fields into Markdown:** creates two writable truths and ambiguous write-back.
 - **One database for all Project Boards:** simpler queries but shared locks, replication, migration, backup, and corruption domain.

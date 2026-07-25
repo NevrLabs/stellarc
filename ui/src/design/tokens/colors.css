@@ -1,4 +1,4 @@
-/* Olympus — Color system.
+/* Stellarc — Color system.
    "Instrument" palette, matched to the shipped app (groundtruth): a NEUTRAL
    near-black cockpit — no blue undertone — monochrome-forward, driven by ONE
    swappable signal accent. The default accent is SILVER (#C9C9C9): actions,
@@ -66,7 +66,7 @@
   /* ── Source hues (channel identity in the session list) ──
      Distinct dots/labels per origin channel. Low-chroma pastels so they read
      as wayfinding, not decoration. */
-  --src-olympus:   #C9C9C9;
+  --src-stellarc:   #C9C9C9;
   --src-cli:       #999A9C;
   --src-telegram:  #7DD3FC;
   --src-discord:   #A5B4FC;
@@ -128,7 +128,7 @@
   --err-wash:      rgba(185, 28, 28, 0.08);
   --err-line:      rgba(185, 28, 28, 0.25);
 
-  --src-olympus:   #2A2A2E;
+  --src-stellarc:   #2A2A2E;
   --src-cli:       #6B6B6F;
   --src-telegram:  #0369A1;
   --src-discord:   #4F46E5;

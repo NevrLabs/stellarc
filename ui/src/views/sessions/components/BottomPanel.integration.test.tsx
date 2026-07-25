@@ -30,7 +30,7 @@ function systemMessage(sessionId: string, messageId: number, content: string): M
   };
 }
 
-describe("BottomPanel Hall-backed logs", () => {
+describe("BottomPanel Axis-backed logs", () => {
   it("exposes uniquely named tabs for automation and assistive technology", () => {
     render(
       <BottomPanel
@@ -51,7 +51,7 @@ describe("BottomPanel Hall-backed logs", () => {
     );
   });
 
-  it("rehydrates retained Hall history after switching A to B to A", () => {
+  it("rehydrates retained Axis history after switching A to B to A", () => {
     messagesBySession.set("session-a", [systemMessage("session-a", 1, "A retained failure")]);
     messagesBySession.set("session-b", [systemMessage("session-b", 2, "B retained failure")]);
 

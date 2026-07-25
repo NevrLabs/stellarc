@@ -43,7 +43,7 @@ case "$TIER" in
     mkdir -p "$OUTPUT_DIR"
     if [[ -z "${MAESTRO_BASE_URL:-}" ]]; then
       checksum="$(printf '%s' "$ROOT" | cksum | cut -d' ' -f1)"
-      PORT="${OLYMPUS_E2E_PORT:-$((5200 + checksum % 1000))}"
+      PORT="${STELLARC_E2E_PORT:-$((5200 + checksum % 1000))}"
       if (echo >/dev/tcp/127.0.0.1/"$PORT") >/dev/null 2>&1; then
         echo "ERROR: E2E port $PORT is already in use; refusing to test another checkout's server." >&2
         exit 1
@@ -78,7 +78,7 @@ case "$TIER" in
     CONFIG="$ROOT/.maestro/config.prod.yaml"
     FLOW_DIR="$ROOT/.maestro/flows/prod"
     OUTPUT_DIR="$UI_DIR/test-results/maestro-prod"
-    MAESTRO_BASE_URL="${MAESTRO_BASE_URL:-${OLYMPUS_PROD_BASE:-http://127.0.0.1:8799}}"
+    MAESTRO_BASE_URL="${MAESTRO_BASE_URL:-${STELLARC_PROD_BASE:-http://127.0.0.1:8799}}"
     "$UI_DIR/scripts/prod-http-smoke.sh" "$MAESTRO_BASE_URL"
     ;;
   *)

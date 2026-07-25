@@ -43,7 +43,7 @@
   context Markdown, README/docs, and its boards — cards, descriptions,
   comments — subject to each board backend's advertised capabilities
   (ADR 0026).
-- **Access is through Hall APIs surfaced as agent tools** (list/read/search
+- **Access is through Axis APIs surfaced as agent tools** (list/read/search
   context files and cards; in `write` mode create/edit cards, comment, edit
   context Markdown). The context project's home vault is **never
   materialized** into the session space and no symlink is created — the
@@ -67,7 +67,7 @@
   access. Revoking that access invalidates the attachment's effect
   immediately; the row stays for audit.
 - Attribution follows ADR 0027 §6: prose writes carry author = user on whose
-  behalf, committer + signature = agent Hall-minted key; card operations
+  behalf, committer + signature = agent Axis-minted key; card operations
   record acting session + user in admitted operation markers.
 
 ## 4. Migration order

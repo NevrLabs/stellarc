@@ -1,11 +1,11 @@
-# Olympus
+# Stellarc
 
 > AI control plane for Hermes Agent — React + self-hosted Convex + a thin Bun host runtime.
 
 **Status:** v0 — docs-first foundation. Greenfield successor concept to Hermes Studio.
 
-Olympus is a clean-room product, not a fork of Hermes Studio (that maintained fork lives at
-`IEatCodeDaily/hermes-studio`). Olympus keeps durable truth and orchestration in
+Stellarc is a clean-room product, not a fork of Hermes Studio (that maintained fork lives at
+`IEatCodeDaily/hermes-studio`). Stellarc keeps durable truth and orchestration in
 **self-hosted Convex**, renders a **React** UI subscribed to Convex, and performs
 privileged host actions through a **thin Bun runtime adapter** that talks to Hermes Agent.
 
@@ -19,7 +19,7 @@ privileged host actions through a **thin Bun runtime adapter** that talks to Her
 ```text
 React UI
   -> self-hosted Convex (sessions, messages, agents, tool calls, runtime commands/events, authz)
-  -> Olympus Bun runtime (claims commands, runs host effects via Hermes adapter, streams events back)
+  -> Stellarc Bun runtime (claims commands, runs host effects via Hermes adapter, streams events back)
   -> Hermes Agent (existing tool/process/PTY execution engine)
 ```
 

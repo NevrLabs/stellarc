@@ -1,4 +1,4 @@
-# ADR 0019 — Agent and human CLI interface over the Olympus operation seam
+# ADR 0019 — Agent and human CLI interface over the Stellarc operation seam
 
 Status: proposed · Date: 2026-07-13
 Relates to: ADR 0011 (jobs/MCP/capabilities), ADR 0012 (programmable operating
@@ -14,7 +14,7 @@ Review chain:
 
 ## Context
 
-Olympus needs an interface that agents can discover, invoke, compose with Unix
+Stellarc needs an interface that agents can discover, invoke, compose with Unix
 pipes, and debug without generating ad-hoc HTTP requests. MCP remains useful for
 native model tool calls, but it is a poor exclusive operations interface:
 
@@ -28,26 +28,26 @@ native model tool calls, but it is a poor exclusive operations interface:
 
 A CLI must not become an authorization bypass or a disguised remote shell. It
 must call the same typed operations and capability decisions as MCP and REST,
-and an agent runtime must not receive a Hall token or general network route.
+and an agent runtime must not receive a Axis token or general network route.
 
 ## Decision
 
-Olympus ships a first-class Rust binary named `olympus`. It is available to
+Stellarc ships a first-class Rust binary named `stellarc`. It is available to
 humans and injected into eligible agent runtime sandboxes. CLI and MCP are two
-protocol adapters over one typed Hall operation seam; neither implements policy
+protocol adapters over one typed Axis operation seam; neither implements policy
 or host effects.
 
 ```text
 agent process
   ├─ MCP adapter ───────────────┐
-  └─ olympus CLI ─ runtime UDS ─┼─ Envoy runtime gateway ─ iroh ─ Hall operations
+  └─ stellarc CLI ─ runtime UDS ─┼─ Orbit runtime gateway ─ iroh ─ Axis operations
                                 │                              ├─ policy/capabilities
 human shell ─ operator adapter ─┘                              ├─ durable services
-                                                               └─ Envoy activities
+                                                               └─ Orbit activities
 ```
 
-Hall owns operation semantics, durable records, authorization, idempotency, and
-audit. Envoy owns the runtime-bound local gateway and host effects. The CLI owns
+Axis owns operation semantics, durable records, authorization, idempotency, and
+audit. Orbit owns the runtime-bound local gateway and host effects. The CLI owns
 argument parsing, schema-aware help, rendering, and exit status only.
 
 ### 1. Command vocabulary is noun + explicit verb
@@ -55,10 +55,10 @@ argument parsing, schema-aware help, rendering, and exit status only.
 The canonical workflow invocation is:
 
 ```bash
-olympus workflow run <workflow-slug> [workflow inputs]
+stellarc workflow run <workflow-slug> [workflow inputs]
 ```
 
-The explicit `run` is intentional. `olympus workflow <slug>` would make workflow
+The explicit `run` is intentional. `stellarc workflow <slug>` would make workflow
 slugs collide with management verbs such as `list`, `show`, `get`, `cancel`, and
 `signal`. A shorthand may be added later only if it introduces no ambiguous
 parse or reserved-slug rule.
@@ -66,39 +66,39 @@ parse or reserved-slug rule.
 Initial command tree:
 
 ```text
-olympus session info
-olympus node list|get
-olympus job run|get|logs|cancel
-olympus workflow list|show|run|get|watch|cancel|signal
-olympus operation get <operation-id>
-olympus artifact get
-olympus deployment plan|apply|status|rollback
-olympus app list|status|install|start|stop
-olympus capability list|check
-olympus completion <shell>
-olympus man [command]
+stellarc session info
+stellarc node list|get
+stellarc job run|get|logs|cancel
+stellarc workflow list|show|run|get|watch|cancel|signal
+stellarc operation get <operation-id>
+stellarc artifact get
+stellarc deployment plan|apply|status|rollback
+stellarc app list|status|install|start|stop
+stellarc capability list|check
+stellarc completion <shell>
+stellarc man [command]
 ```
 
-The compiled command grammar is static and always appears in static help. Hall's
+The compiled command grammar is static and always appears in static help. Axis's
 runtime operation catalog reports whether each operation is available and why.
 Calling a compiled but unavailable operation returns typed
 `operation_unavailable` in exit class 6; it is not a protocol-incompatibility
-error. There is no `olympus exec`, arbitrary `api`, raw argv, raw HTTP, raw SSH,
-or caller-chosen Hall endpoint in agent mode.
+error. There is no `stellarc exec`, arbitrary `api`, raw argv, raw HTTP, raw SSH,
+or caller-chosen Axis endpoint in agent mode.
 
 Canonical operation mapping:
 
 | CLI | Operation ID | MCP adapter name |
 |---|---|---|
-| `session info` | `session.info` | `olympus_session_info` |
-| `node list`, `node get` | `nodes.list`, `nodes.get` | `olympus_nodes_list`, `olympus_nodes_get` |
-| `job run/get/logs/cancel` | corresponding `jobs.*` | `olympus_jobs_*` |
-| `workflow list/show/run/get/watch/cancel/signal` | corresponding `workflows.*` | `olympus_workflows_*` |
-| `operation get` | `operations.get` | `olympus_operations_get` |
-| `artifact get` | `artifacts.get` | `olympus_artifacts_get` |
-| `deployment plan/apply/status/rollback` | corresponding `deployments.*` | `olympus_deployments_*` |
-| `app list/status/install/start/stop` | corresponding `apps.*` | `olympus_apps_*` |
-| `capability list/check` | corresponding `capabilities.*` | `olympus_capabilities_*` |
+| `session info` | `session.info` | `stellarc_session_info` |
+| `node list`, `node get` | `nodes.list`, `nodes.get` | `stellarc_nodes_list`, `stellarc_nodes_get` |
+| `job run/get/logs/cancel` | corresponding `jobs.*` | `stellarc_jobs_*` |
+| `workflow list/show/run/get/watch/cancel/signal` | corresponding `workflows.*` | `stellarc_workflows_*` |
+| `operation get` | `operations.get` | `stellarc_operations_get` |
+| `artifact get` | `artifacts.get` | `stellarc_artifacts_get` |
+| `deployment plan/apply/status/rollback` | corresponding `deployments.*` | `stellarc_deployments_*` |
+| `app list/status/install/start/stop` | corresponding `apps.*` | `stellarc_apps_*` |
+| `capability list/check` | corresponding `capabilities.*` | `stellarc_capabilities_*` |
 
 Names are adapter syntax; the operation ID and typed descriptor are the semantic
 contract.
@@ -106,13 +106,13 @@ contract.
 ### 2. Workflow input flags are generated from the published schema
 
 A published workflow definition declares an immutable, JSON-Schema-compatible
-input object. `olympus workflow run` performs a two-phase parse:
+input object. `stellarc workflow run` performs a two-phase parse:
 
 1. parse static flags and the workflow slug;
 2. resolve the slug to an active immutable definition digest plus schema
    profile/dialect version, fetch that exact input schema through the runtime
    gateway, then parse and validate schema-derived flags locally;
-3. submit the definition digest with the request; Hall either starts that exact
+3. submit the definition digest with the request; Axis either starts that exact
    retained definition or returns a conflict—it never silently substitutes a
    newly activated version—and validates the typed input again before appending
    `WorkflowRunStarted`. Audit and result envelopes carry the same definition
@@ -121,18 +121,18 @@ input object. `olympus workflow run` performs a two-phase parse:
 Examples:
 
 ```bash
-olympus workflow run olympus-verify \
+stellarc workflow run stellarc-verify \
   --revision 1a2b3c4d \
   --node sandbox-dev \
   --profile release
 
-olympus workflow run deploy-candidate \
+stellarc workflow run deploy-candidate \
   --input-json request.json \
   --detach \
   --output json
 
-olympus workflow show olympus-verify --schema
-olympus workflow run olympus-verify --help
+stellarc workflow show stellarc-verify --schema
+stellarc workflow run stellarc-verify --help
 ```
 
 Schema mapping is deterministic:
@@ -149,7 +149,7 @@ Schema mapping is deterministic:
 
 `--input-json` and schema-derived flags are mutually exclusive in v1. This avoids
 hidden precedence rules. Secret values are never accepted on argv or stdin;
-workflows receive named secret/resource bindings authorized by Hall.
+workflows receive named secret/resource bindings authorized by Axis.
 
 Workflow input names that collide with static CLI controls (`help`, `output`,
 `detach`, `timeout`, `input-json`, `no-color`, and future reserved names) are
@@ -158,7 +158,7 @@ Input documents and individual inline values have explicit byte/depth limits;
 larger data moves through capability-checked artifact/resource references.
 
 The accepted profile is not arbitrary JSON Schema. Published workflow inputs use
-the versioned `olympus.workflow-input/v1` profile:
+the versioned `stellarc.workflow-input/v1` profile:
 
 - root is a closed object (`additionalProperties: false`);
 - property names match `[a-z][a-z0-9-]{0,62}`, are NFC-normalized, cannot begin
@@ -171,7 +171,7 @@ the versioned `olympus.workflow-input/v1` profile:
 - patterns use the bounded Rust `regex` dialect without backreferences or
   look-around; schema, description, example, enum, pattern, input, depth, and
   rendered-help sizes have fixed publication/runtime limits;
-- `format: olympus-resource-ref` and `format: olympus-secret-binding` accept
+- `format: stellarc-resource-ref` and `format: stellarc-secret-binding` accept
   opaque identifiers only. Raw secret values are never a valid schema type;
 - `--input-json` accepts exactly the same closed profile as dynamic flags, not a
   wider language;
@@ -181,9 +181,9 @@ the versioned `olympus.workflow-input/v1` profile:
   order.
 
 One publication-time compiler/validator rejects unrepresentable schemas and
-produces a canonical schema artifact. The CLI parser/help renderer, Hall
+produces a canonical schema artifact. The CLI parser/help renderer, Axis
 validator/default resolver, and MCP schema adapter consume one shared
-conformance corpus. Hall alone applies defaults and computes the normalized
+conformance corpus. Axis alone applies defaults and computes the normalized
 input and digest using a versioned canonical JSON representation; local CLI
 validation is fail-fast assistance, not authority.
 
@@ -193,11 +193,11 @@ validation is fail-fast assistance, not authority.
 CLI and pipeline expectations. `--detach` returns immediately with the durable
 run reference. Disconnecting or pressing Ctrl-C detaches the client but does not
 cancel the durable run; cancellation requires an explicit
-`olympus workflow cancel <run-id>`. Before exit, an interrupted waiter prints
+`stellarc workflow cancel <run-id>`. Before exit, an interrupted waiter prints
 the durable run ID and an exact reconnect command only after acceptance is
-confirmed. If reconciliation cannot reach Hall before the client deadline, it
+confirmed. If reconciliation cannot reach Axis before the client deadline, it
 returns typed `acceptance_unknown` with the already-known operation ID and
-`olympus operation get <operation-id>` recovery command; it never invents or
+`stellarc operation get <operation-id>` recovery command; it never invents or
 drops the unknown run identity.
 
 `--timeout` bounds client waiting only. It does not alter the workflow's durable
@@ -215,7 +215,7 @@ The waiter is cursor-based over durable workflow-run events. It reconnects with
 `(run_id, last_event_sequence)`, deduplicates replayed events by sequence, and
 emits the terminal result at most once. Starting an effectful operation creates
 a client request ID before the first send; reconnect/retry reuses that ID, and
-Hall resolves it to the original run/job/deployment rather than creating a
+Axis resolves it to the original run/job/deployment rather than creating a
 second effect.
 
 The shared `workflows.run` operation is always non-blocking and returns
@@ -229,17 +229,17 @@ acceptance they stop only the watch. Neither path sends cancellation.
 Workflow run events and their per-run sequences are non-expiring in v1; they are
 read from permanent event-log truth, not a bounded broadcast buffer. Therefore
 `workflows.watch(after_sequence)` can resume any valid sequence for the lifetime
-of the Olympus store. A future retention/compaction design must version the
+of the Stellarc store. A future retention/compaction design must version the
 operation, return typed `cursor_expired`, and fall back to `workflows.get`'s
 durable terminal snapshot without redispatch; silent cursor reset is forbidden.
 
 Machine composition:
 
 ```bash
-olympus workflow run discover-release --output result-json |
-  olympus workflow run deploy-candidate --input-json - --output json
+stellarc workflow run discover-release --output result-json |
+  stellarc workflow run deploy-candidate --input-json - --output json
 
-olympus workflow watch wr_123 --output jsonl |
+stellarc workflow watch wr_123 --output jsonl |
   jq -c 'select(.kind == "stepFailed")'
 ```
 
@@ -254,7 +254,7 @@ Output modes:
 
 No color, pager, spinner, or progress text is emitted when stdout is not a TTY.
 Inline results are bounded; larger values are returned as typed artifact
-references and retrieved through `olympus artifact get`.
+references and retrieved through `stellarc artifact get`.
 
 On failure, `result-json` emits no stdout bytes and exits with the durable
 failure class; `json`/`jsonl` emit a typed error/terminal envelope. A broken
@@ -274,55 +274,55 @@ document before creating a run, so partial JSON cannot trigger an effect.
 
 V1 uses UDS only—no inherited descriptor or stdio authority variant. Each
 eligible runtime receives a dedicated endpoint hosted at
-`/run/olympus-envoy/runtime-gateways/<gateway-generation>/gateway.sock` and
+`/run/stellarc-orbit/runtime-gateways/<gateway-generation>/gateway.sock` and
 read-only bind-mounted inside only that runtime namespace at
-`/run/olympus/runtime-gateway.sock`. The host directory is Envoy-owned mode 0750
-with a unique per-runtime GID; the socket is Envoy-owned, that GID, mode 0660.
+`/run/stellarc/runtime-gateway.sock`. The host directory is Orbit-owned mode 0750
+with a unique per-runtime GID; the socket is Orbit-owned, that GID, mode 0660.
 The sandbox runs with a unique per-runtime UID/GID (or an equivalent private user
 namespace) and a dedicated cgroup. All subprocesses inside that one runtime are
 intentionally delegated the same session-attempt authority.
 
-On accept, Envoy checks `SO_PEERCRED` UID/GID/PID, PID start identity, expected
+On accept, Orbit checks `SO_PEERCRED` UID/GID/PID, PID start identity, expected
 cgroup membership, mount/runtime generation, and listener generation. It binds
 the accepted connection—not request fields—to `(node iroh key, gateway
-generation, runtime attempt, session, organization)`. Hall validates that tuple
+generation, runtime attempt, session, organization)`. Axis validates that tuple
 against the durable attempt projection on every call. PID exit/reuse, listener
 replacement, stale generation, or peer mismatch closes the connection.
 
 The socket path is location, not authority. Copying the path outside its mount
 namespace grants nothing. Agent mode provides no `--token`, `--endpoint`, or
 profile override. Runtime sandbox images contain no operator credential/config,
-have no Hall network route, and cannot switch transport even if an environment
+have no Axis network route, and cannot switch transport even if an environment
 variable is unset. A CLI process cannot name another session or runtime attempt;
-Hall derives them from the accepted gateway binding and rechecks the current
+Axis derives them from the accepted gateway binding and rechecks the current
 capability envelope on every call.
 
 Human/operator use is a separate adapter and credential context. It may use the
-local Hall UDS or authenticated HTTPS, but resolves the same operation types and
-Hall services. The sandbox lacks operator credentials/routes regardless of CLI
+local Axis UDS or authenticated HTTPS, but resolves the same operation types and
+Axis services. The sandbox lacks operator credentials/routes regardless of CLI
 mode detection.
 
-Envoy tracks every accepted connection. Archive, revocation, runtime fencing,
+Orbit tracks every accepted connection. Archive, revocation, runtime fencing,
 PID/cgroup exit, or gateway replacement closes the listener and all accepted
 connections, unmounts the endpoint, and retires the generation. FD inheritance
 within the runtime is intentional delegation; cross-runtime FD transfer is
-blocked by distinct user/mount/PID/network namespaces and cgroups. Hall per-call
+blocked by distinct user/mount/PID/network namespaces and cgroups. Axis per-call
 authorization remains authoritative even for an already accepted connection.
 CLI access cannot outlive the session authority that created it.
 
 Tests cover copied paths, an inherited/open FD within the same runtime, attempted
 cross-runtime FD transfer, same-UID wrong-cgroup compatibility fixtures, PID
-exit/reuse, listener replacement, namespace escape, Hall reconnect, and
+exit/reuse, listener replacement, namespace escape, Axis reconnect, and
 archive/revoke while a connection is accepted.
 
 ### 5. Effectful operations reserve durable identity before dispatch
 
 Every effectful adapter creates a stable random `operation_id` before first send
-and reuses it across retries. Hall's single writer executes one transaction that:
+and reuses it across retries. Axis's single writer executes one transaction that:
 
 1. validates the gateway-derived context, current authority epoch, operation
    descriptor, typed input, and resource scope;
-2. applies Hall-owned defaults/canonicalization and computes the input digest;
+2. applies Axis-owned defaults/canonicalization and computes the input digest;
 3. reserves unique `(organization, initiating principal/session, operation_id)`
    and appends the operation intent plus durable resource/attempt/fencing epoch.
 
@@ -337,7 +337,7 @@ the durable authority epoch. Every operation descriptor declares one revocation
 policy: `fence-before-effect`, `cancel-running`, or
 `finish-committed-and-reconcile`. Agent-initiated host effects default to
 `fence-before-effect + cancel-running`; irreversible activation may use the last
-policy only with explicit rollback/restore reconciliation. Envoy rechecks the
+policy only with explicit rollback/restore reconciliation. Orbit rechecks the
 intent's authority/fence epoch immediately before the first host effect and
 rejects stale work. Concurrent-revocation tests deterministically cover both
 orders around intent commit and first effect.
@@ -345,11 +345,11 @@ orders around intent commit and first effect.
 ### 6. CLI, MCP, REST, and UI share operation contracts and services
 
 The implementation introduces one exhaustive, versioned operation registry in
-`olympus-proto`. Each descriptor defines canonical operation ID,
+`stellarc-proto`. Each descriptor defines canonical operation ID,
 request/result/error and stream/cursor types, read/effect classification,
 capability/resource resolver, principal/organization scope, idempotency scope,
 revocation policy, protocol range, availability gate, and audit/redaction
-policy. Hall operation handlers accept a gateway-derived authenticated context
+policy. Axis operation handlers accept a gateway-derived authenticated context
 plus the descriptor's typed input and return its typed output/error. Adapters
 translate only:
 
@@ -362,11 +362,11 @@ UI action            -> REST adapter      -> operation result -> view state
 
 Authorization, organization scoping, idempotency, dispatch, durable persistence,
 and host command construction never live in CLI or MCP adapters. This is a deep
-module: callers learn a small typed operation interface while Hall hides policy,
+module: callers learn a small typed operation interface while Axis hides policy,
 recovery, persistence, and transport complexity.
 
 The operation schema carries a version and supports additive evolution. CLI and
-Hall negotiate compatible protocol versions before any effectful call. Version
+Axis negotiate compatible protocol versions before any effectful call. Version
 or schema mismatch fails closed with an upgrade instruction.
 
 CLI and MCP names are generated or exhaustively matched against the registry.
@@ -381,15 +381,15 @@ no agent descriptor accepts executable, argv, env, cwd, SSH, or raw HTTP fields.
 Static commands use `clap`. Build/release generation uses `clap_mangen` and
 `clap_complete` from the exact same command definition, producing:
 
-- `olympus <command> --help`;
-- `man olympus`, `man olympus-workflow`, and command pages;
+- `stellarc <command> --help`;
+- `man stellarc`, `man stellarc-workflow`, and command pages;
 - Bash, Zsh, Fish, and PowerShell completions.
 
-Runtime-defined workflow help is fetched from Hall:
+Runtime-defined workflow help is fetched from Axis:
 
 ```bash
-olympus workflow run <slug> --help
-olympus workflow show <slug> --schema --output json
+stellarc workflow run <slug> --help
+stellarc workflow show <slug> --schema --output json
 ```
 
 Help includes description, immutable definition digest/version, inputs, types,
@@ -397,7 +397,7 @@ required/default values, examples, required capabilities, expected output
 schema, and whether the run can perform effects. Help retrieval is read-only and
 organization-scoped.
 
-`olympus workflow run --help` is static generic help and never contacts Hall;
+`stellarc workflow run --help` is static generic help and never contacts Axis;
 adding `<slug>` requests dynamic schema help. Missing and unauthorized slugs use
 the same non-enumerating response. Runtime text is length-bounded and escapes
 control/ANSI/bidi/newline content. Shell completions treat runtime values as
@@ -428,16 +428,16 @@ must not parse English messages.
 
 ### 8. Audit records intent, not shell accidents
 
-Hall records the initiating principal/session/runtime, surface (`cli`, `mcp`,
+Axis records the initiating principal/session/runtime, surface (`cli`, `mcp`,
 `rest`, or `ui`), operation ID, normalized typed input digest, capability
 decision, idempotency key, resulting resource ID, and terminal outcome.
 
 Principal, organization, session, runtime attempt, and node identity are not
-fields accepted from an agent operation request. Hall derives them from the
+fields accepted from an agent operation request. Axis derives them from the
 authenticated gateway context; any compatibility field carrying identity is
 ignored or rejected before authorization.
 
-Hall computes the digest over its post-validation/default, versioned canonical
+Axis computes the digest over its post-validation/default, versioned canonical
 representation. Equivalent CLI/MCP requests intentionally differ only in the
 audit `surface`; they share operation ID semantics, resource identity, canonical
 input digest, authorization outcome, and durable domain events while producing
@@ -459,7 +459,7 @@ CLI get/watch/exit output exposes these states honestly.
 
 ## Consequences
 
-- Agents gain a highly discoverable, pipeable Olympus interface without gaining
+- Agents gain a highly discoverable, pipeable Stellarc interface without gaining
   shell-shaped remote authority.
 - MCP remains available for native tool invocation; it is no longer the only
   agent-facing adapter.
@@ -467,14 +467,14 @@ CLI get/watch/exit output exposes these states honestly.
   must carry descriptions, examples, and output schemas.
 - The CLI can be tested against an in-memory operation adapter and a real private
   UDS/iroh path without starting a browser.
-- A new `olympus-cli` crate/binary and a shared typed operation vocabulary are
+- A new `stellarc-cli` crate/binary and a shared typed operation vocabulary are
   required.
 - Man pages cover static commands; runtime workflow help is necessarily dynamic
   and comes from the pinned definition schema.
 
 ## Rejected alternatives
 
-### CLI wraps Hall REST with an installation token
+### CLI wraps Axis REST with an installation token
 
 Rejected. It leaks broad credentials into runtimes and creates a second policy
 surface.
@@ -490,15 +490,15 @@ adapters instead share typed operations and the runtime gateway.
 Rejected. Guessing values from strings produces ambiguous booleans, arrays,
 numbers, and objects and creates runs before useful validation.
 
-### Arbitrary `olympus api` or `olympus exec`
+### Arbitrary `stellarc api` or `stellarc exec`
 
 Rejected. Those surfaces erase semantic capability checks and recreate SSH or a
 raw admin API under a convenient name.
 
 ## Acceptance gates
 
-1. A real sandbox Hermes runtime invokes `olympus session info` through its
-   private gateway without Hall credentials or general Hall network access.
+1. A real sandbox Hermes runtime invokes `stellarc session info` through its
+   private gateway without Axis credentials or general Axis network access.
 2. Cross-session socket access, copied paths, wrong cgroup/UID, archived session,
    revoked grant, key rotation, and protocol downgrade all fail closed.
 3. CLI and MCP calls for the same operation produce equivalent durable events,

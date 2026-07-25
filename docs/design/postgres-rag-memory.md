@@ -1,55 +1,55 @@
-# PostgreSQL as a Future Olympus Storage and Memory Substrate
+# PostgreSQL as a Future Stellarc Storage and Memory Substrate
 
 **Status:** Exploration — not an accepted architecture decision  
-**Current decision:** Keep SQLite for Olympus native state until the requirements below justify a networked database.
+**Current decision:** Keep SQLite for Stellarc native state until the requirements below justify a networked database.
 
 ## Motivation
 
-Olympus currently uses SQLite effectively for a single Hall deployment, but a future Olympus-managed retrieval-augmented generation (RAG) or long-term memory system may need more than durable event storage and lexical search.
+Stellarc currently uses SQLite effectively for a single Axis deployment, but a future Stellarc-managed retrieval-augmented generation (RAG) or long-term memory system may need more than durable event storage and lexical search.
 
 PostgreSQL could become a useful shared substrate for:
 
-- Olympus-native events and materialized projections;
+- Stellarc-native events and materialized projections;
 - organization-scoped documents, memories, and provenance;
 - full-text and semantic retrieval;
 - embedding storage through `pgvector`;
 - hybrid ranking over lexical, vector, recency, and authority signals;
 - background indexing and memory-consolidation jobs;
-- shared state for multiple active Hall replicas;
+- shared state for multiple active Axis replicas;
 - backups, point-in-time recovery, and hosted multi-tenant operation.
 
-This is a stronger reason to consider PostgreSQL than data volume alone. SQLite can handle the current Olympus workload. PostgreSQL becomes compelling when Olympus needs a shared knowledge system or multiple concurrent Hall writers.
+This is a stronger reason to consider PostgreSQL than data volume alone. SQLite can handle the current Stellarc workload. PostgreSQL becomes compelling when Stellarc needs a shared knowledge system or multiple concurrent Axis writers.
 
 ## Current state
 
-Olympus persistence has separate ownership boundaries:
+Stellarc persistence has separate ownership boundaries:
 
-1. `~/.olympus/olympus.db` is Olympus-owned SQLite storage. It contains the native event log, durable projections, messages, and FTS5 search data. An event append and its projection update occur in one WAL transaction.
-2. `~/.olympus/auth.sqlite` stores Hall authentication and organization data.
-3. Hermes owns `state.db`. Hall opens it read-only and reads observed session history lazily. Olympus must not mutate it.
+1. `~/.stellarc/stellarc.db` is Stellarc-owned SQLite storage. It contains the native event log, durable projections, messages, and FTS5 search data. An event append and its projection update occur in one WAL transaction.
+2. `~/.stellarc/auth.sqlite` stores Axis authentication and organization data.
+3. Hermes owns `state.db`. Axis opens it read-only and reads observed session history lazily. Stellarc must not mutate it.
 4. Repository workspaces, vault files, and session spaces remain filesystem resources rather than database blobs.
 
-Moving Olympus-native state to PostgreSQL would not remove SQLite from the system while Hermes continues to own `state.db`. Remote Envoys would still need a protocol for querying or replicating their local history.
+Moving Stellarc-native state to PostgreSQL would not remove SQLite from the system while Hermes continues to own `state.db`. Remote Orbits would still need a protocol for querying or replicating their local history.
 
 ## Decision threshold
 
-Do not migrate merely because PostgreSQL appears more “production-grade,” because `olympus.db` grows to several gigabytes, or because more messages are retained.
+Do not migrate merely because PostgreSQL appears more “production-grade,” because `stellarc.db` grows to several gigabytes, or because more messages are retained.
 
 Adopt PostgreSQL when at least one of these becomes a concrete requirement:
 
-1. Two or more Hall replicas must concurrently accept mutations against shared state.
-2. Olympus offers a hosted, multi-tenant control plane whose state must not belong to one Hall host.
-3. Olympus-managed RAG or memory needs shared vector indexes, durable indexing jobs, rich metadata filtering, and cross-node retrieval at a scale or operational model that SQLite no longer serves cleanly.
+1. Two or more Axis replicas must concurrently accept mutations against shared state.
+2. Stellarc offers a hosted, multi-tenant control plane whose state must not belong to one Axis host.
+3. Stellarc-managed RAG or memory needs shared vector indexes, durable indexing jobs, rich metadata filtering, and cross-node retrieval at a scale or operational model that SQLite no longer serves cleanly.
 4. Recovery objectives require managed replication or point-in-time recovery.
 
-Until then, SQLite is the simpler and more reliable default for local-first Olympus.
+Until then, SQLite is the simpler and more reliable default for local-first Stellarc.
 
 ## Proposed role of PostgreSQL
 
-If adopted, PostgreSQL should be treated as a coherent Olympus knowledge substrate rather than only a replacement for `olympus.db`.
+If adopted, PostgreSQL should be treated as a coherent Stellarc knowledge substrate rather than only a replacement for `stellarc.db`.
 
 ```text
-Hermes state.db (read-only, per Envoy)       Vaults / repositories / artifacts
+Hermes state.db (read-only, per Orbit)       Vaults / repositories / artifacts
                  │                                         │
                  └──────────── ingestion and provenance ───┘
                                       │
@@ -64,7 +64,7 @@ Hermes state.db (read-only, per Envoy)       Vaults / repositories / artifacts
                     │ indexing/consolidation jobs    │
                     └───────────────┬────────────────┘
                                     │
-                         one or more Hall replicas
+                         one or more Axis replicas
 ```
 
 PostgreSQL should store metadata, normalized text, retrieval units, embeddings, and provenance. Large original artifacts should generally remain in their authoritative filesystem, repository, or object store, with stable references and content hashes in PostgreSQL.
@@ -79,7 +79,7 @@ Recommended layers:
 - **Document:** a versioned representation of a source with ownership, visibility, and content hash.
 - **Chunk:** a retrieval unit derived from one document version.
 - **Embedding:** a vector generated by a named model and model version.
-- **Memory:** an Olympus-managed assertion, summary, preference, procedure, or relationship synthesized from evidence.
+- **Memory:** an Stellarc-managed assertion, summary, preference, procedure, or relationship synthesized from evidence.
 - **Evidence link:** the source spans supporting or contradicting a memory.
 - **Retrieval record:** an audit trail showing what context was retrieved and why.
 
@@ -196,7 +196,7 @@ A PostgreSQL implementation must preserve it. Splitting events and projections a
 
 ### Keep Hermes ownership intact
 
-Hermes `state.db` remains read-only. Olympus may ingest or index content through an Envoy protocol, but it must preserve source identity and must not silently turn an imported copy into the authoritative Hermes record.
+Hermes `state.db` remains read-only. Stellarc may ingest or index content through an Orbit protocol, but it must preserve source identity and must not silently turn an imported copy into the authoritative Hermes record.
 
 ### Keep files as files
 
@@ -211,27 +211,27 @@ Every document, memory, chunk, retrieval, and job must be scoped to an organizat
 - PostgreSQL raises the minimum deployment from local binaries and files to a managed network service with credentials, migrations, backups, and monitoring.
 - `pgvector` adds extension and index lifecycle requirements.
 - SQLite FTS5 behavior does not map mechanically to PostgreSQL full-text search; query parsing, stemming, snippets, and ranking must be specified and tested.
-- Multiple Hall replicas also require connection ownership, bridge leases, WebSocket fan-out, duplicate-event prevention, and Envoy reconnect routing. PostgreSQL alone does not solve distributed runtime coordination.
+- Multiple Axis replicas also require connection ownership, bridge leases, WebSocket fan-out, duplicate-event prevention, and Orbit reconnect routing. PostgreSQL alone does not solve distributed runtime coordination.
 - Supporting SQLite and PostgreSQL indefinitely creates a permanent dialect, migration, search, and testing burden.
 - Embedding model upgrades require versioned vectors and controlled reindexing rather than in-place ambiguity.
 - Memory synthesis can amplify errors unless provenance, contradiction, expiration, and deletion are first-class.
 
 ## Migration path
 
-1. **Keep SQLite now.** Continue measuring database size, write latency, search latency, Hall RSS, and sync behavior.
+1. **Keep SQLite now.** Continue measuring database size, write latency, search latency, Axis RSS, and sync behavior.
 2. **Separate storage responsibilities.** Put event transactions, projections, search, and auth behind deliberate boundaries without promising permanent dual-backend support.
 3. **Adopt numbered migrations.** Replace ad hoc schema inspection with immutable, testable migrations.
-4. **Prototype the memory model.** Validate chunking, hybrid retrieval, provenance, deletion, and embedding costs against a representative Olympus corpus. SQLite plus an experimental sidecar is acceptable for the prototype.
+4. **Prototype the memory model.** Validate chunking, hybrid retrieval, provenance, deletion, and embedding costs against a representative Stellarc corpus. SQLite plus an experimental sidecar is acceptable for the prototype.
 5. **Run a PostgreSQL/pgvector spike.** Compare retrieval quality and operational cost, not only benchmark throughput.
 6. **Implement PostgreSQL when a decision threshold is met.** Use the same behavioral contract tests against both stores during migration.
-7. **Cut over from the event log.** Stop Hall, back up SQLite, copy events in sequence, rebuild projections and indexes, verify counts and hashes, then start Hall against PostgreSQL. Preserve SQLite files for rollback.
+7. **Cut over from the event log.** Stop Axis, back up SQLite, copy events in sequence, rebuild projections and indexes, verify counts and hashes, then start Axis against PostgreSQL. Preserve SQLite files for rollback.
 8. **Remove the transitional backend.** Retain dual storage only if local SQLite mode and clustered PostgreSQL mode are both explicit supported products.
 
 ## Open questions
 
-- Is Olympus memory personal, organization-wide, project-scoped, agent-scoped, or some combination?
+- Is Stellarc memory personal, organization-wide, project-scoped, agent-scoped, or some combination?
 - Which source types may be embedded, and what are their retention and deletion rules?
-- Should observed Hermes messages be copied into Olympus storage or queried through Envoy on demand?
+- Should observed Hermes messages be copied into Stellarc storage or queried through Orbit on demand?
 - Are memories append-only claims with supersession, or mutable rows with an audit log?
 - How are contradictions represented and surfaced?
 - Which embeddings run locally, and which may be sent to external providers?
@@ -240,6 +240,6 @@ Every document, memory, chunk, retrieval, and job must be scoped to an organizat
 
 ## Provisional recommendation
 
-Continue using SQLite for the present single-Hall architecture. Treat PostgreSQL as the likely substrate for a future clustered or hosted Olympus and as a serious candidate for an Olympus-managed RAG/memory system, particularly when `pgvector`, hybrid retrieval, shared indexing jobs, and organization-scoped knowledge become concrete requirements.
+Continue using SQLite for the present single-Axis architecture. Treat PostgreSQL as the likely substrate for a future clustered or hosted Stellarc and as a serious candidate for an Stellarc-managed RAG/memory system, particularly when `pgvector`, hybrid retrieval, shared indexing jobs, and organization-scoped knowledge become concrete requirements.
 
 Before committing to migration, prototype the memory semantics and retrieval quality. The hard problem is not storing vectors; it is preserving provenance, authority, tenancy, deletion, contradiction, and debuggability.

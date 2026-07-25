@@ -11,16 +11,16 @@ stale-closure resize regression and incorrect sidebar selection highlights.
 
 ## Root cause
 
-The job ran from `/home/rpw/olympus` on Terminus, a read-only migration
+The job ran from `/home/rpw/stellarc` on Terminus, a read-only migration
 snapshot. Development, deployment, and the live dev services had moved to
-`fxcompute-01:/home/rpw/olympus`, so the gate exercised code nobody was
+`fxcompute-01:/home/rpw/stellarc`, so the gate exercised code nobody was
 changing. Its render smoke also did not chain drag gestures or inspect active
 selection styles.
 
 ## Fix
 
 `ui/scripts/dev-e2e.sh` now runs Playwright beside the authoritative checkout
-against the live dev Vite and Hall services. It reads dev credentials only at
+against the live dev Vite and Axis services. It reads dev credentials only at
 runtime and covers login, two chained bottom-panel drags, right-panel resize,
 open/focused session washes without inset edge bars, active nav state, and the
 theme toggle. The Terminus scheduler invokes it over SSH.

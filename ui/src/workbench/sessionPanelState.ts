@@ -1,5 +1,5 @@
 const states = new Map<string, Record<string, unknown>>();
-const PREFIX = "olympus-session-panel:";
+const PREFIX = "stellarc-session-panel:";
 
 function stateFor(sessionId: string): Record<string, unknown> {
   const cached = states.get(sessionId);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# patchctl.sh — manage Olympus's patches to Hermes Agent.
+# patchctl.sh — manage Stellarc's patches to Hermes Agent.
 # We patch, never fork. See README.md + manifest.toml.
 #
 # Usage:
@@ -112,7 +112,7 @@ cmd_save() {
   git -C "$HDIR" diff HEAD -- "$@" > "$out"
   [[ -s "$out" ]] || { echo "ERROR: empty diff — nothing to save for: $*" >&2; rm -f "$out"; exit 1; }
   echo "wrote $out"
-  echo "NEXT: add an entry to manifest.toml [[patch]], then commit to the Olympus repo."
+  echo "NEXT: add an entry to manifest.toml [[patch]], then commit to the Stellarc repo."
 }
 
 case "${1:-status}" in

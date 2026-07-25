@@ -6,7 +6,7 @@
 
 ## Impact
 
-Dockview could already render and report two panes while `toJSON()` still returned the preceding one-pane model. The browser and Hall then acknowledged the stale snapshot, so a refresh lost the newly opened pane.
+Dockview could already render and report two panes while `toJSON()` still returned the preceding one-pane model. The browser and Axis then acknowledged the stale snapshot, so a refresh lost the newly opened pane.
 
 ## Root cause
 
@@ -18,4 +18,4 @@ Schedule the explicit post-open persistence on the next animation frame. Dockvie
 
 ## Prevention
 
-Third-party workbench mutations must be persisted only after their documented layout/update boundary. Browser QA must compare rendered pane count with the Hall-stored pane count before reload.
+Third-party workbench mutations must be persisted only after their documented layout/update boundary. Browser QA must compare rendered pane count with the Axis-stored pane count before reload.

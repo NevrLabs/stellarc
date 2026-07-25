@@ -19,7 +19,7 @@ function message(overrides: Partial<Message>): Message {
 }
 
 describe("logsFromMessages", () => {
-  it("rehydrates lifecycle logs from Hall-owned messages", () => {
+  it("rehydrates lifecycle logs from Axis-owned messages", () => {
     const logs = logsFromMessages([
       message({ messageId: 1, role: "user", timestamp: 10 }),
       message({
@@ -51,7 +51,7 @@ describe("logsFromMessages", () => {
         id: "message:1:user",
         ts: 10,
         level: "info",
-        source: "olympus",
+        source: "stellarc",
         message: "User message sent",
       },
       {
@@ -72,7 +72,7 @@ describe("logsFromMessages", () => {
         id: "message:3:system",
         ts: 14,
         level: "error",
-        source: "olympus",
+        source: "stellarc",
         message: "⚠ Failed to start agent: adapter failed",
       },
     ]);

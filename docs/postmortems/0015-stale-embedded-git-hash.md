@@ -2,7 +2,7 @@
 
 ## Summary
 
-Hash-suffixed deployment artifacts were installed from the final commit, but Envoy reported an older Git hash in Fleet. The protocol crate's build script watched `.git/HEAD`; on a normal branch that file contains a stable symbolic-ref string and does not change when new commits advance the branch.
+Hash-suffixed deployment artifacts were installed from the final commit, but Orbit reported an older Git hash in Fleet. The protocol crate's build script watched `.git/HEAD`; on a normal branch that file contains a stable symbolic-ref string and does not change when new commits advance the branch.
 
 ## Impact
 

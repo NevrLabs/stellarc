@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/fleet
 name: Mobile fleet overview loads
 properties:
-  junitId: olympus-mobile-fleet-overview
+  junitId: stellarc-mobile-fleet-overview
   junitClassname: ui.mobile
 ---
 - launchApp

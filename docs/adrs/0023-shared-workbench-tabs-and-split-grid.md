@@ -7,7 +7,7 @@
 
 ## 1. Decision
 
-Olympus will share a small, framework-free **view identity and split-tree model**, while each surface owns its chrome and capability policy.
+Stellarc will share a small, framework-free **view identity and split-tree model**, while each surface owns its chrome and capability policy.
 
 - **Cockpit stays single-pane.** Its existing horizontal tab strip switches one live tool surface. Cockpit does not consume split-tree operations.
 - **Vault is a multi-pane editor workbench.** Every editor group owns a horizontal document tab strip. Groups may be nested with horizontal and vertical splits.
@@ -143,13 +143,13 @@ The sidebar is the only tab list:
 - clicking a row opens or activates that session in the active pane;
 - a visible session row indicates which pane contains it and which pane is active;
 - explicit **Open to Right** and **Open Below** actions place a session into a new group;
-- closing a session view removes only the presentation view; it never archives, cancels, or deletes the Hall session;
+- closing a session view removes only the presentation view; it never archives, cancels, or deletes the Axis session;
 - each transcript pane has a compact pane header for title, status, pane actions, and close, but no horizontal tab strip;
 - the URL names the active pane's session only; the remaining pane layout stays client presentation state.
 
 A session may appear in at most one pane initially. Requesting a visible session activates its existing pane. This avoids duplicated live subscriptions and ambiguous composer ownership. Side-by-side operation is achieved with different sessions.
 
-The sidebar reuses the existing global comfortable/compact density. It adds configurable metadata visibility for fields already projected by Hall: agent, model, node, source, message count, token total, and last activity. A Sessions-only density override is deferred until operators demonstrate a need distinct from global density.
+The sidebar reuses the existing global comfortable/compact density. It adds configurable metadata visibility for fields already projected by Axis: agent, model, node, source, message count, token total, and last activity. A Sessions-only density override is deferred until operators demonstrate a need distinct from global density.
 
 ## 5. Route/workbench synchronization
 
@@ -187,7 +187,7 @@ Initial persistence policy:
 
 - Vault and Sessions split state remains in memory while draft and principal-scoping semantics are hardened.
 - Cockpit keeps its existing local manifest, but browser URLs must reject userinfo and redact or omit sensitive query/fragment data before any future persistence hardening claims.
-- Cross-device persistence moves to Hall user UI preferences only after the schema is principal/org scoped.
+- Cross-device persistence moves to Axis user UI preferences only after the schema is principal/org scoped.
 
 Unknown manifest versions fail closed to a safe single group. Any future persisted migration must define old/new keys, source precedence, validated shape, successful-write verification, retry behavior, and recovery copy.
 
@@ -222,7 +222,7 @@ Unknown manifest versions fail closed to a safe single group. Any future persist
 
 The initial shared model has no dynamic plugin lifecycle contract. Built-in surface adapters may map a known `kind` to a renderer.
 
-Dynamic `view_provider` loading, trust/isolation, capability intersection, name collision ownership, payload schema migration, unload/revocation, and suspend/resume require a separate security/lifecycle ADR. Olympus must not inject arbitrary package JavaScript into Hall UI.
+Dynamic `view_provider` loading, trust/isolation, capability intersection, name collision ownership, payload schema migration, unload/revocation, and suspend/resume require a separate security/lifecycle ADR. Stellarc must not inject arbitrary package JavaScript into Axis UI.
 
 ## 9. Implementation sequence
 

@@ -1,6 +1,6 @@
 # Resume/handover semantics — Claude Code & Codex ACP adapters
 
-**Ticket:** olympus wayfinder research #10 · **Date:** 2026-07-09
+**Ticket:** stellarc wayfinder research #10 · **Date:** 2026-07-09
 **Complements:** `resume-semantics.md` (hermes acp, ticket #2)
 **Method:** claude-code-acp probed empirically (live child processes, real ACP
 frames); codex-acp analyzed from vendored source (`/tmp/codex-acp-src`, the
@@ -64,23 +64,23 @@ verdicts are **inference, not evidence**, until re-run.
   fails closed where hermes silently creates a new session. The provenance
   check from #2 remains necessary only for hermes.
 - **Auth:** `check_auth()` gates both load and resume (`:614`, `:634`) — an
-  unauthenticated envoy fails the handover loudly at resume time, not at the
+  unauthenticated orbit fails the handover loudly at resume time, not at the
   next prompt.
 - **Untested:** everything here is code-reading; no runtime verification
   (codex CLI absent). Mid-turn kill behavior (is a partial turn flushed to the
   rollout file?) is unknown — rollout appends per event, so partial-turn
   persistence is *plausibly better* than hermes, but unverified.
 
-## Consequences for envoy handover design
+## Consequences for orbit handover design
 
 1. **Uniform handover is viable.** All three adapters advertise and implement
    cross-process session resume backed by on-disk state. #4's
    resume-then-flip state machine needs no per-harness forks in its happy path.
-2. **But gate on capabilities anyway.** The envoy should read
+2. **But gate on capabilities anyway.** The orbit should read
    `agentCapabilities.loadSession` / `sessionCapabilities.resume` from each
    adapter's initialize response and report per-runtime `resumable` flags to
-   Hall. Handover requires `resumable`; a future/broken adapter without it
-   degrades to: session pinned to its envoy, drain waits for turn boundary,
+   Axis. Handover requires `resumable`; a future/broken adapter without it
+   degrades to: session pinned to its orbit, drain waits for turn boundary,
    then the session goes runtime-less (revived later by lazy ensure_runtime,
    accepting context rebuild). Capability-driven, not name-driven — harness
    agnosticism means no `match harness { … }` in the drain path.
@@ -88,7 +88,7 @@ verdicts are **inference, not evidence**, until re-run.
    codex errors properly, claude unverified — the check is cheap and uniform.
 4. **Post-resume re-apply checklist is per-adapter data, not code:** hermes
    needs `set_mode` re-applied; claude/codex return modes in the
-   resume/load response so the envoy reconciles against desired state the
+   resume/load response so the orbit reconciles against desired state the
    same way for all three.
 5. **Open items before ADR freeze (#9):** re-run the claude probe after
    `claude /login` (replay fidelity, double-attach, mid-turn kill); optionally

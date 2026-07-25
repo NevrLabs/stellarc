@@ -18,9 +18,9 @@ The restore guard tracked only whether a project had ever been restored, not whi
 
 ## Fix
 
-- Track a source-qualified authority signature (`hall`, `fallback`, or `rejected`) per project and reapply every changed settled authority result.
+- Track a source-qualified authority signature (`axis`, `fallback`, or `rejected`) per project and reapply every changed settled authority result.
 - Clear existing panes before applying changed authority; authoritative null and 4xx therefore establish a clean workspace.
-- Refresh browser fallback storage from every successful Hall layout and remove it on 4xx.
+- Refresh browser fallback storage from every successful Axis layout and remove it on 4xx.
 - Require an error-free fresh sessions result before marking membership authoritative.
 - Suspend restore, opens, dynamic pruning writes, and layout persistence while membership authority is pending or failed.
 - Validate the exact session/project pair after association before opening.

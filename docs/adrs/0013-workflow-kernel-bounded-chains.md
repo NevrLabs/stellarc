@@ -66,9 +66,9 @@ activity chain executor — and its scope ceiling is enforced by doctrine.**
 - Run state is event-sourced: `WorkflowRunStarted / StepDispatched /
   StepCompleted / StepFailed / RunSignaled / RunCompleted / RunCancelled` —
   appended to the existing SQLite event log, projected like every other view.
-  Hall restarts resume runs by projection, not replay.
+  Axis restarts resume runs by projection, not replay.
 - Activity dispatch requires the hardened JOBS-2 substrate from ADR 0017, not
-  the original volatile JOBS-1 route. Hall atomically appends
+  the original volatile JOBS-1 route. Axis atomically appends
   `StepDispatchPlanned` plus durable job intent before sending a fenced
   `(job_id, attempt_epoch)` dispatch. Restart recovery reconciles/attaches to
   that exact attempt; absence of completion never means "dispatch another."
@@ -85,7 +85,7 @@ activity chain executor — and its scope ceiling is enforced by doctrine.**
   step dispatch (this gives revocation a natural boundary: revoked authority
   stops the run at the next step, recorded as `StepFailed{cause: revoked}` —
   resolving ADR 0012's open question for the v1 semantics).
-- Concurrency: single scheduler in Hall (the ADR 0002 single-writer rule);
+- Concurrency: single scheduler in Axis (the ADR 0002 single-writer rule);
   parallel steps fan out as concurrent activity dispatches, joined by `needs:`.
 
 ### The scope ceiling (doctrine, enforced in review)
@@ -94,7 +94,7 @@ The kernel NEVER grows: loops/recursion, in-definition expression languages,
 code-as-workflow SDKs, sub-DAG generation at runtime, or replay-based
 recovery. If a use case appears to need one of these, the answer is one of:
 (a) push the logic into an activity; (b) have an agent session author the
-next workflow run (agents are the general-purpose layer — Olympus already has
+next workflow run (agents are the general-purpose layer — Stellarc already has
 them; the workflow kernel does not need to become one); (c) if genuinely
 neither, write the ADR that supersedes this one and adopt an existing engine
 rather than growing ours. **Options (a) and (b) are expected to cover
@@ -110,13 +110,13 @@ dumb.
 - WorkflowComplete/StepCompleted push into session streams as new AgentEvent
   variants (ADR 0011 §6) — additive to proto.
 - MCP tools (`run_workflow`, `get_run`, `signal_run`) and the schema-aware
-  `olympus workflow ...` CLI expose the same typed run operations through the
-  Hall operation seam (ADR 0019). MCP starts non-blocking; CLI waits by default
+  `stellarc workflow ...` CLI expose the same typed run operations through the
+  Axis operation seam (ADR 0019). MCP starts non-blocking; CLI waits by default
   for Unix pipeline semantics and supports explicit `--detach`.
 - What we give up: long-lived code-shaped orchestrations with complex
   branching living INSIDE the engine. Accepted: those live in agents or
   activities by design.
-- Risk accepted: if Olympus someday needs true general durable execution,
+- Risk accepted: if Stellarc someday needs true general durable execution,
   this ADR is superseded and an engine is adopted — the event-sourced run
   format migrates (it's data), the YAML definitions migrate (they're data);
   only the scheduler is discarded. The bounded design keeps that exit cheap.

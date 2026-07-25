@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions
 name: Sessions selection and composer
 properties:
-  junitId: olympus-sessions
+  junitId: stellarc-sessions
   junitClassname: ui.mock
 ---
 - launchApp

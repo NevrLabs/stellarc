@@ -42,7 +42,7 @@ describe("Cockpit terminal lifetime", () => {
     vi.stubGlobal("WebSocket", FakeWebSocket);
     useCockpit.setState({
       open: true,
-      tabs: [{ id: "terminal-a", kind: "terminal", title: "Hall 1", target: { nodeId: "hall" } }],
+      tabs: [{ id: "terminal-a", kind: "terminal", title: "Axis 1", target: { nodeId: "axis" } }],
       activeTabId: "terminal-a",
       geometry: { x: 120, y: 96, w: 820, h: 520 },
     });

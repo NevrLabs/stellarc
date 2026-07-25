@@ -1,6 +1,6 @@
-// ThemeProvider — manages the Olympus color theme (obsidian / light).
+// ThemeProvider — manages the Stellarc color theme (obsidian / light).
 //
-// Persists to localStorage["olympus-theme"], applies via
+// Persists to localStorage["stellarc-theme"], applies via
 // document.documentElement.dataset.theme. Default is "obsidian" (dark).
 //
 // Density is also managed here (comfortable / compact) via
@@ -19,8 +19,8 @@ import {
 export type Theme = "obsidian" | "light";
 export type Density = "comfortable" | "compact";
 
-const THEME_KEY = "olympus-theme";
-const DENSITY_KEY = "olympus-density";
+const THEME_KEY = "stellarc-theme";
+const DENSITY_KEY = "stellarc-density";
 
 interface ThemeContextValue {
   theme: Theme;

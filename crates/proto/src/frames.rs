@@ -1,21 +1,21 @@
-//! Hall↔Envoy wire frames (ADR 0008 §1).
+//! Axis↔Orbit wire frames (ADR 0008 §1).
 //!
 //! JSON-lines frames (one compact JSON object per line), internally tagged on
 //! `"kind"` with camelCase field names — wire-compatible in style with the
 //! existing node protocol (`node.rs` hello/heartbeat/bye).
 //!
 //! Frame families:
-//! - Hall→Envoy ([`HallFrame`]): `ensure_runtime`, `prompt`, `steer`,
+//! - Axis→Orbit ([`AxisFrame`]): `ensure_runtime`, `prompt`, `steer`,
 //!   `cancel`, `stop`, `respond_permission`, `drain`, `probe` — each with a
-//!   Hall-assigned `reqId`; plus `ack {sessionId, seq}` (spool truncation
+//!   Axis-assigned `reqId`; plus `ack {sessionId, seq}` (spool truncation
 //!   watermark) and `resume_from {sessionId, seq}` (replay cursor at
 //!   reconnect).
-//! - Envoy→Hall ([`EnvoyFrame`]): `hello`, `heartbeat`, `bye`,
+//! - Orbit→Axis ([`OrbitFrame`]): `hello`, `heartbeat`, `bye`,
 //!   `resp {reqId, ok|error}`, `event {sessionId, turnId, seq, payload}`,
 //!   `runtimes {…}` (in hello and on change).
 //!
 //! Unknown fields are tolerated everywhere (no `deny_unknown_fields`); a hello
-//! with an unexpected `protocolVersion` still *parses* — rejection is Hall's
+//! with an unexpected `protocolVersion` still *parses* — rejection is Axis's
 //! policy decision, not serde's.
 
 use serde::{Deserialize, Serialize};
@@ -81,7 +81,7 @@ pub enum ObservedEvent {
     },
 }
 
-/// One entry in the envoy's runtimes table: which session it holds, its
+/// One entry in the orbit's runtimes table: which session it holds, its
 /// backing Hermes session id, and resume metadata (ADR 0008 §2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,16 +97,16 @@ pub struct RuntimeStatus {
     /// cross-process resume (`loadSession` + `sessionCapabilities.resume`).
     #[serde(default)]
     pub resumable: bool,
-    /// Highest per-session event `seq` this envoy has assigned.
+    /// Highest per-session event `seq` this orbit has assigned.
     #[serde(default)]
     pub last_seq: u64,
 }
 
-/// Hall→Envoy frames. Request frames carry a Hall-assigned `reqId`; the envoy
-/// replies with [`EnvoyFrame::Resp`] echoing it.
+/// Axis→Orbit frames. Request frames carry a Axis-assigned `reqId`; the orbit
+/// replies with [`OrbitFrame::Resp`] echoing it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum HallFrame {
+pub enum AxisFrame {
     /// Ensure a runtime exists for `session_id` (spawn or resume). `resume_id`
     /// is the harness session id to resume; `spec` is the spawn configuration.
     EnsureRuntime {
@@ -116,7 +116,7 @@ pub enum HallFrame {
         session_id: String,
         #[serde(default)]
         spec: RuntimeSpec,
-        /// Harness session id to resume (ADR §3: Hall must verify the
+        /// Harness session id to resume (ADR §3: Axis must verify the
         /// returned id matches — provenance check).
         #[serde(default, rename = "resumeId")]
         resume_id: Option<String>,
@@ -165,7 +165,7 @@ pub enum HallFrame {
         #[serde(default, rename = "optionId")]
         option_id: Option<String>,
     },
-    /// Begin draining this envoy: no new sessions; hand over held sessions.
+    /// Begin draining this orbit: no new sessions; hand over held sessions.
     Drain {
         #[serde(rename = "reqId")]
         req_id: u64,
@@ -173,7 +173,7 @@ pub enum HallFrame {
         #[serde(default, rename = "toNode")]
         to_node: Option<String>,
     },
-    /// Health-gate probe: envoy replies with agent discovery (ADR §5).
+    /// Health-gate probe: orbit replies with agent discovery (ADR §5).
     Probe {
         #[serde(rename = "reqId")]
         req_id: u64,
@@ -211,8 +211,8 @@ pub enum HallFrame {
         attempt_epoch: u64,
     },
     /// Open an operator terminal (PTY) on this node (ADR 0021 cockpit).
-    /// `terminal_id` is Hall-issued and stable for the terminal's lifetime.
-    /// The envoy spawns `$SHELL` as a process-group leader with a PTY and
+    /// `terminal_id` is Axis-issued and stable for the terminal's lifetime.
+    /// The orbit spawns `$SHELL` as a process-group leader with a PTY and
     /// streams `TerminalOutput` frames back. Operator-only; no agent path.
     TerminalOpen {
         #[serde(rename = "reqId")]
@@ -223,7 +223,7 @@ pub enum HallFrame {
         cols: u16,
         #[serde(default)]
         rows: u16,
-        /// Optional starting directory; envoy falls back to $HOME. Never a
+        /// Optional starting directory; orbit falls back to $HOME. Never a
         /// caller-arbitrary command — the shell is fixed to the node's $SHELL.
         #[serde(default)]
         cwd: Option<String>,
@@ -248,25 +248,25 @@ pub enum HallFrame {
         #[serde(rename = "terminalId")]
         terminal_id: String,
     },
-    /// Spool truncation watermark: Hall has durably applied events for
+    /// Spool truncation watermark: Axis has durably applied events for
     /// `session_id` up to and including `seq`.
     Ack {
         #[serde(rename = "sessionId")]
         session_id: String,
         seq: u64,
     },
-    /// Replay cursor at reconnect: envoy replays spooled events with
+    /// Replay cursor at reconnect: orbit replays spooled events with
     /// `seq > seq`, then streams live.
     ResumeFrom {
         #[serde(rename = "sessionId")]
         session_id: String,
         seq: u64,
     },
-    /// Acknowledge one envoy heartbeat. Envoys use missing acknowledgements to
-    /// detect a Hall-side registration black hole.
+    /// Acknowledge one orbit heartbeat. Orbits use missing acknowledgements to
+    /// detect a Axis-side registration black hole.
     HeartbeatAck,
-    /// The authenticated connection is alive, but Hall no longer has its node
-    /// registration. The envoy must send Hello again on this connection.
+    /// The authenticated connection is alive, but Axis no longer has its node
+    /// registration. The orbit must send Hello again on this connection.
     ReRegister,
 }
 
@@ -294,17 +294,17 @@ pub struct JobAttemptStatus {
     pub cancelled: bool,
     #[serde(default)]
     pub terminal_reason: Option<String>,
-    /// Final durable spool sequence, when Envoy has fsynced a terminal result.
+    /// Final durable spool sequence, when Orbit has fsynced a terminal result.
     #[serde(default)]
     pub final_sequence: Option<u64>,
 }
 
-/// Envoy→Hall frames.
+/// Orbit→Axis frames.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum EnvoyFrame {
+pub enum OrbitFrame {
     /// Registration handshake. `protocol_version` is the frame-schema compat
-    /// gate (Hall rejects unknown values — fail closed, but the frame always
+    /// gate (Axis rejects unknown values — fail closed, but the frame always
     /// *parses*); `version` is the build identity drain decisions key on.
     Hello {
         #[serde(rename = "nodeId")]
@@ -315,12 +315,12 @@ pub enum EnvoyFrame {
         #[serde(rename = "protocolVersion")]
         protocol_version: u32,
         version: BuildVersion,
-        /// Agents discovered on this envoy's host (harness-native JSON;
-        /// proto stays decoupled from Hall's `AgentInfo` DTO).
+        /// Agents discovered on this orbit's host (harness-native JSON;
+        /// proto stays decoupled from Axis's `AgentInfo` DTO).
         #[serde(default)]
         agents: Option<Value>,
-        /// The envoy's runtimes table (which sessions it holds + lastSeq),
-        /// used by Hall to relearn locations and drive `resume_from`.
+        /// The orbit's runtimes table (which sessions it holds + lastSeq),
+        /// used by Axis to relearn locations and drive `resume_from`.
         #[serde(default)]
         runtimes: Vec<RuntimeStatus>,
         #[serde(default)]
@@ -341,7 +341,7 @@ pub enum EnvoyFrame {
         #[serde(rename = "nodeId")]
         node_id: String,
     },
-    /// Reply to a Hall request frame: ok, or an error message. `result`
+    /// Reply to a Axis request frame: ok, or an error message. `result`
     /// carries request-specific payload (e.g. probe → discovery report).
     Resp {
         #[serde(rename = "reqId")]
@@ -353,7 +353,7 @@ pub enum EnvoyFrame {
         result: Option<Value>,
     },
     /// A session event. `seq` is a per-session monotonic counter assigned by
-    /// the envoy — the ordering/idempotency key for exactly-once replay.
+    /// the orbit — the ordering/idempotency key for exactly-once replay.
     Event {
         #[serde(rename = "sessionId")]
         session_id: String,
@@ -411,45 +411,45 @@ pub enum EnvoyFrame {
     },
 }
 
-impl HallFrame {
-    /// The Hall-assigned request id, for frames that expect a `resp`.
+impl AxisFrame {
+    /// The Axis-assigned request id, for frames that expect a `resp`.
     /// `ack`/`resume_from` are fire-and-forget and return `None`.
     pub fn req_id(&self) -> Option<u64> {
         match self {
-            HallFrame::EnsureRuntime { req_id, .. }
-            | HallFrame::Prompt { req_id, .. }
-            | HallFrame::Steer { req_id, .. }
-            | HallFrame::Cancel { req_id, .. }
-            | HallFrame::Stop { req_id, .. }
-            | HallFrame::RespondPermission { req_id, .. }
-            | HallFrame::Drain { req_id, .. }
-            | HallFrame::Probe { req_id }
-            | HallFrame::DispatchJob { req_id, .. }
-            | HallFrame::CancelJob { req_id, .. }
-            | HallFrame::TerminalOpen { req_id, .. } => Some(*req_id),
-            HallFrame::Ack { .. }
-            | HallFrame::ResumeFrom { .. }
-            | HallFrame::HeartbeatAck
-            | HallFrame::ReRegister
-            | HallFrame::TerminalInput { .. }
-            | HallFrame::TerminalResize { .. }
-            | HallFrame::TerminalClose { .. } => None,
+            AxisFrame::EnsureRuntime { req_id, .. }
+            | AxisFrame::Prompt { req_id, .. }
+            | AxisFrame::Steer { req_id, .. }
+            | AxisFrame::Cancel { req_id, .. }
+            | AxisFrame::Stop { req_id, .. }
+            | AxisFrame::RespondPermission { req_id, .. }
+            | AxisFrame::Drain { req_id, .. }
+            | AxisFrame::Probe { req_id }
+            | AxisFrame::DispatchJob { req_id, .. }
+            | AxisFrame::CancelJob { req_id, .. }
+            | AxisFrame::TerminalOpen { req_id, .. } => Some(*req_id),
+            AxisFrame::Ack { .. }
+            | AxisFrame::ResumeFrom { .. }
+            | AxisFrame::HeartbeatAck
+            | AxisFrame::ReRegister
+            | AxisFrame::TerminalInput { .. }
+            | AxisFrame::TerminalResize { .. }
+            | AxisFrame::TerminalClose { .. } => None,
         }
     }
 }
 
-impl From<&HallFrame> for Option<AgentCommand> {
+impl From<&AxisFrame> for Option<AgentCommand> {
     /// Map a session frame onto the runtime-level [`AgentCommand`] it drives,
     /// where a direct mapping exists.
-    fn from(frame: &HallFrame) -> Self {
+    fn from(frame: &AxisFrame) -> Self {
         match frame {
-            HallFrame::Prompt { text, model, .. } => Some(AgentCommand::Prompt {
+            AxisFrame::Prompt { text, model, .. } => Some(AgentCommand::Prompt {
                 text: text.clone(),
                 model: model.clone(),
             }),
-            HallFrame::Steer { text, .. } => Some(AgentCommand::Steer { text: text.clone() }),
-            HallFrame::Cancel { .. } => Some(AgentCommand::Cancel),
-            HallFrame::Stop { .. } => Some(AgentCommand::Stop),
+            AxisFrame::Steer { text, .. } => Some(AgentCommand::Steer { text: text.clone() }),
+            AxisFrame::Cancel { .. } => Some(AgentCommand::Cancel),
+            AxisFrame::Stop { .. } => Some(AgentCommand::Stop),
             _ => None,
         }
     }
@@ -479,9 +479,9 @@ mod tests {
     }
 
     #[test]
-    fn hall_frame_round_trips_every_variant() {
+    fn axis_frame_round_trips_every_variant() {
         let frames = [
-            HallFrame::EnsureRuntime {
+            AxisFrame::EnsureRuntime {
                 req_id: 1,
                 session_id: "s-1".into(),
                 spec: RuntimeSpec {
@@ -490,32 +490,32 @@ mod tests {
                 },
                 resume_id: Some("h-1".into()),
             },
-            HallFrame::Prompt {
+            AxisFrame::Prompt {
                 req_id: 2,
                 session_id: "s-1".into(),
                 text: "hi".into(),
                 model: Some("m".into()),
             },
-            HallFrame::Steer {
+            AxisFrame::Steer {
                 req_id: 3,
                 session_id: "s-1".into(),
                 text: "focus".into(),
             },
-            HallFrame::Cancel {
+            AxisFrame::Cancel {
                 req_id: 4,
                 session_id: "s-1".into(),
             },
-            HallFrame::Stop {
+            AxisFrame::Stop {
                 req_id: 5,
                 session_id: "s-1".into(),
             },
-            HallFrame::RespondPermission {
+            AxisFrame::RespondPermission {
                 req_id: 6,
                 session_id: "s-1".into(),
                 request_id: "9".into(),
                 option_id: Some("allow-once".into()),
             },
-            HallFrame::DispatchJob {
+            AxisFrame::DispatchJob {
                 req_id: 7,
                 job_id: "j-1".into(),
                 attempt_epoch: 2,
@@ -529,45 +529,45 @@ mod tests {
                 timeout_secs: 30,
                 max_output_bytes: 1024,
             },
-            HallFrame::CancelJob {
+            AxisFrame::CancelJob {
                 req_id: 8,
                 job_id: "j-1".into(),
                 attempt_epoch: 2,
             },
-            HallFrame::TerminalOpen {
+            AxisFrame::TerminalOpen {
                 req_id: 9,
                 terminal_id: "term-1".into(),
                 cols: 80,
                 rows: 24,
                 cwd: None,
             },
-            HallFrame::TerminalInput {
+            AxisFrame::TerminalInput {
                 terminal_id: "term-1".into(),
                 data_b64: "YQ==".into(),
             },
-            HallFrame::TerminalResize {
+            AxisFrame::TerminalResize {
                 terminal_id: "term-1".into(),
                 cols: 120,
                 rows: 40,
             },
-            HallFrame::TerminalClose {
+            AxisFrame::TerminalClose {
                 terminal_id: "term-1".into(),
             },
-            HallFrame::Drain {
+            AxisFrame::Drain {
                 req_id: 7,
-                to_node: Some("envoy-2".into()),
+                to_node: Some("orbit-2".into()),
             },
-            HallFrame::Probe { req_id: 8 },
-            HallFrame::Ack {
+            AxisFrame::Probe { req_id: 8 },
+            AxisFrame::Ack {
                 session_id: "s-1".into(),
                 seq: 10,
             },
-            HallFrame::ResumeFrom {
+            AxisFrame::ResumeFrom {
                 session_id: "s-1".into(),
                 seq: 7,
             },
-            HallFrame::HeartbeatAck,
-            HallFrame::ReRegister,
+            AxisFrame::HeartbeatAck,
+            AxisFrame::ReRegister,
         ];
         for f in &frames {
             round_trip(f);
@@ -575,10 +575,10 @@ mod tests {
     }
 
     #[test]
-    fn envoy_frame_round_trips_every_variant() {
+    fn orbit_frame_round_trips_every_variant() {
         let frames = [
-            EnvoyFrame::Hello {
-                node_id: "envoy-1".into(),
+            OrbitFrame::Hello {
+                node_id: "orbit-1".into(),
                 hostname: "talos".into(),
                 slots_total: 4,
                 protocol_version: PROTOCOL_VERSION,
@@ -598,32 +598,32 @@ mod tests {
                     final_sequence: None,
                 }],
             },
-            EnvoyFrame::Heartbeat {
-                node_id: "envoy-1".into(),
+            OrbitFrame::Heartbeat {
+                node_id: "orbit-1".into(),
                 slots_used: 2,
             },
-            EnvoyFrame::Bye {
-                node_id: "envoy-1".into(),
+            OrbitFrame::Bye {
+                node_id: "orbit-1".into(),
             },
-            EnvoyFrame::Resp {
+            OrbitFrame::Resp {
                 req_id: 1,
                 ok: true,
                 error: None,
                 result: Some(json!({"agents": []})),
             },
-            EnvoyFrame::Resp {
+            OrbitFrame::Resp {
                 req_id: 2,
                 ok: false,
                 error: Some("spawn failed".into()),
                 result: None,
             },
-            EnvoyFrame::Event {
+            OrbitFrame::Event {
                 session_id: "s-1".into(),
                 turn_id: "t-1".into(),
                 seq: 11,
                 payload: AgentEvent::Text("chunk".into()),
             },
-            EnvoyFrame::Observed {
+            OrbitFrame::Observed {
                 session_id: "observed:s-1".into(),
                 seq: 12,
                 payload: ObservedEvent::Message {
@@ -639,17 +639,17 @@ mod tests {
                     finish_reason: None,
                 },
             },
-            EnvoyFrame::Runtimes {
+            OrbitFrame::Runtimes {
                 runtimes: vec![sample_runtime_status()],
             },
-            EnvoyFrame::JobOutput {
+            OrbitFrame::JobOutput {
                 job_id: "j-1".into(),
                 attempt_epoch: 3,
                 seq: 1,
                 stream: JobStream::Stdout,
                 data: "ok".into(),
             },
-            EnvoyFrame::JobResult {
+            OrbitFrame::JobResult {
                 job_id: "j-1".into(),
                 attempt_epoch: 3,
                 seq: 2,
@@ -658,11 +658,11 @@ mod tests {
                 timed_out: false,
                 cancelled: false,
             },
-            EnvoyFrame::TerminalOutput {
+            OrbitFrame::TerminalOutput {
                 terminal_id: "term-1".into(),
                 data_b64: "b2s=".into(),
             },
-            EnvoyFrame::TerminalExited {
+            OrbitFrame::TerminalExited {
                 terminal_id: "term-1".into(),
                 exit_code: Some(0),
             },
@@ -674,7 +674,7 @@ mod tests {
 
     #[test]
     fn frames_are_kind_tagged_camel_case() {
-        let f = HallFrame::EnsureRuntime {
+        let f = AxisFrame::EnsureRuntime {
             req_id: 1,
             session_id: "s-1".into(),
             spec: RuntimeSpec::default(),
@@ -685,7 +685,7 @@ mod tests {
         assert_eq!(v["reqId"], 1);
         assert_eq!(v["sessionId"], "s-1");
 
-        let e = EnvoyFrame::Event {
+        let e = OrbitFrame::Event {
             session_id: "s-1".into(),
             turn_id: "t-1".into(),
             seq: 3,
@@ -698,32 +698,32 @@ mod tests {
 
     #[test]
     fn unknown_fields_are_tolerated() {
-        let f: HallFrame = serde_json::from_str(
+        let f: AxisFrame = serde_json::from_str(
             r#"{"kind":"prompt","reqId":1,"sessionId":"s-1","text":"hi","futureField":{"x":1}}"#,
         )
         .expect("unknown field must not break deserialization");
-        assert!(matches!(f, HallFrame::Prompt { req_id: 1, .. }));
+        assert!(matches!(f, AxisFrame::Prompt { req_id: 1, .. }));
 
-        let e: EnvoyFrame = serde_json::from_str(
-            r#"{"kind":"heartbeat","nodeId":"envoy-1","slotsUsed":1,"newThing":true}"#,
+        let e: OrbitFrame = serde_json::from_str(
+            r#"{"kind":"heartbeat","nodeId":"orbit-1","slotsUsed":1,"newThing":true}"#,
         )
         .expect("unknown field must not break deserialization");
-        assert!(matches!(e, EnvoyFrame::Heartbeat { .. }));
+        assert!(matches!(e, OrbitFrame::Heartbeat { .. }));
     }
 
     #[test]
     fn hello_with_wrong_protocol_version_still_parses() {
-        // Rejection of incompatible protocol versions is Hall's policy job at
-        // registration time — serde must still parse the frame so Hall can see
+        // Rejection of incompatible protocol versions is Axis's policy job at
+        // registration time — serde must still parse the frame so Axis can see
         // the version and reject it explicitly (fail closed, but informed).
         let json = format!(
-            r#"{{"kind":"hello","nodeId":"envoy-9","hostname":"h","slotsTotal":4,
+            r#"{{"kind":"hello","nodeId":"orbit-9","hostname":"h","slotsTotal":4,
                 "protocolVersion":{},"version":{{"semver":"9.9.9"}}}}"#,
             PROTOCOL_VERSION + 40
         );
-        let f: EnvoyFrame = serde_json::from_str(&json).expect("wrong version must still parse");
+        let f: OrbitFrame = serde_json::from_str(&json).expect("wrong version must still parse");
         match f {
-            EnvoyFrame::Hello {
+            OrbitFrame::Hello {
                 protocol_version,
                 version,
                 runtimes,
@@ -739,9 +739,9 @@ mod tests {
 
     #[test]
     fn req_id_accessor_covers_request_frames_only() {
-        assert_eq!(HallFrame::Probe { req_id: 5 }.req_id(), Some(5));
+        assert_eq!(AxisFrame::Probe { req_id: 5 }.req_id(), Some(5));
         assert_eq!(
-            HallFrame::Ack {
+            AxisFrame::Ack {
                 session_id: "s".into(),
                 seq: 1
             }
@@ -752,7 +752,7 @@ mod tests {
 
     #[test]
     fn prompt_frame_maps_to_agent_command() {
-        let f = HallFrame::Prompt {
+        let f = AxisFrame::Prompt {
             req_id: 1,
             session_id: "s-1".into(),
             text: "hi".into(),

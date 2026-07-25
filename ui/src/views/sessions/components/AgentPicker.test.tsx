@@ -37,7 +37,7 @@ const session = (id: string, agentId: string | null, nodeId: string | null, last
   orgId: "personal",
   ownerId: "rpw",
   contextId: null,
-  source: "olympus",
+  source: "stellarc",
   model: null,
   title: null,
   startedAt: lastActivity,

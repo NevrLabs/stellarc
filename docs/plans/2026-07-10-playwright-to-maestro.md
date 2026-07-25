@@ -1,8 +1,8 @@
 # Playwright to Maestro Migration Implementation Plan
 
-**Goal:** Replace Olympus browser E2E execution with Maestro.dev while preserving deterministic mock, live-agent, and production-parity tiers.
+**Goal:** Replace Stellarc browser E2E execution with Maestro.dev while preserving deterministic mock, live-agent, and production-parity tiers.
 
-**Architecture:** Maestro owns user-visible browser journeys through YAML web flows. A single runner starts an isolated strict-port Vite/MSW server for mock tests, while live and production tiers target operator-provided Hall URLs. HTTP-only production checks move to curl so UI automation is not used as an API test client.
+**Architecture:** Maestro owns user-visible browser journeys through YAML web flows. A single runner starts an isolated strict-port Vite/MSW server for mock tests, while live and production tiers target operator-provided Axis URLs. HTTP-only production checks move to curl so UI automation is not used as an API test client.
 
 **Tech stack:** Maestro CLI 2.6.1, Java 21, Chromium web driver, Vite/MSW, shell, GitHub Actions.
 

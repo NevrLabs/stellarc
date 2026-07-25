@@ -20,7 +20,7 @@ The current textarea editor is the quick-and-dirty baseline. Upgrade path option
 ### Graph view
 - **d3-force** is the canonical implementation (Obsidian itself uses a custom force simulation based on d3-force primitives).
 - `react-force-graph-2d` wraps d3-force with React bindings and canvas rendering — handles 1000+ nodes smoothly.
-- For Olympus vaults (typically <500 notes per vault), a canvas-based d3-force graph is correct.
+- For Stellarc vaults (typically <500 notes per vault), a canvas-based d3-force graph is correct.
 - **Decision: `react-force-graph-2d`** (canvas, handles zoom/pan/drag natively, React-idiomatic).
 
 ### Content addressing (per ADR 0004 §sync model)
@@ -46,18 +46,18 @@ For **note content** itself: the CID is derived — "Two nodes computing the sam
 ## Phase 1: Backend — content addressing + graph data + collections API
 
 ### Task 1.1: Content hash (BLAKE3) on note write
-**File:** `crates/control-plane/Cargo.toml` (add `blake3 = "1"`), `crates/control-plane/src/vault.rs`
+**File:** `crates/axis/Cargo.toml` (add `blake3 = "1"`), `crates/axis/src/vault.rs`
 
 On `write_note`, compute `blake3::hash(markdown.as_bytes())` and inject `cid: <hex>` into the frontmatter before writing to disk. The `read_note` path already parses frontmatter — expose `cid` in the `NoteDocument` struct.
 
 ### Task 1.2: Graph data endpoint
-**File:** `crates/control-plane/src/vault.rs` (new method), `crates/control-plane/src/server/mod.rs` (route)
+**File:** `crates/axis/src/vault.rs` (new method), `crates/axis/src/server/mod.rs` (route)
 
 `GET /api/vaults/:id/graph` → `{ nodes: [{ id, title, cid }], edges: [{ source, target }] }`
 Builds from `list_notes` + `linked_notes` on each note. O(n*m) where n=notes, m=avg links — fine for <500 notes.
 
 ### Task 1.3: Collection/table endpoint
-**File:** `crates/control-plane/src/vault.rs`
+**File:** `crates/axis/src/vault.rs`
 
 `GET /api/vaults/:id/collections` → scans all notes for `collection: true` in frontmatter.
 `GET /api/vaults/:id/collections/:name/rows` → for a collection defined by note X, returns all child notes in the same folder with their frontmatter fields as rows.

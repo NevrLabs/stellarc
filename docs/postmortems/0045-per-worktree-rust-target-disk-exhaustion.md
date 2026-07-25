@@ -4,7 +4,7 @@ Date: 2026-07-17 · Severity: high (build and Git writes failed) · Author: Term
 
 ## Symptom
 
-Concurrent Olympus lanes repeatedly drove fxcompute-01 to 97–98% disk usage.
+Concurrent Stellarc lanes repeatedly drove fxcompute-01 to 97–98% disk usage.
 Git failed to write `.git/index.lock` with `Out of diskspace`; Rust and UI gates
 failed with ENOSPC. Individual worktrees held 5–10 GB `target/` trees containing
 mostly duplicate dependencies.
@@ -20,7 +20,7 @@ artifacts. Completed branches also left reproducible targets behind.
 
 The agent runbook now requires one shared fxcompute target and lock:
 
-`CARGO_TARGET_DIR=$HOME/.cache/olympus-cargo-target flock $HOME/.cache/olympus-cargo.lock cargo test -j2 -p <crate>`
+`CARGO_TARGET_DIR=$HOME/.cache/stellarc-cargo-target flock $HOME/.cache/stellarc-cargo.lock cargo test -j2 -p <crate>`
 
 Inactive targets are removed only after checking that no live `cargo`/`rustc`
 command references them. During recovery, verified inactive main and completed
@@ -32,7 +32,7 @@ active builds.
 - Every worker card and runbook uses the same target and lock.
 - Disk checks precede broad Rust gates on the constrained dev host.
 - Completed worktree cleanup includes its inactive target.
-- The dev Hall retains its separate service target under `/var/lib/olympus` so
+- The dev Axis retains its separate service target under `/var/lib/stellarc` so
   test cleanup cannot remove the running binary.
 
 ## Recurrence — 2026-07-18
@@ -41,9 +41,9 @@ The shared target solved per-worktree duplication but was not bounded. It grew
 to 12.4 GB (`debug/` 11.0 GB, `release/` 1.4 GB) while inactive fxrun
 workspaces held another 18.0 GB. A release build reached 100% disk usage and
 failed while writing an rlib. No process referenced the shared debug tree, so
-removing only `$HOME/.cache/olympus-cargo-target/debug` reclaimed roughly 11 GB
+removing only `$HOME/.cache/stellarc-cargo-target/debug` reclaimed roughly 11 GB
 without touching the live dev service target or the freshly built release
-Envoy.
+Orbit.
 
 The durable rule is therefore **shared and bounded**, not merely shared:
 
@@ -52,5 +52,5 @@ The durable rule is therefore **shared and bounded**, not merely shared:
   are no longer needed, while preserving release deployment artifacts;
 - inventory and expire inactive fxrun workspaces instead of treating the cache
   as permanent storage;
-- never clean `/var/lib/olympus/cargo-target-dev` while the dev Hall or Envoy
+- never clean `/var/lib/stellarc/cargo-target-dev` while the dev Axis or Orbit
   process references it.

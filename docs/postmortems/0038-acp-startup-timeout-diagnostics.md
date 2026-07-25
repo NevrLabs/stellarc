@@ -5,13 +5,13 @@
 
 ## Impact
 
-Lazy ACP startup could fail after one 30-second attempt with a generic timeout. The final Hall error did not say whether the adapter exited, remained silent, or was still warming a package-manager cache, and there was no second attempt.
+Lazy ACP startup could fail after one 30-second attempt with a generic timeout. The final Axis error did not say whether the adapter exited, remained silent, or was still warming a package-manager cache, and there was no second attempt.
 
 ## Fresh DEV evidence
 
-Reproduced against `olympus-dev-hall` and `olympus-dev-envoy` on `fxcompute-01` with `OLYMPUS_HOME=/home/rpw/.olympus-dev`.
+Reproduced against `stellarc-dev-axis` and `stellarc-dev-orbit` on `fxcompute-01` with `STELLARC_HOME=/home/rpw/.stellarc-dev`.
 
-The Envoy service PATH was `/home/rpw/.local/bin:/home/rpw/.cargo/bin:/usr/local/bin:/usr/bin:/bin`. `hermes`, the pinned Claude adapter, `claude`, and `codex` were absent. The registry nevertheless advertised the implicit `default` Hermes profile.
+The Orbit service PATH was `/home/rpw/.local/bin:/home/rpw/.cargo/bin:/usr/local/bin:/usr/bin:/bin`. `hermes`, the pinned Claude adapter, `claude`, and `codex` were absent. The registry nevertheless advertised the implicit `default` Hermes profile.
 
 Sessions created through the DEV API:
 
@@ -19,10 +19,10 @@ Sessions created through the DEV API:
 - Claude Code: `20260716T023157Z-8161b3c6`
 - Codex: `20260716T023158Z-4505d74d`
 
-Hall journal evidence at 02:32 UTC:
+Axis journal evidence at 02:32 UTC:
 
 - Hermes failed to spawn `hermes acp` with `ENOENT`; no child existed from which stderr could be read.
-- Claude failed to spawn `/home/rpw/.olympus-dev/adapters/claude-agent-acp/node_modules/.bin/claude-agent-acp` with `ENOENT`; DEV provisioning had not installed the locked adapter.
+- Claude failed to spawn `/home/rpw/.stellarc-dev/adapters/claude-agent-acp/node_modules/.bin/claude-agent-acp` with `ENOENT`; DEV provisioning had not installed the locked adapter.
 - Codex started through `bunx`, spent about 13 seconds resolving/downloading 18 dependencies, then returned `Authentication required`. Its captured stderr contained `Resolving dependencies`, download/extract progress, and `Saved lockfile`.
 
 This was not a recurrence of the framing bug in postmortem 0024 or the missing production Hermes binary in 0031. The current DEV image was incompletely provisioned, discovery described commands different from runtime, and the timeout path lacked retry/state classification.
@@ -45,6 +45,6 @@ This was not a recurrence of the framing bug in postmortem 0024 or the missing p
 
 ## Verification
 
-`cargo test -p olympus-envoy` passes 77 of 78 tests. The unrelated pre-existing `job_table::tests::runs_argv_and_streams_output` test remains red on the DEV host because it receives an empty output string. The new retry, stderr-drain, process-state, process-tree cleanup, and discovery tests pass.
+`cargo test -p stellarc-orbit` passes 77 of 78 tests. The unrelated pre-existing `job_table::tests::runs_argv_and_streams_output` test remains red on the DEV host because it receives an empty output string. The new retry, stderr-drain, process-state, process-tree cleanup, and discovery tests pass.
 
-A DEV Envoy built from `3294446` was run against the live DEV Hall with a controlled newline-JSON ACP adapter override. Claude-kind session `20260716T033416Z-a3b5331c` completed `ensure_runtime`; Hall persisted `hermesId: dev-smoke-acp`. The real Hermes/Claude/Codex harnesses cannot be authenticated on this isolated DEV host: Hermes, Node/npm, and all three credential files are absent. The normal `olympus-dev-envoy` service was restored after the smoke test.
+A DEV Orbit built from `3294446` was run against the live DEV Axis with a controlled newline-JSON ACP adapter override. Claude-kind session `20260716T033416Z-a3b5331c` completed `ensure_runtime`; Axis persisted `hermesId: dev-smoke-acp`. The real Hermes/Claude/Codex harnesses cannot be authenticated on this isolated DEV host: Hermes, Node/npm, and all three credential files are absent. The normal `stellarc-dev-orbit` service was restored after the smoke test.

@@ -18,4 +18,4 @@ Box the `SessionDto` payload in `ServerFrame::SessionAdded` and update all const
 
 ## Prevention
 
-Run `cargo clippy --locked -j2 -p olympus-control-plane --all-targets -- -D warnings` before declaring a control-plane branch merge-ready; unit tests do not cover structural lints.
+Run `cargo clippy --locked -j2 -p stellarc-axis --all-targets -- -D warnings` before declaring a control-plane branch merge-ready; unit tests do not cover structural lints.

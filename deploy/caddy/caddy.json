@@ -7,7 +7,7 @@
   "apps": {
     "http": {
       "servers": {
-        "olympus": {
+        "stellarc": {
           "listen": [":8080"],
           "routes": []
         }

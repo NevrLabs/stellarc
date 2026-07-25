@@ -20,9 +20,9 @@ const queryClient = new QueryClient({
 
 if (import.meta.env.DEV) {
   const qaWindow = window as typeof window & {
-    __olympusQa?: { refetchProject: (projectId: string) => Promise<unknown> };
+    __stellarcQa?: { refetchProject: (projectId: string) => Promise<unknown> };
   };
-  qaWindow.__olympusQa = {
+  qaWindow.__stellarcQa = {
     refetchProject: (projectId) => queryClient.refetchQueries({
       queryKey: qk.project(projectId),
       exact: true,

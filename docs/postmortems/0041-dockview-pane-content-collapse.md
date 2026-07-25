@@ -16,8 +16,8 @@ the element collapses to content height. Nothing in the design system gave
 panel roots `height: 100%` under the dockview wrappers.
 
 ## Fix (ui/src/index.css)
-`.olympus-dockview .dv-content-container > *` and
-`.olympus-dockview .dv-react-part > *` get `height: 100%; min-height: 0`.
+`.stellarc-dockview .dv-content-container > *` and
+`.stellarc-dockview .dv-react-part > *` get `height: 100%; min-height: 0`.
 Verified live via CDP geometry probe: chat-view 693px→1335px (= pane height),
 composer/terminal at the pane bottom, dv-sash drag resizes groups (843→643).
 

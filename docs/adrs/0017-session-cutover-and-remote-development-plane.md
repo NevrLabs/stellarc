@@ -1,7 +1,7 @@
 # ADR 0017 — Session cutover and remote development plane
 
 Status: proposed · Date: 2026-07-13
-Relates to: ADR 0008 (Hall/Envoy), ADR 0011 (jobs/capabilities), ADR 0013
+Relates to: ADR 0008 (Axis/Orbit), ADR 0011 (jobs/capabilities), ADR 0013
 (workflows), ADR 0014 (edge), ADR 0015 (managed apps), ADR 0019 (agent CLI).
 
 Review chain:
@@ -15,7 +15,7 @@ Review chain:
 ## Context
 
 The next product gate is not another isolated feature. The operator must be able
-to use Olympus as the primary session environment while Olympus develops and
+to use Stellarc as the primary session environment while Stellarc develops and
 deploys its own candidate builds on a disposable sandbox LXC/VM in fxcluster.
 That requires one trustworthy path from a managed session to remote host effects,
 plus a separate operator recovery path.
@@ -23,27 +23,27 @@ plus a separate operator recovery path.
 The current tree contains useful substrate, but it is not yet a safe agent-facing
 remote execution plane:
 
-- Hall already drives remote `AgentRuntime`s through Envoy over iroh, and session
+- Axis already drives remote `AgentRuntime`s through Orbit over iroh, and session
   creation accepts an explicit node (`routes/sessions.rs`, `RemoteRuntime`).
 - Session frames are currently ACKed after only the transport watermark is
   durable; assistant/tool bytes remain in an in-memory turn accumulator until
-  `Done`. A Hall crash can therefore lose ACKed transcript bytes permanently.
-- Envoy hello derives runtime inventory from spool files rather than the actual
-  `RuntimeTable`; Hall ignores later runtime inventory frames. Fully ACKed live
+  `Done`. A Axis crash can therefore lose ACKed transcript bytes permanently.
+- Orbit hello derives runtime inventory from spool files rather than the actual
+  `RuntimeTable`; Axis ignores later runtime inventory frames. Fully ACKed live
   runtimes can disappear from reconciliation.
 - Remote prompt uses a task-local runtime object while cancel, steer, and
   permission handlers consult the local bridge table. Those controls do not yet
   reliably reach remote runtimes.
-- Envoy advertises `JobRunner`, accepts argv-based `DispatchJob`, bounds time and
-  output, and spools output frames (`proto/frames.rs`, `envoy/job_table.rs`).
+- Orbit advertises `JobRunner`, accepts argv-based `DispatchJob`, bounds time and
+  output, and spools output frames (`proto/frames.rs`, `orbit/job_table.rs`).
 - The jobs REST surface is operator-only, stores job records in a process-global
-  in-memory map, and acknowledges Envoy output after mutating only that map
-  (`routes/jobs.rs`, `node.rs`). Hall restart therefore loses job state even
-  though Envoy has been told it may truncate the spool.
+  in-memory map, and acknowledges Orbit output after mutating only that map
+  (`routes/jobs.rs`, `node.rs`). Axis restart therefore loses job state even
+  though Orbit has been told it may truncate the spool.
 - Job execution has no session principal, capability decision, immutable input
   bundle, durable artifact record, namespace isolation, or agent-facing MCP
   endpoint.
-- The session setup path can inject MCP definitions into runtimes, but Hall does
+- The session setup path can inject MCP definitions into runtimes, but Axis does
   not yet expose its own session-tool MCP server.
 - Missing capability envelopes currently mean legacy full authority, resource
   matching is raw string-prefix based, and capability assignment does not always
@@ -53,44 +53,44 @@ remote execution plane:
   lifecycle frames are not in the merged tree.
 - The UI creates a session after choosing an agent but does not offer node
   placement at creation.
-- Remote runtime fork is explicitly unsupported and Hall currently reports
+- Remote runtime fork is explicitly unsupported and Axis currently reports
   remote runtimes as non-resumable.
-- Production Hall currently reports its external edge as missing. Managed app
+- Production Axis currently reports its external edge as missing. Managed app
   routes cannot be a migration gate until Caddy is actually deployed and
   health-gated.
-- Edge desired state is in memory and cannot converge routes after Hall restart.
+- Edge desired state is in memory and cannot converge routes after Axis restart.
 
 ## Doctrine
 
-**Hall owns session, job, deployment, app, policy, and audit truth; Envoy owns all
+**Axis owns session, job, deployment, app, policy, and audit truth; Orbit owns all
 host effects; agents receive typed, capability-scoped tools—not SSH.**
 
-The fxcluster sandbox is an Olympus node, not a special deployment backend. It
-runs Envoy with `AgentRuntime`, `JobRunner`, and later `AppHost` roles. Routine
+The fxcluster sandbox is an Stellarc node, not a special deployment backend. It
+runs Orbit with `AgentRuntime`, `JobRunner`, and later `AppHost` roles. Routine
 build, test, deploy, and app operations travel over the existing authenticated
 iroh connection.
 
 ## Decisions
 
-### 1. Stable Hall and candidate Olympus are separate trust and failure domains
+### 1. Stable Axis and candidate Stellarc are separate trust and failure domains
 
-During cutover, stable Hall remains the authority. The sandbox Envoy connects to
+During cutover, stable Axis remains the authority. The sandbox Orbit connects to
 it and hosts builds, sessions, and managed apps. Separate directories are not a
 boundary: stable components, build jobs, candidate services, and edge run under
 different OS identities/cgroups with explicit filesystem and socket allowlists.
-Candidate code cannot signal stable processes, read stable Envoy/Hall/Caddy
+Candidate code cannot signal stable processes, read stable Orbit/Axis/Caddy
 state, access the systemd manager, or call Caddy's admin API.
 
 Recommended sandbox identities:
 
 ```text
-olympus-envoy       stable enrolled supervisor; owns only Envoy state
-olympus-build       transient/DynamicUser jobs; declared bind mounts only
-olympus-candidate   candidate Hall/Envoy services and candidate state
-olympus-edge        stable Caddy; admin socket reachable only by stable Hall
+stellarc-orbit       stable enrolled supervisor; owns only Orbit state
+stellarc-build       transient/DynamicUser jobs; declared bind mounts only
+stellarc-candidate   candidate Axis/Orbit services and candidate state
+stellarc-edge        stable Caddy; admin socket reachable only by stable Axis
 ```
 
-Envoy is a system service with narrowly delegated ability to create/control
+Orbit is a system service with narrowly delegated ability to create/control
 candidate units; candidate processes never receive that authority. If the LXC
 cannot enforce these identities/cgroups, use a VM or a nested rootless container
 boundary before accepting untrusted agent-built code.
@@ -98,11 +98,11 @@ boundary before accepting untrusted agent-built code.
 Candidate layout:
 
 ```text
-/var/lib/olympus-sandbox/                 # operator-owned host root
+/var/lib/stellarc-sandbox/                 # operator-owned host root
   releases/<content-hash>/                # immutable extracted release bundles
   environments/dev/
     current -> ../../releases/<hash>/
-    state/                                 # candidate OLYMPUS_HOME
+    state/                                 # candidate STELLARC_HOME
     artifacts/
     deploy-journal.jsonl
 ```
@@ -116,7 +116,7 @@ Operator SSH is allowed for initial host preparation, recovery, and the future
 audited PTY surface from ADR 0002 §18. SSH credentials are not mounted into agent
 sessions and no general `ssh` MCP tool is introduced.
 
-Once Envoy is enrolled, routine operations use typed tools backed by Hall
+Once Orbit is enrolled, routine operations use typed tools backed by Axis
 services:
 
 - `nodes.list`
@@ -129,22 +129,22 @@ This preserves intent, permits capability checks, makes retries idempotent, and
 keeps a complete audit trail. A raw shell string or arbitrary remote target is
 not a deployment contract.
 
-### 3. Hall owns typed operations; Envoy mediates agent CLI and MCP transport
+### 3. Axis owns typed operations; Orbit mediates agent CLI and MCP transport
 
-Agents do not open general network access to Hall. Envoy injects a local
-runtime gateway into each eligible runtime. Native MCP tools and the `olympus`
+Agents do not open general network access to Axis. Orbit injects a local
+runtime gateway into each eligible runtime. Native MCP tools and the `stellarc`
 CLI are adapters over that gateway. It is bound to the runtime attempt by a
-private UDS and tunnels typed calls over the already authenticated Hall↔Envoy
-iroh/UDS channel. Hall resolves `(peer identity, runtime attempt, session)` and
+private UDS and tunnels typed calls over the already authenticated Axis↔Orbit
+iroh/UDS channel. Axis resolves `(peer identity, runtime attempt, session)` and
 evaluates the current durable capability grant on every call. CLI and MCP invoke
-the same Hall operation modules; neither carries authorization or host policy.
+the same Axis operation modules; neither carries authorization or host policy.
 ADR 0019's UDS path/ownership, per-runtime identity/cgroup, peer-evidence,
 gateway-generation, accepted-connection revocation, durable operation-ID,
 authorization linearization, and canonical operation-registry rules are
 normative for this cutover; no inherited-FD/stdio authority alternative exists
 in v1.
 
-Agent CLI mode has no Hall token, endpoint override, raw HTTP, SSH, or arbitrary
+Agent CLI mode has no Axis token, endpoint override, raw HTTP, SSH, or arbitrary
 argv operation. This avoids bearer-token refresh and leakage through process
 arguments, logs, artifacts, or model output. Archive/revoke closes the local
 gateway and fences in-flight effects according to each provider's policy. A
@@ -174,13 +174,13 @@ authority. Capability resources are parsed typed values with exact IDs or
 explicit segment-aware wildcards; raw string-prefix matching is forbidden.
 The authenticated principal, organization, session, runtime attempt, audience,
 issuer/key version, and revocation state are checked at the seam. Human REST
-Human REST routes, MCP tools, and CLI commands call the same typed Hall
+Human REST routes, MCP tools, and CLI commands call the same typed Axis
 operations; neither agent adapter wraps operator-only HTTP with a shared
 installation token.
 
 ### 4. Session transport durability and runtime control precede agent operations
 
-Before Olympus is used as the primary session surface:
+Before Stellarc is used as the primary session surface:
 
 - Persist each remote turn frame (or a content-addressed durable reference) and
   its transport watermark in one SQLite transaction before ACK.
@@ -189,17 +189,17 @@ Before Olympus is used as the primary session surface:
 - Report actual `RuntimeTable` inventory in hello and updates: runtime attempt,
   harness provenance, child identity, state, resumability, in-flight/pending
   permission state, and last sequence.
-- Durably project runtime attempt/location in Hall and reconcile explicit
+- Durably project runtime attempt/location in Axis and reconcile explicit
   `attached`, `detached`, `orphaned`, and `recoverable` outcomes.
-- Use one Hall runtime-control registry/service for prompt, cancel, steer,
+- Use one Axis runtime-control registry/service for prompt, cancel, steer,
   permission, stop, drain, and recovery. It reconstructs remote controls from
-  Envoy inventory; no task-local runtime object is authority.
+  Orbit inventory; no task-local runtime object is authority.
 - Bind logical node ID to its enrolled iroh public key and reject duplicate or
   takeover hellos.
 
 Transport semantics are precise: payload+watermark ingestion is exactly-once by
 sequence; host/runtime effects are at-least-once dispatch with idempotent,
-fenced attempt execution. Olympus does not claim exactly-once process effects.
+fenced attempt execution. Stellarc does not claim exactly-once process effects.
 
 ### 5. JOBS-2 makes job truth durable before CLI/MCP exposure
 
@@ -208,10 +208,10 @@ Before `jobs.run` is agent-callable:
 - Replace the global jobs map with event-backed job records/projections.
 - Persist dispatch intent before sending `DispatchJob`.
 - Persist each output chunk or a durable chunk/artifact reference before ACK.
-- Make dispatch idempotent by a Hall-issued job ID plus attempt number.
+- Make dispatch idempotent by a Axis-issued job ID plus attempt number.
 - Record owner organization, initiating session/principal, node, package/activity,
   argv, cwd binding, resource policy, timestamps, status, and terminal reason.
-- Reconcile running jobs after Hall or Envoy restart. Unknown terminal state is
+- Reconcile running jobs after Axis or Orbit restart. Unknown terminal state is
   represented honestly; it is not silently changed to success or failure.
 - Execute in a process group/cgroup; cancellation and timeout terminate the
   complete tree.
@@ -223,7 +223,7 @@ A job may use argv internally, but the agent-facing interface selects a
 registered activity/provider. An unrestricted `argv` tool would be SSH under a
 different name.
 
-Envoy retains attempt state and reports it in hello before Hall implements
+Orbit retains attempt state and reports it in hello before Axis implements
 reconciliation. `(job_id, attempt_epoch)` is the wire identity. Sequence
 allocation and spool append are one durable operation. stdout/stderr drains join
 before the terminal result, making the result the final sequence. Spool cap,
@@ -232,7 +232,7 @@ terminal loss fact without advancing across a gap.
 
 ### 6. Deployments are durable, fenced activities—not ad-hoc scripts
 
-The first deployment provider is `olympus.release.deploy`. Its input is a signed
+The first deployment provider is `stellarc.release.deploy`. Its input is a signed
 or locally trusted release manifest containing artifact hashes, protocol version,
 target environment, migrations, health probes, and rollback metadata.
 
@@ -254,11 +254,11 @@ Rules:
 3. Database-bearing deployments make an application-consistent backup and run
    migrations against a copy before activation.
 4. Activation is a symlink/unit flip, not an in-place overwrite.
-5. Health verifies process, API, protocol identity, Envoy reconnect, and required
+5. Health verifies process, API, protocol identity, Orbit reconnect, and required
    edge route.
-6. Every Envoy effect carries the deployment attempt epoch; stale effects are
+6. Every Orbit effect carries the deployment attempt epoch; stale effects are
    rejected.
-7. Hall's event-backed attempt is authoritative. Envoy's fsynced effect journal
+7. Axis's event-backed attempt is authoritative. Orbit's fsynced effect journal
    is a subordinate replay ledger keyed by attempt+epoch, reconciled before new
    effects after reconnect.
 8. Migrations declare `backward-compatible`, `forward-only`, or
@@ -271,21 +271,21 @@ Rules:
     initiating session.
 
 Initial sandbox bootstrap may be implemented as an operator-run SSH script. That
-script ends by enrolling Envoy; it is not reused as the normal deployment path.
+script ends by enrolling Orbit; it is not reused as the normal deployment path.
 
 ### 7. Managed apps remain separate from deployment environments
 
 APP-1 remains the service lifecycle primitive described by ADR 0015:
 `ServiceTable`, health, restart, drain, state directory, and edge registration.
-A candidate Olympus deployment may be exposed through the same Caddy edge, but
+A candidate Stellarc deployment may be exposed through the same Caddy edge, but
 it is an environment composed of services, not reclassified as an ordinary
 single-process app. This avoids forcing multi-service control-plane upgrades into
 an app manifest designed for arm's-length product services.
 
-Stable Hall is the only writer to the stable Caddy route subtree. Desired routes
-are durable Hall truth and reconcile on boot. Candidate Hall cannot administer
-stable Caddy; candidate services request routes through stable Hall. APP-1
-service principals use explicit least-privilege grants and Envoy-mediated,
+Stable Axis is the only writer to the stable Caddy route subtree. Desired routes
+are durable Axis truth and reconcile on boot. Candidate Axis cannot administer
+stable Caddy; candidate services request routes through stable Axis. APP-1
+service principals use explicit least-privilege grants and Orbit-mediated,
 short-lived credentials/channels; they do not inherit installer authority or
 receive a long-lived environment bearer.
 
@@ -298,14 +298,14 @@ New-session UX selects:
 3. model,
 4. capability preset/project context.
 
-Hall validates readiness and role support before accepting the first prompt.
+Axis validates readiness and role support before accepting the first prompt.
 Placement is sticky for the runtime attempt. Node failure does not imply live
-migration: Hall preserves the trace and offers recovery as a new attempt on a
+migration: Axis preserves the trace and offers recovery as a new attempt on a
 healthy node, consistent with ADR 0002 §20.
 
-### 9. “Move to Olympus” is an acceptance gate, not a date
+### 9. “Move to Stellarc” is an acceptance gate, not a date
 
-Olympus becomes the primary environment only when all gates below pass against
+Stellarc becomes the primary environment only when all gates below pass against
 the sandbox and survive a soak period.
 
 ## Cutover gates
@@ -315,29 +315,29 @@ the sandbox and survive a soak period.
 - Create a managed session on the sandbox from the UI.
 - Prompt, stream text/tool/reasoning, steer, cancel, answer permission, switch
   model, archive, reopen, and fork/subsession where supported.
-- Refresh browser, restart Hall, restart Envoy, and interrupt the network without
+- Refresh browser, restart Axis, restart Orbit, and interrupt the network without
   losing or duplicating output. A producer-side manifest records every frame
   sequence plus text/tool/reasoning byte hash; the restored transcript must match
   it exactly at deterministic crash points around durable ingress and ACK.
 - Node loss produces an explicit orphan/recover flow, never a falsely running
   session.
-- Restart Hall with an idle empty-spool runtime, an in-flight turn, and a pending
+- Restart Axis with an idle empty-spool runtime, an in-flight turn, and a pending
   permission. It must reattach or report a precise recoverable state without
   spawning a second harness.
 
 ### Agent-operation gate
 
-- A managed session receives the runtime-bound Olympus operation gateway
-  without installation credentials. Both MCP and `olympus session info` work.
-- Its `jobs.run` builds and tests a checked-out Olympus revision on the sandbox.
-- Output is live, bounded, durable across Hall restart, attributable to the
+- A managed session receives the runtime-bound Stellarc operation gateway
+  without installation credentials. Both MCP and `stellarc session info` work.
+- Its `jobs.run` builds and tests a checked-out Stellarc revision on the sandbox.
+- Output is live, bounded, durable across Axis restart, attributable to the
   session, and downloadable as artifacts.
 - A child session cannot expand the parent’s node, path, app, or deployment
   authority.
 - No-envelope, wrong-org, prefix-collision, archived, revoked, rotated-key,
   cross-session, and concurrent-revocation calls fail closed.
-- A real sandbox harness calls the Envoy-mediated operation gateway through CLI
-  and MCP, survives Hall restart, and loses access immediately on
+- A real sandbox harness calls the Orbit-mediated operation gateway through CLI
+  and MCP, survives Axis restart, and loses access immediately on
   archive/revoke.
 - CLI and MCP calls for the same operation produce equivalent durable events,
   capability decisions, and typed outcomes. Schema-invalid workflow flags create
@@ -351,26 +351,26 @@ the sandbox and survive a soak period.
 - Binary-only failure triggers automatic rollback only when migration
   compatibility permits it. Forward-only/restore-required failures enter an
   explicit operator state rather than attempting an unsafe binary rollback.
-- A valid candidate remains reachable after stable Hall and sandbox Envoy
+- A valid candidate remains reachable after stable Axis and sandbox Orbit
   restarts.
-- Stable Hall remains available throughout a failed candidate deployment.
-- Crash/fault tests cover stale attempt, Hall loss after activation, Envoy loss
+- Stable Axis remains available throughout a failed candidate deployment.
+- Crash/fault tests cover stale attempt, Axis loss after activation, Orbit loss
   during flip, Caddy loss after route change, concurrent writes/backup fencing,
   ENOSPC, corrupted rollback target, and failed restore/rollback health.
 
 ### App/edge gate
 
 - APP-1 installs and supervises a reference app on the sandbox.
-- Caddy exposes `/app/<slug>/`, Hall forward-auth works, WebSocket/streaming works,
+- Caddy exposes `/app/<slug>/`, Axis forward-auth works, WebSocket/streaming works,
   and unhealthy/stopped services fail closed.
 - Route churn and restart recovery are integration-tested with real Caddy.
-- Real Caddy coverage is non-skippable in the cutover profile. Stable Hall is the
+- Real Caddy coverage is non-skippable in the cutover profile. Stable Axis is the
   sole writer; durable desired routes converge before exposure after restart.
 
 ### Operational gate
 
 - Full restore is rehearsed into an isolated home, including WAL-consistent DB,
-  keys/identity policy, artifacts, routes, Envoy/MCP reconnect, measured RPO/RTO,
+  keys/identity policy, artifacts, routes, Orbit/MCP reconnect, measured RPO/RTO,
   and protocol compatibility.
 - Version and protocol skew fail closed with actionable status.
 - Disk quota, job concurrency, output quota, restart storm, and credential
@@ -393,10 +393,10 @@ Rejected. It bypasses session capabilities, node/path scoping, audit semantics,
 resource limits, idempotency, and deployment rollback. Operator SSH remains a
 recovery mechanism.
 
-### Make the candidate Hall supervise its own deployment
+### Make the candidate Axis supervise its own deployment
 
 Rejected. A failed candidate would own the mechanism needed to observe and roll
-it back. Stable Hall and its enrolled Envoy own candidate lifecycle during the
+it back. Stable Axis and its enrolled Orbit own candidate lifecycle during the
 migration period.
 
 ### Expose the existing jobs REST endpoint directly through MCP
@@ -404,10 +404,10 @@ migration period.
 Rejected. It is operator-only, volatile, argv-shaped, and acknowledges output
 without durable job truth. MCP exposure follows JOBS-2, not precedes it.
 
-### Treat the entire candidate Olympus environment as one APP-1 app
+### Treat the entire candidate Stellarc environment as one APP-1 app
 
 Rejected. APP-1 is a long-lived arm's-length service primitive. A control-plane
-environment has coordinated Hall/Envoy/edge/state migration semantics and needs a
+environment has coordinated Axis/Orbit/edge/state migration semantics and needs a
 deployment record above ServiceTable.
 
 ## Sandbox prerequisites supplied by the operator

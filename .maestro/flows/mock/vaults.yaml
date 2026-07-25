@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/vaults
 name: Vault creation and note workflow
 properties:
-  junitId: olympus-vaults
+  junitId: stellarc-vaults
   junitClassname: ui.mock
 ---
 - launchApp

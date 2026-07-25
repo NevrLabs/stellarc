@@ -2,15 +2,15 @@
 
 ## Summary
 
-Deploying Hall commit `f784b04` caused a restart loop while the one-shot event
-codec migration was converting historical postcard payloads to JSON+zstd. Hall
+Deploying Axis commit `f784b04` caused a restart loop while the one-shot event
+codec migration was converting historical postcard payloads to JSON+zstd. Axis
 failed closed at event 1642 with `event changed during codec migration`.
 
 ## Impact
 
-Hall was unavailable during the failed deployment. Envoy remained alive and
+Axis was unavailable during the failed deployment. Orbit remained alive and
 retried its UDS connection as designed. The deployment was rolled back to the
-previous Hall binary; no event rows changed because the migration transaction
+previous Axis binary; no event rows changed because the migration transaction
 never committed.
 
 ## Root cause

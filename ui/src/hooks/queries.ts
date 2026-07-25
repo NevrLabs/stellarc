@@ -91,7 +91,7 @@ export function useProjects() {
 
 /** Messages for a session.
  *
- * ADR 0020 v2 §4.2 — the transcript is durable truth in Hall; the live WS
+ * ADR 0020 v2 §4.2 — the transcript is durable truth in Axis; the live WS
  * stream only *notifies*. `staleTime: 0` (was `Infinity`) lets the active
  * session refetch when the client (re)subscribes on mount/navigation, so the
  * committed transcript is always reconstructed on return — deliver-on-resubscribe.
@@ -150,7 +150,7 @@ export function useUpdateSession() {
   });
 }
 
-/** Fleet nodes — connected envoys + the local node. */
+/** Fleet nodes — connected orbits + the local node. */
 export function useNodes() {
   return useQuery({
     queryKey: ["nodes"],

@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  hall-and-envoy:
+  axis-and-orbit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
       # recompiling the ~339 unchanged dependency crates.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: olympus-release
+          shared-key: stellarc-release
 
       - name: Install mold
         run: sudo apt-get update && sudo apt-get install -y mold
@@ -30,20 +30,20 @@ jobs:
       - name: Build release binaries
         env:
           RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
-        run: cargo build --release -p olympus-control-plane -p olympus-envoy
+        run: cargo build --release -p stellarc-axis -p stellarc-orbit
 
       - name: Stage artifacts
         run: |
           mkdir -p dist
-          cp target/release/olympus-hall dist/
-          cp target/release/olympus-envoy dist/
+          cp target/release/stellarc-axis dist/
+          cp target/release/stellarc-orbit dist/
           cd dist
-          sha256sum olympus-hall olympus-envoy > SHA256SUMS
+          sha256sum stellarc-axis stellarc-orbit > SHA256SUMS
           ls -lh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: olympus-linux-x86_64-${{ github.sha }}
+          name: stellarc-linux-x86_64-${{ github.sha }}
           path: dist/
           retention-days: 30
 
@@ -53,6 +53,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/olympus-hall
-            dist/olympus-envoy
+            dist/stellarc-axis
+            dist/stellarc-orbit
             dist/SHA256SUMS

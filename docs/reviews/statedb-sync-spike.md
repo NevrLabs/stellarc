@@ -71,7 +71,7 @@ happen outside the messages table.
 
 **Caught by:** Neither tail nor message-level sweep.  
 **Requires:** Session-meta reconciliation comparing `sessions` columns to the
-Olympus view.
+Stellarc view.
 
 ### Case 6: Session insert (new session row)
 
@@ -91,7 +91,7 @@ detect new sessions appearing live.
 ## message_count authority
 
 The `sessions.message_count` column is maintained by Hermes application code, NOT
-by SQLite triggers. It can drift from the actual active message count. Olympus
+by SQLite triggers. It can drift from the actual active message count. Stellarc
 should treat it as authoritative for display (matching what Hermes shows the user)
 but use its own count for internal consistency checks.
 
@@ -99,7 +99,7 @@ but use its own count for internal consistency checks.
 
 1. **Fast tail (1-2s poll):** `SELECT ... FROM messages WHERE id > ?last_seen AND active = 1 ORDER BY id` → MessageAppended events. Catches inserts with low latency.
 
-2. **Reconciliation sweep (30-60s + on-demand):** Per-session signature `(max(id), active_row_count)` compared to Olympus view state. On mismatch, re-read the session's active rows and reconcile. Also sweep `sessions` for metadata changes (title/model/archived/message_count) and new sessions.
+2. **Reconciliation sweep (30-60s + on-demand):** Per-session signature `(max(id), active_row_count)` compared to Stellarc view state. On mismatch, re-read the session's active rows and reconcile. Also sweep `sessions` for metadata changes (title/model/archived/message_count) and new sessions.
 
 Signature choice: `(max(id), active_row_count)` per session is sufficient. A
 checksum on content is overkill — `max(id)` catches replace_messages (new IDs

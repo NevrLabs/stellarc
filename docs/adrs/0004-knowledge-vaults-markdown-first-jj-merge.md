@@ -11,7 +11,7 @@
 > authoritative in one board-local cr-sqlite database, while project context
 > and card descriptions remain authoritative Markdown. The prohibition on
 > blind SQLite file synchronization remains in force: `board.db`, WAL, and SHM
-> are excluded from jj/file adapters; Olympus owns logical replication,
+> are excluded from jj/file adapters; Stellarc owns logical replication,
 > admission, schema coordination, invariant repair, and coherent snapshots.
 > The earlier “DB is local + link file in the vault” example is superseded for
 > this board-specific layout only.
@@ -19,7 +19,7 @@
 > **Amended by ADR 0027 (2026-07-18).** Every vault write is a jj commit with
 > a mandatory signature: human writes sign as the user; agent writes use
 > author = the user on whose behalf, committer/signer = the agent's
-> Hall-minted key. Unsigned writes are rejected at the vault write path.
+> Axis-minted key. Unsigned writes are rejected at the vault write path.
 
 ## Context
 
@@ -158,7 +158,7 @@ authority. Forcing one mechanism across all four would be wrong.
   the vault holds metadata (tables, site ID, last merge clock), not the DB.
 - **Structured data (Postgres):** no sync — nodes call the main server via
   iroh RPC. The link file holds the iroh node ID + RPC endpoint, not
-  credentials (creds live in per-node `~/.olympus/secrets`, 0600).
+  credentials (creds live in per-node `~/.stellarc/secrets`, 0600).
 - **Binaries (images, attachments):** content-addressed (iroh-blobs + R2/S3
   backup), pulled by hash on demand.
 - **Index, embeddings, tree:** derived locally per node from synced content.

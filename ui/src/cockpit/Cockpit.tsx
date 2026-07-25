@@ -6,7 +6,7 @@
 // Tabs are kind-polymorphic (terminal / browser / editor, plugin-extensible)
 // via the registry in cockpit/tabs.tsx. Terminals are REAL shells: xterm.js
 // bound to the dedicated operator WebSocket (/ws/operator/terminals/:id),
-// relayed to an Envoy-owned PTY (or the Hall-local PTY for "hall").
+// relayed to an Orbit-owned PTY (or the Axis-local PTY for "axis").
 //
 // Operator-only. No agent ever drives this.
 
@@ -172,7 +172,7 @@ function NewTabButton({ inline }: { inline?: boolean }) {
         if (alive) setTargets(t);
       })
       .catch(() => {
-        if (alive) setTargets([{ id: "hall", label: "Hall", kind: "hall", default: true }]);
+        if (alive) setTargets([{ id: "axis", label: "Axis", kind: "axis", default: true }]);
       });
     return () => {
       alive = false;

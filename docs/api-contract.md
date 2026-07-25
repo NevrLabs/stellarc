@@ -1,4 +1,4 @@
-# Olympus API Contract (MVP) — the seam between control plane and UI
+# Stellarc API Contract (MVP) — the seam between control plane and UI
 
 > **Purpose:** lock the wire shape so the React UI can be built against a **mock**
 > in parallel with the real Rust control-plane server (Phase 3). This contract is
@@ -12,21 +12,21 @@
 ## Transport & auth
 
 - **REST** for queries/mutations; **WSS** (`/ws`) for the reactive delta stream.
-- **Browser auth:** Hall-local username/password login creates a revocable opaque
+- **Browser auth:** Axis-local username/password login creates a revocable opaque
   session in an `HttpOnly`, `SameSite=Strict` cookie. Browser requests use the
   serving origin and never receive the installation token.
-- **Legacy operator auth:** the per-install bearer token (`~/.olympus/token`,
+- **Legacy operator auth:** the per-install bearer token (`~/.stellarc/token`,
   mode 0600) remains accepted on unscoped REST routes and as `/ws?token=…` for
   migration and native automation. It is not organization authority.
 - Cookie users are restricted to identity endpoints, explicit organization
-  routes, and Hall-level model/agent/identity discovery. A cookie cannot unlock
+  routes, and Axis-level model/agent/identity discovery. A cookie cannot unlock
   legacy unscoped operator routes, and a bearer operator cannot enter scoped routes.
 - Exact `Origin`/`Host` checks apply to `/ws` and `/api/*`; configured additional
   origins include scheme and port and are matched exactly. Unauthenticated
   requests return `401`; non-member organization scope returns `403`.
 - Base URL (dev): `http://127.0.0.1:8787`. All paths below are under it.
 - Browser resource paths are explicit: `/api/organizations/:organizationId/*`.
-  Hall authorizes membership and handlers must also filter by resource owner.
+  Axis authorizes membership and handlers must also filter by resource owner.
   Session APIs satisfy this boundary through event-projected ownership. Vault APIs
   satisfy it through organization-rooted filesystem partitions. Resource classes
   without durable organization ownership are deliberately absent from the scoped
@@ -41,7 +41,7 @@ POST /api/auth/logout         → 204 + expired cookie
 GET  /api/organizations      → 200 { organizations: Organization[] }
 ```
 
-Browser WebSockets use `/ws?organization=:organizationId&name=…` and the Hall
+Browser WebSockets use `/ws?organization=:organizationId&name=…` and the Axis
 cookie. Membership is checked during upgrade, the hello snapshot is scoped, and
 session frames are filtered by durable session ownership.
 
@@ -50,9 +50,9 @@ session frames are filtered by durable session ownership.
 ```ts
 // A session as the UI consumes it (projection of the event log; ADR §10.1).
 export interface Session {
-  id: string;                 // Olympus session id
+  id: string;                 // Stellarc session id
   hermesId: string;           // underlying Hermes session id
-  orgId: string;              // durable Hall organization id; legacy imports may be "personal"
+  orgId: string;              // durable Axis organization id; legacy imports may be "personal"
   ownerId: string;            // "rpw" in MVP
   contextId: string | null;   // null until contexts exist
   source: SessionSource;      // origin channel
@@ -69,7 +69,7 @@ export interface Session {
   forkPoint: number | null;   // message index the fork branched at
   forkType: "sub" | "parallel" | null;
   // origin marker for forks: "forked from telegram", etc. (PRD Flow B)
-  managed: boolean;           // true = Olympus-driven (steerable); false = observed/read-only
+  managed: boolean;           // true = Stellarc-driven (steerable); false = observed/read-only
   capabilities: CapabilitySet | null; // null = legacy full grant
 }
 
@@ -87,7 +87,7 @@ export interface CapabilitySet {
     maxConcurrentJobs: number | null;
   };
   canFork: boolean;
-  signature: string;           // Hall HMAC; clients must treat as opaque
+  signature: string;           // Axis HMAC; clients must treat as opaque
 }
 
 export type SessionSource =
@@ -245,7 +245,7 @@ interface Setup {
 ### Mutations
 
 ```
-POST /api/sessions                     # start a new Olympus-managed chat
+POST /api/sessions                     # start a new Stellarc-managed chat
   body {}
   → 201 Session
 
@@ -357,7 +357,7 @@ interface Project {
 - `GET /api/projects/:id` returns the project and its server-persisted layout.
 - `PUT /api/projects/:id/layout` accepts `{ layout: unknown }` and returns the
   updated project. The layout is event-backed, organization-scoped, and opaque
-  to Hall apart from the serialized-size limit.
+  to Axis apart from the serialized-size limit.
 - `POST /api/sessions/:id/project` accepts `{ projectId }` and associates the
   session with that project.
 

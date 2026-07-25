@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions/history
 name: Mobile history filters and empty state
 properties:
-  junitId: olympus-mobile-history
+  junitId: stellarc-mobile-history
   junitClassname: ui.mobile
 ---
 - launchApp

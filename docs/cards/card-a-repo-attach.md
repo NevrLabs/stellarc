@@ -1,19 +1,19 @@
 # Card A — Repo attach + jj worktree materialization
 
 ## Goal
-Let an Olympus session attach a git repo at any time (suggested at start, but
+Let an Stellarc session attach a git repo at any time (suggested at start, but
 editable whenever the session is unbound-or-bound). When a repo is attached, the
-session space (`~/.olympus/spaces/<session_id>/`) becomes a **jj worktree of that
+session space (`~/.stellarc/spaces/<session_id>/`) becomes a **jj worktree of that
 repo** instead of a bare empty dir. This completes the "directory system" half of
-Olympus: each session gets a scoped working tree, not a grep of the whole host.
+Stellarc: each session gets a scoped working tree, not a grep of the whole host.
 
 This builds directly on commit `2c651e9` (per-session spaces + durable ids). Read
-that commit and `crates/control-plane/src/server/bridge_mgr.rs` FIRST — the
+that commit and `crates/axis/src/server/bridge_mgr.rs` FIRST — the
 `ensure_space`, `space_path`, `remove_space`, and `RuntimeSpec.cwd` machinery
 already exists. You are extending it, not rebuilding it.
 
 ## Settled decisions (do NOT re-litigate)
-- Space root is `~/.olympus/spaces/<session_id>/` — already wired via
+- Space root is `~/.stellarc/spaces/<session_id>/` — already wired via
   `BridgeManager::with_spaces_root(home.join("spaces"))` in `main.rs`.
 - A bare space (no repo) stays an empty dir. The worktree only appears when a
   repo is attached. This is intentional — pure chat sessions need no repo.
@@ -86,6 +86,6 @@ tree and commits. Do NOT commit or push yourself.
 
 ## Attribution (if you do commit in your worktree for the controller to cherry-pick)
 Commit trailer: `Authored-by: Zephyr (AI Assistant) <raisalpwardana+zephyr@gmail.com>`
-plus `Co-authored-by: <your-profile> (<your-model>) via Olympus swarm`.
+plus `Co-authored-by: <your-profile> (<your-model>) via Stellarc swarm`.
 Use `git -c commit.gpgsign=false`. Avoid the words "reboot"/"shutdown" in commit
 messages (trips a hardline blocklist) — say "restart" instead.

@@ -3,8 +3,8 @@ set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
-exec 9>/tmp/olympus-production-promotion.lock
-flock -n 9 || { echo "another Olympus promotion is running" >&2; exit 1; }
+exec 9>/tmp/stellarc-production-promotion.lock
+flock -n 9 || { echo "another Stellarc promotion is running" >&2; exit 1; }
 
 fail() { echo "promotion refused: $*" >&2; exit 1; }
 [[ $(hostname) == fxcompute-01 ]] || fail "run this on fxcompute-01"
@@ -16,10 +16,10 @@ origin_main=$(git rev-parse origin/main)
 [[ $head == "$origin_main" ]] || fail "HEAD $head does not equal origin/main $origin_main"
 
 export PATH="/home/rpw/.local/bin:/home/rpw/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
-export CARGO_HOME=/var/lib/olympus/cargo-home
-export CARGO_TARGET_DIR=/var/lib/olympus/cargo-target-prod
+export CARGO_HOME=/var/lib/stellarc/cargo-home
+export CARGO_TARGET_DIR=/var/lib/stellarc/cargo-target-prod
 export RUSTUP_HOME=/home/rpw/.rustup
-export SCCACHE_DIR=/var/lib/olympus/sccache
+export SCCACHE_DIR=/var/lib/stellarc/sccache
 export SCCACHE_CACHE_SIZE=10G
 
 cargo fmt --all -- --check
@@ -31,13 +31,13 @@ cargo nextest run --workspace
   bun test --run
   bun run build
 )
-cargo build --release -p olympus-control-plane -p olympus-envoy
+cargo build --release -p stellarc-axis -p stellarc-orbit
 
-stage="$HOME/.cache/olympus-releases/$head"
+stage="$HOME/.cache/stellarc-releases/$head"
 rm -rf "$stage"
 install -d -m 0755 "$stage/bin" "$stage/ui"
-install -m 0755 "$CARGO_TARGET_DIR/release/olympus-hall" "$stage/bin/olympus-hall"
-install -m 0755 "$CARGO_TARGET_DIR/release/olympus-envoy" "$stage/bin/olympus-envoy"
+install -m 0755 "$CARGO_TARGET_DIR/release/stellarc-axis" "$stage/bin/stellarc-axis"
+install -m 0755 "$CARGO_TARGET_DIR/release/stellarc-orbit" "$stage/bin/stellarc-orbit"
 cp -a ui/dist/. "$stage/ui/"
 install -m 0755 scripts/deploy-production-on-terminus.sh "$stage/deploy-production-on-terminus.sh"
 (
@@ -60,12 +60,12 @@ manifest={
 (stage/"manifest.json").write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
 PY
 
-remote_incoming="/home/rpw/.olympus/releases/.incoming-$head"
+remote_incoming="/home/rpw/.stellarc/releases/.incoming-$head"
 ssh terminus "rm -rf '$remote_incoming' && install -d -m 0755 '$remote_incoming'"
 rsync -a --delete "$stage/" "terminus:$remote_incoming/"
 ssh terminus "'$remote_incoming/deploy-production-on-terminus.sh' '$head'"
-ssh terminus /home/rpw/.local/bin/olympus-job run --timeout 60 -- /usr/bin/true
-public_status=$(curl -sS -o /dev/null -w '%{http_code}' https://olympus.entelechia.cloud/)
+ssh terminus /home/rpw/.local/bin/stellarc-job run --timeout 60 -- /usr/bin/true
+public_status=$(curl -sS -o /dev/null -w '%{http_code}' https://stellarc.entelechia.cloud/)
 [[ $public_status == 200 || $public_status == 302 || $public_status == 403 ]] \
   || { echo "production public route returned HTTP $public_status" >&2; exit 1; }
-printf 'promoted Olympus %s to Terminus (public route HTTP %s)\n' "$head" "$public_status"
+printf 'promoted Stellarc %s to Terminus (public route HTTP %s)\n' "$head" "$public_status"

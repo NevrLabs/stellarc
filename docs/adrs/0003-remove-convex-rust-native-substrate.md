@@ -15,7 +15,7 @@ the Workflow component (durable execution), transactional state, scheduled
 functions, and HTTP actions. Across the design conversation two problems with
 that choice became decisive:
 
-1. **Networking & identity friction.** Olympus wants transport-native, secure
+1. **Networking & identity friction.** Stellarc wants transport-native, secure
    node↔control-plane connectivity with cryptographic node identity (iroh /
    WireGuard-style direct tunnels for remote nodes; local sockets for co-located
    nodes). Convex wants to be the connection terminus with its own application
@@ -27,7 +27,7 @@ that choice became decisive:
 
 2. **The substrate solves a problem we don't have, and adds ones we do.**
    Convex's headline feature is distributed ACID across many independent
-   writers. Olympus's control plane is a **single authority**: nodes *report*
+   writers. Stellarc's control plane is a **single authority**: nodes *report*
    and *propose*, only the control plane *assigns*. With one writer, the
    correctness we need (no double-claim, no slot leak, fencing) comes from
    **single-writer serialization** (topology), not distributed transactions
@@ -83,12 +83,12 @@ single-binary process** with these parts:
   the control plane.
 
 The three-layer model is unchanged in shape: **Layer 1 control plane (now a
-Rust binary, not Convex) → Layer 2 node agent ("envoy", Bun or Rust) → Layer 3
+Rust binary, not Convex) → Layer 2 node agent ("orbit", Bun or Rust) → Layer 3
 agents.** The host-effect boundary is unchanged: the control plane orchestrates
-many hosts and never performs host effects directly; each host's envoy does.
+many hosts and never performs host effects directly; each host's orbit does.
 (Rationale shifts from "Convex container physically cannot reach the host" to
 "the control plane is one logical authority over many hosts; host effects are
-inherently per-host and belong to that host's envoy.")
+inherently per-host and belong to that host's orbit.")
 
 ## Consequences
 

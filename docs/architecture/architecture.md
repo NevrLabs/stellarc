@@ -1,7 +1,7 @@
-# Olympus Architecture
+# Stellarc Architecture
 
 > **Condensed reference. The authoritative specification is
-> [`docs/adrs/0002-olympus-fleet-control-plane.md`](../adrs/0002-olympus-fleet-control-plane.md),
+> [`docs/adrs/0002-stellarc-fleet-control-plane.md`](../adrs/0002-stellarc-fleet-control-plane.md),
 > with the substrate decision in
 > [`docs/adrs/0003-remove-convex-rust-native-substrate.md`](../adrs/0003-remove-convex-rust-native-substrate.md).**
 > Where this file and ADR 0002 disagree, ADR 0002 wins; where ADR 0002 and ADR
@@ -20,26 +20,26 @@
 
 ## 1. Doctrine
 
-> Olympus is a multi-node agent fleet control plane: a **Rust-native Hall control
+> Stellarc is a multi-node agent fleet control plane: a **Rust-native Axis control
 > plane** owns all durable truth as an **append-only event log** in SQLite,
-> orchestration intent, workflows, and reactive views; one **node agent ("envoy")**
+> orchestration intent, workflows, and reactive views; one **node agent ("orbit")**
 > per host owns every host effect — process supervision, workspace, skills/MCP,
 > credentials, desired-state, vault sync; and heterogeneous agents (Hermes, Claude
 > Code, Codex, Droid, OpenClaw) run as supervised processes behind a stable
 > `AgentRuntime` boundary.
 
-Olympus is a **control plane**, NOT an agent runtime and NOT a Hermes Studio UI
-replacement. Agents remain external programs; Olympus manages, routes, observes,
+Stellarc is a **control plane**, NOT an agent runtime and NOT a Hermes Studio UI
+replacement. Agents remain external programs; Stellarc manages, routes, observes,
 steers, and records them — and owns their working directories so they operate in
 a scoped jj worktree instead of grepping the whole host.
 
-**Convex is removed (ADR 0003).** Hall and Envoy are self-contained Rust
+**Convex is removed (ADR 0003).** Axis and Orbit are self-contained Rust
 binaries; there is no external database server or second connection authority.
 
 ## 2. Three layers
 
 ```text
-LAYER 1  Hall              Rust binary + React UI over WSS
+LAYER 1  Axis              Rust binary + React UI over WSS
                            sole source of truth: SQLite EVENT LOG
                            SQLite projections + bounded caches → delta broadcast
                            single-writer SCHEDULER (contended state; fencing)
@@ -49,7 +49,7 @@ LAYER 1  Hall              Rust binary + React UI over WSS
    │ command/event protocol over a Transport:
    │   • iroh (remote nodes; NodeId = Ed25519 = node identity)
    │   • Unix domain socket (local nodes; peer = OS creds)
-LAYER 2  Envoy             one Bun-or-Rust node agent per host; the ONLY host-level
+LAYER 2  Orbit             one Bun-or-Rust node agent per host; the ONLY host-level
                            process; the single trust boundary
                            PID supervision, port reservation, sandboxing, PTY
                            bridge, artifact serving, workdir lifecycle, skills/MCP/
@@ -60,7 +60,7 @@ LAYER 3  Agents            many per node; orchestrators (Hermes/OpenClaw) +
 ```
 
 **Hard boundary:** orchestration/state → control plane; any host effect (process,
-file, PTY, port, install) → that host's envoy. React/UI never import agent
+file, PTY, port, install) → that host's orbit. React/UI never import agent
 internals. **All agents — orchestrators included — are Layer-3 host processes; no
 agent loop runs inside the control-plane process** (§2.3). **Node identity is the
 transport** (iroh `NodeId` / UDS peer creds) — no application-layer node token
@@ -91,14 +91,14 @@ derived transactional projection and, where useful, a bounded in-memory cache.
 |---|---|
 | Operator auth, identities, contexts, projects | Control plane |
 | Sessions, messages, tool-calls, streaming, utility inference | Control plane (log + views) |
-| Traces and session diagnostic logs | Hall telemetry store (disposable SQLite; TTL + quota bounded; OTel-shaped) |
-| Live metrics | Hall/Envoy in-process registries; optional OTLP/Prometheus export |
+| Traces and session diagnostic logs | Axis telemetry store (disposable SQLite; TTL + quota bounded; OTel-shaped) |
+| Live metrics | Axis/Orbit in-process registries; optional OTLP/Prometheus export |
 | Cards / board | Control plane (`cards`) |
 | Bounded workflows, cron, webhooks | Control plane (event-backed DAG kernel + tokio + axum) |
 | Node registry, desired-state, host-command queue, leases, budgets, chat rooms, artifact/vault/skill-MCP index, FTS | Control plane |
-| Process spawn/supervision, PTY, filesystem, workdir lifecycle, ports, sandbox, artifact bytes + blob store | Envoy |
-| Skills/MCP/cred materialization to disk, vault sync, desired-state reconciliation (installs) | Envoy |
-| Agent loop, context management, tools | The agent (Hermes etc.) — NOT Olympus |
+| Process spawn/supervision, PTY, filesystem, workdir lifecycle, ports, sandbox, artifact bytes + blob store | Orbit |
+| Skills/MCP/cred materialization to disk, vault sync, desired-state reconciliation (installs) | Orbit |
+| Agent loop, context management, tools | The agent (Hermes etc.) — NOT Stellarc |
 
 ## 5. Key models (→ ADR 0002 sections)
 
@@ -112,7 +112,7 @@ derived transactional projection and, where useful, a bounded in-memory cache.
 - **Truth model** (§2.4): **event-sourced** — the SQLite append-only log is truth;
   transactional projections, bounded caches, and search indices are derived
   and rebuildable.
-- **Filesystem hierarchy** (§5): `~/olympus/{sessions,projects,skills,mcp,creds,
+- **Filesystem hierarchy** (§5): `~/stellarc/{sessions,projects,skills,mcp,creds,
   system}/`. Main sessions flat; cards nest under their main session keyed by
   stable `card_id`; projects hold shared assets (vault, config, default
   activation). jj git-colocate + mandatory conflict guard. Orchestrator-only `gh`.
@@ -120,7 +120,7 @@ derived transactional projection and, where useful, a bounded in-memory cache.
   reassignment only on node-unreachable or agent-changed, forwarding prior trace
   as a "previous attempt" block; per-attempt jj bookmarks; task-based directory
   survives reassignment. Workflows operate on cards.
-- **Node desired-state** (§7): control plane declares required programs; envoy
+- **Node desired-state** (§7): control plane declares required programs; orbit
   reconciles (installs) + reports drift; skill/MCP library refresh is part of the
   same loop.
 - **Knowledge vaults** (§8): project-scoped llm-wiki (incl. non-text refs); jj
@@ -146,7 +146,7 @@ derived transactional projection and, where useful, a bounded in-memory cache.
   (`memory.current` = observability, `memory.max` = cap); WSL cgroup-v2 caveat to
   verify early. ADR 0018 keeps bounded-operation traces and correlated session
   diagnostics in a separate disposable `telemetry.db` with a 30-day default TTL
-  plus hard quotas; product/audit truth remains permanent in `olympus.db`.
+  plus hard quotas; product/audit truth remains permanent in `stellarc.db`.
 - **Inter-agent comms** (§13): local-first — SDK handles parent↔child, filesystem
   reads sibling↔sibling, control plane mirrors for observability. Control-plane-
   routed only as multi-node fallback.
@@ -155,19 +155,19 @@ derived transactional projection and, where useful, a bounded in-memory cache.
 - **Workflows** (§15, ADR 0013): bounded declarative DAGs over the event log.
   No loops, expression language, or user code run in the kernel; typed activity
   providers perform effects after capability checks at each dispatch.
-- **Agent operations** (ADR 0019): MCP and the Rust `olympus` CLI are protocol
-  adapters over one typed Hall operation seam. Agent CLI traffic uses an
-  Envoy-owned, runtime-bound private UDS; no Hall token, endpoint override, raw
+- **Agent operations** (ADR 0019): MCP and the Rust `stellarc` CLI are protocol
+  adapters over one typed Axis operation seam. Agent CLI traffic uses an
+  Orbit-owned, runtime-bound private UDS; no Axis token, endpoint override, raw
   HTTP, SSH, or arbitrary argv is exposed. Workflow flags/help derive from the
   pinned published schema; stdout/stderr and JSON/JSONL contracts are stable.
 - **Budget/subscriptions** (§16): subscription-aware routing; scheduler reserves
   budget + selects a subscription with remaining quota atomically.
 - **Artifacts** (§17): index of generated files, PRs, builds; content-addressed;
-  workers produce, orchestrator publishes; ephemeral served by envoy, durable to
+  workers produce, orchestrator publishes; ephemeral served by orbit, durable to
   object storage; lifecycle designed in.
-- **SSH/terminal** (§18): envoy PTY ↔ xterm.js (over WSS); operator capability,
+- **SSH/terminal** (§18): orbit PTY ↔ xterm.js (over WSS); operator capability,
   audited.
-- **AgentRuntime** (§19): an envoy-owned command queue (`start`/`send`/`events`/
+- **AgentRuntime** (§19): an orbit-owned command queue (`start`/`send`/`events`/
   `stop`) — `send` takes `prompt`/`steer`/`cancel`/`stop`/`switchModel`/`slash`
   and each per-harness adapter maps them to that harness's native stdio protocol
   (Hermes = ACP over stdio). Orchestrator = same impl + control-plane tools. Prove
@@ -181,7 +181,7 @@ derived transactional projection and, where useful, a bounded in-memory cache.
 - `Sandbox` interface: **HostDirect (default)**, **Bubblewrap** (isolation; `rm
   -rf` via `--ro-bind`, ports via `--unshare-net`), **Docker (deferred)** for
   reproducible toolchains / mutable env / GPU.
-- Port reservation owned by the envoy. Worker egress default-deny with a
+- Port reservation owned by the orbit. Worker egress default-deny with a
   per-context netns allowlist; orchestrator has full network.
 - Three resource layers, all required: OS (cgroup v2, per session), harness
   (wall-clock/tokens, per run), control plane (cost/concurrency, per context).
@@ -191,9 +191,9 @@ derived transactional projection and, where useful, a bounded in-memory cache.
 | Aspect | Current | Target |
 |---|---|---|
 | Product framing | "thin host-effect runtime" (ADR 0001) | fleet control plane (ADR 0002) |
-| Substrate | ADR 0001/0002-draft: Convex | **Rust-native Hall + Envoy binaries** (ADR 0003/0008) |
-| Runtime | Rust Hall + Rust Envoy + React UI | migration-ready remote sessions, durable jobs, managed apps, and deployment activities (ADR 0017) |
+| Substrate | ADR 0001/0002-draft: Convex | **Rust-native Axis + Orbit binaries** (ADR 0003/0008) |
+| Runtime | Rust Axis + Rust Orbit + React UI | migration-ready remote sessions, durable jobs, managed apps, and deployment activities (ADR 0017) |
 | Node model | single host implied | multi-node fleet, session-node affinity, desired-state |
-| Workdir | none | Olympus-owned `~/olympus/` hierarchy with cards |
+| Workdir | none | Stellarc-owned `~/stellarc/` hierarchy with cards |
 
 See ADR 0002 §23 for the 16-phase build order.

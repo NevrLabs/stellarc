@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# scripts/deploy.sh — build + install olympus-hall and/or olympus-envoy binaries
+# scripts/deploy.sh — build + install stellarc-axis and/or stellarc-orbit binaries
 # with git-hash suffixes + symlink flip (ADR 0008 §5 deploy choreography).
 #
 # Usage:
-#   scripts/deploy.sh hall          # build + install hall only
-#   scripts/deploy.sh envoy         # build + install envoy only
+#   scripts/deploy.sh axis          # build + install axis only
+#   scripts/deploy.sh orbit         # build + install orbit only
 #   scripts/deploy.sh both          # build + install both (default)
 #
 # Binaries are installed as:
-#   ~/.olympus/bin/olympus-hall-<gitHash>
-#   ~/.olympus/bin/olympus-envoy-<gitHash>
+#   ~/.stellarc/bin/stellarc-axis-<gitHash>
+#   ~/.stellarc/bin/stellarc-orbit-<gitHash>
 # with stable symlinks:
-#   ~/.olympus/bin/olympus-hall → olympus-hall-<gitHash>
-#   ~/.olympus/bin/olympus-envoy → olympus-envoy-<gitHash>
+#   ~/.stellarc/bin/stellarc-axis → stellarc-axis-<gitHash>
+#   ~/.stellarc/bin/stellarc-orbit → stellarc-orbit-<gitHash>
 #
-# Does NOT restart any services — use `make deploy-hall` / `make deploy-envoy`
+# Does NOT restart any services — use `make deploy-axis` / `make deploy-orbit`
 # for the full choreography (symlink flip + systemd restart + health gate).
 set -euo pipefail
 
-OLYMPUS_HOME="${OLYMPUS_HOME:-${HOME}/.olympus}"
-BIN_DIR="${OLYMPUS_HOME}/bin"
+STELLARC_HOME="${STELLARC_HOME:-${HOME}/.stellarc}"
+BIN_DIR="${STELLARC_HOME}/bin"
 WHAT="${1:-both}"
 
 cd "$(dirname "$0")/.."
@@ -38,12 +38,12 @@ TARGET_DIR="$(cargo metadata --no-deps --format-version 1 \
 mkdir -p "$BIN_DIR"
 
 build_hall() {
-    echo "→ Building olympus-hall (release)…"
-    cargo build --release -p olympus-control-plane
-    echo "→ Installing olympus-hall-${GIT_HASH}…"
-    cp -f "${TARGET_DIR}/release/olympus-hall" "${BIN_DIR}/olympus-hall-${GIT_HASH}"
-    ln -sf "olympus-hall-${GIT_HASH}" "${BIN_DIR}/olympus-hall"
-    echo "  ${BIN_DIR}/olympus-hall → olympus-hall-${GIT_HASH}"
+    echo "→ Building stellarc-axis (release)…"
+    cargo build --release -p stellarc-axis
+    echo "→ Installing stellarc-axis-${GIT_HASH}…"
+    cp -f "${TARGET_DIR}/release/stellarc-axis" "${BIN_DIR}/stellarc-axis-${GIT_HASH}"
+    ln -sf "stellarc-axis-${GIT_HASH}" "${BIN_DIR}/stellarc-axis"
+    echo "  ${BIN_DIR}/stellarc-axis → stellarc-axis-${GIT_HASH}"
 }
 
 provision_claude_adapter() {
@@ -56,7 +56,7 @@ provision_claude_adapter() {
     [ -f adapters/claude-agent-acp/package.json ] \
         && [ -f adapters/claude-agent-acp/package-lock.json ] \
         || { echo "ERROR: locked Claude ACP adapter manifest is missing" >&2; exit 2; }
-    target="${OLYMPUS_HOME}/adapters/claude-agent-acp"
+    target="${STELLARC_HOME}/adapters/claude-agent-acp"
     echo "→ Provisioning locked Claude ACP adapter…"
     mkdir -p "$target"
     cp -f adapters/claude-agent-acp/package.json adapters/claude-agent-acp/package-lock.json "$target/"
@@ -70,19 +70,19 @@ provision_claude_adapter() {
 
 build_envoy() {
     provision_claude_adapter
-    echo "→ Building olympus-envoy (release)…"
-    cargo build --release -p olympus-envoy
-    echo "→ Installing olympus-envoy-${GIT_HASH}…"
-    cp -f "${TARGET_DIR}/release/olympus-envoy" "${BIN_DIR}/olympus-envoy-${GIT_HASH}"
-    ln -sf "olympus-envoy-${GIT_HASH}" "${BIN_DIR}/olympus-envoy"
-    echo "  ${BIN_DIR}/olympus-envoy → olympus-envoy-${GIT_HASH}"
+    echo "→ Building stellarc-orbit (release)…"
+    cargo build --release -p stellarc-orbit
+    echo "→ Installing stellarc-orbit-${GIT_HASH}…"
+    cp -f "${TARGET_DIR}/release/stellarc-orbit" "${BIN_DIR}/stellarc-orbit-${GIT_HASH}"
+    ln -sf "stellarc-orbit-${GIT_HASH}" "${BIN_DIR}/stellarc-orbit"
+    echo "  ${BIN_DIR}/stellarc-orbit → stellarc-orbit-${GIT_HASH}"
 }
 
 case "$WHAT" in
-    hall)  build_hall ;;
-    envoy) build_envoy ;;
+    axis)  build_hall ;;
+    orbit) build_envoy ;;
     both)  build_hall; build_envoy ;;
-    *) echo "Usage: $0 {hall|envoy|both}" >&2; exit 1 ;;
+    *) echo "Usage: $0 {axis|orbit|both}" >&2; exit 1 ;;
 esac
 
 echo "✓ Deploy install complete: ${WHAT} @ ${GIT_HASH}"

@@ -2,11 +2,11 @@
 
 ## Summary
 
-The first production start with organization tenancy failed while opening the existing Olympus SQLite database. The base schema executed `CREATE INDEX ... sessions(org_id)` before the incremental migration added `org_id` to pre-tenancy `sessions` tables.
+The first production start with organization tenancy failed while opening the existing Stellarc SQLite database. The base schema executed `CREATE INDEX ... sessions(org_id)` before the incremental migration added `org_id` to pre-tenancy `sessions` tables.
 
 ## Impact
 
-Hall stayed offline after the binary upgrade. Envoy remained active as designed, and the database was not modified because schema initialization failed before the migration.
+Axis stayed offline after the binary upgrade. Orbit remained active as designed, and the database was not modified because schema initialization failed before the migration.
 
 ## Root cause
 

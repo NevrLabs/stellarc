@@ -7,24 +7,24 @@
 
 ## Symptom
 
-Testing Claude Code in a managed Olympus session produced, on every prompt:
+Testing Claude Code in a managed Stellarc session produced, on every prompt:
 
 ```
 ⚠ agent error: {"code":-32601,"data":{"method":"session/set_model"},
   "message":"\"Method not found\": session/set_model"}
 ```
 
-Durable proof in `~/.olympus/olympus.db`: session
+Durable proof in `~/.stellarc/stellarc.db`: session
 `20260713T181700Z-eea409aa`, system messages 11, 13, 15 each contain that
 JSON-RPC error.
 
 ## Root cause
 
-Olympus assumed one uniform ACP method surface across harnesses. The composer
+Stellarc assumed one uniform ACP method surface across harnesses. The composer
 always sends a model with a prompt. In `AcpClient::send_command`, a
 `Prompt { model: Some(_) }` unconditionally emitted an
 `AgentCommand::SwitchModel` first, which `AcpRequest::from_command`
-(`crates/envoy/src/bridge/acp.rs`) mapped to the JSON-RPC method
+(`crates/orbit/src/bridge/acp.rs`) mapped to the JSON-RPC method
 `session/set_model`.
 
 `hermes acp` implements `session/set_model`. The Zed **Claude Code** adapter
@@ -45,7 +45,7 @@ not.
 Made model selection harness-specific, mirroring the existing `AcpFraming`
 seam:
 
-- `olympus-proto`: new `ModelSetStyle { SetModel, ConfigOption }`.
+- `stellarc-proto`: new `ModelSetStyle { SetModel, ConfigOption }`.
 - `bridge/hermes.rs`: `model_set_style_for_agent()` returns `SetModel` for
   Hermes, `ConfigOption` for Claude Code / Codex; carried on
   `HermesRuntimeConfig.model_set_style`.
@@ -55,32 +55,32 @@ seam:
 - `bridge/client.rs`: `AcpClient` carries the style
   (`with_events_and_model_style`) and uses `set_model()` before a model-bearing
   prompt.
-- Both runtime factories (`crates/envoy/src/main.rs`,
-  `crates/control-plane/src/main.rs`) resolve the style per agent.
+- Both runtime factories (`crates/orbit/src/main.rs`,
+  `crates/axis/src/main.rs`) resolve the style per agent.
 
 Tests: `set_model_uses_set_model_for_hermes_style`,
 `set_model_uses_config_option_for_claude_and_codex_style`,
-`model_set_style_is_harness_specific` (in `crates/envoy/src/bridge/mod.rs`).
+`model_set_style_is_harness_specific` (in `crates/orbit/src/bridge/mod.rs`).
 
 ## Verification (live)
 
 - Debug: 4 focused tests pass (`set_model_uses_set_model_for_hermes_style`,
   `set_model_uses_config_option_for_claude_and_codex_style`,
   `model_set_style_is_harness_specific`, regression preserved); full
-  `olympus-proto` + `olympus-envoy` suite 90 passed / 0 failed;
-  `olympus-control-plane` builds clean (both factory call sites).
-- Deployed envoy-only (`ModelSetStyle` is derived locally in the envoy factory
-  and never crosses the wire; `PROTOCOL_VERSION` unchanged, so Hall needs no
-  redeploy). Backed up Hall DB (integrity_check=ok) + spool first. Symlink
-  flipped `olympus-envoy → olympus-envoy-0a73a86-setmodelfix`, restarted
-  `olympus-envoy@1`, confirmed `terminus` online in `/api/nodes` at
+  `stellarc-proto` + `stellarc-orbit` suite 90 passed / 0 failed;
+  `stellarc-axis` builds clean (both factory call sites).
+- Deployed orbit-only (`ModelSetStyle` is derived locally in the orbit factory
+  and never crosses the wire; `PROTOCOL_VERSION` unchanged, so Axis needs no
+  redeploy). Backed up Axis DB (integrity_check=ok) + spool first. Symlink
+  flipped `stellarc-orbit → stellarc-orbit-0a73a86-setmodelfix`, restarted
+  `stellarc-orbit@1`, confirmed `terminus` online in `/api/nodes` at
   `version 0.1.0 (0a73a86b1b5a)`, `claude-code` agent `ready:true`.
 - Live turn: managed `claude-code` session `20260714T052819Z-598f39ad`, prompt
-  with `model: claude-opus-4-8` → assistant replied `OLYMPUS_SETMODEL_FIX_OK`;
+  with `model: claude-opus-4-8` → assistant replied `STELLARC_SETMODEL_FIX_OK`;
   zero `set_model` occurrences in the session; zero `-32601`/"method not found"
-  in the envoy log. The previously-failing path now works.
+  in the orbit log. The previously-failing path now works.
 - NOTE: deploy tag uses git HEAD `0a73a86` but the tree is dirty (786-line
-  in-flight ACP-correctness delta in the envoy crate); the installed binary is
+  in-flight ACP-correctness delta in the orbit crate); the installed binary is
   suffixed `-setmodelfix` to disambiguate from any clean-HEAD build.
 
 ## Lessons

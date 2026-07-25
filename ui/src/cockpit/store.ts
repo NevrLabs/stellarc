@@ -5,11 +5,11 @@ import { create } from "zustand";
 // The cockpit is a SINGLE floating, tabbed, operator-only workspace that
 // persists across every view (it is mounted once at the AppShell root, OUTSIDE
 // the surface switch) and per user (geometry + tab manifest persisted to
-// localStorage in Phase 0.C; moves to Hall in Phase 3.A).
+// localStorage in Phase 0.C; moves to Axis in Phase 3.A).
 //
 // Layer A (this file, frontend-only): tab/window state lives here, at the top
 // level, so navigating surfaces never unmounts it and toggling visibility never
-// disposes a tab. Layer B (Phase 3) swaps the mock PTY for an Envoy-owned PTY
+// disposes a tab. Layer B (Phase 3) swaps the mock PTY for an Orbit-owned PTY
 // over a dedicated operator WebSocket — the store shape is designed to absorb a
 // real `terminalId`/`attemptEpoch` without changing the UI contract.
 //
@@ -27,7 +27,7 @@ export interface CockpitTab {
   kind: string;
   title: string;
   /** Node this tab is pinned to at open (ADR 0021 §7 — never follows the
-   *  active session). `"hall"` = the Hall host (terminal default). Kinds that
+   *  active session). `"axis"` = the Axis host (terminal default). Kinds that
    *  are node-independent (browser) leave it null. */
   target: { nodeId: string } | null;
   /** Kind-specific persisted state (browser: { url }; editor: { path } …).
@@ -68,7 +68,7 @@ interface CockpitState {
   setActiveTab: (id: string) => void;
 }
 
-const LS_KEY = "olympus-cockpit-v1";
+const LS_KEY = "stellarc-cockpit-v1";
 
 interface Persisted {
   geometry: Geometry;
@@ -121,7 +121,7 @@ function newId(): string {
 
 function titleFor(kind: string, node: string | undefined, label: string, existing: CockpitTab[]): string {
   if (kind === "terminal") {
-    const base = !node || node === "hall" ? "Hall" : label || node;
+    const base = !node || node === "axis" ? "Axis" : label || node;
     const n = existing.filter((t) => t.kind === "terminal" && t.target?.nodeId === node).length + 1;
     return `${base} ${n}`;
   }

@@ -1,9 +1,9 @@
 # APP-1 · Managed apps: ServiceTable + binary runtime + app manifest (ADR 0015)
 
 ## Goal
-Implement ADR 0015's core: envoy-supervised long-lived app services. An app
+Implement ADR 0015's core: orbit-supervised long-lived app services. An app
 declared in a package manifest gets: a state dir, a supervised process
-(systemd user unit v1), health probes, an envoy-registered edge route on
+(systemd user unit v1), health probes, an orbit-registered edge route on
 healthy, and a service principal. Podman/container backend is APP-2 — NOT
 this card.
 
@@ -25,15 +25,15 @@ Branch from main after JOBS-1 + PKG-1 + EDGE-1 all merge (three parents).
 
 ## Deliverables
 1. Proto: `NodeRole::AppHost`; frames `EnsureService/StopService/DrainService`
-   (Hall→Envoy) and `ServiceStatus{app_id, state, health, port}` (Envoy→Hall,
+   (Axis→Orbit) and `ServiceStatus{app_id, state, health, port}` (Orbit→Axis,
    in hello + on change) — mirroring the runtimes-table pattern.
-2. Envoy `ServiceTable`: spawn from manifest (binary runtime only), dynamic
+2. Orbit `ServiceTable`: spawn from manifest (binary runtime only), dynamic
    loopback port allocation, env templating (`${app_state}`), health probe
    loop (HTTP GET, backoff), restart policy (always, rate-limited 3/5min then
    quarantine + report), drain on command, reap on stop. State dir
-   `~/.olympus/<org>/apps/<app_id>/` created on first ensure, never deleted
-   implicitly (GC is an explicit Hall command).
-3. Hall: app lifecycle events (`AppInstalled/Started/Healthy/Unhealthy/
+   `~/.stellarc/<org>/apps/<app_id>/` created on first ensure, never deleted
+   implicitly (GC is an explicit Axis command).
+3. Axis: app lifecycle events (`AppInstalled/Started/Healthy/Unhealthy/
    Stopped/Removed`) + projection; REST under the routes module pattern
    (install-from-package, start, stop, status, remove). On Healthy: register
    edge route `/app/<slug>/` → allocated port via EdgeDriver, auth_policy
@@ -49,8 +49,8 @@ Branch from main after JOBS-1 + PKG-1 + EDGE-1 all merge (three parents).
    → auto-restart → drain → stopped → route gone.
 
 ## Settled decisions — do NOT re-litigate
-- Apps never touch Olympus internals; no event-log/DB paths in app env.
-- Envoy owns supervision; Hall never execs apps.
+- Apps never touch Stellarc internals; no event-log/DB paths in app env.
+- Orbit owns supervision; Axis never execs apps.
 - Companion-plugin views/embeds are separate (need the plugin classes) —
   out of scope here.
 - Podman backend = APP-2. Design the runtime seam (`trait AppRuntime`) so it
@@ -59,6 +59,6 @@ Branch from main after JOBS-1 + PKG-1 + EDGE-1 all merge (three parents).
 
 ## Gates
 - `make lint` + `make test` + fmt green; `-j 2`; target under ~/.cache/.
-- Do NOT touch live olympus services or live ~/.olympus data; temp dirs.
+- Do NOT touch live stellarc services or live ~/.stellarc data; temp dirs.
 - Do not push to main. Green → `blocked: review-required` with the frame
   shapes, unit strategy chosen, and integration evidence.

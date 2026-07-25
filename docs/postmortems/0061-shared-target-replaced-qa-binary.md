@@ -1,12 +1,12 @@
-# 0061 — Shared Cargo target replaced the isolated QA Hall binary
+# 0061 — Shared Cargo target replaced the isolated QA Axis binary
 
 ## Summary
 
-The isolated project-workspace Hall service executed `~/.cache/olympus-cargo-target/debug/olympus-hall` directly. The shared target is intentionally reused by all worktrees, so a later build from an older branch replaced that path with a binary that did not understand `ProjectLayoutUpdated`.
+The isolated project-workspace Axis service executed `~/.cache/stellarc-cargo-target/debug/stellarc-axis` directly. The shared target is intentionally reused by all worktrees, so a later build from an older branch replaced that path with a binary that did not understand `ProjectLayoutUpdated`.
 
 ## Impact
 
-The first clean Hall restart exited during event replay with `unknown variant ProjectLayoutUpdated`. Pre-restart testing stayed green because the long-lived process still held the correct earlier executable in memory.
+The first clean Axis restart exited during event replay with `unknown variant ProjectLayoutUpdated`. Pre-restart testing stayed green because the long-lived process still held the correct earlier executable in memory.
 
 ## Root cause
 
@@ -14,7 +14,7 @@ A shared compilation cache was incorrectly treated as an immutable deployment ar
 
 ## Fix
 
-Build under the shared target lock, then copy the verified Hall executable to a worktree-specific immutable QA path (`~/.cache/olympus-qa/t_1a828e33/olympus-hall`). The QA systemd unit executes that copy rather than the shared target output.
+Build under the shared target lock, then copy the verified Axis executable to a worktree-specific immutable QA path (`~/.cache/stellarc-qa/t_1a828e33/stellarc-axis`). The QA systemd unit executes that copy rather than the shared target output.
 
 ## Prevention
 

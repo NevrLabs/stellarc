@@ -4,7 +4,7 @@
 - Date: 2026-07-14
 - Depends on: ADR 0020 (client state projection / sequenced streams),
   the terminal adversarial review
-  (`/home/rpw/.hermes/workspace/reviews/olympus-terminal-review.md`),
+  (`/home/rpw/.hermes/workspace/reviews/stellarc-terminal-review.md`),
   ADR 0017 (node identity / readiness), Phase 1 (node-key binding)
 - Relates to: the master plan Phase 3 (terminal)
 - Reference UX: Terax (crynta/terax-ai) — a floating, tabbed, AI-native

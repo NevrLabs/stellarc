@@ -1,20 +1,20 @@
 # ADR 0009 — redb → SQLite: Memory Reduction & Delta Fanout
 
 Status: accepted · Date: 2026-07-10
-Related: ADR 0002 (§2.4 — event-sourced projections), ADR 0008 (Hall/Envoy split)
+Related: ADR 0002 (§2.4 — event-sourced projections), ADR 0008 (Axis/Orbit split)
 
 > **Amended by ADR 0026 (2026-07-17).** This ADR remains authoritative for
-> Hall's SQLite event/projection store and memory strategy. Its central `cards`
+> Axis's SQLite event/projection store and memory strategy. Its central `cards`
 > table and card-event write path are superseded as canonical card state:
 > native structured card state moves to board-local cr-sqlite and GitHub-backed
-> state remains in GitHub. Hall retains registration, number allocation,
+> state remains in GitHub. Axis retains registration, number allocation,
 > operation/saga audit, and rebuildable cross-board projections. “One `.db`
-> file” applies to Hall, not to Olympus's complete storage topology.
+> file” applies to Axis, not to Stellarc's complete storage topology.
 
 ## Context
 
-Olympus Hall currently uses 1.4 GB of RAM on a 7.7 GB VPS. The host runs
-Hermes Agent, Hermes Studio, Rust builds (Olympus S7), TypeScript language
+Stellarc Axis currently uses 1.4 GB of RAM on a 7.7 GB VPS. The host runs
+Hermes Agent, Hermes Studio, Rust builds (Stellarc S7), TypeScript language
 servers, and kanban workers concurrently. Swap is exhausted (2/2 GB), load
 average hits 24, and the system freezes under memory pressure.
 
@@ -53,13 +53,13 @@ builds in-memory projections that stay resident for the process lifetime:
 | Active messages | 136,989 |
 | Total content text | ~220 MB (raw) |
 | Hermes `state.db` | 1.7 GB |
-| Olympus `eventlog.redb` | 181 MB |
+| Stellarc `eventlog.redb` | 181 MB |
 | Tantivy search index | 154 MB on disk |
 | Process RSS | **1.4 GB** |
 
 ### Goal
 
-Reduce Olympus Hall RSS to **< 100 MB** without losing functionality.
+Reduce Stellarc Axis RSS to **< 100 MB** without losing functionality.
 The event-sourcing model, REST API, WebSocket delta stream, and full-text
 search must all continue to work.
 
@@ -72,7 +72,7 @@ store. No in-memory materialized views.
 ### New architecture
 
 ```
-SQLite (WAL mode, ~/.olympus/olympus.db)
+SQLite (WAL mode, ~/.stellarc/stellarc.db)
   ├── events table (append-only, same event-sourcing semantics)
   ├── sessions table (materialized projection, queryable)
   ├── messages table (materialized projection, queryable)
@@ -277,7 +277,7 @@ querying and WAL growth, RSS should stay well under 100 MB.
 2. Implement `SqliteStore` with the same interface as `Log` +
    `ViewManager`.
 3. Write a one-shot migrator: read all events from `eventlog.redb` →
-   write to `olympus.db` → verify row counts match.
+   write to `stellarc.db` → verify row counts match.
 4. Switch `AppState` to hold `Arc<SqliteStore>` instead of
    `Arc<RwLock<ViewManager>>`.
 5. Update REST handlers to query SQLite instead of reading views.
@@ -296,14 +296,14 @@ functions of it. They can be rebuilt from `events` at any time.
 ### Legacy log removal addendum
 
 The legacy redb log implementation and dependency have been deleted. Existing
-`~/.olympus/eventlog.redb` files are inert: Hall warns once at boot, ignores the
+`~/.stellarc/eventlog.redb` files are inert: Axis warns once at boot, ignores the
 file without reading it, and operators may remove it manually.
 
 ### Self-describing event payload addendum
 
 The sole SQLite `events.payload` codec in steady state is JSON compressed with
 zstd (`json+zstd-v1`). There is no long-lived dual-codec mode: the only
-exception is Hall's marker-guarded, transactional boot rewrite from historical
+exception is Axis's marker-guarded, transactional boot rewrite from historical
 postcard payloads to JSON+zstd. That rewrite verifies the event count and each
 event's semantic equality, changes only the payload encoding, and does not alter
 event content, sequence ordering, append-only history semantics, REST DTOs, or

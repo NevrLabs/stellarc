@@ -5,7 +5,7 @@
 **Scope:** focused final review of the current ADR 0018 and implementation plan
 for the last sequence-loss state-machine correction and ADR 0017 Task 1.4
 ordering correction, including only contradictions newly introduced by those
-changes. The review also checked the relevant ADR 0017 plan and current Hall
+changes. The review also checked the relevant ADR 0017 plan and current Axis
 node-enrollment source. This is architecture/plan approval, not implementation
 approval.
 
@@ -18,7 +18,7 @@ an end-to-end crash/replay/ACK state machine. A durable journal reservation
 consumes a range before the data append; append failure converts the same range
 to `dropped`, unresolved finalization recovers as `unknown`, and no range is
 rolled back or reused. Data and coverage items merge in source order, coverage
-consumes its complete range, Hall commits items plus the contiguous watermark
+consumes its complete range, Axis commits items plus the contiguous watermark
 atomically, and exact duplicate, overlap, ACK-cleanup, exhaustion, and manifest
 rules are stated. Consequently an ENOSPC failure can consume a durable loss
 range and later successful data can follow it without a hole or reused source
@@ -59,7 +59,7 @@ The corrected contract is internally consistent across ADR and plan:
    order (`ADR 0018:292-295`). The schema likewise gives an item both
    `item_first_seq` and `item_last_seq` and gives coverage an explicit range
    (`ADR 0018:207-221`).
-5. **Atomic Hall commit.** Hall validates source ownership, contiguity, IDs,
+5. **Atomic Axis commit.** Axis validates source ownership, contiguity, IDs,
    digests, size, and redaction, then inserts every item, coverage state, and the
    new contiguous watermark in one transaction. A coverage item advances through
    its range end; partial/corrupt batches receive no ACK (`ADR 0018:296-300`).
@@ -77,15 +77,15 @@ The corrected contract is internally consistent across ADR and plan:
    source health/reconnect and the permanent loss fact rather than being assigned
    fictitious dropped sequence numbers (`ADR 0018:307-315`).
 9. **Crash and manifest oracles.** Tests cover reservation, append/fsync,
-   finalization, merged replay, Hall transaction stages, ACK and cleanup, pending
+   finalization, merged replay, Axis transaction stages, ACK and cleanup, pending
    recovery, journal exhaustion, duplicate/partial overlap, and later successful
-   data after a dropped range. Producer/Hall manifests compare source/epoch,
+   data after a dropped range. Producer/Axis manifests compare source/epoch,
    consumed data and coverage ranges, normalized digests, trace/span IDs, and
    watermark (`ADR 0018:317-322`; plan:263-284).
 
 The implementation plan carries the same state machine in OBS-3: source-journal
 reservation, received/dropped/unknown finalization, ordered range merge without
-reuse, full-envelope contiguity, atomic Hall item/coverage/watermark commit,
+reuse, full-envelope contiguity, atomic Axis item/coverage/watermark commit,
 exact duplicate acceptance, partial-overlap rejection, journal/data cleanup,
 and high-water stop (`docs/plans/2026-07-13-otel-observability-session-diagnostics.md:230-256`).
 
@@ -94,7 +94,7 @@ failed batch's source range before the potentially failing data append. That
 range is subsequently represented by `dropped` coverage, or conservatively by
 `unknown` after unresolved finalization. The journal remains the allocator, so
 a later successful reservation starts after that consumed range. Ordered merge
-places the coverage range before later data, Hall advances atomically through
+places the coverage range before later data, Axis advances atomically through
 both, and ACK cleanup cannot erase either side early. There is therefore no
 missing position and no position reuse in the specified state machine.
 
@@ -143,10 +143,10 @@ to prevent implementer confusion, but they do not change the approved design.
 **Architecture/plan review: GO. Implementation: still blocked.**
 
 Approval of ADR 0018 does not prove that ADR 0017 Tasks 1.1–1.4 have landed. In
-particular, current Hall source still accepts the logical `node_id` supplied by
-`EnvoyFrame::Hello` and registers that ID alongside an optional peer iroh ID
+particular, current Axis source still accepts the logical `node_id` supplied by
+`OrbitFrame::Hello` and registers that ID alongside an optional peer iroh ID
 rather than deriving the logical node from a durable enrollment binding
-(`crates/control-plane/src/node.rs:638-701`). Thus the Task 1.4 prerequisite is
+(`crates/axis/src/node.rs:638-701`). Thus the Task 1.4 prerequisite is
 still open in current source.
 
 Under PRE-OBS and the dependency graph, only paper design may continue until the
@@ -166,6 +166,6 @@ so this review identifies their exact content hashes:
 - OBS plan: `8a4629a66b6834dd7e212207f991f4195610c8ecfcdd3c86cead44184cbff7be`
 - ADR 0017: `02d6cdfbd5516831e8131c442725b125f2216ab8440f570362d95290e987842d`
 - ADR 0017 plan: `22577cf643520bb6fc4aaf92d0c1f4eeb274260518fe31dff84ce0012437b4e2`
-- Hall `node.rs`: `63c7ac94c74ea4af019cd936073a13cf5601a75fcde2272928d26a7f7d3f056d`
+- Axis `node.rs`: `63c7ac94c74ea4af019cd936073a13cf5601a75fcde2272928d26a7f7d3f056d`
 
 **Final verdict: APPROVED / GO — 0 BLOCKER, 0 P1, 1 P2.**

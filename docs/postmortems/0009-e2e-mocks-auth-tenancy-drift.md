@@ -1,8 +1,8 @@
-# Postmortem 0009: E2E mocks bypassed Hall authentication and tenancy
+# Postmortem 0009: E2E mocks bypassed Axis authentication and tenancy
 
 ## Summary
 
-After Hall-local authentication and organization-scoped APIs were integrated, the Playwright application booted into the login screen and every feature test failed. The MSW fixture server still exposed legacy unscoped session and resource URLs and had no identity endpoints.
+After Axis-local authentication and organization-scoped APIs were integrated, the Playwright application booted into the login screen and every feature test failed. The MSW fixture server still exposed legacy unscoped session and resource URLs and had no identity endpoints.
 
 ## Impact
 
@@ -14,7 +14,7 @@ The auth feature branch temporarily made tenant-unsafe surfaces unavailable, whi
 
 ## Resolution
 
-The MSW server now supplies a Hall-local user and organization membership, implements login/logout endpoints, and serves session, search, usage, node, workflow, and Vault fixtures through organization-scoped URLs. Feature tests therefore traverse the same URL shape as production.
+The MSW server now supplies a Axis-local user and organization membership, implements login/logout endpoints, and serves session, search, usage, node, workflow, and Vault fixtures through organization-scoped URLs. Feature tests therefore traverse the same URL shape as production.
 
 ## Prevention
 

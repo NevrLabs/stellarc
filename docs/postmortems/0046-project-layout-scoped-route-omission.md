@@ -5,13 +5,13 @@ Date: 2026-07-17 · Severity: high (workspace persistence silently disabled) · 
 ## Symptom
 
 The live project workspace split into two valid panes, but the project remained
-with `layout: null`. Refresh therefore could not restore from Hall. The client
+with `layout: null`. Refresh therefore could not restore from Axis. The client
 ignored the failed background save, so unit tests, TypeScript, and production
 builds all stayed green.
 
 ## Root cause
 
-Olympus registers resource routes twice: unscoped operator routes under
+Stellarc registers resource routes twice: unscoped operator routes under
 `/api/*` and organization-scoped browser routes under
 `/api/organizations/:organizationId/*`. The new `PUT /api/projects/:id/layout` route was added only to the operator
 router. Authenticated browser requests are automatically rewritten to the
@@ -25,7 +25,7 @@ router, not `Principal`, so the handler failed with HTTP 500.
 Register `PUT /projects/:id/layout` in the organization resource router and
 remove the unused principal extractor; authentication and authorization are
 already enforced by the outer middleware and `OrgScope`. The durable CDP
-project-workspace probe now requires the Hall project DTO to contain two
+project-workspace probe now requires the Axis project DTO to contain two
 persisted panels before testing refresh.
 
 ## Prevention

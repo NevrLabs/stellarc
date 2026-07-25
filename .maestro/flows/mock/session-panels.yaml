@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions
 name: Session chat panels — right overview + bottom panel tabs
 properties:
-  junitId: olympus-session-panels
+  junitId: stellarc-session-panels
   junitClassname: ui.mock
 ---
 - launchApp
@@ -22,7 +22,7 @@ properties:
 
 # ── Bottom panel tabs are text labels — cycle through them ─────────────────
 - tapOn: "Terminal"
-- assertVisible: ".*envoy PTY support.*"
+- assertVisible: ".*orbit PTY support.*"
 - tapOn: "Logs"
 - takeScreenshot:
     path: screenshots/session-bottom-logs

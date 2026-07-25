@@ -92,7 +92,7 @@ const TITLES = [
   "UCollect Box HiL firmware update plan",
   "Noovoleum capability map review",
   "Fork spike on state.db copy",
-  "Olympus MVP architecture workshop",
+  "Stellarc MVP architecture workshop",
   "Payment Go migration discussion",
   "ESP32-S3 low-power IoT design session",
   "Kanban board cleanup sprint",
@@ -114,7 +114,7 @@ const USER_MESSAGES = [
   "I need to update the Traefik IngressRoute for monitoring.",
   "What's the current state of the UCollect backend migration?",
   "Help me debug this ESP32 firmware — it's not entering deep sleep.",
-  "Draft a PR description for the Olympus control plane PR.",
+  "Draft a PR description for the Stellarc control plane PR.",
   "Search for any sessions mentioning 'fork' in the last week.",
   "Set up a cron job to monitor the Redis cluster health.",
   "Can we move the payment module to Go? The Node version is painful.",
@@ -137,7 +137,7 @@ const ASSISTANT_SNIPPETS = [
   "The Traefik IngressRoute needs to be in the `monitoring` namespace. Here's the updated YAML:",
   "The UCollect backend migration is at 67% completion. The remaining work involves the balance module and payout rail integration.",
   "Deep sleep issues on ESP32-S3 are usually caused by GPIO hold or UART peripheral still being active. Let me check your power management config.",
-  "Here's a draft PR description for the Olympus control plane. I've focused on the redb event log and in-memory view projections.",
+  "Here's a draft PR description for the Stellarc control plane. I've focused on the redb event log and in-memory view projections.",
   "Found 23 sessions mentioning 'fork' in the last 7 days. Most are related to the recent spike on state.db copies.",
   "Setting up a Redis health monitor cron job now. It will alert if cluster nodes drop below quorum.",
   "Absolutely — the Go payment module already owns the balance logic with a 3-layer idempotency system. No Node bridge needed.",
@@ -167,13 +167,13 @@ const TOOL_CALLS: Array<{ name: string; args: unknown; result: string; label?: s
   },
   {
     name: "read_file",
-    args: JSON.stringify({ path: "/home/rpw/olympus/docs/api-contract.md" }),
-    result: "# Olympus API Contract (MVP)\n\n> **Purpose:** lock the wire shape...",
+    args: JSON.stringify({ path: "/home/rpw/stellarc/docs/api-contract.md" }),
+    result: "# Stellarc API Contract (MVP)\n\n> **Purpose:** lock the wire shape...",
   },
   {
     name: "search_files",
     args: JSON.stringify({ pattern: "fork", target: "content", path: "." }),
-    result: "docs/api-contract.md:45: fork lineage (ADR §6.6)\ndocs/plans/2026-06-28-olympus-mvp.md:120:Fork into acp-owned session",
+    result: "docs/api-contract.md:45: fork lineage (ADR §6.6)\ndocs/plans/2026-06-28-stellarc-mvp.md:120:Fork into acp-owned session",
   },
   {
     name: "web_search",
@@ -220,7 +220,7 @@ const TOOL_CALLS: Array<{ name: string; args: unknown; result: string; label?: s
 
 const REASONING_BLOCKS = [
   "The user is asking about a Grafana 401 error. Based on my memory, there are TWO orgs sharing datasource UIDs — org1 Noovoleum and org2 Noovoleum Dev. The 401 likely means the request is hitting org2's datasources with org1's token. I should check which org the dashboard belongs to and verify the service account token scope.",
-  "This is a cross-channel fork request. Per ADR §6.6, we must NEVER modify the source session in place. The flow is: 1) Read source session messages up to forkPoint, 2) Create new Hermes session via ACP session/resume (only works for source==acp, otherwise fork first), 3) Inject <olympus fork/> marker, 4) Return the new managed session reference.",
+  "This is a cross-channel fork request. Per ADR §6.6, we must NEVER modify the source session in place. The flow is: 1) Read source session messages up to forkPoint, 2) Create new Hermes session via ACP session/resume (only works for source==acp, otherwise fork first), 3) Inject <stellarc fork/> marker, 4) Return the new managed session reference.",
   "The user wants to move payments to Go. From my notes, the Go backend (ucollect-backend-go) ALREADY owns balance with a 3-layer system: idempotency check → Redis distributed lock → MongoDB transaction. Building a Node.js bridge would violate the single-owner principle. I should confirm this direction and outline the migration steps.",
   "For the ESP32 deep sleep issue, common causes in order of likelihood: 1) GPIO hold not released before sleep, 2) UART peripheral still clocked (especially if USB-CDC is active), 3) RTC peripherals keeping power domain awake, 4) Touch pad interrupts preventing sleep entry. I should check the power management config and GPIO initialization order.",
 ];

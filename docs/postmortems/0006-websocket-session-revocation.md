@@ -5,7 +5,7 @@ Status: resolved
 
 ## Impact
 
-Logging out or revoking a Hall browser session stopped subsequent HTTP requests, but an already-open organization WebSocket continued receiving authorized frames until it disconnected or the user's organization membership was removed.
+Logging out or revoking a Axis browser session stopped subsequent HTTP requests, but an already-open organization WebSocket continued receiving authorized frames until it disconnected or the user's organization membership was removed.
 
 ## Root cause
 

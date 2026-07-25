@@ -36,7 +36,7 @@ import type {
 // ── REST Handlers ─────────────────────────────────────
 
 export const handlers = [
-  // Hall-local identity. E2E runs as an already authenticated organization
+  // Axis-local identity. E2E runs as an already authenticated organization
   // member so feature tests exercise the application rather than the login
   // form. Login/logout remain available for dedicated auth flows.
   http.get("http://127.0.0.1:8787/api/auth/session", () => HttpResponse.json({
@@ -102,7 +102,7 @@ export const handlers = [
   }),
 
   // POST /api/sessions — optimistic create (no runtime spawned). Mirrors the
-  // backend: instant draft with source=olympus, managed=true, empty hermesId,
+  // backend: instant draft with source=stellarc, managed=true, empty hermesId,
   // optional agent/node binding from the body.
   http.post("http://127.0.0.1:8787/api/organizations/:organizationId/sessions", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as {
@@ -122,7 +122,7 @@ export const handlers = [
       orgId: "personal",
       ownerId: "rpw",
       contextId: null,
-      source: "olympus" as const,
+      source: "stellarc" as const,
       model: null,
       title: null,
       startedAt: now,
@@ -183,7 +183,7 @@ export const handlers = [
           {
             error: "observed",
             message:
-              "This session is observed (read-only). Fork it into an Olympus-managed session to continue.",
+              "This session is observed (read-only). Fork it into an Stellarc-managed session to continue.",
           },
           { status: 409 }
         );
@@ -310,7 +310,7 @@ export const handlers = [
       ...source,
       id,
       hermesId: `${source.hermesId}-fork`,
-      source: "olympus" as const,
+      source: "stellarc" as const,
       forkedFrom: source.id,
       forkPoint: source.messageCount,
       forkType: "sub" as const,
@@ -369,16 +369,16 @@ export const handlers = [
     return HttpResponse.json<UsageResponse>(USAGE_BY_RANGE[range] ?? USAGE_BY_RANGE["24h"]);
   }),
 
-  // Fleet is Hall-owned operator state, not organization-owned resource data.
+  // Fleet is Axis-owned operator state, not organization-owned resource data.
   http.get("http://127.0.0.1:8787/api/nodes", async () => {
     await delay(250 + Math.random() * 250);
     return HttpResponse.json<NodesResponse>({ nodes: NODES });
   }),
-  // Operator cockpit terminal targets (ADR 0021): Hall + TerminalHost nodes.
+  // Operator cockpit terminal targets (ADR 0021): Axis + TerminalHost nodes.
   http.get("http://127.0.0.1:8787/api/terminal/targets", () =>
     HttpResponse.json({
       targets: [
-        { id: "hall", label: "Hall", kind: "hall", default: true },
+        { id: "axis", label: "Axis", kind: "axis", default: true },
         { id: "terminus", label: "terminus.host.entelechia.cloud", kind: "node", default: false },
         { id: "fxcompute-01", label: "fxcompute-01", kind: "node", default: false },
       ],
@@ -386,16 +386,16 @@ export const handlers = [
   ),
   http.post("http://127.0.0.1:8787/api/enroll", () => HttpResponse.json({
     token: "maestro-enroll-token",
-    command: "curl -fsSL --max-redirs 0 http://hall.test/api/enroll/maestro-enroll-token/install.sh | bash",
+    command: "curl -fsSL --max-redirs 0 http://axis.test/api/enroll/maestro-enroll-token/install.sh | bash",
     expiresInSecs: 900,
-    hallIrohId: "maestro-hall-iroh-id",
+    axisIrohId: "maestro-axis-iroh-id",
   })),
 
   http.get("http://127.0.0.1:8787/api/organizations/:organizationId/cards", () => {
     const now = Date.now() / 1000;
     const cards = [
-      { id: "card-todo", boardId: "olympus", title: "Design Fleet tenancy", status: "todo", assignedId: null, assignedKind: null, currentSessionId: null, currentBookmark: null, blockedBy: [], priority: 1, createdAt: now - 300, statusChangedAt: now - 300 },
-      { id: "card-active", boardId: "olympus", title: "Validate Maestro evidence", status: "claimed", assignedId: "terminus", assignedKind: "hermes", currentSessionId: "sess-1", currentBookmark: null, blockedBy: [], priority: 2, createdAt: now - 200, statusChangedAt: now - 100 },
+      { id: "card-todo", boardId: "stellarc", title: "Design Fleet tenancy", status: "todo", assignedId: null, assignedKind: null, currentSessionId: null, currentBookmark: null, blockedBy: [], priority: 1, createdAt: now - 300, statusChangedAt: now - 300 },
+      { id: "card-active", boardId: "stellarc", title: "Validate Maestro evidence", status: "claimed", assignedId: "terminus", assignedKind: "hermes", currentSessionId: "sess-1", currentBookmark: null, blockedBy: [], priority: 2, createdAt: now - 200, statusChangedAt: now - 100 },
     ];
     return HttpResponse.json({ cards, total: cards.length });
   }),
@@ -708,7 +708,7 @@ function mockToolCallsForPrompt(prompt: string): ToolCall[] {
     calls.push({
       name: "terminal",
       args: { command: "bun run build" },
-      result: "> olympus@0.1.0 build\n> tsc && vite build\n✓ built in 2.3s",
+      result: "> stellarc@0.1.0 build\n> tsc && vite build\n✓ built in 2.3s",
     });
   }
   // Always include at least one call so the Output tab shows activity.

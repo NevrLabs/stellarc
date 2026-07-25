@@ -12,7 +12,7 @@ projection of installed packages.
   extension classes, principles 2/8/9/11, migration map, amendment A3 (MCP IS
   the session-tool contract — do not invent a parallel one).
 - `docs/adrs/0006-omp-blueprint-declarative-replication.md` §9.4 — the
-  registry you are superseding. `crates/control-plane/src/views/registry.rs`
+  registry you are superseding. `crates/axis/src/views/registry.rs`
   + its routes module + `EntryRegistered` event.
 - CAPS-1's merged result — `package.{author,build,sign,install,grant,activate}`
   capability IDs are reserved there; installation paths check
@@ -26,7 +26,7 @@ after you — coordinate via capability IDs only, no shared files expected.
 
 ## Deliverables
 1. `PackageManifest` (TOML, serde): package{id,name,version,publisher,license},
-   compatibility{olympus_api,platforms}, and contribution tables for the ten
+   compatibility{stellarc_api,platforms}, and contribution tables for the ten
    ADR 0012 extension classes. v1 executes/activates ONLY: session tool
    (MCP declaration), skill dir, activity provider (JOBS-1-backed), workflow
    template (inert until WF-1). Other classes parse + validate + store but
@@ -35,7 +35,7 @@ after you — coordinate via capability IDs only, no shared files expected.
    `PackageActivated/Deactivated/Removed`. Digest = BLAKE3 of the package dir
    (content-addressed identity from day one). Additive Event variants.
 3. Install validation pipeline (pure functions, table-tested): manifest schema
-   → olympus_api compat → capability review (requested caps listed; grant is
+   → stellarc_api compat → capability review (requested caps listed; grant is
    a SEPARATE call gated on `package.grant`) → collision check (two active
    packages contributing the same capability ID → reject unless bindings
    disambiguate). Signing VERIFICATION is stubbed to `dev-unsigned` marking

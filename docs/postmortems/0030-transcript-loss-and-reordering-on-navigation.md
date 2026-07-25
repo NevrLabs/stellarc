@@ -21,7 +21,7 @@ Three faults, all confirmed in source; none alone explains it, together they
 produce the exact symptom.
 
 1. **Two disconnected truth paths.** The durable ordered spine is the
-   append-only event log with monotonic `seq` (`crates/control-plane/src/log.rs`,
+   append-only event log with monotonic `seq` (`crates/axis/src/log.rs`,
    `GET /api/events?since=`). The live stream is a *separate* seq-less,
    unordered `broadcast::Sender<ServerFrame>` (`server/mod.rs:93`). Live frames
    carry no position and cannot be reconciled against the log.

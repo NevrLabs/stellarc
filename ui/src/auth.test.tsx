@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 describe("AuthGate", () => {
-  it("shows Hall-local login and signs in without accepting a Hall URL", async () => {
+  it("shows Axis-local login and signs in without accepting a Axis URL", async () => {
     let authenticated = false;
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const path = String(input);
@@ -58,8 +58,8 @@ describe("AuthGate", () => {
     });
 
     renderGate();
-    expect(await screen.findByRole("heading", { name: "Sign in to this Hall" })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/hall url/i)).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Sign in to this Axis" })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/axis url/i)).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Username"), "alice");
     await userEvent.type(screen.getByLabelText("Password"), "correct horse battery staple");
@@ -86,7 +86,7 @@ describe("AuthGate", () => {
 
     renderGate();
     expect(await screen.findByRole("status")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Connecting to Hall" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Connecting to Axis" })).toBeInTheDocument();
     resolveSession(json({ user: { userId: "u1", username: "alice", kind: "user" } }));
     expect(await screen.findByText("alice:Org A")).toBeInTheDocument();
   });
@@ -108,7 +108,7 @@ describe("AuthGate", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Invalid username or password.");
-    expect(screen.getByRole("heading", { name: "Sign in to this Hall" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sign in to this Axis" })).toBeInTheDocument();
     expect(screen.getByLabelText("Username")).toHaveAttribute("aria-invalid", "true");
   });
 
@@ -134,7 +134,7 @@ describe("AuthGate", () => {
     await userEvent.click(screen.getByRole("button", { name: "Org B" }));
 
     await waitFor(() => expect(screen.getByText("alice:Org B")).toBeInTheDocument());
-    expect(localStorage.getItem("olympus-organization-id")).toBe("org-b");
+    expect(localStorage.getItem("stellarc-organization-id")).toBe("org-b");
     expect(clear).toHaveBeenCalledTimes(1);
   });
 });

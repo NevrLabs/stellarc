@@ -1,6 +1,6 @@
-# Olympus Design System
+# Stellarc Design System
 
-> **Canonical reference for every visual decision in Olympus.**
+> **Canonical reference for every visual decision in Stellarc.**
 > Owned by the `design-lead` agent.
 >
 > **Where the system lives (as shipped):**
@@ -69,7 +69,7 @@ user running an AI agent fleet.
 | **Daybreak** | `light` | Clean neutral light. Off-white `#F6F6F7` canvas. Silver inverts to near-black ink (`#2A2A2E`). |
 
 Managed by `ThemeProvider` (`ui/src/theme.tsx`): persists to
-`localStorage["olympus-theme"]`, applies via `document.documentElement.dataset.theme`.
+`localStorage["stellarc-theme"]`, applies via `document.documentElement.dataset.theme`.
 Extensible — add a new `:root[data-theme="…"]` block in `colors.css` redefining
 every color/alpha token.
 
@@ -147,7 +147,7 @@ Each has a base ink + `-ink`/`-wash`/`-line` derivatives.
 ### Source hues (channel identity in the session list)
 
 Low-chroma per-origin dots/labels — wayfinding, not decoration.
-`--src-olympus`, `--src-cli`, `--src-telegram`, `--src-discord`, `--src-webui`,
+`--src-stellarc`, `--src-cli`, `--src-telegram`, `--src-discord`, `--src-webui`,
 `--src-cron`, `--src-subagent`, `--src-api`, `--src-acp` (each defined in both
 themes).
 
@@ -366,8 +366,8 @@ rhythm.
 ### Loop durations + keyframes
 
 `--loop-pulse` 1.6s, `--loop-spin` 0.8s, `--loop-shimmer` 1.3s, `--loop-blink`
-1.5s. Keyframes: `olympus-pulse` (live-dot), `olympus-spin` (spinner),
-`olympus-shimmer` (skeleton), `olympus-blink` (streaming tag), `olympus-bounce`
+1.5s. Keyframes: `stellarc-pulse` (live-dot), `stellarc-spin` (spinner),
+`stellarc-shimmer` (skeleton), `stellarc-blink` (streaming tag), `stellarc-bounce`
 (thinking dots).
 
 ### Rules
@@ -382,7 +382,7 @@ rhythm.
 ## 7. Density Modes
 
 Two modes via `[data-density]` on `<html>` (managed by `ThemeProvider`, persisted
-to `localStorage["olympus-density"]`):
+to `localStorage["stellarc-density"]`):
 
 | Mode | `data-density` | Feel |
 |------|---------------|------|
@@ -397,7 +397,7 @@ step scale, font sizes, radii, and colors are identical across modes.
 
 ## 8. Component Inventory
 
-Olympus has **two component layers**, both fully token-driven:
+Stellarc has **two component layers**, both fully token-driven:
 
 ### 8.A — `.ol-*` canonical primitive library (`design/styles/components.css`)
 
@@ -553,7 +553,7 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
 ### 2026-07-16 — Vault editor as a full-pane writing surface + quiet key hints
 
 - Retuned the Vault note surface around a centered ~72ch writing measure that owns the whole pane, with floating persistence chrome instead of a persistent card header and duplicated save/delete rows.
-- Bound Milkdown's frame palette to Olympus tokens instead of the package's dark-only theme file, so the rich editor now follows both obsidian and daybreak theme tokens.
+- Bound Milkdown's frame palette to Stellarc tokens instead of the package's dark-only theme file, so the rich editor now follows both obsidian and daybreak theme tokens.
 - Normalized keyboard hint chips to a quiet hairline style (`.kbd` / `.ol-kbd`) with no filled cap, matching the de-emphasized command-palette/search affordance.
 
 ### 2026-07-12 — Reinstate Milkdown without forced source ejection
@@ -583,7 +583,7 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
 - New split groups inherit the active document instead of opening as empty dead space. Column and row separators support mouse and keyboard resizing with 20–80% bounds.
 - QA now enters the real editor and captures editor/split screenshots. The previous suite mocked Milkdown and never exercised the user-visible mode fallback; see postmortem 0018.
 
-### 2026-07-10 — Redesign + reimplement the Hall login screen (`auth.tsx`) — kill inline styles, adopt tokens/`.ol-*`, add editorial identity, make it responsive
+### 2026-07-10 — Redesign + reimplement the Axis login screen (`auth.tsx`) — kill inline styles, adopt tokens/`.ol-*`, add editorial identity, make it responsive
 
 - **The debt this closes:** the unauthenticated auth surface (`ui/src/auth.tsx`)
   was the last screen built entirely from **inline styles + hardcoded hexes**
@@ -605,13 +605,13 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
     construction (surfaces on `--bg`/`--bg-elev`, error on `--err`/`--err-wash`/
     `--err-line`, footer dot on `--accent`).
 - **Identity (restrained, on-system):** a mono `CONTROL PLANE` kicker
-  (`--tracking-caps-wide`), an `Olympus` wordmark in `--font-display` beside a
+  (`--tracking-caps-wide`), an `Stellarc` wordmark in `--font-display` beside a
   monochrome twin-peak accent SVG mark (altitude/signal — no gradient, no glow),
-  and a mono status footer that names the **Hall origin host** (`window.location.
-  host`, read-only) so the operator sees which Hall they are authenticating to —
+  and a mono status footer that names the **Axis origin host** (`window.location.
+  host`, read-only) so the operator sees which Axis they are authenticating to —
   reinforcing the origin-binding security note in the code. Editorial-terminal,
   not marketing-page.
-- **Accessibility:** preserved the exact `h1` "Sign in to this Hall" heading and
+- **Accessibility:** preserved the exact `h1` "Sign in to this Axis" heading and
   the "Username"/"Password" accessible names (wrapping `<label>` + label span);
   `autoFocus`, `autoComplete`, and `required` retained; the error keeps
   `role="alert"` and now also drives `aria-invalid` + `aria-describedby` on both
@@ -726,13 +726,13 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
      ratios are done; per-surface DOM audit — focus order, ARIA, component-state
      contrast — remains).
 
-### 2026-07-04 — Consolidate the two app-shell spinners onto the canonical `olympus-spin` keyframe + `--loop-spin` token; kill the last local keyframes, raw `0.7s` duration, and raw `border-radius: 50%` in `index.css`
+### 2026-07-04 — Consolidate the two app-shell spinners onto the canonical `stellarc-spin` keyframe + `--loop-spin` token; kill the last local keyframes, raw `0.7s` duration, and raw `border-radius: 50%` in `index.css`
 
 - **The debt this closes (the residual of debt #2, "`index.css` still carries
   raw literals"):** the motion layer (`design/tokens/motion.css`) defines ONE
-  canonical rotation keyframe — `@keyframes olympus-spin { to { transform:
+  canonical rotation keyframe — `@keyframes stellarc-spin { to { transform:
   rotate(360deg) } }` — and the `.ol-spinner` primitive in
-  `design/styles/components.css` already consumed it as `olympus-spin
+  `design/styles/components.css` already consumed it as `stellarc-spin
   var(--loop-spin)`. But `index.css` still shipped **two private, byte-identical
   copies** of that keyframe — `@keyframes rot` (used only by `.spin`) and
   `@keyframes spin` (used only by `.srow-spinner`) — and `.srow-spinner`
@@ -741,17 +741,17 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
   `--radius-full`). Three spinners, three different sources of truth for the
   same motion.
 - **Fix (all in `index.css`):**
-  - `.spin` — `animation: var(--loop-spin) rot …` → `animation: olympus-spin
+  - `.spin` — `animation: var(--loop-spin) rot …` → `animation: stellarc-spin
     var(--loop-spin) …` (name-order also normalized to the shorthand convention
     used everywhere else). Deleted the now-orphaned `@keyframes rot`.
-  - `.srow-spinner` — `animation: spin 0.7s …` → `animation: olympus-spin
+  - `.srow-spinner` — `animation: spin 0.7s …` → `animation: stellarc-spin
     var(--loop-spin) …`; `border-radius: 50%` → `border-radius: var(--radius-full)`.
     Deleted the now-orphaned `@keyframes spin`.
   - Net: **−2 duplicate keyframe blocks, −1 raw duration, −1 raw radius.** All
     three spinners in the codebase (`.spin`, `.srow-spinner`, `.ol-spinner`) now
-    share the single `olympus-spin` + `--loop-spin` definition — one place to
+    share the single `stellarc-spin` + `--loop-spin` definition — one place to
     retune spinner rhythm system-wide.
-- **Behavior:** geometry is **byte-identical** — `olympus-spin` and the deleted
+- **Behavior:** geometry is **byte-identical** — `stellarc-spin` and the deleted
   `rot`/`spin` are the same `to { rotate(360deg) }`, and `border-radius: 50%`
   renders identically to `--radius-full` (999px) on a 10px circle. The ONLY
   functional delta is intentional: `.srow-spinner` (the running-session row
@@ -1128,7 +1128,7 @@ and sets `scroll-behavior: auto`. Every animated state also has a text label.
     shadows" claim** — floating chrome uses `--shadow-pop/-modal/-float`;
     documented `--ring*`, `--border-w`, `--opacity-disabled` (0.42).
   - **§6 motion:** `--dur-*`, `--ease/-out/-in-out`, loop durations, the five
-    `olympus-*` keyframes, reduced-motion.
+    `stellarc-*` keyframes, reduced-motion.
   - **§7 density:** `comfortable`/`compact` (layout constants only).
   - **§8 components:** documented the previously-**undocumented** `.ol-*`
     primitive library (24 primitives with states) as layer A, the `shell.tsx`

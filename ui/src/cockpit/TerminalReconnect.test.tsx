@@ -60,8 +60,8 @@ function makeTab(id: string): CockpitTab {
   return {
     id,
     kind: "terminal",
-    title: "Hall 1",
-    target: { nodeId: "hall" },
+    title: "Axis 1",
+    target: { nodeId: "axis" },
   };
 }
 

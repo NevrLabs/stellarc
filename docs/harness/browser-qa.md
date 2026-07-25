@@ -4,9 +4,9 @@ Visual verification is MANDATORY for UI-touching work. A green
 typecheck/build/unit run is not visual evidence.
 
 ## Live dev stack
-- UI: http://127.0.0.1:5177 (olympus-dev-ui.service — NEVER bind :5177 yourself)
-- Hall: http://127.0.0.1:8799 (olympus-dev-hall.service)
-- Login: read ~/.config/olympus-dev/admin-credentials at runtime (username=/password= lines). Never commit or echo it.
+- UI: http://127.0.0.1:5177 (stellarc-dev-ui.service — NEVER bind :5177 yourself)
+- Axis: http://127.0.0.1:8799 (stellarc-dev-axis.service)
+- Login: read ~/.config/stellarc-dev/admin-credentials at runtime (username=/password= lines). Never commit or echo it.
 
 ## Playwright (preferred — the live gate)
     cd ui && bash scripts/dev-e2e.sh
@@ -23,23 +23,23 @@ Start a debugging browser (survives session exit):
       --user-data-dir=/tmp/oly-qa/profile --window-size=1440,900 about:blank
 Ready-made probe scripts (screenshot, login, geometry chain, HTML5 drag,
 sash drag) live in `ui/scripts/qa`. Their durable dependency environment is
-`~/.cache/olympus-qa-venv` (override with `OLYMPUS_QA_VENV`):
+`~/.cache/stellarc-qa-venv` (override with `STELLARC_QA_VENV`):
 
-    python3 -m venv ~/.cache/olympus-qa-venv
-    ~/.cache/olympus-qa-venv/bin/pip install websockets
+    python3 -m venv ~/.cache/stellarc-qa-venv
+    ~/.cache/stellarc-qa-venv/bin/pip install websockets
 
 Do not place the venv under `/tmp`; fxcompute reboots erase it. Browser profiles,
 screenshots, and disposable state may remain under `/tmp/oly-qa`.
 
-The Vite dev build exposes `window.__olympusQa.refetchProject(projectId)` for
+The Vite dev build exposes `window.__stellarcQa.refetchProject(projectId)` for
 deterministic same-route authority tests. It is guarded by `import.meta.env.DEV`
 and is not present in production bundles. Prefer this seam over synthetic focus
 events; production intentionally disables focus refetching.
 
-When an isolated Hall must survive a restart, never execute the shared Cargo
-target directly. Build under `~/.cache/olympus-cargo.lock`, copy the resulting
-binary to a worktree/revision-scoped path under `~/.cache/olympus-qa/`, and run
-that copy. Another worktree can replace `olympus-cargo-target/debug/olympus-hall`
+When an isolated Axis must survive a restart, never execute the shared Cargo
+target directly. Build under `~/.cache/stellarc-cargo.lock`, copy the resulting
+binary to a worktree/revision-scoped path under `~/.cache/stellarc-qa/`, and run
+that copy. Another worktree can replace `stellarc-cargo-target/debug/stellarc-axis`
 at any time.
 
 ## Evidence bar for review-required

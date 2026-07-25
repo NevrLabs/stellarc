@@ -1,4 +1,4 @@
-# Olympus Swarm Workflow (standard — every worker follows this)
+# Stellarc Swarm Workflow (standard — every worker follows this)
 
 > Orchestrator: Zephyr (monitors + validates only, does not implement).
 > Workers: model-pinned agents, one task each, isolated.
@@ -20,12 +20,12 @@ Every coding task MUST:
 2. **GREEN**: write the minimal code to pass. Run the test. Paste the pass output.
 3. **REFACTOR**: clean up; tests stay green.
 4. **Gate before "done"**: `cargo test` (all green), `cargo clippy -- -D warnings` (clean), `cargo fmt --check`. For UI: `bun test` + `bun run typecheck`. Paste real output — never claim green without it.
-5. **Commit to a feature branch** `feat/olympus-<phase>-<slug>`. Do NOT merge to main. Do NOT touch files outside your assigned ownership.
+5. **Commit to a feature branch** `feat/stellarc-<phase>-<slug>`. Do NOT merge to main. Do NOT touch files outside your assigned ownership.
 6. **Report**: what you built, the exact test command + output, the branch name, any deviation from spec, and any bug discovered.
 
 ## File ownership (no two concurrent workers touch the same files)
 
-- Backend core → `crates/control-plane/src/**` (further split per-module: `event.rs`, `log.rs`, `views/`, `search.rs`, `import.rs`, `server.rs`)
+- Backend core → `crates/axis/src/**` (further split per-module: `event.rs`, `log.rs`, `views/`, `search.rs`, `import.rs`, `server.rs`)
 - UI → `ui/**`
 - Workspace root (`Cargo.toml`, `.gitignore`) → ONLY the Phase-0 foundation worker; afterwards root edits go through the orchestrator.
 
@@ -49,11 +49,11 @@ Only then merge the branch to main and dispatch dependent work.
 
 ## Post-mortem convention
 
-Any known **Olympus** bug (discovered, worked-around, or shipped) gets a post-mortem at
+Any known **Stellarc** bug (discovered, worked-around, or shipped) gets a post-mortem at
 `docs/postmortems/YYYY-MM-DD-<slug>.md`:
 - Symptom, root cause, how found, fix (or workaround + why), prevention.
-- Scope: Olympus's own code only. Infra/tooling bugs in Hermes, the delegation
-  layer, or other external systems are NOT Olympus post-mortems — note them in the
+- Scope: Stellarc's own code only. Infra/tooling bugs in Hermes, the delegation
+  layer, or other external systems are NOT Stellarc post-mortems — note them in the
   task report instead.
 
 ## Wave plan (dependency-ordered; fan out only when a wave's deps are met)

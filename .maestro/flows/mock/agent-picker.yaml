@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions
 name: Agent picker exposes executable choices
 properties:
-  junitId: olympus-agent-picker
+  junitId: stellarc-agent-picker
   junitClassname: ui.mock
 ---
 - launchApp
@@ -11,6 +11,6 @@ properties:
 - tapOn: "New session"
 - assertVisible: "default"
 - assertVisible: "coding-agent"
-- assertVisible: ".*olympus.*"
+- assertVisible: ".*stellarc.*"
 - takeScreenshot:
     path: screenshots/agent-picker

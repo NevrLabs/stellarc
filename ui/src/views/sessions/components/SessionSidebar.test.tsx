@@ -23,7 +23,7 @@ vi.mock("../../../hooks/queries", () => ({
           orgId: "personal",
           ownerId: "rpw",
           contextId: null,
-          source: "olympus",
+          source: "stellarc",
           title: "Focused session",
           startedAt: Math.floor(Date.now() / 1000),
           lastActivity: Math.floor(Date.now() / 1000),
@@ -102,7 +102,7 @@ describe("SessionSidebar", () => {
       },
     });
 
-    expect(JSON.parse(data.get("application/x-olympus-session") ?? "{}")).toMatchObject({
+    expect(JSON.parse(data.get("application/x-stellarc-session") ?? "{}")).toMatchObject({
       type: "session",
       sessionId: "s-1",
     });
@@ -128,7 +128,7 @@ describe("SessionSidebar", () => {
   });
 
   it("surfaces a failed drag-to-project association", async () => {
-    vi.mocked(attachSessionToProject).mockRejectedValueOnce(new Error("Hall unavailable"));
+    vi.mocked(attachSessionToProject).mockRejectedValueOnce(new Error("Axis unavailable"));
     const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" />);
 
     // Project rows are div.navitem.proj-row with data-project-id
@@ -140,7 +140,7 @@ describe("SessionSidebar", () => {
     });
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not move session to project: Hall unavailable",
+      "Could not move session to project: Axis unavailable",
     );
   });
 

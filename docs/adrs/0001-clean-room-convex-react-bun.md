@@ -1,4 +1,4 @@
-# ADR 0001: Olympus is a clean-room product with Convex + React + Bun
+# ADR 0001: Stellarc is a clean-room product with Convex + React + Bun
 
 - Status: SUPERSEDED (tech stack) by ADR 0003; PARTIALLY SUPERSEDED (product framing) by ADR 0002
 - Date: 2026-06-25
@@ -21,13 +21,13 @@ web dashboard wrapping the Hermes Agent CLI. Backend correctness is hard to
 guarantee with thin controllers over SQLite, realtime relies on bespoke Socket.IO
 plumbing, and state ownership is diffuse.
 
-We want a successor product, "Olympus", that makes backend correctness easier,
+We want a successor product, "Stellarc", that makes backend correctness easier,
 is realtime-native, and keeps a clean separation between durable state and host
 execution.
 
 ## Decision
 
-Build Olympus as a clean-room product (not a fork) with three layers:
+Build Stellarc as a clean-room product (not a fork) with three layers:
 
 1. **Self-hosted Convex** as the control plane and source of truth (sessions,
    messages, agents, tool calls, runtime commands/events, authz). Typed function

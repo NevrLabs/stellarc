@@ -2,11 +2,11 @@
 
 ## Summary
 
-After project opens were correctly changed to fail closed while the project query was fetching, the live browser probe still considered the route ready as soon as the Dockview shell existed. Cached session rows could be clicked before Hall had confirmed the project.
+After project opens were correctly changed to fail closed while the project query was fetching, the live browser probe still considered the route ready as soon as the Dockview shell existed. Cached session rows could be clicked before Axis had confirmed the project.
 
 ## Impact
 
-The probe intermittently failed with the intended operator error, `Project is unavailable; session was not opened`, even though Hall returned the project milliseconds later. This was a harness race, not a workspace persistence failure.
+The probe intermittently failed with the intended operator error, `Project is unavailable; session was not opened`, even though Axis returned the project milliseconds later. This was a harness race, not a workspace persistence failure.
 
 ## Root cause
 

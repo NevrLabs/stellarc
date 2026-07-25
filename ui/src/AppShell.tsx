@@ -1,6 +1,6 @@
-// AppShell — the Olympus application frame.
+// AppShell — the Stellarc application frame.
 //
-// Layout (matches docs/design/concept/olympus-app-concept.html):
+// Layout (matches docs/design/concept/stellarc-app-concept.html):
 //   ┌─────────────────────────────────────────────────┐
 //   │ TopBar (sidebar toggle · nav rail · search · org · profile) │
 //   ├──────────┬──────────────┬───────────────────────┤

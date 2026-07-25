@@ -1,4 +1,4 @@
-# Olympus E2E Coverage (Maestro)
+# Stellarc E2E Coverage (Maestro)
 
 Feature → flow map for the **mock** tier (`.maestro/flows/mock/`, run via
 `npm run test:e2e:desktop`). Mock tier is the comprehensive one: MSW intercepts
@@ -8,7 +8,7 @@ smokes against a real control plane.
 | Surface | Feature | Flow | Notes |
 |---|---|---|---|
 | Sessions | select + composer, model/thinking pick, persistence | `sessions.yaml` | |
-| Sessions | new-session agent picker | `agent-picker.yaml` | default / coding-agent / olympus agents |
+| Sessions | new-session agent picker | `agent-picker.yaml` | default / coding-agent / stellarc agents |
 | Sessions | fork observed → managed | `session-fork.yaml` | fork confirm modal |
 | Sessions | right Overview panel + bottom-panel tabs | `session-panels.yaml` | AGENT/MODEL/STARTED; Terminal/Logs/Output/Debug |
 | Sessions | Agents page | `agents.yaml` | provider + model per profile |

@@ -51,7 +51,7 @@ const paths: Record<string, React.ReactNode> = {
   "clock": <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
   "terminal": <><path d="m4 17 6-6-6-6" /><path d="M12 19h8" /></>,
   "dollar": <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />,
-  // ── Olympus mountain glyph (favicon mark) ──
+  // ── Stellarc mountain glyph (favicon mark) ──
   "mountain": <><path d="m4 19 8-12 8 12" /><path d="m8.5 19 3.5-5.5L15.5 19" /></>,
   // ── Theme toggle ──
   "sun": <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></>,

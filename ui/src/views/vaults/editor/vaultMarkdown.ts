@@ -43,14 +43,14 @@ export function joinVaultMarkdown(document: VaultMarkdownDocument): string {
   return document.frontmatter + document.body;
 }
 
-const PRESERVED_INFO = "olympus-preserved:";
+const PRESERVED_INFO = "stellarc-preserved:";
 
 export function toRichMarkdown(markdown: string): string {
   const preserved = preserveUnsupportedParagraphs(markdown);
   return transformMarkdownProse(preserved, (prose) =>
     prose.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (source, path, alias) => {
       const label = escapeMarkdownLabel(alias ?? noteLabel(path));
-      return `[${label}](olympus-wikilink:${encodeURIComponent(source)})`;
+      return `[${label}](stellarc-wikilink:${encodeURIComponent(source)})`;
     }),
   );
 }
@@ -59,13 +59,13 @@ export function fromRichMarkdown(markdown: string): string {
   const canonical = transformMarkdownProse(markdown, (prose) =>
     prose
       .replace(
-        /\[(?:\\.|[^\]])*\]\(olympus-wikilink:([^)]+)\)/g,
+        /\[(?:\\.|[^\]])*\]\(stellarc-wikilink:([^)]+)\)/g,
         (link, encodedSource) => safeDecodeWikilink(link, encodedSource),
       )
       .replace(/\\\[\\\[([^\]\n]+)(?:\\\]\\\]|\]\])/g, "[[$1]]"),
   );
   return canonical.replace(
-    / {0,3}(`{3,})olympus-preserved:([^\s]+)\s*\r?\n([\s\S]*?)\r?\n {0,3}\1/g,
+    / {0,3}(`{3,})stellarc-preserved:([^\s]+)\s*\r?\n([\s\S]*?)\r?\n {0,3}\1/g,
     (block, _fence, encoded, literal) => safeDecodePreserved(block, encoded, literal),
   );
 }
@@ -81,7 +81,7 @@ export function collectVaultSuggestions(
   };
 
   for (const match of markdown.matchAll(
-    /\[@([^\]]+)\]\(olympus:\/\/principal\/([^)]+)\)/g,
+    /\[@([^\]]+)\]\(stellarc:\/\/principal\/([^)]+)\)/g,
   )) {
     add({ kind: "mention", id: match[2], label: match[1] });
   }
@@ -139,7 +139,7 @@ export function findVaultSuggestion(textBeforeCursor: string): VaultSuggestionMa
 export function serializeVaultSuggestion(item: VaultSuggestion): string {
   switch (item.kind) {
     case "mention":
-      return `[@${item.label}](olympus://principal/${item.id})`;
+      return `[@${item.label}](stellarc://principal/${item.id})`;
     case "label":
       return `#${item.id}`;
     case "note":

@@ -47,7 +47,7 @@ function formatCompact(value: number): string {
    synchronous source of truth for the sidebar (it renders before the
    network round-trip resolves). ──────────────────────────────────── */
 
-const PREFS_KEY = "olympus-sidebar-prefs";
+const PREFS_KEY = "stellarc-sidebar-prefs";
 
 export interface SidebarPrefs {
   /** Which section headers are collapsed (hidden content). */

@@ -18,13 +18,13 @@ fn main() {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "unknown".to_string());
-    println!("cargo:rustc-env=OLYMPUS_GIT_HASH={git_hash}");
+    println!("cargo:rustc-env=STELLARC_GIT_HASH={git_hash}");
 
     let built_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
-    println!("cargo:rustc-env=OLYMPUS_BUILT_AT={built_at}");
+    println!("cargo:rustc-env=STELLARC_BUILT_AT={built_at}");
 
     // Watching .git/HEAD alone is insufficient on a branch: its contents stay
     // `ref: refs/heads/<name>` while the referenced file moves on every commit.

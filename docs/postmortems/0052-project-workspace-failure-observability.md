@@ -6,7 +6,7 @@ Project layout saves and sidebar drag-to-project associations could fail without
 
 ## Impact
 
-An operator could arrange a workspace, refresh later, and discover that Hall never received the layout. A failed drag could look successful while membership remained unchanged. Corrupt or version-incompatible state could leave a partial layout rather than failing closed.
+An operator could arrange a workspace, refresh later, and discover that Axis never received the layout. A failed drag could look successful while membership remained unchanged. Corrupt or version-incompatible state could leave a partial layout rather than failing closed.
 
 ## Root cause
 

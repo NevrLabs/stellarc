@@ -1,4 +1,4 @@
-# ADR 0012 — Olympus as a programmable agent operating environment (extension doctrine)
+# ADR 0012 — Stellarc as a programmable agent operating environment (extension doctrine)
 
 Status: accepted · Date: 2026-07-12
 Source: operator + Zephyr design session (2026-07-12), reviewed and amended by
@@ -8,16 +8,16 @@ roadmap). Amended by: ADR 0013 (workflow kernel decision).
 
 ## Doctrine
 
-**Olympus is a programmable operating environment for human and agent work.
+**Stellarc is a programmable operating environment for human and agent work.
 Packages provide typed capabilities; workflows durably compose those
-capabilities; sessions provide interactive execution contexts; Hall governs
-state, identity, policy, and orchestration; Envoys perform host effects.**
+capabilities; sessions provide interactive execution contexts; Axis governs
+state, identity, policy, and orchestration; Orbits perform host effects.**
 
 The fleet control plane remains the substrate; the product above it is
-programmable. The OS analogy (Hall≈kernel, envoys≈host agents,
+programmable. The OS analogy (Axis≈kernel, orbits≈host agents,
 workflows≈services, packages≈drivers/apps, capabilities≈permissions,
 sessions≈processes, event log≈journal) is a design compass, not a literal
-target — Olympus builds above host operating systems, never replaces them.
+target — Stellarc builds above host operating systems, never replaces them.
 
 ## Vocabulary (normative)
 
@@ -26,7 +26,7 @@ target — Olympus builds above host operating systems, never replaces them.
 - **Plugin** — an executable component supplied by a package.
 - **Capability** — a permission or callable operation exposed to a principal
   (e.g. `github.pr.create`, `vault.text.search`).
-- **Application** — see ADR 0015: "app" = Olympus-managed service (own
+- **Application** — see ADR 0015: "app" = Stellarc-managed service (own
   supervised process + datastore, arm's-length MCP/CLI/API integration);
   "embedded app" = a browser-only UI contribution in a sandboxed frame
   (IDE, Draw.io, database browser). The unqualified term is retired.
@@ -40,10 +40,10 @@ renamed from "workspace application" by ADR 0015), indexer/extractor, policy
 provider, view provider, storage provider.
 
 > **Amended by ADR 0015 (2026-07-12):** "app" now denotes an
-> Olympus-**managed service** (separate supervised binary/runtime + own
+> Stellarc-**managed service** (separate supervised binary/runtime + own
 > datastore, integrating only via MCP/CLI/API) — distinct from plugins, which
-> interface with Olympus internals through the extension classes above. A
-> managed app gains in-Olympus presence (views, vault embeds) only through a
+> interface with Stellarc internals through the extension classes above. A
+> managed app gains in-Stellarc presence (views, vault embeds) only through a
 > companion plugin. See ADR 0015 for the full model.
 
 ## First principles (locked)
@@ -53,9 +53,9 @@ provider, view provider, storage provider.
 3. Definitions are runtime data; effects execute through registered activities.
 4. Public extension contracts are schema/protocol-based (JSON Schema, WIT,
    HTTP/WSS), never Rust ABI traits.
-5. Third-party code never loads natively into Hall. No dynamic-library tier —
+5. Third-party code never loads natively into Axis. No dynamic-library tier —
    ever.
-6. **Supervised envoy process is the default sandboxed execution tier** (see
+6. **Supervised orbit process is the default sandboxed execution tier** (see
    Amendments); WASM components are the optimization tier for pure logic.
 7. Browser applications run in sandboxed frames with short-lived, narrow
    resource grants — never the installation/bearer token, on WS channels as
@@ -67,7 +67,7 @@ provider, view provider, storage provider.
    distinct capability IDs from day one, even while one person holds all of
    them.
 10. Workflow and package versions are immutable and pinned per run.
-11. Plugins never write Olympus's event log or internal database directly;
+11. Plugins never write Stellarc's event log or internal database directly;
     plugin state lives in host-managed namespaces
     (`plugin-state://<pkg>/{global,org/<id>,project/<id>,session/<id>}`).
 12. **A workflow cannot elevate its caller's authority.**
@@ -77,7 +77,7 @@ provider, view provider, storage provider.
 14. Core owns invariants; packages add functionality, never alternate kernels.
     Non-replaceable core: identity, capability evaluation, event log, workflow
     semantics, scheduler/fencing, package verification, plugin lifecycle,
-    resource addressing, session isolation, Hall/Envoy transport, audit,
+    resource addressing, session isolation, Axis/Orbit transport, audit,
     secret mediation, artifact identity, org/context/project boundaries.
 15. Resources and semantic capabilities are the integration language between
     packages — never private plugin APIs. Cross-package needs are declared as
@@ -91,10 +91,10 @@ provider, view provider, storage provider.
 
 Two tiers:
 - **Tier A — sandboxed package** (default; all third-party and agent-generated
-  code): supervised envoy process or WASM component or sandboxed iframe;
+  code): supervised orbit process or WASM component or sandboxed iframe;
   capability-mediated host APIs only.
-- **Tier B — built-in system component**: compiled into Olympus, reviewed as
-  Olympus (event log, workflow kernel, scheduler, transport, auth, session
+- **Tier B — built-in system component**: compiled into Stellarc, reviewed as
+  Stellarc (event log, workflow kernel, scheduler, transport, auth, session
   management, core vault model).
 
 Signing stance (hybrid, settled): **development contexts permit unsigned local
@@ -110,22 +110,22 @@ signed-only is policy, not surgery.
 
 **A1 — Kernel invariants now, ecosystem machinery later.** The invariants that
 cannot be retrofitted (capability intersection, manifest-before-execution,
-authority separation, no-native-in-Hall, state namespaces) are built
+authority separation, no-native-in-Axis, state namespaces) are built
 immediately. The machinery that serves a population we don't have (signing
 infra, SBOM scanning, OCI distribution, staged rollout, revocation lists) is
 deferred until a real second publisher or first untrusted package exists.
 Development mode IS the v1 product.
 
-**A2 — Envoy process is the default tier, WASM the optimization.** The design's
+**A2 — Orbit process is the default tier, WASM the optimization.** The design's
 own placement table shows nearly all real work (language servers, DBs, CLI
-tools, IDE backends, CI) landing in envoy processes. Olympus already owns the
+tools, IDE backends, CI) landing in orbit processes. Stellarc already owns the
 transport, spool, and (post-JOBS-1) dispatch for supervised processes. WASM
 components (WIT, wasmtime) are adopted when cheap pure-logic activities
 justify the toolchain — not as an entry requirement.
 
 **A3 — MCP is the session-tool contract.** The "session tool provider"
-extension class is fulfilled by MCP servers, which Olympus already declares in
-the ADR 0006 registry and injects via setup adapters. Olympus does not invent
+extension class is fulfilled by MCP servers, which Stellarc already declares in
+the ADR 0006 registry and injects via setup adapters. Stellarc does not invent
 a parallel session-tool protocol. A package contributes session tools BY
 shipping an MCP server declaration.
 
@@ -138,11 +138,11 @@ capability/package doctrine only.
 |---|---|
 | ADR 0006 registry entries (skill/mcp/plugin/hook slugs) | package contributions with manifests |
 | Setup adapter (Hermes/ClaudeCode/Codex) | the **runtime adapter** extension class consuming session-tool + skill contributions |
-| JOBS-1 job dispatch | the first **activity provider** (`job.run` on JobRunner envoys) |
+| JOBS-1 job dispatch | the first **activity provider** (`job.run` on JobRunner orbits) |
 | MCP server declarations | **session tool provider** contributions (A3) |
 | ARCH-A Principal/OrgScope seam | the capability evaluation point; per-session capabilities (ADR 0011 §4) become a principal payload |
 | Vault storage (SQLite/FTS5) | first **storage provider** behind the vault service contracts (`vault.document.*`, `vault.text.search`, …) with advertised capability flags |
-| `~/.olympus/<org>/…` layout (ADR 0005) | unchanged; plugin state namespaces slot under it |
+| `~/.stellarc/<org>/…` layout (ADR 0005) | unchanged; plugin state namespaces slot under it |
 
 ## Build order
 

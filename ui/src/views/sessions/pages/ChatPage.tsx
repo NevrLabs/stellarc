@@ -53,7 +53,7 @@ type StreamPart =
 
 // ── Per-session queue persistence (survives refresh & session switches) ──
 function queueKey(sessionId: string): string {
-  return `olympus-queue-${sessionId}`;
+  return `stellarc-queue-${sessionId}`;
 }
 
 function loadQueue(sessionId: string): QueuedMsg[] {
@@ -738,7 +738,7 @@ export function ChatPage({
           <div className="obsbanner">
             <Icon name="alert" size={14} />
             <span style={{ flex: 1 }}>
-              This is an observed session — read-only. Fork it to continue from Olympus.
+              This is an observed session — read-only. Fork it to continue from Stellarc.
             </span>
             <button type="button" className="btn pri" onClick={() => setForkOpen(true)}>
               Fork to continue
@@ -772,7 +772,7 @@ export function ChatPage({
       <ForkModal
         open={forkOpen}
         title="Fork this session?"
-        message="A new Olympus-managed session will be created, branching from this point. The original session stays unchanged."
+        message="A new Stellarc-managed session will be created, branching from this point. The original session stays unchanged."
         confirmLabel="Fork to continue"
         onConfirm={handleForkConfirm}
         onCancel={() => setForkOpen(false)}

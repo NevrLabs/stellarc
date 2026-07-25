@@ -20,7 +20,7 @@ ADR's scope ceiling twice before starting; it is enforced at review.
   aborts (this is the ADR's revocation semantics).
 - PKG-1's merged result: workflow templates + activity providers in registry
   v2; runs pin definition digest + provider bindings.
-- `crates/control-plane/src/server/routes/` — add workflows.rs following the
+- `crates/axis/src/server/routes/` — add workflows.rs following the
   established module pattern.
 
 ## Build on
@@ -40,11 +40,11 @@ These are dispatch-blocking dependencies, not review-time aspirations.
    definitions immutable; digest recorded.
 3. Run engine: `WorkflowRunStarted/StepDispatched/StepCompleted/StepFailed/
    RunSignaled/RunCompleted/RunCancelled` events; run projection; scheduler
-   loop in Hall dispatching ready steps (needs satisfied) with idempotency
+   loop in Axis dispatching ready steps (needs satisfied) with idempotency
    key run_id:step_id:attempt. Parallel fan-out via concurrent dispatch,
-   join via needs. Hall restart resumes from projection (test this).
+   join via needs. Axis restart resumes from projection (test this).
 4. Activity resolution: `uses: job.run` → JOBS-2 `JobService`; provider bindings
-   resolved at run start and pinned. Hall atomically appends
+   resolved at run start and pinned. Axis atomically appends
    `StepDispatchPlanned` plus durable job intent before dispatch, then
    reconciles/attaches to the exact attempt. Unknown capability → validation
    error at publish, not at run. Non-idempotent ambiguous effects become
@@ -66,7 +66,7 @@ These are dispatch-blocking dependencies, not review-time aspirations.
 - WorkflowComplete AgentEvent push into session streams: SKIP in this card if
   it requires proto changes — note it as follow-up instead (proto is
   contended by other workers).
-- No MCP tools in this card (that's the Hall MCP server card, ADR 0011
+- No MCP tools in this card (that's the Axis MCP server card, ADR 0011
   Phase 2).
 
 ## Gates

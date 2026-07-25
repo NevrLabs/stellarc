@@ -6,7 +6,7 @@ Each `SessionsView` mount created its own latest-value writer even though projec
 
 ## Impact
 
-An old component's teardown save could complete after a newer component's save and roll Hall back. Its completion callback could also replace the shared query cache with the stale response.
+An old component's teardown save could complete after a newer component's save and roll Axis back. Its completion callback could also replace the shared query cache with the stale response.
 
 ## Root cause
 

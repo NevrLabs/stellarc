@@ -1,12 +1,12 @@
 url: ${MAESTRO_BASE_URL}/
 name: Production UI boot smoke
 properties:
-  junitId: olympus-prod-ui-boot
+  junitId: stellarc-prod-ui-boot
   junitClassname: ui.prod
 ---
 - launchApp
 - extendedWaitUntil:
-    visible: ".*(Sessions|Sign in to this Hall).*"
+    visible: ".*(Sessions|Sign in to this Axis).*"
     timeout: 15000
 - takeScreenshot:
     path: screenshots/prod-ui-boot

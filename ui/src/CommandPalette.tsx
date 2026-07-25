@@ -1,6 +1,6 @@
 // Command palette + topbar search pill (restores the topbar search regression).
 //
-// The concept design (docs/design/concept/olympus-app-concept.html) puts a
+// The concept design (docs/design/concept/stellarc-app-concept.html) puts a
 // clickable search pill in the topbar center that opens a ⌘K command palette
 // over sessions, vaults, and nodes. The CSS (.tb-search, .pal-*) already ships
 // in index.css and the store already carries paletteOpen; this wires the React.

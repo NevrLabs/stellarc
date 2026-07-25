@@ -20,9 +20,9 @@
  * Sidebar layout: an "Add node" button, then a NODES section where each node
  * is a row (status dot + name + agent count) with its agents nested beneath.
  *
- * Future: nodes may be sandbox/microVM hosts agents SSH into, not just envoy
+ * Future: nodes may be sandbox/microVM hosts agents SSH into, not just orbit
  * hosts — the node model already carries `transport`; a `kind` field
- * (envoy | sandbox | remote) is the natural next extension.
+ * (orbit | sandbox | remote) is the natural next extension.
  */
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -75,7 +75,7 @@ export default function FleetView({ nodeId }: { nodeId: string | null }) {
     max: 380,
     initial: 240,
     direction: "right",
-    persistKey: "olympus-fleet-sidebar-w",
+    persistKey: "stellarc-fleet-sidebar-w",
   });
 
   return (
@@ -333,7 +333,7 @@ function FleetOverviewPage() {
             <div className="empty-state-title">No nodes registered</div>
             <div className="empty-state-msg">
               Click "Add node" in the sidebar to get a one-line setup command
-              for a remote envoy.
+              for a remote orbit.
             </div>
           </div>
         )}
@@ -426,7 +426,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
       await refreshNodeAgents(node.nodeId);
       await invalidate();
     } catch (e) {
-      // Surface the honest error (e.g. node's envoy disconnected, probe
+      // Surface the honest error (e.g. node's orbit disconnected, probe
       // timeout) instead of silently doing nothing.
       setDetectError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -579,7 +579,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
           </div>
         </section>
 
-        {/* Agents table — the harnesses this node's envoy discovered. */}
+        {/* Agents table — the harnesses this node's orbit discovered. */}
         <section className="fleet-section">
           <div className="fleet-section-head">
             <span className="gk">Agents</span>
@@ -755,7 +755,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
             <>
               <p style={{ marginTop: 0 }}>
                 Run this on the target host (Linux x86_64, as a regular user).
-                It installs the envoy, registers it with this Hall over iroh,
+                It installs the orbit, registers it with this Axis over iroh,
                 and starts it under systemd:
               </p>
               <div

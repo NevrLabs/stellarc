@@ -1,16 +1,16 @@
-# ARCH-F · Deepen the envoy bridge: framing / ACP protocol / child lifecycle seams
+# ARCH-F · Deepen the orbit bridge: framing / ACP protocol / child lifecycle seams
 
 ## Goal
-`crates/envoy/src/bridge/hermes.rs` (~1.1k loc) mixes three concerns: wire
+`crates/orbit/src/bridge/hermes.rs` (~1.1k loc) mixes three concerns: wire
 framing (newline-JSON vs Content-Length), ACP method mapping, and child-process
 lifecycle (spawn/resume/reap). Cut three INTERNAL seams so each is testable
 without live children. The external interface (`AgentRuntime` + the factory
 trait) must NOT change.
 
 ## Read FIRST
-- `crates/envoy/src/bridge/{hermes,acp,mod}.rs` — current shape.
-- `crates/envoy/src/adapter/` — how the three harness adapters feed the bridge.
-- `crates/envoy/src/runtime_table.rs` and `mock_runtime.rs` — the external
+- `crates/orbit/src/bridge/{hermes,acp,mod}.rs` — current shape.
+- `crates/orbit/src/adapter/` — how the three harness adapters feed the bridge.
+- `crates/orbit/src/runtime_table.rs` and `mock_runtime.rs` — the external
   seam you must preserve.
 - ARCH-E's merged result — the observer module is a bridge consumer now; don't
   break it.
@@ -34,11 +34,11 @@ Branch from main after ARCH-E merges.
    quirks. The three historical live-process bugs (documented in the repo's
    references/postmortems — check docs/postmortems/) each get a regression
    test at the seam where they hid, where feasible without a live child.
-5. `cargo test -p olympus-envoy` must not require network or installed
+5. `cargo test -p stellarc-orbit` must not require network or installed
    harnesses (npx download paths mocked/stubbed at the child seam).
 
 ## Settled decisions — do NOT re-litigate
-- `AgentRuntime`'s public surface and the factory trait are FROZEN — Hall-side
+- `AgentRuntime`'s public surface and the factory trait are FROZEN — Axis-side
   code and mock_runtime must compile untouched.
 - No new harnesses, no behavior changes; this is an internal deepening.
 - Capability-driven dispatch (never harness-name matching) stays as-is.

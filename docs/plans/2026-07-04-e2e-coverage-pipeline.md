@@ -1,9 +1,9 @@
-# Olympus Full E2E Coverage Pipeline — Implementation Plan
+# Stellarc Full E2E Coverage Pipeline — Implementation Plan
 
 > **For Hermes:** execute task-by-task (kanban cards or direct). Each task is
 > independently verifiable. TDD where code is produced.
 
-**Goal:** A complete, always-on e2e pipeline that covers every Olympus surface
+**Goal:** A complete, always-on e2e pipeline that covers every Stellarc surface
 and API feature, produces **screenshots and videos of every run** (not just
 failures), publishes a browsable HTML report, and gates merges — locally via
 `make verify` and in CI.
@@ -236,7 +236,7 @@ A small, tagged tier runs against the REAL control plane.
 ### Task 3.2: `ui/tests/live/smoke.spec.ts` (3 tests, ≤2 min)
 1. create session (agent glm52) → send "say PONG" → assert PONG streams into
    the transcript within 120s (regression for ensure_runtime/silent-failure).
-2. pin + archive round-trip → survives `systemctl --user restart olympus`?
+2. pin + archive round-trip → survives `systemctl --user restart stellarc`?
    No — do NOT restart the service from a test. Instead assert via a second
    full page reload that pinned state persisted (event-log persistence proxy).
 3. History page loads 1800+ real sessions, filter narrows, open one.
@@ -258,7 +258,7 @@ on: [push, pull_request]
 jobs:
   rust:
     runs-on: ubuntu-latest
-    steps: [checkout, rust-toolchain, cargo test -p olympus-control-plane,
+    steps: [checkout, rust-toolchain, cargo test -p stellarc-axis,
             cargo clippy -- -D warnings, cargo fmt --check]
   ui-e2e:
     runs-on: ubuntu-latest

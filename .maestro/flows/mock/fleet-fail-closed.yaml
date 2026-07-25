@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/fleet
 name: Fleet overview loads
 properties:
-  junitId: olympus-fleet-overview
+  junitId: stellarc-fleet-overview
   junitClassname: ui.mock
 ---
 - launchApp

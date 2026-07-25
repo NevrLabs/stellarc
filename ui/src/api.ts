@@ -41,7 +41,7 @@ import type {
   ProjectsResponse,
   ContextProjectRef,
 } from "./types";
-// A production Web UI is permanently bound to the Hall that served it. The
+// A production Web UI is permanently bound to the Axis that served it. The
 // configurable base exists only for Vite development; production REST and WS
 // URLs always derive from window.location.origin.
 const BASE = import.meta.env.DEV ? (import.meta.env.VITE_API_BASE as string) : "";
@@ -278,7 +278,7 @@ export async function fetchAgentCatalog(): Promise<AgentsCatalogResponse> {
 }
 
 /** Manually re-detect a node's agents (Fleet › Agents "detect" button).
- *  Local node re-probes in-process; remote nodes require their envoy. */
+ *  Local node re-probes in-process; remote nodes require their orbit. */
 export async function refreshNodeAgents(nodeId: string): Promise<AgentsResponse> {
   const res = await fetch(
     `${BASE}/api/nodes/${encodeURIComponent(nodeId)}/agents/refresh`,
@@ -294,7 +294,7 @@ export async function fetchNodes(): Promise<NodesResponse> {
   return res.json() as Promise<NodesResponse>;
 }
 
-/** Mint an enroll token — returns the one-line envoy setup command. */
+/** Mint an enroll token — returns the one-line orbit setup command. */
 export async function mintEnroll(): Promise<EnrollResponse> {
   const res = await fetch(`${BASE}/api/enroll`, {
     method: "POST",
@@ -354,8 +354,8 @@ export async function fetchCard(id: string): Promise<Card> {
 // ── Mutations ──────────────────────────────────────────
 
 /**
- * Create a new Olympus-managed chat session OPTIMISTICALLY. Returns instantly
- * with a draft Session (source="olympus", managed=true, empty hermesId) — no
+ * Create a new Stellarc-managed chat session OPTIMISTICALLY. Returns instantly
+ * with a draft Session (source="stellarc", managed=true, empty hermesId) — no
  * agent runtime is spawned until the first send. Optionally bind agent/node at
  * creation; otherwise assign them later via updateSession() before sending.
  */
@@ -397,7 +397,7 @@ export async function updateSession(
   return res.json() as Promise<Session>;
 }
 
-/** Fork an observed session into an Olympus-managed session and return it. */
+/** Fork an observed session into an Stellarc-managed session and return it. */
 export async function forkSession(sessionId: string): Promise<Session> {
   const res = await fetch(`${BASE}/api/sessions/${sessionId}/fork`, {
     method: "POST",
@@ -429,7 +429,7 @@ export async function sendMessage(
     body: JSON.stringify(body),
   });
   if (res.status === 409) {
-    throw new Error("This session is observed (read-only). Fork it to continue from Olympus.");
+    throw new Error("This session is observed (read-only). Fork it to continue from Stellarc.");
   }
   if (!res.ok) throw new Error(`send failed (${res.status})`);
 }
@@ -605,12 +605,12 @@ function getWsUrl(): string {
 /** A stable display name for this browser (used for typing attribution, S8). */
 export function getDisplayName(): string | null {
   try {
-    let name = localStorage.getItem("olympus-display-name");
+    let name = localStorage.getItem("stellarc-display-name");
     if (!name) {
       // Derive a friendly default from the OS, else a stable random handle.
       const n = Math.floor(Math.random() * 9000 + 1000);
       name = `friend-${n}`;
-      localStorage.setItem("olympus-display-name", name);
+      localStorage.setItem("stellarc-display-name", name);
     }
     return name;
   } catch {
@@ -623,11 +623,11 @@ export function getDisplayName(): string | null {
 export interface TerminalTarget {
   id: string;
   label: string;
-  kind: "hall" | "node";
+  kind: "axis" | "node";
   default: boolean;
 }
 
-/** Nodes that can host an operator terminal — Hall first, then TerminalHost
+/** Nodes that can host an operator terminal — Axis first, then TerminalHost
  *  nodes. Backs the cockpit new-terminal hover picker. */
 export async function fetchTerminalTargets(): Promise<TerminalTarget[]> {
   const res = await fetch(`${BASE}/api/terminal/targets`, { headers: authHeaders() });

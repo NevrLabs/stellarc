@@ -1,13 +1,13 @@
-//! Agent command/event types — the uniform vocabulary between Olympus's
+//! Agent command/event types — the uniform vocabulary between Stellarc's
 //! session model and an external agent runtime (Hermes via ACP).
 //!
-//! Moved from `olympus-control-plane`'s `bridge/mod.rs` (ADR 0008: proto is
+//! Moved from `stellarc-axis`'s `bridge/mod.rs` (ADR 0008: proto is
 //! the only shared crate). The `AgentRuntime` trait and the ACP mapping logic
-//! stay envoy-side; these are pure serde data types.
+//! stay orbit-side; these are pure serde data types.
 
 use serde::{Deserialize, Serialize};
 
-/// A high-level command Olympus issues to the agent runtime.
+/// A high-level command Stellarc issues to the agent runtime.
 ///
 /// Each variant maps onto a real ACP method (source-verified in the spike):
 /// - [`AgentCommand::Prompt`]  → `session/prompt` (text)

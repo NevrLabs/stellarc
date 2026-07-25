@@ -56,7 +56,7 @@ describe("collectVaultSuggestions", () => {
     ["MDX tag", "```mdx\n<Component value={\"raw\"} />\n```"],
     [
       "preservation marker",
-      "```olympus-preserved:not-encoded\nliteral user-authored content\n```",
+      "```stellarc-preserved:not-encoded\nliteral user-authored content\n```",
     ],
   ])("leaves user-authored fenced %s byte-identical", (_name, markdown) => {
     expect(toRichMarkdown(markdown)).toBe(markdown);
@@ -76,17 +76,17 @@ describe("collectVaultSuggestions", () => {
       "````",
     ].join("\n");
     const rich = toRichMarkdown(markdown);
-    expect(rich).toContain("olympus-wikilink:");
+    expect(rich).toContain("stellarc-wikilink:");
     expect(rich).toContain("`[[inline.md]]`");
     expect(rich).toContain("[[nested-fence.md]]");
     expect(fromRichMarkdown(rich)).toBe(markdown);
-    expect(fromRichMarkdown("[bad](olympus-wikilink:%E0%A4%A)")).toBe("[bad](olympus-wikilink:%E0%A4%A)");
+    expect(fromRichMarkdown("[bad](stellarc-wikilink:%E0%A4%A)")).toBe("[bad](stellarc-wikilink:%E0%A4%A)");
   });
 
   it("reuses stable mentions, labels, and linked note targets", () => {
     expect(
       collectVaultSuggestions(
-        "[@Terminus](olympus://principal/terminus) owns #architecture. See [[docs/design.md|Design]].",
+        "[@Terminus](stellarc://principal/terminus) owns #architecture. See [[docs/design.md|Design]].",
         ["other.md"],
       ),
     ).toEqual([
@@ -145,7 +145,7 @@ describe("serializeVaultSuggestion", () => {
   it.each([
     [
       { kind: "mention", id: "terminus", label: "Terminus" },
-      "[@Terminus](olympus://principal/terminus)",
+      "[@Terminus](stellarc://principal/terminus)",
     ],
     [{ kind: "label", id: "architecture", label: "architecture" }, "#architecture"],
     [{ kind: "note", id: "docs/vault.md", label: "Vault" }, "[[docs/vault.md|Vault]]"],

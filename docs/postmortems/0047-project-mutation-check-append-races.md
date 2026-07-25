@@ -35,6 +35,6 @@ already switched to Project B.
 
 Resource commands that validate current state before appending an event must use
 one serialized command seam. A read-check followed by an unlocked append is not
-a valid transaction. Longer term, Hall should expose a first-class command
+a valid transaction. Longer term, Axis should expose a first-class command
 executor rather than letting route handlers coordinate the log and views
 manually.

@@ -4,7 +4,7 @@
 - Date: 2026-07-14
 - Depends on: ADR 0020 v2 (client state correctness),
   the terminal adversarial review
-  (`/home/rpw/.hermes/workspace/reviews/olympus-terminal-review.md`),
+  (`/home/rpw/.hermes/workspace/reviews/stellarc-terminal-review.md`),
   ADR 0017 (node identity / readiness), Phase 1 (node-key binding)
 - Relates to: master plan Phase 3 (terminal)
 - Reference UX: Terax (crynta/terax-ai) — a floating, tabbed, AI-native
@@ -54,12 +54,12 @@ ships first over a mock/echo PTY.
 
 ### Layer B — cross-reload / reconnect persistence (backend, Phase 3)
 
-Reload/sleep/WS-drop tears down the browser, so the PTY must live on **Envoy**:
+Reload/sleep/WS-drop tears down the browser, so the PTY must live on **Orbit**:
 
-- Envoy owns a durable `PtyAttempt` (terminal review "Envoy live attempt
+- Orbit owns a durable `PtyAttempt` (terminal review "Orbit live attempt
   model"): `terminal_id + attempt_epoch`, bounded raw-byte replay window,
   exactly-one writable `attachment_generation`.
-- Hall owns a durable `TerminalRecord` — **lifecycle/audit only, never
+- Axis owns a durable `TerminalRecord` — **lifecycle/audit only, never
   keystrokes or output**.
 - On reload, re-attach by `terminal_id` from the last cursor and replay the
   bounded window; if history rolled, show an explicit "earlier terminal history
@@ -75,11 +75,11 @@ closed/lost. Typed unsequenced-byte data plane; durable lifecycle.
 |---|---|---|
 | Terminal | `xterm.js` + `addon-fit`, `-webgl`, `-serialize` | industry standard (VS Code/Hyper/Wave); serialize aids reconnect replay render |
 | Editor | CodeMirror 6 | lighter than Monaco; matches Vault Milkdown/Crepe weight budget |
-| File tree | own tree over existing Vault/Repo file APIs, or `react-arborist` | reuse Envoy file access; no new raw-fs surface |
+| File tree | own tree over existing Vault/Repo file APIs, or `react-arborist` | reuse Orbit file access; no new raw-fs surface |
 | Window shell | `react-rnd` (drag/resize) + small tab bar | thin; no heavy windowing dep |
 
 xterm.js is decorative until Layer B exists. The window is real UX from day one;
-the *shell* is real only once the Envoy PTY primitive lands.
+the *shell* is real only once the Orbit PTY primitive lands.
 
 ## 5. Security boundary (non-negotiable — terminal review)
 
@@ -92,8 +92,8 @@ the *shell* is real only once the Envoy PTY primitive lands.
   caller-supplied argv/env/cwd/user/SSH target.
 - Session-shell tab = same sandbox identity/mounts as the pinned runtime
   attempt. Node-shell tab = dedicated low-privilege operator identity, NOT the
-  Envoy service identity.
-- File explorer/editor writes = operator host effects through Envoy with the
+  Orbit service identity.
+- File explorer/editor writes = operator host effects through Orbit with the
   same scoping — never a new unrestricted fs API, never reachable by agents.
 
 ## 6. Phasing
@@ -102,15 +102,15 @@ the *shell* is real only once the Envoy PTY primitive lands.
   shell — floating, tabbed, top-right toggle, per-user geometry/tab manifest in
   localStorage, over a mock PTY. Proves Layer A (navigate + toggle, console
   stays open) with browser evidence. No agent path.
-- **3.A (backend, Phase 3):** Envoy PTY primitive + Hall TerminalRecord +
-  operator WS + attach/replay; wire the real terminal; move tab manifest to Hall.
-- **3.B:** file explorer + editor panes over Envoy-scoped file ops; Fleet
+- **3.A (backend, Phase 3):** Orbit PTY primitive + Axis TerminalRecord +
+  operator WS + attach/replay; wire the real terminal; move tab manifest to Axis.
+- **3.B:** file explorer + editor panes over Orbit-scoped file ops; Fleet
   node-shell tab with operator identity.
 
 ## 7. Open questions
 
-- Tab manifest authority: localStorage (per-browser) vs Hall (per-user,
-  cross-device). Start localStorage in 0.C; move to Hall in 3.A.
+- Tab manifest authority: localStorage (per-browser) vs Axis (per-user,
+  cross-device). Start localStorage in 0.C; move to Axis in 3.A.
 - Editor save semantics: reuse the Vault save path where the target is a vault;
   repo edits go through the repo workspace, not raw fs.
 - Cockpit target: pinned **per-tab at open** (a tab binds to a session/node), so

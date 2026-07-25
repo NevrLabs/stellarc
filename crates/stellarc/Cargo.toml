@@ -1,0 +1,16 @@
+[package]
+name = "stellarc"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# THE artifact: `cargo binstall stellarc` -> one binary, both roles.
+[[bin]]
+name = "stellarc"
+path = "src/main.rs"
+
+# No tokio here: each role's `entry::run` carries its own `#[tokio::main]`.
+[dependencies]
+stellarc-axis = { path = "../axis" }
+stellarc-orbit = { path = "../orbit" }
+anyhow.workspace = true

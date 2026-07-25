@@ -6,16 +6,16 @@ set -euo pipefail
 sha=$1
 [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "invalid git SHA" >&2; exit 2; }
 
-home=/home/rpw/.olympus
+home=/home/rpw/.stellarc
 releases=$home/releases
 incoming=$releases/.incoming-$sha
 release=$releases/$sha
 [[ -d $incoming ]] || { echo "incoming release missing" >&2; exit 1; }
-envoy_units=()
+orbit_units=()
 while read -r unit _; do
-  [[ -n $unit ]] && envoy_units+=("$unit")
-done < <(systemctl --user list-units --type=service --state=active --plain --no-legend 'olympus-envoy@*.service')
-((${#envoy_units[@]} > 0)) || { echo "no active production Envoy instances found" >&2; exit 1; }
+  [[ -n $unit ]] && orbit_units+=("$unit")
+done < <(systemctl --user list-units --type=service --state=active --plain --no-legend 'stellarc-orbit@*.service')
+((${#orbit_units[@]} > 0)) || { echo "no active production Orbit instances found" >&2; exit 1; }
 (
   cd "$incoming"
   sha256sum -c manifest.sha256
@@ -31,31 +31,31 @@ if [[ -L $releases/current ]]; then
 else
   previous=$releases/legacy-$timestamp
   install -d -m 0755 "$previous/bin" "$previous/ui"
-  cp -L "$home/bin/olympus-hall" "$previous/bin/olympus-hall"
-  cp -L "$home/bin/olympus-envoy" "$previous/bin/olympus-envoy"
-  cp -a /home/rpw/olympus/ui/dist/. "$previous/ui/"
+  cp -L "$home/bin/stellarc-axis" "$previous/bin/stellarc-axis"
+  cp -L "$home/bin/stellarc-orbit" "$previous/bin/stellarc-orbit"
+  cp -a /home/rpw/stellarc/ui/dist/. "$previous/ui/"
   ln -s "$previous" "$releases/.current.next"
   mv -Tf "$releases/.current.next" "$releases/current"
 fi
 
-backup=$home/backups/olympus-$timestamp.db
-sqlite3 "$home/olympus.db" ".backup '$backup'"
+backup=$home/backups/stellarc-$timestamp.db
+sqlite3 "$home/stellarc.db" ".backup '$backup'"
 chmod 600 "$backup"
 
 activate() {
   local target=$1
-  rm -f "$releases/.current.next" "$home/bin/.olympus-hall.next" "$home/bin/.olympus-envoy.next" /home/rpw/olympus/ui/.dist.next
+  rm -f "$releases/.current.next" "$home/bin/.stellarc-axis.next" "$home/bin/.stellarc-orbit.next" /home/rpw/stellarc/ui/.dist.next
   ln -s "$target" "$releases/.current.next"
   mv -Tf "$releases/.current.next" "$releases/current"
-  ln -s "$releases/current/bin/olympus-hall" "$home/bin/.olympus-hall.next"
-  mv -Tf "$home/bin/.olympus-hall.next" "$home/bin/olympus-hall"
-  ln -s "$releases/current/bin/olympus-envoy" "$home/bin/.olympus-envoy.next"
-  mv -Tf "$home/bin/.olympus-envoy.next" "$home/bin/olympus-envoy"
-  if [[ -d /home/rpw/olympus/ui/dist && ! -L /home/rpw/olympus/ui/dist ]]; then
-    mv /home/rpw/olympus/ui/dist "/home/rpw/olympus/ui/dist.pre-managed-$timestamp"
+  ln -s "$releases/current/bin/stellarc-axis" "$home/bin/.stellarc-axis.next"
+  mv -Tf "$home/bin/.stellarc-axis.next" "$home/bin/stellarc-axis"
+  ln -s "$releases/current/bin/stellarc-orbit" "$home/bin/.stellarc-orbit.next"
+  mv -Tf "$home/bin/.stellarc-orbit.next" "$home/bin/stellarc-orbit"
+  if [[ -d /home/rpw/stellarc/ui/dist && ! -L /home/rpw/stellarc/ui/dist ]]; then
+    mv /home/rpw/stellarc/ui/dist "/home/rpw/stellarc/ui/dist.pre-managed-$timestamp"
   fi
-  ln -s "$releases/current/ui" /home/rpw/olympus/ui/.dist.next
-  mv -Tf /home/rpw/olympus/ui/.dist.next /home/rpw/olympus/ui/dist
+  ln -s "$releases/current/ui" /home/rpw/stellarc/ui/.dist.next
+  mv -Tf /home/rpw/stellarc/ui/.dist.next /home/rpw/stellarc/ui/dist
 }
 
 rollback() {
@@ -63,23 +63,23 @@ rollback() {
   trap - ERR
   set +e
   echo "deployment health gate failed; rolling back" >&2
-  systemctl --user stop "${envoy_units[@]}" olympus-hall.service || true
+  systemctl --user stop "${orbit_units[@]}" stellarc-axis.service || true
   activate "$previous"
-  rm -f "$home/olympus.db-wal" "$home/olympus.db-shm"
-  cp "$backup" "$home/olympus.db"
-  chmod 600 "$home/olympus.db"
-  systemctl --user start olympus-hall.service
-  systemctl --user start "${envoy_units[@]}"
+  rm -f "$home/stellarc.db-wal" "$home/stellarc.db-shm"
+  cp "$backup" "$home/stellarc.db"
+  chmod 600 "$home/stellarc.db"
+  systemctl --user start stellarc-axis.service
+  systemctl --user start "${orbit_units[@]}"
   exit "$code"
 }
 trap 'rollback' ERR
 activate "$release"
-systemctl --user restart olympus-hall.service
-systemctl --user restart "${envoy_units[@]}"
+systemctl --user restart stellarc-axis.service
+systemctl --user restart "${orbit_units[@]}"
 healthy=0
 for _ in $(seq 1 60); do
   if curl -fsS http://127.0.0.1:8799/api/health >/dev/null 2>&1 \
-    && systemctl --user is-active --quiet olympus-hall.service "${envoy_units[@]}"; then
+    && systemctl --user is-active --quiet stellarc-axis.service "${orbit_units[@]}"; then
     healthy=1
     break
   fi

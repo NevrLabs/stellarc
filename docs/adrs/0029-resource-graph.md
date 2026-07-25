@@ -6,7 +6,7 @@
 
 ## 1. Decision
 
-Olympus resources form **one typed graph**. Sessions, projects, vaults,
+Stellarc resources form **one typed graph**. Sessions, projects, vaults,
 workflows, boards, and cards are nodes; the edges already exist as FKs and
 event-log links — this ADR names them as a first-class concept and forbids a
 parallel store.
@@ -23,7 +23,7 @@ parallel store.
 | workflow →runs← sessions | ADR 0013 chain records | exists |
 
 **No graph database, no edge table, no sync of a derived graph.** The graph
-is a Hall projection over existing edges. One read endpoint:
+is a Axis projection over existing edges. One read endpoint:
 `GET /api/graph/neighbors?node=<typed-id>&depth=N` (typed node id =
 `session:<id>`, `card:<locator>`, …), org-scoped, capability-filtered per
 node kind's existing rules.

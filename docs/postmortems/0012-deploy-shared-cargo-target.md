@@ -14,7 +14,7 @@ The script treated Cargo's default target path as a repository invariant. Cargo 
 
 ## Resolution
 
-The script now reads Cargo's effective `target_directory` from `cargo metadata` and installs Hall and Envoy from that absolute path.
+The script now reads Cargo's effective `target_directory` from `cargo metadata` and installs Axis and Orbit from that absolute path.
 
 ## Prevention
 

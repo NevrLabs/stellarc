@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions
 name: Live agent reply smoke
 properties:
-  junitId: olympus-live-agent-reply
+  junitId: stellarc-live-agent-reply
   junitClassname: ui.live
 ---
 - launchApp

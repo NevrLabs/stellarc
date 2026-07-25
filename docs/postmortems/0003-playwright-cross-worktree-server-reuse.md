@@ -2,10 +2,10 @@
 
 ## Summary
 
-The Hall-auth E2E run targeted the fixed port `5188` with Playwright's
-`reuseExistingServer` enabled. A Vite server from another Olympus worktree was
+The Axis-auth E2E run targeted the fixed port `5188` with Playwright's
+`reuseExistingServer` enabled. A Vite server from another Stellarc worktree was
 already listening there, so Playwright tested that checkout instead of the
-Hall-auth worktree. This produced misleading passes for Fleet and Projects and
+Axis-auth worktree. This produced misleading passes for Fleet and Projects and
 a failure whose rendered UI did not match the source under test.
 
 ## Impact
@@ -23,7 +23,7 @@ proof that the right application was running.
 
 ## Resolution
 
-- Added `OLYMPUS_E2E_PORT` so isolated worktrees can select an unused port.
+- Added `STELLARC_E2E_PORT` so isolated worktrees can select an unused port.
 - Replaced Fleet, Projects, and Vaults E2E expectations with explicit
   fail-closed assertions while those resource classes lack durable
   organization ownership.

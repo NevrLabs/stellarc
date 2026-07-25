@@ -1,4 +1,4 @@
-# Postmortem 0005: Production identity requests retained a configurable Hall base
+# Postmortem 0005: Production identity requests retained a configurable Axis base
 
 ## Summary
 
@@ -6,17 +6,17 @@ The central resource API correctly ignored `VITE_API_BASE` in production, but
 the independently implemented authentication provider still read that variable
 unconditionally. A production build supplied with `VITE_API_BASE` could send
 login, current-session, organization-list, and logout requests to a different
-Hall.
+Axis.
 
 ## Impact
 
 This violated the Web UI origin boundary and could expose credentials to an
 operator-controlled configured origin. It also split identity and resource
-traffic across different Halls.
+traffic across different Axiss.
 
 ## Root cause
 
-Hall URL derivation was duplicated between `api.ts` and `auth.tsx`; only one
+Axis URL derivation was duplicated between `api.ts` and `auth.tsx`; only one
 copy received the production same-origin restriction.
 
 ## Resolution
@@ -25,7 +25,7 @@ copy received the production same-origin restriction.
 Vite's build configuration additionally replaces `VITE_API_BASE` with an empty
 string and disables mock mode for every production build, regardless of the
 calling environment. A hostile-value production build was inspected to verify
-that the configured Hall URL and mock token were absent from the bundle.
+that the configured Axis URL and mock token were absent from the bundle.
 
 ## Prevention
 

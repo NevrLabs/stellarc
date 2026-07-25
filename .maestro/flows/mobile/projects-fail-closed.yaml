@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/projects
 name: Mobile projects board loads
 properties:
-  junitId: olympus-mobile-projects-board
+  junitId: stellarc-mobile-projects-board
   junitClassname: ui.mobile
 ---
 - launchApp

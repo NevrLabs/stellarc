@@ -1,14 +1,14 @@
 # Postmortem 0001 — "Failed to start agent: starting agent runtime (lazy)"
 
 - **Date:** 2026-07-08 / resolved 2026-07-09
-- **Severity:** User-blocking (Olympus could not start any Hermes session)
+- **Severity:** User-blocking (Stellarc could not start any Hermes session)
 - **Status:** Resolved — verified end-to-end on production service
-- **Affected code:** `crates/control-plane/src/bridge/hermes.rs`,
-  `crates/control-plane/src/server/mod.rs`, `~/.config/systemd/user/olympus.service`
+- **Affected code:** `crates/axis/src/bridge/hermes.rs`,
+  `crates/axis/src/server/mod.rs`, `~/.config/systemd/user/stellarc.service`
 
 ## Summary
 
-Starting any session in the Olympus UI failed with a generic error:
+Starting any session in the Stellarc UI failed with a generic error:
 
 ```
 ⚠ Failed to start agent: starting agent runtime (lazy)
@@ -32,7 +32,7 @@ error persisted. The real cause was hidden by the error-rendering bug below.
 
 ## Timeline
 
-1. User opens Olympus, starts a new Hermes session.
+1. User opens Stellarc, starts a new Hermes session.
 2. `post_message` → `tokio::spawn` → `BridgeManager::ensure_runtime` →
    `HermesAgentRuntime::start` (`bridge/hermes.rs`).
 3. `start()` builds `Command::new("hermes")` and spawns it. Under the systemd
@@ -51,7 +51,7 @@ error persisted. The real cause was hidden by the error-rendering bug below.
 
 Three layered flaws, each of which alone would have made diagnosis hard:
 
-1. **Service PATH** (`olympus.service`): `hermes` is installed at
+1. **Service PATH** (`stellarc.service`): `hermes` is installed at
    `/home/rpw/.local/bin/hermes`; the unit's `PATH` started at
    `/home/rpw/.cargo/bin`. Subprocess spawn failed.
 2. **Agent-id routing** (`acp_command_for_agent`): the canonical base-install
@@ -66,7 +66,7 @@ Three layered flaws, each of which alone would have made diagnosis hard:
 ### Immediate (environment)
 
 - Added `/home/rpw/.local/bin` to the service unit `PATH` and ran
-  `systemctl --user daemon-reload && systemctl --user restart olympus`.
+  `systemctl --user daemon-reload && systemctl --user restart stellarc`.
 - (Earlier, still valid:) installed the ACP extra into the Hermes venv:
   `uv pip install -e '.[acp]' --python venv/bin/python`.
 
@@ -129,26 +129,26 @@ sudo -u rpw env -i PATH=/home/rpw/.cargo/bin:/usr/bin hermes acp --check
   but not sufficient — the real cause was two layers deeper. Each layer of
   `.context()` that swallows its inner cause makes this trap worse.
 
-## Required CLIs (envoy responsibility)
+## Required CLIs (orbit responsibility)
 
-The Olympus envoy must ensure every CLI it routes to is installed and on the
+The Stellarc orbit must ensure every CLI it routes to is installed and on the
 service PATH. Current mandatory set:
 
 - **`hermes`** — base agent runtime (`~/.local/bin/hermes`). Installed by the
-  Hermes setup; must be on `olympus.service`'s PATH.
+  Hermes setup; must be on `stellarc.service`'s PATH.
 - **`jj`** — used by the edit model (`edit_model.rs`); the test
   `jj_conflict_detection_on_clean_dir` fails without it.
 - **`gh`** — GitHub CLI, for repo/maintenance flows.
 - **`bunx`** (Bun) — required for the Claude Code / Codex ACP adapters
-  (`bunx @zed-industries/claude-code-acp@…`). Olympus no longer requires Node.js.
+  (`bunx @zed-industries/claude-code-acp@…`). Stellarc no longer requires Node.js.
 
-See "Envoy must install required CLIs" in AGENTS.md.
+See "Orbit must install required CLIs" in AGENTS.md.
 
 ## Related
 
-- Code: `crates/control-plane/src/bridge/hermes.rs` (`acp_command_for_agent`,
+- Code: `crates/axis/src/bridge/hermes.rs` (`acp_command_for_agent`,
   `start`, `fork_session`, `spawn_stderr_capture`, `tail_or_empty`),
-  `crates/control-plane/src/server/mod.rs:post_message` (error rendering).
-- Service: `~/.config/systemd/user/olympus.service` (PATH).
-- Caller: `crates/control-plane/src/server/bridge_mgr.rs:ensure_runtime`.
+  `crates/axis/src/server/mod.rs:post_message` (error rendering).
+- Service: `~/.config/systemd/user/stellarc.service` (PATH).
+- Caller: `crates/axis/src/server/bridge_mgr.rs:ensure_runtime`.
 - AGENTS.md — postmortem rule + required-CLIs rule added alongside this doc.

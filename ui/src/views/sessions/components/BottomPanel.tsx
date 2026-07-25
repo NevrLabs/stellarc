@@ -86,7 +86,7 @@ function extractToolCalls(m: Message): ToolCall[] {
 }
 
 /**
- * Rebuild the durable part of the lifecycle log from Hall's message
+ * Rebuild the durable part of the lifecycle log from Axis's message
  * projection. Prompts, reasoning, tool arguments, and tool results are
  * deliberately not copied into the diagnostics view.
  */
@@ -99,7 +99,7 @@ export function logsFromMessages(messages: Message[]): LogEntry[] {
         id: `${prefix}:user`,
         ts: message.timestamp,
         level: "info",
-        source: "olympus",
+        source: "stellarc",
         message: "User message sent",
       });
     } else if (message.role === "system") {
@@ -108,7 +108,7 @@ export function logsFromMessages(messages: Message[]): LogEntry[] {
         id: `${prefix}:system`,
         ts: message.timestamp,
         level: text.startsWith("⚠") || message.finishReason === "error" ? "error" : "info",
-        source: "olympus",
+        source: "stellarc",
         message: text,
       });
     }
@@ -173,7 +173,7 @@ export function BottomPanel({
 
   // ── Frame ring buffer (always active, regardless of active tab) ──
   const [debugFrames, setDebugFrames] = useState<DebugEntry[]>([]);
-  // ── Live log tail; durable entries are rebuilt from Hall messages below. ──
+  // ── Live log tail; durable entries are rebuilt from Axis messages below. ──
   const [liveLogEntries, setLiveLogEntries] = useState<LogEntry[]>([]);
   const [logsClearedThrough, setLogsClearedThrough] = useState(0);
   const { data: historicalMessageData } = useMessages(sessionId);
@@ -310,7 +310,7 @@ function TerminalTab() {
   return (
     <div className="bp-placeholder">
       <Icon name="terminal" size={20} />
-      <span className="d">Terminal attach requires envoy PTY support (planned).</span>
+      <span className="d">Terminal attach requires orbit PTY support (planned).</span>
     </div>
   );
 }

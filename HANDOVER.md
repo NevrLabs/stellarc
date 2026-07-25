@@ -1,8 +1,8 @@
-# Olympus — Handover
+# Stellarc — Handover
 
 _Last updated: 2026-07-04 · branch `main` (clean) · latest `f47ef1f`_
 
-Olympus is a local-first, multi-node AI-agent workbench: a Rust control plane
+Stellarc is a local-first, multi-node AI-agent workbench: a Rust control plane
 + Vue/React UI that drives coding agents (Hermes profiles, Claude Code, Codex)
 over ACP, with Sessions / Vaults / Projects / Fleet / Settings surfaces.
 
@@ -10,27 +10,27 @@ over ACP, with Sessions / Vaults / Projects / Fleet / Settings surfaces.
 
 ```bash
 # Control plane — runs as a systemd USER unit (NOT tmux/manual):
-systemctl --user status olympus.service      # :8799, journalctl --user -u olympus
-systemctl --user restart olympus.service      # after a `cargo build --release`
+systemctl --user status stellarc.service      # :8799, journalctl --user -u stellarc
+systemctl --user restart stellarc.service      # after a `cargo build --release`
 
 # UI dev server (vite):  http://localhost:5177  (proxies /api + /ws → :8799)
-cd ~/olympus/ui && bun run dev                # already running in most sessions
+cd ~/stellarc/ui && bun run dev                # already running in most sessions
 
 # Rebuild after Rust changes:
-cd ~/olympus && cargo build --release && systemctl --user restart olympus.service
+cd ~/stellarc && cargo build --release && systemctl --user restart stellarc.service
 # Rebuild UI:
-cd ~/olympus/ui && bun run typecheck && bun run build
+cd ~/stellarc/ui && bun run typecheck && bun run build
 ```
 
-Browser access uses a Hall-local login cookie. `~/.olympus/token` remains only
+Browser access uses a Axis-local login cookie. `~/.stellarc/token` remains only
 for native/operator automation and must never be placed in a Vite environment.
 
 ## Hard-won landmines (read before debugging)
 
 - **NEVER run the control-plane binary manually or let a kanban worker spawn
-  its own server.** A 2nd process fights the redb lock (`~/.olympus/eventlog.redb`
+  its own server.** A 2nd process fights the redb lock (`~/.stellarc/eventlog.redb`
   "Database already open") AND the port → `ensure_runtime` fails → silent
-  "chat broken". If chat dies, check `fuser ~/.olympus/eventlog.redb`.
+  "chat broken". If chat dies, check `fuser ~/.stellarc/eventlog.redb`.
 - **The patch-tool linter FALSELY reports E0670 `async fn` errors** on every
   edit to server files. Ignore it; trust `cargo build --release` (edition 2021).
 - The systemd unit sets `Environment=PATH` to include `~/.local/bin` +
@@ -55,7 +55,7 @@ for native/operator automation and must never be placed in a Vite environment.
 - **Brand icons** (`ui/src/components/BrandIcons.tsx`): real Claude/OpenAI/Codex/
   Nous/Z.ai marks, in brand color; `agentBrand(kind,provider)` picks by harness
   KIND first.
-- **Per-node agent discovery** (ADR 0007): each node's envoy owns its agent
+- **Per-node agent discovery** (ADR 0007): each node's orbit owns its agent
   list; local node discovers in-process at boot; `NodeInfo.agents[]`; manual
   "Detect agents" button in Fleet › Agents (`POST /api/nodes/:id/agents/refresh`).
 - **qa-engineer profile** (`~/.hermes/profiles/qa-engineer`, claude-sonnet-4-6):
@@ -63,12 +63,12 @@ for native/operator automation and must never be placed in a Vite environment.
 
 ## Architecture quick map
 
-- `crates/control-plane/src/`
+- `crates/axis/src/`
   - `server/mod.rs` — all HTTP routes + handlers (huge file).
   - `server/agents.rs` — `discover_local_agents()` (Hermes profiles + PATH CLI
     probe), `list_models_for(provider)`.
   - `node.rs` — `NodeRegistry` (per-node agents, in-flight, awaiting_input),
-    UDS envoy protocol.
+    UDS orbit protocol.
   - `bridge/{mod,acp,hermes}.rs` — ACP client, `AgentRuntime`, permission
     respond, spawn routing (hermes acp / bunx @zed-industries adapters).
   - `server/bridge_mgr.rs` — runtime lifecycle, liveness flags.
@@ -90,8 +90,8 @@ for native/operator automation and must never be placed in a Vite environment.
 
 ## Open follow-ups (nothing blocking)
 
-1. **Standalone `olympus-envoy` binary** — remote nodes currently can't report
-   agents (local node runs its envoy in-process; remote refresh returns 501).
+1. **Standalone `stellarc-orbit` binary** — remote nodes currently can't report
+   agents (local node runs its orbit in-process; remote refresh returns 501).
    The discovery contract is defined; the binary + transport wiring is the work.
    Also: remote agent *installation* ("install agent" in Fleet).
 2. **Discovery checks binary-exists only, not auth** — a codex that's installed
@@ -111,9 +111,9 @@ for native/operator automation and must never be placed in a Vite environment.
 ## Testing
 
 ```bash
-cd ~/olympus && cargo test -p olympus-control-plane        # 254 passing
-cd ~/olympus/ui && bun run test                            # vitest
-cd ~/olympus/ui && bun run test:e2e                        # Maestro web e2e, isolated Vite + MSW
+cd ~/stellarc && cargo test -p stellarc-axis        # 254 passing
+cd ~/stellarc/ui && bun run test                            # vitest
+cd ~/stellarc/ui && bun run test:e2e                        # Maestro web e2e, isolated Vite + MSW
 ```
 
 ## Conventions

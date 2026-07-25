@@ -1,8 +1,8 @@
-# Agent Map — Olympus
+# Agent Map — Stellarc
 
-Short map for coding agents working on Olympus. Detailed guidance lives in `docs/`.
+Short map for coding agents working on Stellarc. Detailed guidance lives in `docs/`.
 
-## What Olympus is
+## What Stellarc is
 
 A clean-room, Rust-native AI control plane for Hermes Agent: a single-binary
 **event-sourced control plane** (redb log → in-memory materialized views →
@@ -10,22 +10,22 @@ tantivy search → axum REST/WS API) plus a **Vite + React UI** under `ui/`. It
 unifies all Hermes sessions from every channel into one searchable, resumable
 interface. NOT a fork of Hermes Studio. The earlier Convex/Bun/TS design was
 removed (ADR 0003); do not reintroduce it. See `docs/architecture/architecture.md`,
-`docs/adrs/0002-olympus-fleet-control-plane.md`, and
+`docs/adrs/0002-stellarc-fleet-control-plane.md`, and
 `docs/adrs/0003-remove-convex-rust-native-substrate.md`.
 
 ## First reads
 
-- `docs/plans/2026-06-29-olympus-long-horizon-roadmap.md` — **START HERE.** The
+- `docs/plans/2026-06-29-stellarc-long-horizon-roadmap.md` — **START HERE.** The
   durable roadmap (epics A→P, milestone briefs, gates, live Status Ledger). Tells
   you what to build next and why; built for autonomous swarm execution.
-- `docs/adrs/0002-olympus-fleet-control-plane.md` — authoritative spec (~24 §).
+- `docs/adrs/0002-stellarc-fleet-control-plane.md` — authoritative spec (~24 §).
 - `docs/adrs/0003-remove-convex-rust-native-substrate.md` — substrate decision.
 - `docs/api-contract.md` — UI↔backend wire contract (REST + WSS + shared TS types).
-- `docs/plans/2026-06-28-olympus-mvp.md` — granular Epic A/B tasks (phases 0-8).
+- `docs/plans/2026-06-28-stellarc-mvp.md` — granular Epic A/B tasks (phases 0-8).
 
 ## Workspace
 
-- `crates/control-plane/src/` — the Rust control plane:
+- `crates/axis/src/` — the Rust control plane:
   - `event.rs`, `log.rs`, `compress.rs` — event-sourced append-only log (redb + zstd).
   - `views/` — in-memory materialized projections (session + message views).
   - `search.rs` — tantivy full-text index.
@@ -46,9 +46,9 @@ make verify-rust     # cargo test --workspace && clippy -D warnings && fmt --che
 make verify-ui       # cd ui && typecheck + build + Maestro Chromium web e2e
 make test            # cargo test --workspace (fast inner loop)
 make run             # cargo run --release (imports state.db, serves API on :8787)
-make deploy          # build + install both hall + envoy binaries (symlink flip)
-make deploy-hall     # build hall → flip → restart olympus-hall.service
-make deploy-envoy N=2 # build envoy → flip → start olympus-envoy@2 → health gate
+make deploy          # build + install both axis + orbit binaries (symlink flip)
+make deploy-axis     # build axis → flip → restart stellarc-axis.service
+make deploy-orbit N=2 # build orbit → flip → start stellarc-orbit@2 → health gate
 
 # Direct equivalents (what `make` runs):
 cargo test --workspace
@@ -58,8 +58,8 @@ cd ui && bun run typecheck && bun run build && bun run test:e2e
 
 # fxcompute-01 / worktree Rust checks MUST share artifacts + serialization:
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
-export CARGO_TARGET_DIR="$HOME/.cache/olympus-cargo-target"
-flock "$HOME/.cache/olympus-cargo.lock" cargo test -j2 -p <crate>
+export CARGO_TARGET_DIR="$HOME/.cache/stellarc-cargo-target"
+flock "$HOME/.cache/stellarc-cargo.lock" cargo test -j2 -p <crate>
 ```
 
 There is no `bun run lint` / Convex command — those were the old TS scaffold
@@ -69,12 +69,12 @@ The UI browser target is `test:e2e` (Maestro web); Vitest unit tests run with
 
 ## Production services (ADR 0008 S6)
 
-Olympus runs as two systemd user services:
-- `olympus-hall.service` — the control plane (event log, views, REST/WS API).
-- `olympus-envoy@1.service` — the local agent runtime holder (hermes acp children).
+Stellarc runs as two systemd user services:
+- `stellarc-axis.service` — the control plane (event log, views, REST/WS API).
+- `stellarc-orbit@1.service` — the local agent runtime holder (hermes acp children).
 
-Binaries live at `~/.olympus/bin/olympus-{hall,envoy}-<gitHash>` with stable
-symlinks (`olympus-hall` / `olympus-envoy`) as the deploy pointer. The
+Binaries live at `~/.stellarc/bin/stellarc-{axis,orbit}-<gitHash>` with stable
+symlinks (`stellarc-axis` / `stellarc-orbit`) as the deploy pointer. The
 `scripts/deploy.sh` script handles build → copy → symlink flip.
 
 ## Hard rules
@@ -97,7 +97,7 @@ symlinks (`olympus-hall` / `olympus-envoy`) as the deploy pointer. The
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **olympus** (2886 symbols, 5482 relationships, 241 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **stellarc** (2886 symbols, 5482 relationships, 241 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `bunx gitnexus analyze` in terminal first.
 
@@ -120,10 +120,10 @@ This project is indexed by GitNexus as **olympus** (2886 symbols, 5482 relations
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/olympus/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/olympus/clusters` | All functional areas |
-| `gitnexus://repo/olympus/processes` | All execution flows |
-| `gitnexus://repo/olympus/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/stellarc/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/stellarc/clusters` | All functional areas |
+| `gitnexus://repo/stellarc/processes` | All execution flows |
+| `gitnexus://repo/stellarc/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 

@@ -2,13 +2,13 @@
 //!
 //! Hello carries **two version fields with distinct jobs**:
 //! - [`PROTOCOL_VERSION`] — frame-schema compat gate. Unparseable/unknown
-//!   version → Hall rejects registration (fail closed). Changes rarely.
-//! - [`BuildVersion`] — envoy **build identity**. This is what drain/evict
+//!   version → Axis rejects registration (fail closed). Changes rarely.
+//! - [`BuildVersion`] — orbit **build identity**. This is what drain/evict
 //!   decisions key on and what the Nodes UI shows.
 
 use serde::{Deserialize, Serialize};
 
-/// Current frame-schema version. Hall accepts this exact version only.
+/// Current frame-schema version. Axis accepts this exact version only.
 pub const PROTOCOL_VERSION: u32 = 1;
 
 /// Build identity: which build of the binary is speaking.
@@ -39,8 +39,8 @@ impl BuildVersion {
     pub fn for_binary(semver: &str) -> Self {
         Self {
             semver: semver.to_string(),
-            git_hash: env!("OLYMPUS_GIT_HASH").to_string(),
-            built_at: env!("OLYMPUS_BUILT_AT").to_string(),
+            git_hash: env!("STELLARC_GIT_HASH").to_string(),
+            built_at: env!("STELLARC_BUILT_AT").to_string(),
         }
     }
 }

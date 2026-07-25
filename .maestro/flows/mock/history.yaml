@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions/history
 name: History filters and empty state
 properties:
-  junitId: olympus-history
+  junitId: stellarc-history
   junitClassname: ui.mock
 ---
 - launchApp

@@ -2,12 +2,12 @@
 
 **Date:** 2026-07-16
 **Severity:** Medium (data loss — operator shell state lost on transient disconnect)
-**Component:** `crates/envoy/src/pty.rs`, `crates/control-plane/src/server/terminal_ws.rs`, `ui/src/cockpit/tabs.tsx`
+**Component:** `crates/orbit/src/pty.rs`, `crates/axis/src/server/terminal_ws.rs`, `ui/src/cockpit/tabs.tsx`
 **Discovered by:** Task t_fb28bf17 (persistent tmux-backed terminals)
 
 ## Summary
 
-Operator terminals in the Olympus Cockpit were backed by bare `forkpty` shells
+Operator terminals in the Stellarc Cockpit were backed by bare `forkpty` shells
 with no persistence layer. When the operator's WebSocket dropped — network
 blip, page reload, cockpit hide/show in some edge cases — the relay's cleanup
 path unconditionally called `PtyManager::close()`, which killed the shell
@@ -46,7 +46,7 @@ Three layers conspired:
 Four changes, one per requirement:
 
 1. **tmux-backed sessions** (`pty.rs`): `PtyManager::open()` now spawns shells
-   inside `tmux new-session -s olympus-term-<id>` (or `attach-session` if the
+   inside `tmux new-session -s stellarc-term-<id>` (or `attach-session` if the
    session exists). A new `detach()` method drops the PTY client but leaves the
    tmux session alive. Falls back to bare `forkpty` if tmux is absent, reporting
    `persistent=false` so the UI shows a "non-persistent" badge.

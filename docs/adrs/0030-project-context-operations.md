@@ -2,8 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-07-20
-- Builds on: ADR 0019 (one typed Hall operation seam; MCP/CLI/REST are thin
-  adapters over it), ADR 0011 (Hall MCP server, per-session capabilities),
+- Builds on: ADR 0019 (one typed Axis operation seam; MCP/CLI/REST are thin
+  adapters over it), ADR 0011 (Axis MCP server, per-session capabilities),
   ADR 0026 (project content + authority matrix), ADR 0028 (context-project
   attachments)
 - Unblocks: ADR0028-TOOLS (there was no project→agent-tool seam to mirror)
@@ -19,7 +19,7 @@ projects reuse it verbatim.
 
 ## 2. Decision
 
-Project content is reachable by agents through **typed Hall operations** (ADR
+Project content is reachable by agents through **typed Axis operations** (ADR
 0019), exposed to sessions via the **MCP `session_tool_provider`** contribution
 (ADR 0011 §3 / registry). No new protocol, no mounts, no REST-wrapping.
 
@@ -45,7 +45,7 @@ ADR 0026 admission (cr-sqlite for structured, signed jj for prose).
 A built-in `session_tool_provider` (registry slug `project-context`) maps each
 operation to one MCP tool. The setup adapter injects it into the session's
 `.mcp.json` exactly as any other MCP server (ADR 0006 §9). CLI gets the same
-operations for free (ADR 0019). Hall remains the single policy point.
+operations for free (ADR 0019). Axis remains the single policy point.
 
 ## 3. Scoping and authorization — the core rule
 
@@ -65,12 +65,12 @@ The tool surface is bound to the **session**, and every call resolves
 
 Authorization re-checks the acting user's *current* project access on every
 call (attachment rows are not a standing bypass, ADR 0028 §3). The session
-capability set (ADR 0011 §4) carries the allowed `project_ref` list; Hall
+capability set (ADR 0011 §4) carries the allowed `project_ref` list; Axis
 recomputes it when edges or grants change.
 
 ## 4. Migration order
 
-1. Typed `project.*` read operations on the Hall operation seam + capability
+1. Typed `project.*` read operations on the Axis operation seam + capability
    plumbing for the allowed-project list.
 2. Wire `session.project_id` into `effective_for_project` (line-1115 TODO); the
    primary project's operations become callable in-session.
@@ -84,7 +84,7 @@ recomputes it when edges or grants change.
 
 - **Wrap the existing REST/UI card routes as agent tools** — bypasses the ADR
   0019 typed-operation/capability seam; two policy paths.
-- **A second MCP server per project** — ADR 0011 has one Hall MCP server;
+- **A second MCP server per project** — ADR 0011 has one Axis MCP server;
   project scope is a call-time argument resolved against session edges, not a
   server-per-project.
 - **Mount context files into the session space** — ADR 0028 §5 already rejected

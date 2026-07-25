@@ -2,7 +2,7 @@
 
 **Verdict: NO-GO**
 
-ADR 0019 has the right doctrine—Hall owns truth and policy, Envoy owns effects, and CLI/MCP are adapters rather than alternate authorities—but the current text is not yet safe to implement. The local gateway authority, effectful request/revocation state machine, dynamic schema language, start/wait operation contract, workflow dispatch substrate, shared operation registry, and dependency DAG still have release-blocking gaps or contradictions.
+ADR 0019 has the right doctrine—Axis owns truth and policy, Orbit owns effects, and CLI/MCP are adapters rather than alternate authorities—but the current text is not yet safe to implement. The local gateway authority, effectful request/revocation state machine, dynamic schema language, start/wait operation contract, workflow dispatch substrate, shared operation registry, and dependency DAG still have release-blocking gaps or contradictions.
 
 This verdict is for the reviewed architecture/plan, not for an implementation that does not yet exist.
 
@@ -25,24 +25,24 @@ References below are against these exact contents:
 
 **Sources:**
 
-- `docs/adrs/0019-agent-and-human-cli-interface.md:182-194` makes a mode-0700 directory, an Envoy-owned endpoint, local-peer authentication, and a permanent `(node key, runtime attempt, session)` binding the security basis.
+- `docs/adrs/0019-agent-and-human-cli-interface.md:182-194` makes a mode-0700 directory, an Orbit-owned endpoint, local-peer authentication, and a permanent `(node key, runtime attempt, session)` binding the security basis.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:190-199` asserts that copying the path grants nothing and that agent-mode detection prevents switching to operator credentials.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:201-203` requires archive/revocation to close the gateway.
-- `docs/adrs/0017-session-cutover-and-remote-development-plane.md:132-145` repeats the private-UDS and runtime-attempt binding but does not define how Envoy authenticates the local runtime.
+- `docs/adrs/0017-session-cutover-and-remote-development-plane.md:132-145` repeats the private-UDS and runtime-attempt binding but does not define how Orbit authenticates the local runtime.
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:315-324` permits “private stdio/inherited-FD **or** UDS,” while `docs/plans/2026-07-13-session-cutover-remote-development.md:336-341` and `:356-363` require a private UDS and wrong-UID/cgroup tests.
 
-**Failure:** The Unix rules needed to make these claims true are absent. A process must have directory search permission and socket write permission to connect. A mode-0700 directory and Envoy-owned socket do not explain how a differently identified sandbox runtime is admitted. Conversely, giving the runtime ownership/access can let same-UID siblings connect unless each runtime has a unique OS identity or Envoy performs a robust peer/cgroup check. An already-open Unix socket FD can be inherited or sent with `SCM_RIGHTS`; unlinking the path or closing the listener does not revoke accepted connections. The plan's inherited-FD alternative is a materially different capability model and invalidates the ADR's path, peer-credential, and copied-socket gates.
+**Failure:** The Unix rules needed to make these claims true are absent. A process must have directory search permission and socket write permission to connect. A mode-0700 directory and Orbit-owned socket do not explain how a differently identified sandbox runtime is admitted. Conversely, giving the runtime ownership/access can let same-UID siblings connect unless each runtime has a unique OS identity or Orbit performs a robust peer/cgroup check. An already-open Unix socket FD can be inherited or sent with `SCM_RIGHTS`; unlinking the path or closing the listener does not revoke accepted connections. The plan's inherited-FD alternative is a materially different capability model and invalidates the ADR's path, peer-credential, and copied-socket gates.
 
 “Agent runtime detection always wins” is not a security boundary if inferred from mutable environment variables or a path the agent can unset. The sandbox must lack operator credentials/routes regardless of CLI mode selection.
 
 **Required correction:**
 
 1. Choose the UDS design for v1 and delete the stdio/inherited-FD alternative from Task 3.1.
-2. Specify the host path, read-only bind mount, directory owner/mode, socket owner/mode or ACL, runtime UID/GID model, and exact peer evidence Envoy checks (`SO_PEERCRED` plus stable runtime/cgroup/process identity or a stronger equivalent).
+2. Specify the host path, read-only bind mount, directory owner/mode, socket owner/mode or ACL, runtime UID/GID model, and exact peer evidence Orbit checks (`SO_PEERCRED` plus stable runtime/cgroup/process identity or a stronger equivalent).
 3. State whether runtime subprocesses intentionally share the attempt authority. If not, use a per-runtime OS/container identity; pathname secrecy and one shared UID are insufficient.
-4. Make the listener object—not request fields—the source of session/attempt context. Hall must bind an Envoy peer key plus gateway-instance/connection generation to the projected attempt/session.
-5. Track and forcibly close accepted connections on archive/fence, while retaining Hall's per-call authorization as defense in depth. Define how FD inheritance/delegation is prevented or bounded.
-6. Add real tests for copied paths, copied/open FDs, same-UID wrong-cgroup peers, PID exit/reuse, listener replacement, namespace escape, Hall reconnect, and archive/revoke with an already accepted connection.
+4. Make the listener object—not request fields—the source of session/attempt context. Axis must bind an Orbit peer key plus gateway-instance/connection generation to the projected attempt/session.
+5. Track and forcibly close accepted connections on archive/fence, while retaining Axis's per-call authorization as defense in depth. Define how FD inheritance/delegation is prevented or bounded.
+6. Add real tests for copied paths, copied/open FDs, same-UID wrong-cgroup peers, PID exit/reuse, listener replacement, namespace escape, Axis reconnect, and archive/revoke with an already accepted connection.
 
 ### B2 — Client request IDs were added, but effectful calls still lack a complete durable authorization/idempotency state machine
 
@@ -50,7 +50,7 @@ References below are against these exact contents:
 
 **Sources:**
 
-- `docs/adrs/0019-agent-and-human-cli-interface.md:42-44` assigns authorization, idempotency, durable records, and audit to Hall.
+- `docs/adrs/0019-agent-and-human-cli-interface.md:42-44` assigns authorization, idempotency, durable records, and audit to Axis.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:146-151` now requires a client request ID and says retries resolve to the original effect.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:201-203` delegates in-flight behavior to each provider's cancellation/fencing policy.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:218-225` requires shared authorization/idempotency and fail-closed protocol negotiation.
@@ -59,12 +59,12 @@ References below are against these exact contents:
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:315-324` says authority is rechecked and the channel closes, but supplies no linearization point.
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:462-469` tests one client request ID producing one workflow run, but not a conflicting replay or concurrent revocation.
 
-**Failure:** The new request ID closes only the simplest duplicate-run case. A capability check followed by a later durable append or Envoy dispatch still has a check/revoke race. The text does not say whether the request ID is unique per principal/session/organization, what happens when the same ID is replayed with different typed input, whether the ID reservation and operation intent are one transaction, or how the durable operation ID maps to provider attempt/fencing identity. “Hall resolves it” is not enough to prevent a stale-authority dispatch or cross-context collision.
+**Failure:** The new request ID closes only the simplest duplicate-run case. A capability check followed by a later durable append or Orbit dispatch still has a check/revoke race. The text does not say whether the request ID is unique per principal/session/organization, what happens when the same ID is replayed with different typed input, whether the ID reservation and operation intent are one transaction, or how the durable operation ID maps to provider attempt/fencing identity. “Axis resolves it” is not enough to prevent a stale-authority dispatch or cross-context collision.
 
 **Required correction:** Define one state machine for every effectful operation:
 
 1. The adapter generates a stable client request ID before first send and reuses it across transport retries.
-2. Hall atomically validates authenticated context/current authority epoch, validates and canonicalizes typed input, and appends a unique idempotency reservation plus operation intent/result.
+2. Axis atomically validates authenticated context/current authority epoch, validates and canonicalizes typed input, and appends a unique idempotency reservation plus operation intent/result.
 3. Duplicate `(authority scope, request ID)` with the same canonical input digest attaches/replays the stored result; the same ID with a different digest fails closed. A request ID from another principal/session/org never aliases it.
 4. Dispatch uses the durable resource/attempt ID and fencing epoch; response loss never creates another effect.
 5. Define the revocation linearization point and, per provider class, whether a committed attempt may finish, must be fenced before first effect, or must be cancelled. “Concurrent revocation fails closed” needs a deterministic oracle, not only channel closure.
@@ -78,13 +78,13 @@ Add crash/concurrency tests at request reservation, authority decision, intent a
 
 **Sources:**
 
-- `docs/adrs/0019-agent-and-human-cli-interface.md:79-91` requires local schema-derived parsing and a second Hall validation.
+- `docs/adrs/0019-agent-and-human-cli-interface.md:79-91` requires local schema-derived parsing and a second Axis validation.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:110-124` calls the mapping deterministic but leaves object/union handling and a “named JSON input flag” open.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:126-130` now rejects reserved names and bounds bytes/depth, but does not define the schema dialect/subset or an injective property mapping.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:223-225` versions only the operation schema, not the workflow input schema profile.
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:443-469` schedules implementation without a publication-time schema-to-CLI compiler/validator contract.
 
-**Failure:** JSON Schema permits constructs that cannot be mapped by the listed rules without ambiguity: `$ref`/recursive refs, `allOf`/`oneOf`/`anyOf`, nullable types, tuples, nested arrays/objects, `additionalProperties`, conditionals, dependent fields, multiple numeric forms, and arbitrary property names. The reserved-name edit catches direct static collisions but not boolean negation (`x` versus `no-x`) or normalization collisions (`foo-bar` versus `foo_bar`, case, Unicode). Hyphen-prefixed string values and negative numbers interact with option parsing. Pattern/default semantics can diverge between Rust CLI and Hall. Byte/depth limits alone do not bound ref expansion, enum/help cardinality, or hostile regex cost.
+**Failure:** JSON Schema permits constructs that cannot be mapped by the listed rules without ambiguity: `$ref`/recursive refs, `allOf`/`oneOf`/`anyOf`, nullable types, tuples, nested arrays/objects, `additionalProperties`, conditionals, dependent fields, multiple numeric forms, and arbitrary property names. The reserved-name edit catches direct static collisions but not boolean negation (`x` versus `no-x`) or normalization collisions (`foo-bar` versus `foo_bar`, case, Unicode). Hyphen-prefixed string values and negative numbers interact with option parsing. Pattern/default semantics can diverge between Rust CLI and Axis. Byte/depth limits alone do not bound ref expansion, enum/help cardinality, or hostile regex cost.
 
 The secret guarantee at `docs/adrs/0019-agent-and-human-cli-interface.md:122-124` is not enforceable against an arbitrary string/object schema unless workflow publication has a distinct opaque binding type and rejects raw secret fields.
 
@@ -94,8 +94,8 @@ The secret guarantee at `docs/adrs/0019-agent-and-human-cli-interface.md:122-124
 - an injective JSON-property-to-flag mapping, complete reserved names/prefixes, boolean-negation collision rules, `--` and hyphen-leading value behavior, duplicate semantics, and what “named JSON input flag” means;
 - whether `--input-json` supports the full profile or the same flaggable subset;
 - opaque secret/resource-binding types that carry identifiers only;
-- Hall as sole authority for canonicalization/default application and normalized input digest, so CLI and MCP omission of a default cannot produce different durable events;
-- one shared conformance corpus consumed by the CLI parser, Hall validator, schema-help renderer, and MCP schema adapter.
+- Axis as sole authority for canonicalization/default application and normalized input digest, so CLI and MCP omission of a default cannot produce different durable events;
+- one shared conformance corpus consumed by the CLI parser, Axis validator, schema-help renderer, and MCP schema adapter.
 
 Reject an unrepresentable/colliding schema at **publish time**, not when an agent tries to run it.
 
@@ -114,16 +114,16 @@ Reject an unrepresentable/colliding schema at **publish time**, not when an agen
 
 **Failure:** The only coherent common effectful operation is a non-blocking start returning a durable run reference. CLI waiting must then be adapter-side composition over durable get/watch operations. The documents still do not state that decomposition. As written, “same typed results” can mean either the MCP start reference or the CLI terminal result, and equivalence tests have no exact comparison point.
 
-The new interruption promise is impossible in one important window: `docs/adrs/0019-agent-and-human-cli-interface.md:138-140` says an interrupted waiter prints the durable run ID, but Ctrl-C can arrive after Hall commits the request and before the first response, when the CLI knows only the client request ID. The text does not require reconciliation by request ID before exit. Cursor semantics also omit event-envelope identity/version, cursor retention/expiry, and the terminal snapshot rule when events have compacted. Finally, `result-json` requires an output object (`:168-169`) while ADR 0013 does not establish that all successful workflows have an object result.
+The new interruption promise is impossible in one important window: `docs/adrs/0019-agent-and-human-cli-interface.md:138-140` says an interrupted waiter prints the durable run ID, but Ctrl-C can arrive after Axis commits the request and before the first response, when the CLI knows only the client request ID. The text does not require reconciliation by request ID before exit. Cursor semantics also omit event-envelope identity/version, cursor retention/expiry, and the terminal snapshot rule when events have compacted. Finally, `result-json` requires an output object (`:168-169`) while ADR 0013 does not establish that all successful workflows have an object result.
 
 **Required correction:**
 
 1. Define `workflow.start` as a non-blocking typed operation returning `{run_id, definition_digest, operation_id}` for CLI and MCP.
 2. Define durable `workflow.get` and `workflow.watch(after_sequence)` operation types. Event envelopes need run ID, monotonic sequence, stable event ID/type/version, terminal status, cursor retention/expiry, and a terminal snapshot fallback.
-3. State that `olympus workflow run` is adapter composition: schema lookup -> `workflow.start` -> optional `workflow.watch/get` -> rendering. Equivalence applies to the canonical start request/result/events before adapter-specific waiting.
+3. State that `stellarc workflow run` is adapter composition: schema lookup -> `workflow.start` -> optional `workflow.watch/get` -> rendering. Equivalence applies to the canonical start request/result/events before adapter-specific waiting.
 4. On Ctrl-C/timeout after send but before response, reconcile the client request ID to a run ID before claiming detachment. If reconciliation is unavailable, emit an explicit ambiguous-acceptance error plus the recovery request ID; do not promise a run ID the client cannot know.
 5. Define successful no-result, non-object, and artifact-only workflows, or require an object output schema at publish time.
-6. Test interrupt/crash at schema fetch, before send, after Hall commit/before response, during watch, after terminal/before output, and during downstream pipe closure.
+6. Test interrupt/crash at schema fetch, before send, after Axis commit/before response, during watch, after terminal/before output, and during downstream pipe closure.
 
 The current digest binding (`docs/adrs/0019-agent-and-human-cli-interface.md:84-91`), cursor concept (`:146-151`), zero stdout on failed `result-json` (`:176-180`), and plan race gates (`docs/plans/2026-07-13-session-cutover-remote-development.md:462-469`) are good corrections; they are not sufficient to define the complete typed state machine.
 
@@ -135,7 +135,7 @@ The current digest binding (`docs/adrs/0019-agent-and-human-cli-interface.md:84-
 
 - `docs/adrs/0013-workflow-kernel-bounded-chains.md:64-73` says activity dispatch uses JOBS-1 and the “existing seq/ack/spool exactly-once delivery.”
 - `docs/adrs/0013-workflow-kernel-bounded-chains.md:99-106` says these are already-existing patterns and exposes operations through ADR 0019.
-- `docs/adrs/0017-session-cutover-and-remote-development-plane.md:37-45` says current jobs are volatile, ACK output before durable Hall storage, and lack identity/capability/sandbox truth.
+- `docs/adrs/0017-session-cutover-and-remote-development-plane.md:37-45` says current jobs are volatile, ACK output before durable Axis storage, and lack identity/capability/sandbox truth.
 - `docs/adrs/0017-session-cutover-and-remote-development-plane.md:198-225` requires JOBS-2 durability, retained attempt identity, reconciliation, atomic spool sequencing, and terminal ordering before agent exposure.
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:192-295` implements those missing JOBS-2 guarantees.
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:443-445` correctly makes durable `JobService` and activity providers prerequisites for WF-1, contradicting ADR 0013's JOBS-1 substrate.
@@ -150,7 +150,7 @@ The current digest binding (`docs/adrs/0019-agent-and-human-cli-interface.md:84-
 
 **Sources:**
 
-- `docs/adrs/0019-agent-and-human-cli-interface.md:28-44` declares CLI and MCP adapters over one Hall seam.
+- `docs/adrs/0019-agent-and-human-cli-interface.md:28-44` declares CLI and MCP adapters over one Axis seam.
 - `docs/adrs/0019-agent-and-human-cli-interface.md:59-77` lists CLI commands and gives conflicting availability rules (“appear only” versus static unavailable groups).
 - `docs/adrs/0019-agent-and-human-cli-interface.md:205-225` introduces a typed vocabulary but specifies only generic handler shape and additive versioning.
 - `docs/adrs/0017-session-cutover-and-remote-development-plane.md:119-130` names plural typed operations such as `jobs.run`, `deployments.status`, and `apps.status`.
@@ -158,11 +158,11 @@ The current digest binding (`docs/adrs/0019-agent-and-human-cli-interface.md:84-
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:305-320` creates `operations.rs` and shared modules, but does not require one canonical operation registry/manifest.
 - `docs/plans/2026-07-13-session-cutover-remote-development.md:400-421`, `:447-469`, and `:604-617` add adapters separately and test “equivalence” without defining the common request/result being compared.
 
-**Failure:** Separate CLI and MCP implementations can drift on operation ID, request fields, defaults, capability, organization/resource scope, idempotency, effect classification, streaming, or error mapping while still calling the same Hall service. Names need not be identical across adapters, but their mapping must be explicit. The current “equivalent durable events/results” gate is not executable when MCP start returns a reference and the complete CLI invocation returns a terminal result.
+**Failure:** Separate CLI and MCP implementations can drift on operation ID, request fields, defaults, capability, organization/resource scope, idempotency, effect classification, streaming, or error mapping while still calling the same Axis service. Names need not be identical across adapters, but their mapping must be explicit. The current “equivalent durable events/results” gate is not executable when MCP start returns a reference and the complete CLI invocation returns a terminal result.
 
 There is also a dangerous migration edge: the existing operator REST job request is argv-shaped (`docs/adrs/0017-session-cutover-and-remote-development-plane.md:37-45`), while agent `jobs.run` must be activity/provider-shaped (`docs/adrs/0017-session-cutover-and-remote-development-plane.md:198-218`). Sharing `JobService` must not make the raw operator DTO part of the agent operation vocabulary.
 
-**Required correction:** Define one versioned operation registry in `olympus-proto`, generated or exhaustively matched by every adapter. Each entry must include canonical operation ID, request/result/error types, stream item/cursor type where applicable, effect/read classification, capability/resource resolver, organization/principal scope, idempotency requirement/scope, protocol range, availability gate, and redaction/audit policy. CLI command and MCP tool names map to that ID; they do not define separate contracts. Keep any raw operator-maintenance job route as a separately named operator-only operation—or remove it—and prove no agent registry entry accepts argv/env/cwd/executable fields. Equivalence tests submit the same canonical typed request and compare normalized authorization, durable event, and typed operation result before adapter-specific waiting/rendering.
+**Required correction:** Define one versioned operation registry in `stellarc-proto`, generated or exhaustively matched by every adapter. Each entry must include canonical operation ID, request/result/error types, stream item/cursor type where applicable, effect/read classification, capability/resource resolver, organization/principal scope, idempotency requirement/scope, protocol range, availability gate, and redaction/audit policy. CLI command and MCP tool names map to that ID; they do not define separate contracts. Keep any raw operator-maintenance job route as a separately named operator-only operation—or remove it—and prove no agent registry entry accepts argv/env/cwd/executable fields. Equivalence tests submit the same canonical typed request and compare normalized authorization, durable event, and typed operation result before adapter-specific waiting/rendering.
 
 ### B7 — The dependency graph allows SANDBOX/WF work before prerequisites required by its own tasks and ADR 0017 gates
 
@@ -197,7 +197,7 @@ These should be fixed in the same rewrite, but they do not independently drive t
 
 ### P2 — Define generic help versus schema-derived help
 
-`docs/adrs/0019-agent-and-human-cli-interface.md:106-107` correctly shows `workflow run <slug> --help`, but `docs/plans/2026-07-13-session-cutover-remote-development.md:654-657` also asks for `olympus workflow run --help` without a slug. State that the latter is static generic help and never fetches a schema, while only the former is dynamic. Define missing/not-found/unauthorized slug behavior without leaking cross-organization existence.
+`docs/adrs/0019-agent-and-human-cli-interface.md:106-107` correctly shows `workflow run <slug> --help`, but `docs/plans/2026-07-13-session-cutover-remote-development.md:654-657` also asks for `stellarc workflow run --help` without a slug. State that the latter is static generic help and never fetches a schema, while only the former is dynamic. Define missing/not-found/unauthorized slug behavior without leaking cross-organization existence.
 
 ### P3 — Sanitize dynamic terminal and completion content
 
@@ -213,7 +213,7 @@ Descriptions, examples, patterns, property names, and enum values are runtime da
 
 ### P6 — Define canonical audit digest and surface semantics
 
-`docs/adrs/0019-agent-and-human-cli-interface.md:269-283` should say the normalized digest is computed by Hall over a versioned canonical representation after schema validation/default resolution, never by an adapter. Define whether equivalent CLI/MCP calls intentionally differ only in `surface` and therefore share operation/resource/input identity while producing separate audit events.
+`docs/adrs/0019-agent-and-human-cli-interface.md:269-283` should say the normalized digest is computed by Axis over a versioned canonical representation after schema validation/default resolution, never by an adapter. Define whether equivalent CLI/MCP calls intentionally differ only in `surface` and therefore share operation/resource/input identity while producing separate audit events.
 
 ### P7 — Clarify cancellation terminal truth
 
@@ -228,7 +228,7 @@ Descriptions, examples, patterns, property names, and enum values are runtime da
 The current snapshot correctly improves several previously ambiguous areas:
 
 - Workflow start submits the exact schema digest and forbids silent active-version substitution (`docs/adrs/0019-agent-and-human-cli-interface.md:84-91`; plan gate `docs/plans/2026-07-13-session-cutover-remote-development.md:462-467`).
-- Workflow commands now use one `olympus workflow ...` noun (`docs/adrs/0019-agent-and-human-cli-interface.md:59-68`).
+- Workflow commands now use one `stellarc workflow ...` noun (`docs/adrs/0019-agent-and-human-cli-interface.md:59-68`).
 - Wait reconnect has a durable cursor and client request ID (`docs/adrs/0019-agent-and-human-cli-interface.md:146-151`).
 - Failed `result-json` emits no stdout and broken pipes detach rather than cancel (`docs/adrs/0019-agent-and-human-cli-interface.md:176-180`).
 - Agent requests cannot supply principal/org/session/attempt/node identity (`docs/adrs/0019-agent-and-human-cli-interface.md:275-278`).

@@ -6,39 +6,39 @@
 - Relates to: ADR 0005 (organization boundary), ADR 0011 (agent capabilities), ADR 0015 (managed apps and plugins), ADR 0018 (producer-side redaction)
 
 > **Amended by ADR 0027 (2026-07-18).** For agent-session credentials the
-> broker issues **leases** held by Envoy, which runs the node-local auth
+> broker issues **leases** held by Orbit, which runs the node-local auth
 > proxy and owns OAuth refresh under an exclusive per-credential refresh
-> delegation. Already-leased sessions continue through a Hall/broker outage
+> delegation. Already-leased sessions continue through a Axis/broker outage
 > up to lease TTL; only new authorizations fail closed (refines §11). §8
 > delivery tiers 2-4 are refined for agent harnesses into `proxy` and
 > `materialize` modes declared per ADR 0006 adapter.
 
 ## 1. Context
 
-Olympus-managed CLIs, MCP servers, workflows, agents, plugins, and apps need to authenticate to external systems. Credentials may belong to an organization, an individual user, or Olympus automation. They may be API keys, OAuth grants, application private keys, SSH keys, certificates, or renewable cloud credentials.
+Stellarc-managed CLIs, MCP servers, workflows, agents, plugins, and apps need to authenticate to external systems. Credentials may belong to an organization, an individual user, or Stellarc automation. They may be API keys, OAuth grants, application private keys, SSH keys, certificates, or renewable cloud credentials.
 
 Passing ambient host credentials into every process would make attribution accidental, let one plugin read unrelated credentials, leak secrets into session files and logs, and make revocation unreliable. A generic `secret.read` permission would expose durable credential material when most consumers need only permission to perform one provider action.
 
-ADR 0010 already makes `~/.olympus/auth.sqlite` the transactional security store for Hall identities, memberships, roles, and login sessions. This ADR preserves that role and separates external secret payloads from identity and authorization metadata.
+ADR 0010 already makes `~/.stellarc/auth.sqlite` the transactional security store for Axis identities, memberships, roles, and login sessions. This ADR preserves that role and separates external secret payloads from identity and authorization metadata.
 
 ### Current implementation, verified
 
-`AuthStore` is one mutex-protected SQLite connection and currently initializes only users, organizations, memberships, and login sessions (`crates/control-plane/src/auth_store.rs:46-105`). Hall opens it at `~/.olympus/auth.sqlite` (`crates/control-plane/src/main.rs:97`). There is no external connection, credential, encrypted secret, grant, lease, or broker schema/path in the reviewed source. ADR 0018 already forbids retaining secrets in diagnostics; this ADR supplies the missing runtime credential boundary rather than extending ambient configuration.
+`AuthStore` is one mutex-protected SQLite connection and currently initializes only users, organizations, memberships, and login sessions (`crates/axis/src/auth_store.rs:46-105`). Axis opens it at `~/.stellarc/auth.sqlite` (`crates/axis/src/main.rs:97`). There is no external connection, credential, encrypted secret, grant, lease, or broker schema/path in the reviewed source. ADR 0018 already forbids retaining secrets in diagnostics; this ADR supplies the missing runtime credential boundary rather than extending ambient configuration.
 
 ## 2. Decision
 
-Olympus adopts four distinct concepts:
+Stellarc adopts four distinct concepts:
 
 1. **Secret Store** stores encrypted opaque secret envelopes.
 2. **Connection and Credential** describe an external identity, installation, authentication method, and lifecycle without embedding secret bytes.
 3. **Credential Grant** authorizes a grantee to use a credential for named provider capabilities and resources.
 4. **Auth Broker** is the only runtime path from an authorized operation to secret material or a derived short-lived credential.
 
-**Doctrine:** Olympus-managed tools receive authorized capabilities, not ambient credentials. Raw durable secrets remain behind the Auth Broker; actor identity, scope, delivery, refresh, revocation, and audit are explicit and fail closed.
+**Doctrine:** Stellarc-managed tools receive authorized capabilities, not ambient credentials. Raw durable secrets remain behind the Auth Broker; actor identity, scope, delivery, refresh, revocation, and audit are explicit and fail closed.
 
-`AuthStore` remains the implementation name for Hall login and RBAC state. `SecretStore` is the canonical product term for encrypted external secret payloads. The terms are not interchangeable.
+`AuthStore` remains the implementation name for Axis login and RBAC state. `SecretStore` is the canonical product term for encrypted external secret payloads. The terms are not interchangeable.
 
-![Olympus auth, repo, project, and board architecture](../diagrams/olympus-auth-repo-project-board-architecture.svg)
+![Stellarc auth, repo, project, and board architecture](../diagrams/stellarc-auth-repo-project-board-architecture.svg)
 
 ## 3. Authority and data model
 
@@ -97,11 +97,11 @@ erDiagram
 
 | Concern | Authority | Explicitly not authority |
 |---|---|---|
-| Hall users, memberships, roles, login sessions | `auth.sqlite` under ADR 0010 | event/search projections |
-| Connection metadata, credential metadata, grants, revocation, operation audit | transactional Hall security store | plugin manifests, session config, vault files |
+| Axis users, memberships, roles, login sessions | `auth.sqlite` under ADR 0010 | event/search projections |
+| Connection metadata, credential metadata, grants, revocation, operation audit | transactional Axis security store | plugin manifests, session config, vault files |
 | Encrypted secret payloads | Secret Store | business event log, search, telemetry, backups that lack secret-specific encryption policy |
 | Provider truth and provider-side grants | external provider | cached capability snapshots |
-| Runtime process presence and injection | Envoy observation | permission to use a credential |
+| Runtime process presence and injection | Orbit observation | permission to use a credential |
 
 Connections are owned by exactly one `System`, `Organization(org_id)`, or `User(user_id)` scope. Projects and Repos do not own credentials and are never executable grantees. They may constrain a policy template's target scope, but every usable grant terminates at a concrete human or runtime principal: user, agent/session, workflow, MCP server instance, plugin installation, or app service. Any inherited Project/Repo policy is explicitly materialized/delegated to that principal and current Project membership/Repo binding remains part of authorization; there is no “any process in this Project” grant.
 
@@ -109,17 +109,17 @@ A connection models the stable external relationship, such as a GitHub App insta
 
 ## 4. Secret Store
 
-Secret payloads are stored separately from `auth.sqlite`, initially under `~/.olympus/secrets.sqlite`, using envelope encryption:
+Secret payloads are stored separately from `auth.sqlite`, initially under `~/.stellarc/secrets.sqlite`, using envelope encryption:
 
 - each payload has a random data-encryption key;
 - the payload is authenticated-encrypted;
 - the data key is wrapped by a versioned installation master key;
-- associated data binds ciphertext to Hall identity, owner scope, secret ID, kind, and key version;
+- associated data binds ciphertext to Axis identity, owner scope, secret ID, kind, and key version;
 - secret rows never contain project permissions or provider-selection policy.
 
 The wrapping key must come from an OS keyring, TPM, hardware-backed KMS, or explicitly provisioned operator master key. It must not be stored in plaintext beside `secrets.sqlite`. Without a configured wrapping-key provider, creation and use of persistent external credentials fail closed.
 
-Hall persists non-secret key metadata: `key_provider_id`, provider-specific immutable key locator, cryptographic suite/version, `key_version`, lifecycle state (`active`, `decrypt_only`, `retired`, `destroyed`), Hall/installation identity binding, and creation/activation timestamps. First boot requires an authenticated, audited key bootstrap. On every later boot, existing ciphertext forbids implicit key generation: a missing/wrong provider, locator, Hall identity, or key fails closed and leaves the Secret Store sealed.
+Axis persists non-secret key metadata: `key_provider_id`, provider-specific immutable key locator, cryptographic suite/version, `key_version`, lifecycle state (`active`, `decrypt_only`, `retired`, `destroyed`), Axis/installation identity binding, and creation/activation timestamps. First boot requires an authenticated, audited key bootstrap. On every later boot, existing ciphertext forbids implicit key generation: a missing/wrong provider, locator, Axis identity, or key fails closed and leaves the Secret Store sealed.
 
 Master-key rotation is a resumable state machine:
 
@@ -130,9 +130,9 @@ prepared -> active_for_new_writes -> rewrapping -> verified
 
 The new key and metadata become durable before new envelopes use it. Rewrap is idempotent and compare-and-swap versioned. The old key remains `decrypt_only` until every live envelope and retained backup generation is verified under the new recovery set. Retirement and destruction are distinct audited transitions and cannot occur while a required backup still depends on the key.
 
-Backup-key recovery must work independently of the source host through a configured KMS locator, sealed offline recovery key, or explicit authenticated operator import. The recovery manifest carries Hall/installation identity and AAD version. Replacement-Hall restore either proves that identity or performs an audited identity-rebind rewrap while the store remains sealed; it never weakens or skips AAD validation.
+Backup-key recovery must work independently of the source host through a configured KMS locator, sealed offline recovery key, or explicit authenticated operator import. The recovery manifest carries Axis/installation identity and AAD version. Replacement-Axis restore either proves that identity or performs an audited identity-rebind rewrap while the store remains sealed; it never weakens or skips AAD validation.
 
-Secret Store operations are narrowly typed: create, unwrap for a broker operation, compare-and-swap rotate, revoke, and rewrap. Plaintext is held only in bounded memory, is never returned by listing APIs, and is excluded before telemetry serialization. Backup and restore use a separate encrypted secret-backup policy and require a restore drill; ordinary Hall or vault backups do not silently include usable credentials.
+Secret Store operations are narrowly typed: create, unwrap for a broker operation, compare-and-swap rotate, revoke, and rewrap. Plaintext is held only in bounded memory, is never returned by listing APIs, and is excluded before telemetry serialization. Backup and restore use a separate encrypted secret-backup policy and require a restore drill; ordinary Axis or vault backups do not silently include usable credentials.
 
 ## 5. Credential grants and authorization
 
@@ -186,13 +186,13 @@ Request(principal, org, grantee, provider, action, target, actor_mode, runtime)
    -> record result and revoke lease
 ```
 
-Authorization has one serialized linearization point in Hall's transactional security store. In that transaction Hall reads current membership/RBAC, capability, installation, grant, credential, and revocation epochs and inserts the `AuthOperation` plus lease intent. The operation records the exact revisions/epochs used, initiating principal, distinct runtime grantee, credential ID, action, target, actor mode, request digest, idempotency key, status, provider result reference, and timestamps. It never records secret values or authorization headers.
+Authorization has one serialized linearization point in Axis's transactional security store. In that transaction Axis reads current membership/RBAC, capability, installation, grant, credential, and revocation epochs and inserts the `AuthOperation` plus lease intent. The operation records the exact revisions/epochs used, initiating principal, distinct runtime grantee, credential ID, action, target, actor mode, request digest, idempotency key, status, provider result reference, and timestamps. It never records secret values or authorization headers.
 
 After any external mint and before IPC handoff, the broker enters the same serialized security-store boundary used by revocation and compare-and-swap transitions the exact lease intent from `pending` to `delivery_authorized` only if every recorded epoch still matches current truth. This final CAS—not the earlier authorization read—is the credential-release linearization point. A mismatch denies delivery, destroys/unreferences the minted material, and moves the operation to reconciliation.
 
-Revocation increments the relevant epoch and atomically fences every non-terminal intent. Before revocation returns, Envoy has acknowledged termination/revocation of each already-authorized raw lease's complete descendant cgroup and closed its broker-owned handoff channel/FD; provider revocation is requested where supported. A handoff and revocation therefore serialize through lease state plus Envoy acknowledgement rather than a check-then-deliver race. Crash/race tests cover revocation before the final check, between provider mint and final CAS, between CAS and IPC handoff, during handoff, after child receipt, and while Envoy is unavailable; failure to obtain termination acknowledgement remains fail-closed and visibly degraded.
+Revocation increments the relevant epoch and atomically fences every non-terminal intent. Before revocation returns, Orbit has acknowledged termination/revocation of each already-authorized raw lease's complete descendant cgroup and closed its broker-owned handoff channel/FD; provider revocation is requested where supported. A handoff and revocation therefore serialize through lease state plus Orbit acknowledgement rather than a check-then-deliver race. Crash/race tests cover revocation before the final check, between provider mint and final CAS, between CAS and IPC handoff, during handoff, after child receipt, and while Orbit is unavailable; failure to obtain termination acknowledgement remains fail-closed and visibly degraded.
 
-OAuth refresh uses a transactional per-credential lease and compare-and-swap credential version. This is required for providers that rotate and invalidate refresh tokens. Concurrent Hall/Envoy processes may not independently refresh the same credential. Terminal revocation marks the credential unavailable until explicit reauthorization.
+OAuth refresh uses a transactional per-credential lease and compare-and-swap credential version. This is required for providers that rotate and invalidate refresh tokens. Concurrent Axis/Orbit processes may not independently refresh the same credential. Terminal revocation marks the credential unavailable until explicit reauthorization.
 
 ## 8. Runtime delivery
 
@@ -204,13 +204,13 @@ The broker prefers not to disclose a token at all. Delivery modes, in descending
 4. **Child-process environment:** for CLIs that support a token environment variable.
 5. **Ephemeral credential helper or `GIT_ASKPASS`:** for Git transport.
 
-Envoy performs the host effect. Credentials are injected into one child process only and are never written to shared homes, `.env`, shell history, command arguments, repository remotes, session workspaces, or agent context. Temporary files live outside the writable session tree, use mode `0600`, are mounted/read once where possible, and are removed when the lease ends.
+Orbit performs the host effect. Credentials are injected into one child process only and are never written to shared homes, `.env`, shell history, command arguments, repository remotes, session workspaces, or agent context. Temporary files live outside the writable session tree, use mode `0600`, are mounted/read once where possible, and are removed when the lease ends.
 
 The brokered-request surface is a typed provider adapter, not a generic URL/header proxy. Provider host, tenant, target, redirect policy, method, and response redaction derive from the authorized connection and action, preventing SSRF and confused-deputy use.
 
-Once disclosed, a bearer token is constrained only by provider scope and lifetime—not by the single Olympus action in its audit record. Action-level enforcement therefore requires brokered typed calls. Raw delivery is an explicit high-risk grant available only to an Envoy-launched allowlisted executable with structured argv, a dedicated runtime principal/OS identity, blocked sibling-process `/proc` access, read-only/ephemeral filesystem boundaries, and target-restricted egress. Envoy kills the complete descendant cgroup at lease expiry/revocation. Raw tokens are never injected into an agent-controlled shell, general plugin process, or managed-app process. Managed apps are typed-broker-only. Where the provider supports narrowing at mint time, the broker records and verifies the returned resources, permissions, and expiry and rejects widening.
+Once disclosed, a bearer token is constrained only by provider scope and lifetime—not by the single Stellarc action in its audit record. Action-level enforcement therefore requires brokered typed calls. Raw delivery is an explicit high-risk grant available only to an Orbit-launched allowlisted executable with structured argv, a dedicated runtime principal/OS identity, blocked sibling-process `/proc` access, read-only/ephemeral filesystem boundaries, and target-restricted egress. Orbit kills the complete descendant cgroup at lease expiry/revocation. Raw tokens are never injected into an agent-controlled shell, general plugin process, or managed-app process. Managed apps are typed-broker-only. Where the provider supports narrowing at mint time, the broker records and verifies the returned resources, permissions, and expiry and rejects widening.
 
-Olympus must not run persistent global setup commands such as `gh auth setup-git` against a shared host profile. A CLI such as `gh` is an execution client of the broker, not an authentication authority.
+Stellarc must not run persistent global setup commands such as `gh auth setup-git` against a shared host profile. A CLI such as `gh` is an execution client of the broker, not an authentication authority.
 
 ## 9. MCP, plugin, and app permissions
 
@@ -242,7 +242,7 @@ They never include token fragments, full environment snapshots, credential-beari
 - Revocation is security truth and propagates ahead of availability.
 - A broker outage prevents new authenticated operations; it does not release stored credentials to callers.
 - Provider permission snapshots are hints. A provider denial updates health but is not bypassed.
-- Every restored connection, credential, grant, lease, and operation enters `quarantined_restore` and is unusable until current Hall policy and provider authorization/revocation state are reconciled and an authorized operator releases it. A restored snapshot is never automatic evidence that a credential remains authorized.
+- Every restored connection, credential, grant, lease, and operation enters `quarantined_restore` and is unusable until current Axis policy and provider authorization/revocation state are reconciled and an authorized operator releases it. A restored snapshot is never automatic evidence that a credential remains authorized.
 - Deployments requiring automatic rollback detection retain a monotonic credential/revocation epoch in an independently authoritative KMS/HSM record and reject snapshots behind it. Deployments without that facility remain fail-closed in restore quarantine; they do not claim automatic knowledge of post-backup revocations.
 - Importing a project or vault can reference a required provider capability but cannot import a connection, grant, credential, or secret.
 - Deleting a plugin/app removes its grants before runtime teardown.
@@ -254,10 +254,10 @@ Before external integrations use this path:
 
 1. define the wrapping-key provider trait and production key provider;
 2. add an authenticated, transactional Secret Store with tamper and wrong-key tests;
-3. extend Hall's security store with connections, credential metadata, grants, operations, and revocation;
+3. extend Axis's security store with connections, credential metadata, grants, operations, and revocation;
 4. add broker authorization parity tests across human, agent, session, plugin, and provider scopes;
 5. implement cross-process refresh serialization and crash-recovery tests;
-6. implement Envoy delivery adapters and prove secrets do not enter argv, workspace, process telemetry, or logs;
+6. implement Orbit delivery adapters and prove secrets do not enter argv, workspace, process telemetry, or logs;
 7. add revocation, expiry, backup/restore, and audit-redaction tests;
 8. migrate any existing external credentials by explicit operator action, never by scanning arbitrary host files in production.
 

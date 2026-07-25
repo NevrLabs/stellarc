@@ -3,9 +3,9 @@
 
 // A session as the UI consumes it (projection of the event log; ADR §10.1).
 export interface Session {
-  id: string;                 // Olympus session id
+  id: string;                 // Stellarc session id
   hermesId: string;           // underlying Hermes session id
-  orgId: string;              // durable Hall organization id; legacy imports may be "personal"
+  orgId: string;              // durable Axis organization id; legacy imports may be "personal"
   ownerId: string;            // "rpw" in MVP
   contextId: string | null;   // null until contexts exist
   source: SessionSource;      // origin channel
@@ -23,7 +23,7 @@ export interface Session {
   forkPoint: number | null;   // message index the fork branched at
   forkType: "sub" | "parallel" | null;
   // origin marker for forks: "forked from telegram", etc. (PRD Flow B)
-  managed: boolean;           // true = Olympus-driven (steerable); false = observed/read-only
+  managed: boolean;           // true = Stellarc-driven (steerable); false = observed/read-only
   agent: string | null;       // Hermes profile bound to this session (assignable)
   node: string | null;        // node the runtime runs on ("local" for now)
   projectId?: string | null;  // project workspace association
@@ -72,7 +72,7 @@ export interface CapabilitySet {
 }
 
 export type SessionSource =
-  | "cli" | "telegram" | "discord" | "webui" | "cron" | "subagent" | "api_server" | "acp" | "olympus";
+  | "cli" | "telegram" | "discord" | "webui" | "cron" | "subagent" | "api_server" | "acp" | "stellarc";
 
 export interface Message {
   messageId: number;          // monotonic within session
@@ -165,11 +165,11 @@ export interface NodeInfo {
   version: string;
   local: boolean;
   lastHeartbeatAgoSecs: number;
-  /** How the node is connected to the Hall. */
+  /** How the node is connected to the Axis. */
   transport: "local" | "uds" | "iroh";
-  /** The node's iroh public key (iroh-connected envoys only). */
+  /** The node's iroh public key (iroh-connected orbits only). */
   irohNodeId?: string | null;
-  // Agents this node's envoy discovered on its host (per-node, not global).
+  // Agents this node's orbit discovered on its host (per-node, not global).
   // Optional: a remote node may not have reported yet.
   agents?: AgentInfo[];
 }
@@ -179,7 +179,7 @@ export interface EnrollResponse {
   token: string;
   command: string;
   expiresInSecs: number;
-  hallIrohId: string;
+  axisIrohId: string;
 }
 
 export interface NodesResponse {
@@ -336,7 +336,7 @@ export interface SessionListParams {
   model?: string;
   archived?: boolean;
   pinned?: boolean;
-  /** true → Olympus-managed sessions only; false → imported history only. */
+  /** true → Stellarc-managed sessions only; false → imported history only. */
   managed?: boolean;
   /** Filter to sessions running on a specific node by nodeId. */
   node?: string;
@@ -422,7 +422,7 @@ export interface PackageContribution {
 
 export interface PackageManifest {
   package: { id: string; name: string; version: string; publisher: string; license: string };
-  compatibility: { olympus_api: string; platforms: string[] };
+  compatibility: { stellarc_api: string; platforms: string[] };
   capabilities: { required: string[] };
   contributions: {
     activity_provider: PackageContribution[];
@@ -440,7 +440,7 @@ export interface PackageManifest {
   };
 }
 
-export interface OlympusPackage {
+export interface StellarcPackage {
   manifest: PackageManifest;
   digest: string;
   source: string;

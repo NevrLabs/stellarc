@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/fleet
 name: Fleet — node detail, agent actions, add-node enroll
 properties:
-  junitId: olympus-fleet-detail
+  junitId: stellarc-fleet-detail
   junitClassname: ui.mock
 ---
 - launchApp

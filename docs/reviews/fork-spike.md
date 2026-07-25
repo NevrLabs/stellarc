@@ -254,7 +254,7 @@ def create_fork(
 
 Implementation location: `hermes_state.py` inside `SessionDB`, as a peer of
 `create_session()` and `replace_messages()`. This is a Hermes-side helper —
-Olympus calls it over ACP or via a new ACP method, never writes raw SQL to
+Stellarc calls it over ACP or via a new ACP method, never writes raw SQL to
 state.db.
 
 ---

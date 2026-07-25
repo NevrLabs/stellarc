@@ -1,6 +1,6 @@
 # Hermes ACP session/resume semantics — empirical findings
 
-**Ticket:** olympus wayfinder research #2 · **Date:** 2026-07-09
+**Ticket:** stellarc wayfinder research #2 · **Date:** 2026-07-09
 **Agent under test:** `hermes acp` (Hermes Agent v0.18.0 (2026.7.1) · upstream aabfedca), `hermes acp --check` → OK.
 **Method:** Python `subprocess.Popen` probes speaking newline-delimited JSON-RPC 2.0 over stdio. Probe scripts: `/tmp/acp_probe.py`, `/tmp/exp1_kill_resume.py`, `/tmp/exp23_double_state.py`, `/tmp/exp4_cost.py`. All output below is captured from real runs.
 
@@ -10,7 +10,7 @@
 |---|----------|---------|
 | 1 | Resume after SIGTERM mid-turn | **Works, no corruption.** But the interrupted turn's partial assistant output is **LOST** — only the user message was persisted (`Restored … from DB (1 messages)`). |
 | 2 | Double-attach (resume while old child alive) | **No lock, no error, no breakage.** Both children can prompt the same session concurrently-ish. Safe but the two children hold independent in-memory copies — divergence risk, not a crash risk. Old child does NOT need to be killed first for resume to succeed. |
-| 3 | State locality after resume | **Model = persisted** in Hermes store (survives kill+resume). **Mode = child-local** (reverts to `default` after kill+resume; new envoy must re-apply `session/set_mode`). |
+| 3 | State locality after resume | **Model = persisted** in Hermes store (survives kill+resume). **Mode = child-local** (reverts to `default` after kill+resume; new orbit must re-apply `session/set_mode`). |
 | 4 | Resume cost | **~2.0–2.5 s flat**, dominated by fixed overhead, not history size: 6-msg session 2.10–2.25 s; 75-msg 2.00 s; 287-msg 2.46 s (345 replay updates, ~19.6 KB agent text). |
 | ⚠ | Bonus hazard | `session/resume` with an **unknown sessionId does NOT error** — it logs `resume_session: session <id> not found, creating new` and silently returns a **new** session. Detect via `result._meta.hermes.sessionProvenance.acpSessionId != requested id`. |
 
@@ -37,7 +37,7 @@ B stderr: acp_adapter.session: Restored ACP session bf7a9611-... from DB (1 mess
 - `session/resume` on a mid-turn-killed session **succeeds cleanly**; no corruption, no error, no dangling lock.
 - The killed turn's assistant output was **not persisted**: even though the full "1..30" had streamed to the client, replay contained only the *user* message (1 message in DB). Hermes appears to persist the assistant message at turn completion, not incrementally per chunk. (Caveat: the model finished streaming ~instantly before the kill, so we killed during the post-stream window; either way, the streamed text never reached the DB.)
 
-**Implication for envoy handover:** a crash mid-turn loses the in-flight assistant turn. The Hall must treat any turn in flight at handover time as *aborted and unrecorded* — either re-send the prompt after resume or surface the loss. The client-side transcript (chunks the old envoy relayed) is the only record of the partial output.
+**Implication for orbit handover:** a crash mid-turn loses the in-flight assistant turn. The Axis must treat any turn in flight at handover time as *aborted and unrecorded* — either re-send the prompt after resume or surface the loss. The client-side transcript (chunks the old orbit relayed) is the only record of the partial output.
 
 ## 2. Double-attach
 
@@ -61,7 +61,7 @@ B stderr: conversation turn: session=31370478-... platform=acp history=2 ...
 - B prompted successfully too. Note B's turn ran with `history=2` — B had A's pre-resume history plus its own turn, but **not** A's post-resume turn ("A2"): each child holds an independent in-memory conversation and appends to the shared DB. A later fresh resume (child C) replayed **all** turns from both: `'okA2B1'` — the DB interleaves writes from both children.
 - No writer arbitration exists. Concurrent prompting from two children doesn't crash but produces interleaved history where neither child saw the other's turns in its own context.
 
-**Implication:** the new envoy does **not** need the old child dead before resuming — resume is safe at any time. But the Hall must guarantee **at most one child prompts** a session at a time (stop routing prompts to the old envoy before the new one takes over), otherwise histories silently diverge/interleave. Kill-before-resume is unnecessary; *quiesce-before-prompt* is mandatory.
+**Implication:** the new orbit does **not** need the old child dead before resuming — resume is safe at any time. But the Axis must guarantee **at most one child prompts** a session at a time (stop routing prompts to the old orbit before the new one takes over), otherwise histories silently diverge/interleave. Kill-before-resume is unnecessary; *quiesce-before-prompt* is mandatory.
 
 ## 3. State locality
 
@@ -85,9 +85,9 @@ Also confirmed in old-child stderr after model switch: `Stored system prompt …
 | `currentModelId` | ✅ | Hermes session store |
 | `currentModeId` (permission mode) | ❌ resets to `default` | dead child's memory only |
 | In-flight turn output | ❌ | dead child's memory only |
-| cwd / mcpServers | n/a — re-supplied as `session/resume` params by the new client | envoy-owned |
+| cwd / mcpServers | n/a — re-supplied as `session/resume` params by the new client | orbit-owned |
 
-**Implication:** after resume the new envoy owes: re-send `session/set_mode`, re-supply `cwd` + `mcpServers` in the resume params, and reconcile any in-flight turn. It does **not** need to re-apply the model.
+**Implication:** after resume the new orbit owes: re-send `session/set_mode`, re-supply `cwd` + `mcpServers` in the resume params, and reconcile any in-flight turn. It does **not** need to re-apply the model.
 
 ## 4. Resume cost
 
@@ -99,17 +99,17 @@ Also confirmed in old-child stderr after model switch: `Stored system prompt …
 | `6ef30386-…` | 75 | **2.00 s** | 110 | 3,342 chars |
 | `71b47c5d-…` | 287 | **2.46 s** | 345 | 19,639 chars |
 
-**Findings:** resume latency is ~2.0–2.5 s and essentially **flat with history size** — dominated by fixed session-restore overhead (tool registry, provider init inside the already-running child), not replay. The full transcript is replayed as `session/update` notifications *within* the resume request lifetime (345 updates for the 287-msg session), so the envoy must drain notifications concurrently with awaiting the response. Add ~3–5 s of child process startup + `initialize` on top for total handover budget.
+**Findings:** resume latency is ~2.0–2.5 s and essentially **flat with history size** — dominated by fixed session-restore overhead (tool registry, provider init inside the already-running child), not replay. The full transcript is replayed as `session/update` notifications *within* the resume request lifetime (345 updates for the 287-msg session), so the orbit must drain notifications concurrently with awaiting the response. Add ~3–5 s of child process startup + `initialize` on top for total handover budget.
 
 **Failed/inconclusive notes (not papered over):**
 - First long-session attempt used Hermes-internal IDs (`mqvw189y0xteuv`, 7034 msgs, non-ACP source). Resume did **not** error — it silently created a fresh session (stderr: `resume_session: session mqvw189y0xteuv not found, creating new`; `_meta` provenance carried a different sessionId). So 4(b) numbers above use genuine ACP-sourced sessions instead; no 1000+-message ACP session existed to test extreme scale. Extrapolation from 6→287 msgs suggests replay cost grows slowly, but that is extrapolation.
 - Whether ACP-vs-non-ACP source or the ID itself caused the "not found" was not isolated; either way the silent-new-session behavior is confirmed and is itself a handover hazard.
 - Exp 1 caveat: the model finished streaming "1..30" faster than expected (~5 s), so SIGTERM landed at end-of-stream rather than mid-stream; the persisted-state conclusion (assistant turn absent from DB) holds regardless.
 
-## Envoy handover design consequences
+## Orbit handover design consequences
 
-1. **Kill-before-resume is NOT required.** Resume works with the old child alive; no lock exists. Ordering can be: new envoy spawns + resumes → Hall flips prompt routing → old envoy drains/dies.
-2. **But single-writer discipline is on the Hall.** Nothing in Hermes stops two children from prompting one session; histories interleave silently. Enforce exactly-one-active-prompter at the control plane.
+1. **Kill-before-resume is NOT required.** Resume works with the old child alive; no lock exists. Ordering can be: new orbit spawns + resumes → Axis flips prompt routing → old orbit drains/dies.
+2. **But single-writer discipline is on the Axis.** Nothing in Hermes stops two children from prompting one session; histories interleave silently. Enforce exactly-one-active-prompter at the control plane.
 3. **In-flight turns die with the child.** Handover should wait for turn completion (`session/prompt` response) when possible; on crash handover, mark the in-flight turn lost and let the client decide to re-prompt.
 4. **Post-resume re-apply checklist:** `session/set_mode` (always — resets to `default`), cwd + mcpServers (resume params). Model persists; skip.
 5. **Verify resume identity.** Always compare `result._meta.hermes.sessionProvenance.acpSessionId` to the requested sessionId — a mismatch means Hermes silently created a new session and the handover must be treated as failed.

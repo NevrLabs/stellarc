@@ -104,7 +104,7 @@ describe("Composer model selector", () => {
     expect(screen.getByTitle("Model & thinking")).toHaveTextContent("glm-5v-turbo");
   });
 
-  it("syncs the pill to session truth (Hall model) over local default", () => {
+  it("syncs the pill to session truth (Axis model) over local default", () => {
     renderComposer({ sessionModel: "glm-5.2" });
 
     // Pill shows the session's actual model, not "auto".

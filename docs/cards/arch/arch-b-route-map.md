@@ -1,7 +1,7 @@
 # ARCH-B — Route map for splitting `server/mod.rs`
 
-Mechanical split of `crates/control-plane/src/server/mod.rs` (6239 lines) into
-per-resource modules under `crates/control-plane/src/server/routes/*.rs`.
+Mechanical split of `crates/axis/src/server/mod.rs` (6239 lines) into
+per-resource modules under `crates/axis/src/server/routes/*.rs`.
 **Pure movement: no DTO, handler behavior, or route-name changes.** This document
 is the pre-move inventory; it is the contract the post-move route-set assertion
 test enforces.
@@ -28,7 +28,7 @@ test enforces.
   `build_router`) and reference no moved private item, so `use super::*` keeps
   resolving against `mod.rs`.
 - **Stays in place (untouched):** `dto.rs`, `ws.rs`, `bridge_mgr.rs`,
-  `envoy_conn.rs`, `identity.rs`, `principal.rs`, `test_support.rs`.
+  `orbit_conn.rs`, `identity.rs`, `principal.rs`, `test_support.rs`.
 - **Handler visibility.** Moved handlers become `pub(crate)` so
   `organization_resource_routes` (org-scoped aliases) can reference them.
 
@@ -101,7 +101,7 @@ public `/proxy/*` forward router, the `/api/enroll` mint route, and `/ws`.
 - GET·`/api/registry`·list_registry · PUT·`/api/registry`·put_registry_entry · structs RegistryQuery, PutRegistryBody
 
 ### routes/nodes.rs
-- GET·`/api/nodes`·list_nodes · GET·`/api/nodes/hall-identity`·hall_identity
+- GET·`/api/nodes`·list_nodes · GET·`/api/nodes/axis-identity`·axis_identity
 - GET·`/api/nodes/{id}/agents`·node_agents · POST·`/api/nodes/{id}/agents/refresh`·refresh_node_agents
 - POST·`/api/nodes/{id}/drain`·drain_node · DELETE·`/api/nodes/{id}`·remove_node
 

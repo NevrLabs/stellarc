@@ -9,12 +9,12 @@
 - Relates to: ADR 0002 §2 (layer boundary — reaffirmed), §6 (cards),
   §7 (desired-state), §9 (skills/MCP libraries).
 
-> **Amended by ADR 0027 (2026-07-19).** The session tree remains a Hall-owned
+> **Amended by ADR 0027 (2026-07-19).** The session tree remains a Axis-owned
 > typed graph, but its session spaces are all flat siblings under
-> `~/.olympus/<org>/sessions/`. No subagent directory nests inside its parent.
+> `~/.stellarc/<org>/sessions/`. No subagent directory nests inside its parent.
 
 > **Product thesis (the one sentence):** the *agent setup* is the replicable
-> unit; Olympus fans it out across nodes and makes it observable. Everything
+> unit; Stellarc fans it out across nodes and makes it observable. Everything
 > below follows from that.
 
 ## 1. Context: omp is the reference for the node-agent layer
@@ -26,7 +26,7 @@ edits, in-process LSP/DAP, plan/goal modes, skills/hooks/MCP/plugins. It is a
 near-exact reference for **what a single node's agent experience should be.**
 
 It is categorically **not** a control plane: no concept of a node, an org
-boundary, an envoy, cross-host orchestration, or an append-only audit log. Its
+boundary, an orbit, cross-host orchestration, or an append-only audit log. Its
 `task` fan-out spawns child processes *on one machine* — concurrency, not a
 fleet.
 
@@ -39,21 +39,21 @@ substrate demands it (jj not git; cross-node not in-process).
 
 | omp feature | What we take | Divergence |
 |---|---|---|
-| **Session tree** (`/branch`, `/fork`, `/tree`, JSONL leaves) | The branch/fork/tree model over sessions. A branch is a new leaf from a prior message; a fork is a new session; the graph is walkable. | Our sessions are event-log-backed and every session space is flat under the org's `sessions/` directory (ADR 0027), not per-process JSONL or nested directories. The graph is a Hall projection, not a local file. |
+| **Session tree** (`/branch`, `/fork`, `/tree`, JSONL leaves) | The branch/fork/tree model over sessions. A branch is a new leaf from a prior message; a fork is a new session; the graph is walkable. | Our sessions are event-log-backed and every session space is flat under the org's `sessions/` directory (ADR 0027), not per-process JSONL or nested directories. The graph is a Axis projection, not a local file. |
 | **IRC bus** (peers DM each other, idle/parked-wake, `list`/`send`/`wait`/`inbox`, `await`) | The *semantics* wholesale — this is the inter-agent comms model, replacing ADR 0002 §6's "previous-attempt-block" forwarding as the primary channel. | omp's bus is in-process; ours must work **cross-node over iroh** (see §7 footgun 2). |
 | **`task` fan-out** (parallel child sessions, isolated workspaces, results as `agent://`) | Parallel subagent dispatch with per-task isolation. | Maps onto typed `agent_spawn` edges plus independent flat session spaces (ADR 0027) and bwrap isolation (ADR 0005 §4.3), not omp's COW-clone overlay. |
 | **Plan / goal modes** | Sandboxed planning turn against a planner model; approve → execute/keep/compact. | Straight adoption. |
 | **Structural (hashline) edits** | Content-hash line anchors for edits with stale-anchor recovery. | Must be re-verified against jj's conflict model (see §7 footgun 1). |
 | **GitHub-as-filesystem** (`read pr://`, `issue://`) | The virtual-read pattern is interesting and adoptable. | We keep **jj** as the VCS layer (ADR 0004); the `read <scheme>://` virtualization is orthogonal to git-vs-jj and can coexist. |
-| **Skills / hooks / MCP / plugins / marketplace** | The extensibility surface. | **Re-scoped to org/project-declared, envoy-materialized** — see §3. This is where Olympus adds its core value. |
+| **Skills / hooks / MCP / plugins / marketplace** | The extensibility surface. | **Re-scoped to org/project-declared, orbit-materialized** — see §3. This is where Stellarc adds its core value. |
 
-## 3. The replication layer (Olympus's core differentiator)
+## 3. The replication layer (Stellarc's core differentiator)
 
-This is the part omp has **zero** of, and the reason Olympus exists.
+This is the part omp has **zero** of, and the reason Stellarc exists.
 
 **Plugins, skills, MCP servers, and hooks are declared at org/project scope in a
-manifest. The envoy materializes them onto each node and into each session
-space.** Declare the dev environment once → Olympus reproduces it on N nodes →
+manifest. The orbit materializes them onto each node and into each session
+space.** Declare the dev environment once → Stellarc reproduces it on N nodes →
 fan out work → every node speaks the same tool vocabulary.
 
 ### 3.1 The declaration manifest (the load-bearing artifact)
@@ -61,7 +61,7 @@ fan out work → every node speaks the same tool vocabulary.
 A project (and/or org) carries a declaration of its required agent setup:
 
 ```json
-// ~/.olympus/<org>/projects/<project_slug>/project.json  (setup section)
+// ~/.stellarc/<org>/projects/<project_slug>/project.json  (setup section)
 {
   "setup": {
     "skills":  ["code-review", "systematic-debugging"],
@@ -75,31 +75,31 @@ A project (and/or org) carries a declaration of its required agent setup:
 - **Org-level** setup applies to every session in the org (baseline: e.g.
   every node needs gitnexus).
 - **Project-level** setup layers on top (this project also needs the Rust LSP).
-- The union is what the envoy must materialize before a session in that
+- The union is what the orbit must materialize before a session in that
   project/org can run.
 
 ### 3.2 Plugins are first-class, `kind`-discriminated
 
-Per ADR 0005 §3, a plugin declares its lifecycle, because the envoy's duty
+Per ADR 0005 §3, a plugin declares its lifecycle, because the orbit's duty
 differs:
 
 - **`kind: install`** — a host-mutating, idempotent installer (gitnexus, a CLI,
-  an LSP server binary). The envoy runs it once and reconciles desired-state
+  an LSP server binary). The orbit runs it once and reconciles desired-state
   (ADR 0002 §7): if the node doesn't have it, install it; if present, skip.
 - **`kind: service`** — a supervised long-running process (an MCP server, a
-  receipt/CRM subsystem). The envoy supervises it: ports, health, restart.
+  receipt/CRM subsystem). The orbit supervises it: ports, health, restart.
 
 ### 3.3 Layer boundary is preserved (non-negotiable)
 
 Plugins/skills/LSP/codegraph are **things the agent uses**, materialized by the
-**envoy** into the session space — **never run by the control plane** (ADR 0002
-§2). The control plane records *what should be installed*; the envoy *installs
+**orbit** into the session space — **never run by the control plane** (ADR 0002
+§2). The control plane records *what should be installed*; the orbit *installs
 and supervises*. The moment the control plane runs an LSP, the architecture is
 broken.
 
 ### 3.4 Skills/MCP libraries → per-scope activation (ADR 0002 §9 reaffirmed)
 
-The `~/.olympus/<org>/plugins/`, and the skill/MCP libraries, hold *all* managed
+The `~/.stellarc/<org>/plugins/`, and the skill/MCP libraries, hold *all* managed
 artifacts; the manifest's `setup` block is the *activation* list referencing the
 library. Materialization = "make the declared subset present and active in this
 session space."
@@ -123,14 +123,14 @@ omp-like runtimes observable. omp has no kanban; this is control-plane value.
 
 ```
                  ┌───────────────────────────────────────────────┐
-   Layer 1       │  OLYMPUS control plane (Rust, single binary)   │
+   Layer 1       │  STELLARC control plane (Rust, single binary)   │
    control plane │  event log · views · scheduler · KANBAN spine  │
                  │  owns: org/project/session/plugin DECLARATIONS  │
                  └───────────────────────────────────────────────┘
                         │ records intent (never runs host effects)
                         ▼   iroh / UDS transport
                  ┌───────────────────────────────────────────────┐
-   Layer 2       │  ENVOY (one per org per node)                  │
+   Layer 2       │  ORBIT (one per org per node)                  │
    replication   │  MATERIALIZES the declared setup:              │
                  │   install-plugins · supervise-services ·       │
                  │   clone repos → jj workspaces · bwrap sandbox   │
@@ -146,7 +146,7 @@ omp-like runtimes observable. omp has no kanban; this is control-plane value.
 ```
 
 The **declaration manifest** (Layer 1 record) → **materialization** (Layer 2
-envoy) → **agent uses the tools** (Layer 3). Replicate the manifest to a new
+orbit) → **agent uses the tools** (Layer 3). Replicate the manifest to a new
 node and the same agent setup reproduces there. That is the product.
 
 ## 6. Consequences
@@ -187,7 +187,7 @@ lands. Do not let a swarm worker build past one of these on an assumption.
    peer list) **over iroh between nodes.** **Question:** peer discovery, partial
    connectivity, parked-peer revival across hosts, and message durability when a
    peer is offline — what's the minimum viable design? **Resolve with:** a
-   design doc + spike of two envoys exchanging IRC messages over iroh, including
+   design doc + spike of two orbits exchanging IRC messages over iroh, including
    an offline-peer case.
 
 3. **Card ↔ session-tree consistency.** Sessions branch/fork/sub-session into
@@ -219,7 +219,7 @@ dependency order:
 1. **The declaration manifest** at org/project scope (the `setup` block) +
    its event-log records. *(No footgun blocks this — it's pure control-plane
    record-keeping.)*
-2. **Envoy materialization** of the declared setup (install/supervise) — gated
+2. **Orbit materialization** of the declared setup (install/supervise) — gated
    on footgun 4's state machine.
 3. **Session-tree events** in the log (branch/fork/sub-session) + the card link
    — gated on footgun 3.
@@ -240,7 +240,7 @@ which is bigger than footgun 4's state machine:
 
 > **The materialization *target* is harness-specific.** The declaration is
 > harness-AGNOSTIC (slugs); each agent (Hermes / Claude Code / Codex) reads its
-> config from a different place in a different format. So the envoy's
+> config from a different place in a different format. So the orbit's
 > materialization is a **per-harness adapter**: given the effective declared
 > setup and the session's locked agent kind, render the config the way THAT
 > harness expects — *into the session space*, never into a shared profile.
@@ -255,7 +255,7 @@ which is bigger than footgun 4's state machine:
   handover (target kind) — never on branch/fork.
 - **Design the adapter interface up front.** First targets: Hermes, Claude
   Code, Codex.
-- **Merge mode:** Hermes = union (Olympus adds on top of profile defaults).
+- **Merge mode:** Hermes = union (Stellarc adds on top of profile defaults).
   Claude Code / Codex = configurable (override vs union) where the harness
   allows it.
 

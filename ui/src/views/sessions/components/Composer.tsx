@@ -20,7 +20,7 @@ import { BrandIcon, agentBrand } from "../../../components/BrandIcons";
 import { useAgents } from "../../../hooks/queries";
 import type { ModelEntry } from "../../../types";
 
-const THINKING_KEY = "olympus-thinking";
+const THINKING_KEY = "stellarc-thinking";
 
 type ThinkingLevel = "off" | "low" | "medium" | "high";
 
@@ -71,8 +71,8 @@ export function Composer({
   );
   const agentIcon = agentBrand(lockedAgent?.kind, lockedAgent?.provider);
   const agentName = lockedAgent?.id ?? sessionAgent ?? "agent";
-  // The main in-process node reports as "local"; show it as "olympus".
-  const nodeLabel = !sessionNode || sessionNode === "local" ? "olympus" : sessionNode;
+  // The main in-process node reports as "local"; show it as "stellarc".
+  const nodeLabel = !sessionNode || sessionNode === "local" ? "stellarc" : sessionNode;
 
   // Models come from the agent itself (populated by discovery). Grouped by
   // provider so the selector shows provider → model sections.
@@ -91,7 +91,7 @@ export function Composer({
   const [plusOpen, setPlusOpen] = useState(false);
   const [thinking, setThinking] = useState<ThinkingLevel>(loadThinking);
   // Local override when the user picks a different model for the next send.
-  // Falls back to session truth (Hall-authoritative), then the agent default.
+  // Falls back to session truth (Axis-authoritative), then the agent default.
   const [modelOverride, setModelOverride] = useState<string | null>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);

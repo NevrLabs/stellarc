@@ -101,13 +101,13 @@ describe("LatestProjectLayoutWriter", () => {
     const onError = vi.fn();
     const writer = new LatestProjectLayoutWriter<number>(async (_projectId, layout) => {
       saved.push(layout);
-      if (layout === 1) throw new Error("Hall unavailable");
+      if (layout === 1) throw new Error("Axis unavailable");
     }, onError);
 
     writer.enqueue("project-a", 1);
     await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(
       "project-a",
-      expect.objectContaining({ message: "Hall unavailable" }),
+      expect.objectContaining({ message: "Axis unavailable" }),
     ));
 
     writer.enqueue("project-a", 2);

@@ -1,15 +1,15 @@
-//! Runtime spawn/wire configuration types shared between Hall and Envoy.
+//! Runtime spawn/wire configuration types shared between Axis and Orbit.
 
 use serde::{Deserialize, Serialize};
 
-/// Managed-session workspace contract understood by current Hall and Envoy.
+/// Managed-session workspace contract understood by current Axis and Orbit.
 /// Zero is reserved for legacy payloads that predate node-local workspaces.
 pub const MANAGED_WORKSPACE_VERSION: u8 = 1;
 
 /// What an agent runtime needs to spawn: which agent (Hermes profile) drives it
 /// and on which node. The factory turns this into a concrete runtime.
 ///
-/// Moved from `olympus-control-plane`'s `server/bridge_mgr.rs` (ADR 0008).
+/// Moved from `stellarc-axis`'s `server/bridge_mgr.rs` (ADR 0008).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeSpec {
@@ -19,18 +19,18 @@ pub struct RuntimeSpec {
     /// Node to run on ("local" for now; multi-node is post-MVP).
     #[serde(default)]
     pub node: Option<String>,
-    /// Organization that owns the managed session. Envoys combine this
+    /// Organization that owns the managed session. Orbits combine this
     /// logical identity with the request's session id to materialize a
-    /// node-local workspace; Hall-local absolute paths are not portable.
+    /// node-local workspace; Axis-local absolute paths are not portable.
     #[serde(default)]
     pub organization_id: Option<String>,
-    /// Versioned node-local workspace contract. New Envoys reject legacy zero
+    /// Versioned node-local workspace contract. New Orbits reject legacy zero
     /// with an actionable upgrade error instead of misdiagnosing a missing
-    /// Hall-local cwd as a missing agent executable.
+    /// Axis-local cwd as a missing agent executable.
     #[serde(default)]
     pub workspace_version: u8,
-    /// Legacy/local requested working directory. A production Envoy ignores
-    /// this Hall-local path for managed sessions and derives its working
+    /// Legacy/local requested working directory. A production Orbit ignores
+    /// this Axis-local path for managed sessions and derives its working
     /// directory from `organization_id` plus the request's session id.
     #[serde(default)]
     pub cwd: Option<String>,
@@ -47,7 +47,7 @@ pub struct RuntimeSpec {
 
 /// Which JSON-RPC framing an ACP adapter speaks on stdio.
 ///
-/// Moved from `olympus-control-plane`'s `bridge/hermes.rs` (ADR 0008).
+/// Moved from `stellarc-axis`'s `bridge/hermes.rs` (ADR 0008).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AcpFraming {

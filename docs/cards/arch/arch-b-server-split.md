@@ -1,17 +1,17 @@
 # ARCH-B · Split server/mod.rs into per-resource route modules
 
 ## Goal
-Mechanical decomposition of `crates/control-plane/src/server/mod.rs` (~6.2k loc,
+Mechanical decomposition of `crates/axis/src/server/mod.rs` (~6.2k loc,
 ~89 routes) into per-resource modules. `mod.rs` shrinks to AppState + router
 assembly + middleware stack. ZERO behavior change — this is a pure move.
 
 ## Read FIRST
-- `crates/control-plane/src/server/mod.rs` — inventory every route + handler +
+- `crates/axis/src/server/mod.rs` — inventory every route + handler +
   shared helper before moving anything. Build a route→module map first and put
   it in your worktree as `docs/cards/arch/arch-b-route-map.md`.
 - The ARCH-A result (already merged into your base): the `Principal`/`OrgScope`
   seam in `server/principal.rs`. Every resource module mounts through it.
-- `crates/control-plane/src/server/{dto,ws,bridge_mgr,envoy_conn,identity}.rs`
+- `crates/axis/src/server/{dto,ws,bridge_mgr,orbit_conn,identity}.rs`
   — these stay where they are.
 
 ## Build on
@@ -20,9 +20,9 @@ Your worktree branches from main AFTER ARCH-A merges. Confirm
 and signal blocked.
 
 ## Deliverables
-1. `crates/control-plane/src/server/routes/` with one module per resource:
+1. `crates/axis/src/server/routes/` with one module per resource:
    `sessions.rs`, `messages.rs` (or fold into sessions), `vaults.rs`,
-   `fleet.rs` (nodes/envoys/agents), `projects.rs` (boards/cards),
+   `fleet.rs` (nodes/orbits/agents), `projects.rs` (boards/cards),
    `registry.rs`, `setup.rs`, `proxy.rs`, `triggers.rs`, `irc.rs`, `auth.rs`
    (login/logout/orgs), `search.rs`, `misc.rs` (health/metrics/events tail).
    Adjust granularity to the actual route inventory — the map you build is the
@@ -52,5 +52,5 @@ and signal blocked.
 ## Gates
 - `cargo test --workspace` + clippy `-D warnings` + fmt green.
 - The patch-tool E0670 async-fn lint is a false positive; trust cargo.
-- Do NOT start/restart the olympus server.
+- Do NOT start/restart the stellarc server.
 - Do not push to main. Green → `blocked: review-required` with the route map.

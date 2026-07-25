@@ -1,4 +1,4 @@
-/* Olympus — Component classes.
+/* Stellarc — Component classes.
    Styling contract for the reusable primitives (components/**), matched 1:1 to
    the shipped app's patterns and metrics. Every rule reads from tokens; no raw
    hex for color. Prefix: .ol-. Ships to consumers through styles.css.
@@ -83,7 +83,7 @@
 .ol-dot-warn { background: var(--warn); }
 .ol-dot-err  { background: var(--err); }
 .ol-dot-accent { background: var(--accent); }
-.ol-dot-live { background: var(--ok); animation: olympus-pulse var(--loop-pulse) var(--ease-out) infinite; }
+.ol-dot-live { background: var(--ok); animation: stellarc-pulse var(--loop-pulse) var(--ease-out) infinite; }
 
 /* ─────────────────────────  TAG / CHIP  ─────────────────────────
    App: .chip — quiet control; active = silver wash + silver line + silver text. */
@@ -199,12 +199,12 @@
 
 /* ─────────────────────────  SKELETON  ───────────────────────── */
 .ol-skel { border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--bg-elev-2) 25%, var(--bg-hover) 50%, var(--bg-elev-2) 75%);
-  background-size: 200% 100%; animation: olympus-shimmer var(--loop-shimmer) var(--ease-in-out) infinite; height: 11px; }
+  background-size: 200% 100%; animation: stellarc-shimmer var(--loop-shimmer) var(--ease-in-out) infinite; height: 11px; }
 
 /* ─────────────────────────  SPINNER  ─────────────────────────
    App: .spin — 9px ring, 1.5px stroke, silver top, .8s. */
 .ol-spinner { width: 9px; height: 9px; border: 1.5px solid var(--border-strong); border-top-color: var(--accent); border-radius: var(--radius-full);
-  animation: olympus-spin var(--loop-spin) linear infinite; display: inline-block; }
+  animation: stellarc-spin var(--loop-spin) linear infinite; display: inline-block; }
 .ol-spinner-lg { width: 14px; height: 14px; border-width: 2px; }
 
 /* ─────────────────────────  TABS  ─────────────────────────

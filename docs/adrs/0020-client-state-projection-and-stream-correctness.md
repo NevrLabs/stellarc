@@ -4,7 +4,7 @@
 - Date: 2026-07-14
 - Supersedes: none
 - Amends: the WS section of `docs/api-contract.md`; `server/ws.rs` frame vocabulary
-- Depends on: `crates/control-plane/src/log.rs` (append-only event log),
+- Depends on: `crates/axis/src/log.rs` (append-only event log),
   the existing per-session `message_id` ordering key
 - Related: ADR 0017 (runtime attempts/readiness/connection epochs),
   ADR 0018 (OTel/TTL diagnostics), the project/repo review's §4.3
@@ -13,7 +13,7 @@
 > **v2 note.** v1 of this ADR proposed a `(streamEpoch, streamId)`-scoped
 > **contiguous per-session `seq`** stamped off the log write and recovered via
 > `GET /api/events?since=`. Adversarial review
-> (`/home/rpw/.hermes/workspace/reviews/olympus-adr0020-gpt56-review.md`)
+> (`/home/rpw/.hermes/workspace/reviews/stellarc-adr0020-gpt56-review.md`)
 > proved that spine unbuildable on the actual substrate and it is withdrawn.
 > Verified facts that killed it:
 > - The event log is a **single global `AUTOINCREMENT`** (`log.rs:1082`), not
@@ -83,7 +83,7 @@ projections of the same event disagree, and `SessionDto` reads the stale one.
 
 - **WASM + WebRTC is not a correctness fix.** WASM is a compile target; WebRTC
   a transport. Neither supplies ordering, durability, or reconciliation. Keep
-  WebSocket. WebRTC stays a *future* envoy→client transport optimization only.
+  WebSocket. WebRTC stays a *future* orbit→client transport optimization only.
 - **No second permanent event/log store.** Fixes ride the existing `log.rs`
   and the existing per-session `message_id`.
 - **No global-seq / streamEpoch / per-session-contiguous-seq envelope**
@@ -94,7 +94,7 @@ projections of the same event disagree, and `SessionDto` reads the stale one.
 ## 3. Current state (as built)
 
 ```
-Hall event log (log.rs)  ── global AUTOINCREMENT seq; retain_native() deletes rows (holes)
+Axis event log (log.rs)  ── global AUTOINCREMENT seq; retain_native() deletes rows (holes)
   │                          per-session ordering key = messages.message_id (MAX+1)
   ├── views replay ─────────► SessionView / MessageView  ── two SEPARATE locks from append
   │        (append_and_apply / turn loop: append releases lock, THEN views.write().await)
@@ -159,9 +159,9 @@ If, after 4.1–4.4, a cursor is still wanted for reconnect robustness, add a
 (review H4: it leaks cross-org events). This keeps the catch-up coordinate system
 identical to the render key (`message_id`).
 
-## 5. Envoy operational logs (unchanged intent, corrected mechanism)
+## 5. Orbit operational logs (unchanged intent, corrected mechanism)
 
-Envoy diagnostics still need to reach the client, but NOT via a global-seq
+Orbit diagnostics still need to reach the client, but NOT via a global-seq
 envelope. Project them as **session-scoped `session.log` frames** (the variant
 already exists, `ws.rs`) for session-bound events, gated by the same
 `should_deliver` org/session filter. Full OTel remains ADR 0018's TTL plane; do

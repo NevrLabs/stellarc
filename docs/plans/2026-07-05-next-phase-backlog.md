@@ -1,4 +1,4 @@
-# Olympus — State Analysis & Next-Phase Backlog
+# Stellarc — State Analysis & Next-Phase Backlog
 
 > Date: 2026-07-05 · Author: Zephyr · Ground truth verified against `main` @ `8cec5bd`
 
@@ -49,7 +49,7 @@ projects half of that reconciliation landed.
 ## Part 2 — Next phase: "Orchestrator-ready"
 
 Goal (user's words): *"implement these features until it's possible for you to
-create subagents using olympus — we want to move over to olympus as the
+create subagents using stellarc — we want to move over to stellarc as the
 orchestrator platform."*
 
 The critical path to that goal is: **subsessions (spawn+gate) → repos (jj
@@ -77,17 +77,17 @@ the build. Cheap insurance, kills the whole failure class.
 
 **B-4. Repo attach → jj workspace materialization.** `attach_repo` currently
 only records the event. Implement: on attach, `jj workspace add` (or clone
-then workspace) from `~/.olympus/<org>/repos/<slug>` into the session space.
+then workspace) from `~/.stellarc/<org>/repos/<slug>` into the session space.
 On subagent spawn with a repo-attached parent, create an independent jj workspace
-inside the child's flat `~/.olympus/<org>/sessions/<child_id>/` session space at
+inside the child's flat `~/.stellarc/<org>/sessions/<child_id>/` session space at
 the parent's selected commit (ADR 0027). This is the isolation primitive
 everything else rides on.
 
 **B-5. Subsession spawn from agent tooling.** Expose spawn/list/complete as
 an agent-callable surface (bridge tool or documented curl contract in the
-session's system context). Acceptance test: an Olympus-managed session spawns
+session's system context). Acceptance test: an Stellarc-managed session spawns
 a child, the child does work in its jj workspace, completes with `pass`, the
-parent receives the system message. **This test passing = "Olympus can create
+parent receives the system message. **This test passing = "Stellarc can create
 subagents" = phase goal met.**
 
 **B-6. Projects as real bindings.** Extend `ProjectManifest` to
@@ -99,7 +99,7 @@ bound repos as jj workspaces and symlink bound vaults. Session create accepts
 **B-7. Projects UI + naming fix.** Rename `ProjectsView.tsx` → `BoardsView.tsx`
 (it's the kanban). New thin ProjectsPage: list projects, create, bind
 vault/repo/board via pickers, show attached sessions. Also fixes the topbar
-chip naming per the Olympus View→Page hierarchy.
+chip naming per the Stellarc View→Page hierarchy.
 
 ### P2 — Derived knowledge (after the loop closes)
 

@@ -16,16 +16,16 @@ clarify Project as a reusable context template, add first-class repository
 management under Projects, and deliver secure reattachable terminals in Session
 and Fleet views.
 
-**Architecture:** Hall remains the sole durable truth and policy authority.
-Envoys remain the only components allowed to perform host effects. A launch
+**Architecture:** Axis remains the sole durable truth and policy authority.
+Orbits remain the only components allowed to perform host effects. A launch
 target is an exact `(node_id, agent_id)` installation, not a flattened agent id.
 Projects are versioned templates that contribute defaults to a versioned Session
 Context; repos and vaults remain first-class organization resources. One
-Envoy-owned PTY subsystem serves both session-scoped and break-glass node
+Orbit-owned PTY subsystem serves both session-scoped and break-glass node
 terminals through different authorization profiles.
 
 **Tech stack:** Rust 2021, SQLite event/product store, JSON/zstd event payloads,
-FTS5, axum, tokio, iroh/UDS Hall↔Envoy transport, React 18, TanStack Query and
+FTS5, axum, tokio, iroh/UDS Axis↔Orbit transport, React 18, TanStack Query and
 Router, TypeScript, Vite, Vitest, Maestro/Chromium, `@xterm/xterm` after the PTY
 contract is approved.
 
@@ -41,8 +41,8 @@ contract is approved.
 - `.tb-search`, palette CSS, and Zustand `paletteOpen` still exist, but there is
   no React command-palette component.
 - The approved concept contains both search and notification controls at
-  `docs/design/concept/olympus-app-concept.html:361-366`.
-- There is no Hall notification entity today.
+  `docs/design/concept/stellarc-app-concept.html:361-366`.
+- There is no Axis notification entity today.
 
 ### 1.2 Agent discovery and launch
 
@@ -51,13 +51,13 @@ contract is approved.
 - Both nodes report overlapping profile ids such as `default`, `coding-agent`,
   `code-reviewer`, and `claude-code`.
 - `NodeRegistry::all_agents()` deduplicates by `agent.id` and discards node
-  identity (`crates/control-plane/src/node.rs:185-195`).
+  identity (`crates/axis/src/node.rs:185-195`).
 - `AgentPicker` consumes that flat list and `SessionSidebar` creates with only
   `{agent}`.
 - When a session has no node, the first prompt routes to
-  `envoy_conns.first_node()` (`server/routes/sessions.rs:1158-1166`). Map
+  `orbit_conns.first_node()` (`server/routes/sessions.rs:1158-1166`). Map
   iteration/connection order therefore decides placement.
-- Hall does not validate that the selected exact node is ready, non-draining,
+- Axis does not validate that the selected exact node is ready, non-draining,
   role-capable, and currently reporting the selected agent before recording a
   session.
 
@@ -81,7 +81,7 @@ contract is approved.
 - `RepoStore` can clone, fetch, and attach jj workspaces, but explicitly states
   that it is not wired to handlers.
 - `POST /api/sessions/:id/repos` only appends `SessionRepoAttached`; it performs
-  no Envoy host effect.
+  no Orbit host effect.
 - Repo events are not durably organization-owned in their payload/projection.
 - There is no wiki companion, replica state, sync policy, issue/PR cursor, cache,
   rate-limit state, or retry model.
@@ -92,7 +92,7 @@ contract is approved.
 - Fleet has no terminal affordance.
 - Proto has raw-argv JOBS-1 frames but no PTY frame family.
 - The UI does not depend on xterm.js yet.
-- ADR 0002 §18 requires Envoy PTY ↔ xterm.js and an audited operator capability.
+- ADR 0002 §18 requires Orbit PTY ↔ xterm.js and an audited operator capability.
 - ADR 0017 forbids exposing arbitrary shell/SSH/argv as an agent operation.
 
 ### 1.6 Foundation drift
@@ -109,12 +109,12 @@ contract is approved.
 
 ## 2. Locked architecture doctrine
 
-1. **Hall owns truth and policy.** Launch visibility, project templates, session
+1. **Axis owns truth and policy.** Launch visibility, project templates, session
    context revisions, repo registrations/sync intent, terminal authorization,
-   and durable audit records are Hall-owned.
-2. **Envoy owns effects.** Agent spawn, PTY processes, repo clone/fetch,
+   and durable audit records are Axis-owned.
+2. **Orbit owns effects.** Agent spawn, PTY processes, repo clone/fetch,
    workspace materialization, vault mounts, plugin runtimes, and credentials are
-   Envoy effects.
+   Orbit effects.
 3. **Exact launch target.** A human-created session targets an exact online agent
    installation. Production must never route an unbound session to an arbitrary
    first connection.
@@ -126,14 +126,14 @@ contract is approved.
    attempt is versioned and digest-bound. Project edits do not silently mutate a
    live attempt.
 7. **Repo truth stays external.** Git history and GitHub issue/PR truth remain at
-   their source. Hall owns registration, policy, cursors, bounded query mirrors,
+   their source. Axis owns registration, policy, cursors, bounded query mirrors,
    and observed sync state.
 8. **One PTY primitive, two policies.** Session terminal is workspace-scoped;
    Fleet terminal is an explicit break-glass node terminal. Both are human-only.
 9. **No shell for agents.** PTY, raw HTTP, raw SSH, and arbitrary argv are not
    added to the agent CLI/MCP operation registry.
-10. **Honest recovery.** Browser disconnect may reattach to a live Envoy PTY.
-    Envoy loss terminates that PTY; no live process migration is claimed.
+10. **Honest recovery.** Browser disconnect may reattach to a live Orbit PTY.
+    Orbit loss terminates that PTY; no live process migration is claimed.
 
 ---
 
@@ -147,7 +147,7 @@ AgentInstallationKey = (organization_id, node_id, harness_kind, agent_id)
 
 AgentGroup
   key
-  launch_visible              # Hall policy, default true
+  launch_visible              # Axis policy, default true
   installations[]
 
 AgentInstallation
@@ -192,7 +192,7 @@ UI must show the divergence. It must not synthesize one canonical model.
 }
 ```
 
-Hall validates the target atomically against the current node connection epoch
+Axis validates the target atomically against the current node connection epoch
 before recording launch intent. Validation failure returns a typed conflict and
 creates no runnable draft.
 
@@ -287,8 +287,8 @@ Repo query cache (bounded/disposable)
   observed_at / expires_at
 ```
 
-Git and wiki bytes are Envoy-owned replicas. Issue/PR summaries are a bounded
-Hall query cache, not an append-only permanent duplicate of GitHub. Registration,
+Git and wiki bytes are Orbit-owned replicas. Issue/PR summaries are a bounded
+Axis query cache, not an append-only permanent duplicate of GitHub. Registration,
 desired replicas, sync policy, cursors, and audit remain durable product truth.
 Detailed command output belongs in TTL telemetry.
 
@@ -318,7 +318,7 @@ Terminal attachment
 
 Permanent audit stores metadata, not terminal bytes. Redacted terminal bytes may
 enter the ADR 0018 TTL store once implemented. Until then, keep only a strict
-bounded in-memory/Envoy replay window and clearly label diagnostics ephemeral.
+bounded in-memory/Orbit replay window and clearly label diagnostics ephemeral.
 
 ---
 
@@ -340,7 +340,7 @@ GET /api/agents/:kind/:agentId/installations/:nodeId/models
   → models for that exact installation
 ```
 
-Node Hello continues to report observed agents only. Envoy never sends or owns
+Node Hello continues to report observed agents only. Orbit never sends or owns
 launch visibility.
 
 ### 4.2 Session launch/context
@@ -401,7 +401,7 @@ WSS /ws/terminals/:id?after=<output-sequence>
   server: snapshot, output(sequence,base64), exited, lost, error
 ```
 
-Hall↔Envoy adds typed PTY frames with exact terminal/node/connection epochs.
+Axis↔Orbit adds typed PTY frames with exact terminal/node/connection epochs.
 PTY output uses bounded chunks and a binary-safe encoding. Control and heartbeat
 frames have priority over bulk terminal output. A dedicated iroh/UDS stream is
 preferred; if the existing connection is reused, it must have weighted bounded
@@ -415,7 +415,7 @@ queues and hostile starvation tests.
 
 - Restore search pill in the center.
 - `Ctrl/Cmd+K` opens a real global palette.
-- Search queries existing Hall search and includes navigation commands.
+- Search queries existing Axis search and includes navigation commands.
 - Restore bell icon next to search.
 - Bell opens an attention drawer. First useful projection includes:
   input-required sessions, runtime-start errors, offline/draining nodes, and repo
@@ -508,7 +508,7 @@ them.
 - Modify `README.md`
 - Modify `AGENTS.md`
 - Modify `docs/architecture/architecture.md`
-- Modify `docs/plans/2026-06-29-olympus-long-horizon-roadmap.md`
+- Modify `docs/plans/2026-06-29-stellarc-long-horizon-roadmap.md`
 
 **Objective:** Remove active Convex/Bun/redb/tantivy and arbitrary first-node
 claims so workers do not implement superseded architecture.
@@ -537,7 +537,7 @@ claims so workers do not implement superseded architecture.
 - Modify `ui/src/api.ts` only if the existing search helper is insufficient
 
 **TDD acceptance:** Search pill renders; keyboard shortcut opens; Escape closes;
-debounced Hall results navigate to a session; empty/loading/error states are
+debounced Axis results navigate to a session; empty/loading/error states are
 honest; mobile keeps the icon reachable even when the pill collapses.
 
 #### Task 1.2: Restore the notification bell as an attention drawer
@@ -557,23 +557,23 @@ in both supported themes when color behavior changes.
 
 ### Phase 2 — Exact agent installation and launch policy
 
-#### Task 2.1: Add Hall-owned launch policy events/projection
+#### Task 2.1: Add Axis-owned launch policy events/projection
 
 **Files:**
-- Modify `crates/control-plane/src/event.rs`
-- Create `crates/control-plane/src/views/agent.rs`
-- Modify `crates/control-plane/src/views/mod.rs`
+- Modify `crates/axis/src/event.rs`
+- Create `crates/axis/src/views/agent.rs`
+- Modify `crates/axis/src/views/mod.rs`
 - Modify replay/tests
 
 **TDD acceptance:** Policy survives replay; key is organization + kind + agent
-id; default visible; Envoy reports cannot overwrite it.
+id; default visible; Orbit reports cannot overwrite it.
 
 #### Task 2.2: Replace flattened agent catalog API
 
 **Files:**
-- Modify `crates/control-plane/src/node.rs`
-- Modify `crates/control-plane/src/server/routes/agents.rs`
-- Modify `crates/control-plane/src/server/dto.rs`
+- Modify `crates/axis/src/node.rs`
+- Modify `crates/axis/src/server/routes/agents.rs`
+- Modify `crates/axis/src/server/dto.rs`
 - Modify `docs/api-contract.md`
 - Modify route tests
 
@@ -584,9 +584,9 @@ state is represented; policy PATCH is organization-scoped.
 #### Task 2.3: Make session launch exact and fail closed
 
 **Files:**
-- Modify `crates/control-plane/src/server/routes/sessions.rs`
+- Modify `crates/axis/src/server/routes/sessions.rs`
 - Modify session event/view/DTO types
-- Modify `crates/control-plane/src/server/envoy_conn.rs`
+- Modify `crates/axis/src/server/orbit_conn.rs`
 - Add focused integration tests
 
 **TDD acceptance:** Exact node+agent is persisted; stale epoch, missing role,
@@ -632,7 +632,7 @@ reasons; context placeholders have final labels and no fake persistence.
 #### Task 3.3: Live two-node launch proof
 
 **Acceptance:** Create one session on `terminus` and one on `Fx-ZephyrusM16`;
-each runtime starts only on the selected Envoy; refresh and first prompt preserve
+each runtime starts only on the selected Orbit; refresh and first prompt preserve
 placement; hidden agents remain available to subagent orchestration.
 
 ### Phase 4 — Project template and resolved Session Context
@@ -648,7 +648,7 @@ placement; hidden agents remain available to subagent orchestration.
 
 **Files:**
 - Modify project events/view/DTO/routes
-- Modify `crates/control-plane/src/views/setup.rs`
+- Modify `crates/axis/src/views/setup.rs`
 - Modify project manifest compatibility code
 
 **Acceptance:** Every update produces a monotonic revision/digest; Project remains
@@ -683,14 +683,14 @@ fail closed; resolved digest is stable; runtime attempt binds the digest.
 - Add organization ownership and browser-scoped routes
 - Add production event migration/replay compatibility tests
 
-#### Task 5.2: Move repo effects behind Envoy typed providers
+#### Task 5.2: Move repo effects behind Orbit typed providers
 
 **Files:**
-- Move/replace control-plane `RepoStore` effect code with Envoy provider code
+- Move/replace control-plane `RepoStore` effect code with Orbit provider code
 - Add typed proto requests/results only after JOBS-2 prerequisites
 - Add local bare-repo integration fixtures
 
-**Acceptance:** Hall never runs git/jj/gh; Envoy clone/fetch/workspace is fenced,
+**Acceptance:** Axis never runs git/jj/gh; Orbit clone/fetch/workspace is fenced,
 idempotent by attempt key, and reports retained status.
 
 #### Task 5.3: Add wiki companion and replica reconciliation
@@ -718,14 +718,14 @@ issues, and PRs are visible. Periodic schedule and next run are explicit.
 #### Task 6.1: Approve PTY wire contract and auth prerequisite
 
 **Gate:** Browser principal has explicit human terminal capabilities. Do not place
-Hall bearer credentials in the browser. Exact frame limits, epochs, and priority
+Axis bearer credentials in the browser. Exact frame limits, epochs, and priority
 queues are approved before implementation.
 
-#### Task 6.2: Implement Envoy PTY supervisor
+#### Task 6.2: Implement Orbit PTY supervisor
 
 **Files:**
-- Create `crates/envoy/src/terminal.rs`
-- Modify Envoy main dispatch
+- Create `crates/orbit/src/terminal.rs`
+- Modify Orbit main dispatch
 - Modify proto terminal types
 - Add Unix PTY/process-group dependency only after manifest review
 
@@ -733,16 +733,16 @@ queues are approved before implementation.
 browser detach grace; output sequence/replay; timeout and forced cleanup; no cwd
 escape from session profile.
 
-#### Task 6.3: Implement Hall terminal registry and bridge
+#### Task 6.3: Implement Axis terminal registry and bridge
 
 **Files:**
-- Create Hall terminal service/routes
-- Modify Envoy connection routing
+- Create Axis terminal service/routes
+- Modify Orbit connection routing
 - Add dedicated terminal WSS handler
 - Add permanent audit events and TTL hook seam
 
-**TDD acceptance:** authorization by target, exact Envoy epoch, reattach cursor,
-output bounds, terminal loss on Envoy restart, no heartbeat starvation under
+**TDD acceptance:** authorization by target, exact Orbit epoch, reattach cursor,
+output bounds, terminal loss on Orbit restart, no heartbeat starvation under
 terminal flood.
 
 ### Phase 7 — Terminal UI
@@ -771,17 +771,17 @@ close action; no terminal for unauthorized users.
 
 1. Focused tests during each card.
 2. Serialized canonical gate:
-   `flock ~/.cache/olympus-cargo.lock env CARGO_TARGET_DIR=$HOME/.cache/cargo-target/plain CARGO_BUILD_JOBS=1 cargo test --workspace -j 1`.
+   `flock ~/.cache/stellarc-cargo.lock env CARGO_TARGET_DIR=$HOME/.cache/cargo-target/plain CARGO_BUILD_JOBS=1 cargo test --workspace -j 1`.
 3. `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` under the
    same serialization discipline.
 4. UI Vitest, typecheck, build, and Maestro serially.
 5. Real Chromium journeys at desktop and 412×915 mobile.
 6. Live two-node exact launch and hidden-agent proof.
 7. Live session terminal and Fleet terminal on both UDS and iroh nodes.
-8. Disconnect/reconnect, Envoy restart, terminal flood, stale connection epoch,
+8. Disconnect/reconnect, Orbit restart, terminal flood, stale connection epoch,
    and repo sync failure hostile tests.
 9. Backup production SQLite before migrations; dry-run copied DB; integrity
-   check; deploy Hall then Envoys; wait for fresh Fleet readiness.
+   check; deploy Axis then Orbits; wait for fresh Fleet readiness.
 10. Store screenshots/video under `docs/evidence/` and backend diagrams under
     `docs/diagrams/`.
 11. Seven-day soak begins only after all prerequisite gates pass.
@@ -796,14 +796,14 @@ worktree.
 ```text
 S0 foundation/docs/ADRs
   └─ S1 shared contract spine (events/proto/DTO/API contract)
-       ├─ S2 Hall launch backend
+       ├─ S2 Axis launch backend
        ├─ S3 Agents management UI
        ├─ S4 Session creation UI
        ├─ S5 Project context backend
        ├─ S6 Project/Repo UI
-       ├─ S7 Envoy repo providers
-       ├─ S8 Envoy PTY supervisor
-       └─ S9 Hall terminal bridge
+       ├─ S7 Orbit repo providers
+       ├─ S8 Orbit PTY supervisor
+       └─ S9 Axis terminal bridge
              ├─ S10 Session terminal UI
              └─ S11 Fleet terminal UI
   └─ S12 adversarial integration review
@@ -816,14 +816,14 @@ Safe parallelism after S1:
 - S3 and S4 may run in parallel only if they use separate component/CSS files;
   the controller owns `types.ts`, `api.ts`, query keys, and shared shell imports.
 - S6 waits for the Project/Repo contract but can build mock-first components.
-- S9 waits for the PTY proto contract, not for the Envoy implementation to finish.
-- S10/S11 wait for shared TerminalWorkbench and Hall WSS shape.
+- S9 waits for the PTY proto contract, not for the Orbit implementation to finish.
+- S10/S11 wait for shared TerminalWorkbench and Axis WSS shape.
 
 Shared hotspots owned only by the contract/controller lane:
 
-- `crates/control-plane/src/event.rs`
+- `crates/axis/src/event.rs`
 - `crates/proto/src/frames.rs` or replacement typed terminal modules
-- `crates/control-plane/src/server/dto.rs`
+- `crates/axis/src/server/dto.rs`
 - `docs/api-contract.md`
 - `ui/src/types.ts`
 - `ui/src/api.ts`
@@ -846,11 +846,11 @@ on Studio bridge process handles.
 | Surface | Required proof |
 |---|---|
 | Topbar | Search keyboard/mouse navigation; bell opens real attention state; desktop/mobile screenshots |
-| Agents | Two nodes with duplicate ids remain distinct; visibility survives Hall restart |
+| Agents | Two nodes with duplicate ids remain distinct; visibility survives Axis restart |
 | New Session | Exact target persisted; every invalid state fails before spawn; inherited/override context shown |
 | Project | Template revision and session resolved digest are reproducible; no live silent mutation |
-| Repo | Hall metadata/cursors durable; Envoy effects fenced; wiki separate; issue/PR cache bounded |
-| Session terminal | Correct cwd/node; reattach after browser loss; resize/input/output; Envoy loss honest |
+| Repo | Axis metadata/cursors durable; Orbit effects fenced; wiki separate; issue/PR cache bounded |
+| Session terminal | Correct cwd/node; reattach after browser loss; resize/input/output; Orbit loss honest |
 | Fleet terminal | Explicit break-glass auth/reason/lease/audit; inaccessible to agents |
 | Transport | Terminal flood cannot starve heartbeat, ACK, session prompt, or control traffic |
 | Deployment | copied-DB migration dry run, backup, integrity, health, Fleet fresh epoch, browser evidence |
@@ -860,12 +860,12 @@ on Studio bridge process handles.
 ## 9. Explicit non-goals for this wave
 
 - No direct SSH API for agents.
-- No `olympus exec` or arbitrary terminal/argv operation in the agent CLI/MCP.
-- No live process migration between Envoys.
+- No `stellarc exec` or arbitrary terminal/argv operation in the agent CLI/MCP.
+- No live process migration between Orbits.
 - No project-owned duplicate Repo or Vault objects.
 - No automatic mutation of running attempts when a Project changes.
 - No permanent unbounded issue/PR or terminal-output log.
-- No raw GitHub tokens in Hall events, API responses, telemetry, or repo config.
+- No raw GitHub tokens in Axis events, API responses, telemetry, or repo config.
 - No second scheduler or ad hoc cron loop outside the accepted workflow/job seam.
 - No compatibility preservation for the broken flattened agent-launch contract;
   development-phase code should delete the nondeterministic path.

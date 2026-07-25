@@ -12,8 +12,8 @@ index bbe34b067..0db334834 100644
 +    Defaults to ``"acp"`` (editor integrations: VS Code, Zed, JetBrains). A host
 +    that drives ``hermes acp`` as its own first-class channel can override this
 +    via ``HERMES_ACP_SESSION_SOURCE`` so its sessions are tagged distinctly in
-+    ``state.db`` (e.g. Olympus sets ``HERMES_ACP_SESSION_SOURCE=olympus``) and
-+    show up as their own channel in ``session_search`` / Studio / Olympus.
++    ``state.db`` (e.g. Stellarc sets ``HERMES_ACP_SESSION_SOURCE=stellarc``) and
++    show up as their own channel in ``session_search`` / Studio / Stellarc.
 +
 +    The value is sanitised to a conservative ``[a-z0-9_]`` slug; an empty or
 +    invalid override falls back to ``"acp"`` so a bad env var can never produce
@@ -279,21 +279,21 @@ index 4a95367a6..b2d83476f 100644
 +    )
 +    db.append_message("telegram-src", role="user", content="hello from telegram")
 +
-+    monkeypatch.setenv("HERMES_ACP_SESSION_SOURCE", "olympus")
++    monkeypatch.setenv("HERMES_ACP_SESSION_SOURCE", "stellarc")
 +    fake = FakeAgent()
 +    manager = SessionManager(agent_factory=lambda **kwargs: fake, db=db)
 +
-+    forked = manager.fork_session("telegram-src", cwd="/olympus")
++    forked = manager.fork_session("telegram-src", cwd="/stellarc")
 +
 +    assert forked is not None
 +    assert forked.session_id != "telegram-src"
-+    assert forked.cwd == "/olympus"
++    assert forked.cwd == "/stellarc"
 +    assert [(m.get("role"), m.get("content")) for m in forked.history] == [
 +        ("user", "hello from telegram")
 +    ]
 +
 +    fork_row = db.get_session(forked.session_id)
-+    assert fork_row["source"] == "olympus"
++    assert fork_row["source"] == "stellarc"
 +    assert fork_row["parent_session_id"] == "telegram-src"
 +    assert db.get_session("telegram-src")["source"] == "telegram"
 +

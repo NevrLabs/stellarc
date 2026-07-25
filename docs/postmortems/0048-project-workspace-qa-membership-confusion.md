@@ -5,7 +5,7 @@ Date: 2026-07-17 · Severity: medium (false acceptance blocker) · Author: Termi
 ## Symptom
 
 The first browser showed Project A with two panes, while a fresh browser and a
-post-Hall-restart browser showed one. This was reported as a persistence defect.
+post-Axis-restart browser showed one. This was reported as a persistence defect.
 
 ## Root cause
 
@@ -29,7 +29,7 @@ The durable probe now uses four sessions:
 - one temporary Project A pane is moved to B to prove foreign-pane pruning.
 
 Project A must remain at two panes in the initial browser, a fresh browser, and
-after Hall restart. Project B must restore one pane and the clean project zero.
+after Axis restart. Project B must restore one pane and the clean project zero.
 The canonical E2E discovers a project with at least two authoritative members
 instead of selecting an arbitrary sidebar row.
 

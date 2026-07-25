@@ -1,18 +1,18 @@
-# Olympus development and production operations
+# Stellarc development and production operations
 
 ## Authority and boundaries
 
-- Source authority: `fxcompute-01:/home/rpw/olympus`
-- Development URL: `https://olympus-dev.entelechia.cloud`
-- Production URL: `https://olympus.entelechia.cloud`
-- Production runtime/state: Terminus under `/home/rpw/.olympus`
+- Source authority: `fxcompute-01:/home/rpw/stellarc`
+- Development URL: `https://stellarc-dev.entelechia.cloud`
+- Production URL: `https://stellarc.entelechia.cloud`
+- Production runtime/state: Terminus under `/home/rpw/.stellarc`
 - The Terminus repository is a retained runtime/migration snapshot. Do not edit or build there.
 - `fxbuilder` is only an SSH compatibility alias. Active services and fleet records use `fxcompute-01`.
 
 ## Development services
 
 ```bash
-cd /home/rpw/olympus
+cd /home/rpw/stellarc
 just dev-status
 just dev-restart
 just check-fast
@@ -20,25 +20,25 @@ just check-fast
 
 | Service | Purpose |
 |---|---|
-| `olympus-dev-hall.service` | Cargo Watch-managed development Hall on `127.0.0.1:8799` |
-| `olympus-dev-envoy.service` | Isolated AgentRuntime + JobRunner using `/srv/olympus-dev/jobs` |
-| `olympus-dev-ui.service` | Vite/HMR on `127.0.0.1:5177` |
+| `stellarc-dev-axis.service` | Cargo Watch-managed development Axis on `127.0.0.1:8799` |
+| `stellarc-dev-orbit.service` | Isolated AgentRuntime + JobRunner using `/srv/stellarc-dev/jobs` |
+| `stellarc-dev-ui.service` | Vite/HMR on `127.0.0.1:5177` |
 | `fxcompute-01-tunnel.service` | Restricted reverse forwards to Terminus ports 2223 and 8800 |
-| `olympus-prod-job-runner.service` | Production Hall JobRunner using `/srv/olympus-prod/jobs` |
+| `stellarc-prod-job-runner.service` | Production Axis JobRunner using `/srv/stellarc-prod/jobs` |
 
-Development state is `/home/rpw/.olympus-dev`; its browser credential is in the mode-0600 file `/home/rpw/.config/olympus-dev/admin-credentials`. The development operator token is `/home/rpw/.olympus-dev/token`. Use `olympus-dev-job` for isolated dev jobs.
+Development state is `/home/rpw/.stellarc-dev`; its browser credential is in the mode-0600 file `/home/rpw/.config/stellarc-dev/admin-credentials`. The development operator token is `/home/rpw/.stellarc-dev/token`. Use `stellarc-dev-job` for isolated dev jobs.
 
 Cargo targets are separated:
 
-- `/var/lib/olympus/cargo-target-dev`
-- `/var/lib/olympus/cargo-target-prod`
+- `/var/lib/stellarc/cargo-target-dev`
+- `/var/lib/stellarc/cargo-target-prod`
 
-Both are bounded by `olympus-build.slice` and use mold plus the local sccache directory `/var/lib/olympus/sccache`.
+Both are bounded by `stellarc-build.slice` and use mold plus the local sccache directory `/var/lib/stellarc/sccache`.
 
 ## Production promotion
 
 ```bash
-cd /home/rpw/olympus
+cd /home/rpw/stellarc
 just promote
 ```
 
@@ -49,7 +49,7 @@ Do not build with Cargo, rustc, Bun, npm, or Vite on Terminus.
 ## Recovery
 
 ```bash
-systemctl --user restart olympus-dev-hall olympus-dev-envoy olympus-dev-ui
+systemctl --user restart stellarc-dev-axis stellarc-dev-orbit stellarc-dev-ui
 systemctl --user restart fxcompute-01-tunnel
 ```
 

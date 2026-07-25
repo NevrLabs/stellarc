@@ -6,7 +6,7 @@ The workspace restore effect checked sessions-membership readiness before proces
 
 ## Impact
 
-If membership refresh failed while Hall returned `layout: null` or 401/403/404, already-mounted panes could remain visible indefinitely. A project rejection was therefore not independently fail-closed.
+If membership refresh failed while Axis returned `layout: null` or 401/403/404, already-mounted panes could remain visible indefinitely. A project rejection was therefore not independently fail-closed.
 
 ## Root cause
 

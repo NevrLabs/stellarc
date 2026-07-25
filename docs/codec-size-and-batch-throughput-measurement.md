@@ -9,7 +9,7 @@
 ## Fixture size: postcard+zstd → json+zstd migration
 
 Measurement taken against the 6-event `representative_fixture_events()` fixture
-defined in `crates/control-plane/src/log.rs` (outside the inner `mod tests`
+defined in `crates/axis/src/log.rs` (outside the inner `mod tests`
 block, reused by migration tests).  Byte counts are SQLite `length(payload)`
 totals measured immediately before and after `Log::open` triggers the one-shot
 migration.
@@ -74,7 +74,7 @@ behaviour.
 Run these tests locally with:
 
 ```
-cargo test --package olympus-control-plane -- \
+cargo test --package stellarc-axis -- \
   codec_size_ratio_fixture batch_append_throughput_fixture \
   --nocapture
 ```

@@ -3524,7 +3524,7 @@
     "2026-06-28 23:14:25 [INFO] acp_adapter.entry: Starting hermes-agent ACP adapter",
     "2026-06-28 23:14:26 [INFO] acp_adapter.server: ACP client connected",
     "2026-06-28 23:14:31 [INFO] hermes_cli.auth: Z.AI: auto-detected endpoint Global (Coding Plan) (https://api.z.ai/api/coding/paas/v4)",
-    "2026-06-28 23:14:31 [INFO] acp_adapter.server: Initialize from olympus-acp-wire-spike (protocol v1)",
+    "2026-06-28 23:14:31 [INFO] acp_adapter.server: Initialize from stellarc-acp-wire-spike (protocol v1)",
     "2026-06-28 23:14:32 [INFO] run_agent: Loaded environment variables from /tmp/hermes-acp-spike-50hy6cv3/.env",
     "2026-06-28 23:14:37 [INFO] hermes_cli.auth: Z.AI: auto-detected endpoint Global (Coding Plan) (https://api.z.ai/api/coding/paas/v4)",
     "2026-06-28 23:14:38 [INFO] run_agent: OpenAI client created (agent_init, shared=True) thread=MainThread:129747430627136 provider=zai base_url=https://api.z.ai/api/coding/paas/v4 model=glm-4.5",
@@ -3536,9 +3536,9 @@
     "2026-06-28 23:14:45 [INFO] agent.memory_manager: Memory provider 'honcho' registered (5 tools)",
     "2026-06-28 23:14:45 [INFO] run_agent: Memory provider 'honcho' activated",
     "2026-06-28 23:14:45 [INFO] plugins.memory.honcho.client: Initializing Honcho client (base_url: http://localhost:8000, workspace: Zephyr)",
-    "2026-06-28 23:14:45 [INFO] plugins.memory.honcho.session: Honcho session 'olympus' retrieved (10 existing messages)",
-    "2026-06-28 23:14:45 [INFO] acp_adapter.session: Created ACP session 2651c325-3bea-426a-a94f-89a3987e6398 (cwd=/home/rpw/olympus)",
-    "2026-06-28 23:14:45 [INFO] acp_adapter.server: New session 2651c325-3bea-426a-a94f-89a3987e6398 (cwd=/home/rpw/olympus)",
+    "2026-06-28 23:14:45 [INFO] plugins.memory.honcho.session: Honcho session 'stellarc' retrieved (10 existing messages)",
+    "2026-06-28 23:14:45 [INFO] acp_adapter.session: Created ACP session 2651c325-3bea-426a-a94f-89a3987e6398 (cwd=/home/rpw/stellarc)",
+    "2026-06-28 23:14:45 [INFO] acp_adapter.server: New session 2651c325-3bea-426a-a94f-89a3987e6398 (cwd=/home/rpw/stellarc)",
     "2026-06-28 23:14:52 [INFO] hermes_cli.auth: Z.AI: auto-detected endpoint Global (Coding Plan) (https://api.z.ai/api/coding/paas/v4)",
     "2026-06-28 23:14:53 [INFO] acp_adapter.server: Prompt on session 2651c325-3bea-426a-a94f-89a3987e6398: say exactly PONG",
     "2026-06-28 23:14:53 [INFO] agent.turn_context: conversation turn: session=2651c325-3bea-426a-a94f-89a3987e6398 model=glm-4.5 provider=zai platform=acp history=0 msg='say exactly PONG'",
@@ -3550,7 +3550,7 @@
     "2026-06-28 23:15:03 [INFO] hermes_cli.auth: Z.AI: auto-detected endpoint Global (Coding Plan) (https://api.z.ai/api/coding/paas/v4)",
     "2026-06-28 23:15:03 [INFO] run_agent: OpenAI client created (agent_init, shared=True) thread=MainThread:129747430627136 provider=zai base_url=https://api.z.ai/api/coding/paas/v4 model=glm-4.5",
     "2026-06-28 23:15:03 [INFO] agent.memory_manager: Memory provider 'honcho' registered (5 tools)",
-    "2026-06-28 23:15:03 [INFO] plugins.memory.honcho.session: Honcho session 'olympus' retrieved (12 existing messages)",
+    "2026-06-28 23:15:03 [INFO] plugins.memory.honcho.session: Honcho session 'stellarc' retrieved (12 existing messages)",
     "2026-06-28 23:15:03 [INFO] run_agent: Memory provider 'honcho' activated",
     "2026-06-28 23:15:03 [INFO] acp_adapter.server: Session 2651c325-3bea-426a-a94f-89a3987e6398: model switched to glm-4.5 via provider zai",
     "2026-06-28 23:15:03 [INFO] acp_adapter.server: Prompt on session 2651c325-3bea-426a-a94f-89a3987e6398: Use the terminal tool to run: python3 -c \"import time; time.sleep(8); print(\\\"SLEPT\\\")\". After the c",
@@ -3566,7 +3566,7 @@
     "2026-06-28 23:15:13 [INFO] run_agent: OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-2 (_call):129746902959808 provider=zai base_url=https://api.z.ai/api/coding/paas/v4 model=glm-4.5",
     "2026-06-28 23:15:13 [INFO] agent.conversation_loop: API call #1: model=glm-4.5 provider=zai in=16442 out=140 total=16582 latency=3.4s cache=16065/16442 (98%)",
     "2026-06-28 23:15:13 [INFO] tools.terminal_tool: Creating new local environment for task default...",
-    "2026-06-28 23:15:13 [INFO] tools.environments.base: Session snapshot created (session=bd407d6d6d56, cwd=/home/rpw/olympus)",
+    "2026-06-28 23:15:13 [INFO] tools.environments.base: Session snapshot created (session=bd407d6d6d56, cwd=/home/rpw/stellarc)",
     "2026-06-28 23:15:13 [INFO] tools.terminal_tool: local environment ready for task default",
     "2026-06-28 23:15:21 [INFO] agent.tool_executor: tool terminal completed (8.22s, 50 chars)",
     "2026-06-28 23:15:21 [INFO] run_agent: Delivered /steer to agent after tool batch (48 chars): In the final answer include the marker STEER_OK.",
@@ -3600,7 +3600,7 @@
             }
           },
           "clientInfo": {
-            "name": "olympus-acp-wire-spike",
+            "name": "stellarc-acp-wire-spike",
             "version": "0.1.0"
           }
         }
@@ -3656,7 +3656,7 @@
         "id": 2,
         "method": "session/new",
         "params": {
-          "cwd": "/home/rpw/olympus",
+          "cwd": "/home/rpw/stellarc",
           "mcpServers": []
         }
       }

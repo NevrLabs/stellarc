@@ -1,4 +1,4 @@
-/* Olympus Design System — global entry point.
+/* Stellarc Design System — global entry point.
    Consumers link THIS file. It is an @import manifest only — every token,
    font-face, and base rule ships through this closure. Keep it ordered:
    fonts → tokens → base. Add rule bodies here: never. */

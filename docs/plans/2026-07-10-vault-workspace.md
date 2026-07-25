@@ -6,13 +6,13 @@ Dependency: #12
 
 ## Current state
 
-The Vault surface currently has a static `VaultsView` shell with separate VAULTS, NOTES, and VIEWS sections. Vault creation calls `window.prompt`, sends only a name, and does not render mutation errors. There is no note-creation affordance. Folder rows do not expand/collapse or open `index.md`. Graph and collection tables replace the entire route. Hall creates an unconfigured local jj repository and stores only a vault name in `.vault/metadata.json`.
+The Vault surface currently has a static `VaultsView` shell with separate VAULTS, NOTES, and VIEWS sections. Vault creation calls `window.prompt`, sends only a name, and does not render mutation errors. There is no note-creation affordance. Folder rows do not expand/collapse or open `index.md`. Graph and collection tables replace the entire route. Axis creates an unconfigured local jj repository and stores only a vault name in `.vault/metadata.json`.
 
 ## Proposed state
 
-### Hall storage boundary
+### Axis storage boundary
 
-Per ADR 0016, Olympus's managed working copy is always the vault authority. External synchronization and backup are independent optional bindings. The initial sync adapter is GitHub through jj's Git interoperability; the planned native adapter synchronizes directly between Olympus installations. S3-compatible object storage is a backup target, not a merge peer. Credentials are never persisted in vault metadata.
+Per ADR 0016, Stellarc's managed working copy is always the vault authority. External synchronization and backup are independent optional bindings. The initial sync adapter is GitHub through jj's Git interoperability; the planned native adapter synchronizes directly between Stellarc installations. S3-compatible object storage is a backup target, not a merge peer. Credentials are never persisted in vault metadata.
 
 Vault list responses expose authority plus sync/backup binding summaries. A vault-wide document-index endpoint returns path, title, updated time, and parsed frontmatter without sending every Markdown body.
 
@@ -38,7 +38,7 @@ Table View is a vault-wide note index. Fixed columns are title and path; all fro
 
 ## Migration
 
-Existing vault metadata without a backend is already a valid Olympus-only vault. Existing GitHub backends migrate into optional sync bindings. New vault creation requires only a name and defaults to no external sync or backup. No existing note bytes move. Routes remain compatible with `/vaults/:id?note=...`, `/graph`, and `/tables` while the workspace uses them as active-target deep links.
+Existing vault metadata without a backend is already a valid Stellarc-only vault. Existing GitHub backends migrate into optional sync bindings. New vault creation requires only a name and defaults to no external sync or backup. No existing note bytes move. Routes remain compatible with `/vaults/:id?note=...`, `/graph`, and `/tables` while the workspace uses them as active-target deep links.
 
 ## Verification gates
 

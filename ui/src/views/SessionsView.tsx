@@ -1,7 +1,7 @@
 /**
  * SessionsView — the Sessions View component (owns sidebar + viewport layout).
  *
- * Architecture (per docs/plans/2026-07-03-olympus-usable-5-surfaces.md):
+ * Architecture (per docs/plans/2026-07-03-stellarc-usable-5-surfaces.md):
  *
  * The View OWNS:
  *   - left sidebar (session list + NavItems) — SessionSidebar
@@ -181,7 +181,7 @@ export function SessionsView({
   // Bug 17: resizable panels — left sidebar, right sidebar, bottom panel
   const sidebar = useResizable({
     axis: "x", min: 160, max: 400, initial: 220,
-    direction: "right", persistKey: "olympus-sidebar-w",
+    direction: "right", persistKey: "stellarc-sidebar-w",
   });
   // Teardown fence (postmortem 0041 residual): on unmount — including React
   // StrictMode's mount→unmount→remount — dockview disposes panels ONE BY ONE,
@@ -198,7 +198,7 @@ export function SessionsView({
       if (event.kind === "saved") {
         latestLayoutSaveRevisionRef.current.set(event.projectId, event.revision);
         if (activeProjectRef.current === event.projectId) {
-          restoredAuthorityRef.current = `hall:${stableJson(event.layout)}`;
+          restoredAuthorityRef.current = `axis:${stableJson(event.layout)}`;
         }
         void queryClient.cancelQueries({ queryKey: qk.project(event.projectId) }).then(() => {
           if (latestLayoutSaveRevisionRef.current.get(event.projectId) === event.revision) {
@@ -249,7 +249,7 @@ export function SessionsView({
   }, [persist]);
 
   useEffect(() => {
-    try { localStorage.removeItem("olympus-ui-state:sessions"); } catch { /* best effort */ }
+    try { localStorage.removeItem("stellarc-ui-state:sessions"); } catch { /* best effort */ }
   }, []);
 
   useEffect(() => setActiveSessionId(sessionId), [sessionId]);
@@ -369,10 +369,10 @@ export function SessionsView({
     });
     event.api.onDidRemovePanel(() => syncOpenSessions(event.api));
     event.api.onUnhandledDragOver((dragEvent) => {
-      if (hasDragType(dragEvent.nativeEvent, "application/x-olympus-session")) dragEvent.accept();
+      if (hasDragType(dragEvent.nativeEvent, "application/x-stellarc-session")) dragEvent.accept();
     });
     event.api.onDidDrop((dropEvent) => {
-      const payload = dragPayload(dropEvent.nativeEvent, "application/x-olympus-session") as {
+      const payload = dragPayload(dropEvent.nativeEvent, "application/x-stellarc-session") as {
         sessionId?: string;
         projectId?: string | null;
       } | null;
@@ -406,13 +406,13 @@ export function SessionsView({
       layout = pendingLayout;
       authoritySignature = `pending:${stableJson(layout)}`;
       recoveringPendingLayout = true;
-      setProjectRestoreError("Workspace has unsaved changes; retrying the Hall save");
+      setProjectRestoreError("Workspace has unsaved changes; retrying the Axis save");
     } else if (projectLoadFailed) {
-      setProjectRestoreError("Hall unavailable; using the last browser workspace copy");
+      setProjectRestoreError("Axis unavailable; using the last browser workspace copy");
       layout = projectLayoutJournal.cached(projectId);
       authoritySignature = `fallback:${stableJson(layout)}`;
     } else {
-      authoritySignature = `hall:${stableJson(layout)}`;
+      authoritySignature = `axis:${stableJson(layout)}`;
       setProjectRestoreError(null);
       projectLayoutJournal.cacheAuthority(projectId, layout);
     }
@@ -434,7 +434,7 @@ export function SessionsView({
       if (layout && Object.keys(layout.panels ?? {}).length > 0) {
         try {
           // Dockview normalizes the object it receives. Restore from a clone so
-          // the exact journaled snapshot remains available for Hall retry and
+          // the exact journaled snapshot remains available for Axis retry and
           // acknowledgement matching.
           api.fromJSON(JSON.parse(JSON.stringify(layout)) as DockLayout);
           for (const panel of [...api.panels]) {
@@ -556,7 +556,7 @@ export function SessionsView({
             )}
             <DockviewReact
               key={projectId}
-              className={`dockview-theme-abyss olympus-dockview sessions-dockview${groupCount > 1 ? " multi-group" : ""}`}
+              className={`dockview-theme-abyss stellarc-dockview sessions-dockview${groupCount > 1 ? " multi-group" : ""}`}
               components={{ "session-panel": SessionDockPanel }}
               onReady={handleReady}
             />
@@ -610,11 +610,11 @@ function SessionPanel({ sessionId }: { sessionId: string }) {
   const [bpTab, setBpTab] = useSessionPanelState<BpTab>(sessionId, "bpTab", "terminal");
   const rightPanel = useResizable({
     axis: "x", min: 200, max: 450, initial: 279,
-    direction: "left", persistKey: `olympus-session-${sessionId}-rsidebar-w`,
+    direction: "left", persistKey: `stellarc-session-${sessionId}-rsidebar-w`,
   });
   const bottomPanel = useResizable({
     axis: "y", min: 80, max: 400, initial: 152,
-    direction: "down", persistKey: `olympus-session-${sessionId}-bpanel-h`,
+    direction: "down", persistKey: `stellarc-session-${sessionId}-bpanel-h`,
   });
 
   return (

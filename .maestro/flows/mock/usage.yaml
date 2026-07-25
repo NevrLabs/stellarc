@@ -1,7 +1,7 @@
 url: ${MAESTRO_BASE_URL}/sessions/usage
 name: Usage page renders per-model token + cost rows
 properties:
-  junitId: olympus-usage-page
+  junitId: stellarc-usage-page
   junitClassname: ui.mock
 ---
 - launchApp

@@ -2343,69 +2343,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "olympus-control-plane"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "argon2",
- "async-trait",
- "axum",
- "blake3",
- "futures",
- "hostname",
- "http-body-util",
- "hyper",
- "hyper-util",
- "iroh",
- "olympus-envoy",
- "olympus-proto",
- "rand 0.8.6",
- "rusqlite",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "tokio",
- "tokio-stream",
- "toml",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "zstd",
-]
-
-[[package]]
-name = "olympus-envoy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "futures",
- "hostname",
- "iroh",
- "libc",
- "olympus-proto",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "olympus-proto"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3344,6 +3281,78 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stellarc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "stellarc-axis",
+ "stellarc-orbit",
+]
+
+[[package]]
+name = "stellarc-axis"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "async-trait",
+ "axum",
+ "blake3",
+ "futures",
+ "hostname",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "iroh",
+ "rand 0.8.6",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "stellarc-orbit",
+ "stellarc-proto",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "toml",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "zstd",
+]
+
+[[package]]
+name = "stellarc-orbit"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "hostname",
+ "iroh",
+ "libc",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "stellarc-proto",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "stellarc-proto"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "strsim"
