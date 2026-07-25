@@ -208,6 +208,12 @@ fn event_identity(frame: &OrbitFrame) -> Option<(&str, u64)> {
     }
 }
 
+/// Sequence number of a spoolable frame, or `None` for frames that carry no
+/// sequence. Thin projection of [`event_identity`], which returns `(id, seq)`.
+fn event_seq(frame: &OrbitFrame) -> Option<u64> {
+    event_identity(frame).map(|(_, seq)| seq)
+}
+
 fn set_event_seq(frame: &mut OrbitFrame, seq: u64) -> Option<()> {
     match frame {
         OrbitFrame::Event { seq: value, .. }
