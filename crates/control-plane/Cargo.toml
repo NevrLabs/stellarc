@@ -16,7 +16,6 @@ zstd.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-tantivy.workspace = true
 rusqlite = { workspace = true, features = ["bundled"] }
 tokio.workspace = true
 axum.workspace = true
@@ -40,4 +39,3 @@ toml = "1.1.2"
 
 [dev-dependencies]
 tempfile = "3"
-tokio-tungstenite.workspace = true
