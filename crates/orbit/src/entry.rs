@@ -131,10 +131,10 @@ pub async fn run() -> Result<()> {
         let secret = crate::transport::load_or_create_secret(&state_dir)?;
         let my_id = secret.public();
         tracing::info!(orbit_node_id = %my_id, axis = %target, "connecting to Axis via iroh");
-        println!("orbit iroh node id: {my_id}  (add to axis.toml allowed_envoys)");
+        println!("orbit iroh node id: {my_id}  (add to axis.toml allowed_orbits)");
         let endpoint = crate::transport::bind_endpoint(secret).await?;
         loop {
-            match crate::transport::connect_to_hall(&endpoint, target).await {
+            match crate::transport::connect_to_axis(&endpoint, target).await {
                 Ok((send, recv)) => {
                     tracing::info!("connected to Axis via iroh");
                     if let Err(e) = run_connection(
@@ -1300,7 +1300,7 @@ mod tests {
         let jobs = Arc::new(JobTable::new(dir.path().join("jobs")).unwrap());
         let (orbit, axis) = tokio::io::duplex(64 * 1024);
         let (orbit_reader, orbit_writer) = tokio::io::split(orbit);
-        let (axis_reader, _hall_writer) = tokio::io::split(axis);
+        let (axis_reader, _axis_writer) = tokio::io::split(axis);
         let task = tokio::spawn(run_connection(
             orbit_reader,
             orbit_writer,

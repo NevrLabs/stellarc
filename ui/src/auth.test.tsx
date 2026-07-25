@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AuthGate, useHallAuth } from "./auth";
+import { AuthGate, useAxisAuth } from "./auth";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -12,7 +12,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 function CurrentOrganization() {
-  const auth = useHallAuth();
+  const auth = useAxisAuth();
   return <div>
     <span>{auth.user.username}:{auth.organization.displayName}</span>
     {auth.organizations.map((organization) => (

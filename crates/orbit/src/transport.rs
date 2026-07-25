@@ -60,7 +60,7 @@ pub async fn bind_endpoint(secret: SecretKey) -> Result<Endpoint> {
 /// Connect to a Axis by its iroh node id (public key, z-base-32 or hex as
 /// printed by the axis at boot). Returns the QUIC connection's bi-stream
 /// halves, which speak the same JSON-lines protocol as the UDS path.
-pub async fn connect_to_hall(
+pub async fn connect_to_axis(
     endpoint: &Endpoint,
     axis_node_id: &str,
 ) -> Result<(iroh::endpoint::SendStream, iroh::endpoint::RecvStream)> {

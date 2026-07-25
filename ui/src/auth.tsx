@@ -33,9 +33,9 @@ async function axisFetch(path: string, init?: RequestInit): Promise<Response> {
   return window.fetch(`${BASE}${path}`, { ...init, credentials: "include" });
 }
 
-export function useHallAuth(): AuthContextValue {
+export function useAxisAuth(): AuthContextValue {
   const value = useContext(AuthContext);
-  if (!value) throw new Error("useHallAuth must be used inside AuthGate");
+  if (!value) throw new Error("useAxisAuth must be used inside AuthGate");
   return value;
 }
 

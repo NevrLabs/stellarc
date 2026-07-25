@@ -200,7 +200,7 @@ impl OrbitConnection {
     /// gaps fail closed and remain unacked.
     pub async fn apply_event(&self, session_id: &str, seq: u64, event: AgentEvent) -> Result<bool> {
         let is_new = match &self.log {
-            Some(log) => log.accept_envoy_seq(session_id, seq)?,
+            Some(log) => log.accept_orbit_seq(session_id, seq)?,
             None => true,
         };
         if is_new {
@@ -922,7 +922,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn durable_watermark_drops_duplicates_across_hall_restart() {
+    async fn durable_watermark_drops_duplicates_across_axis_restart() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("axis.db");
         let log = Arc::new(crate::log::Log::open(&db).unwrap());
@@ -980,7 +980,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn observed_state_db_rows_survive_hall_restart_exactly_once() {
+    async fn observed_state_db_rows_survive_axis_restart_exactly_once() {
         use stellarc_orbit::observer::StateDbObserver;
         use stellarc_orbit::spool::EventSpool;
         use stellarc_proto::frames::{OrbitFrame, ObservedEvent};

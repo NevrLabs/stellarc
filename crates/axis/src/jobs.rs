@@ -73,7 +73,7 @@ impl JobService {
                 attempt_epoch,
                 "StepIndeterminate",
                 None,
-                Some("axis_restarted_before_envoy_reconciliation".into()),
+                Some("axis_restarted_before_orbit_reconciliation".into()),
             )?;
         }
         Ok(service)
@@ -108,7 +108,7 @@ impl JobService {
         };
         let fresh = match self
             .log
-            .append_envoy_event(&wire_id(job_id, attempt_epoch), seq, &event)
+            .append_orbit_event(&wire_id(job_id, attempt_epoch), seq, &event)
         {
             Ok(fresh) => fresh,
             Err(error) => {
@@ -162,7 +162,7 @@ impl JobService {
         };
         let fresh = match self
             .log
-            .append_envoy_event(&wire_id(job_id, attempt_epoch), seq, &event)
+            .append_orbit_event(&wire_id(job_id, attempt_epoch), seq, &event)
         {
             Ok(fresh) => fresh,
             Err(error) => {
@@ -225,7 +225,7 @@ impl JobService {
                 job.node_id == node_id
                     && job.status == "StepIndeterminate"
                     && job.terminal_reason.as_deref().is_some_and(|reason| {
-                        reason == "axis_restarted_before_envoy_reconciliation"
+                        reason == "axis_restarted_before_orbit_reconciliation"
                             || reason == "orbit_did_not_report_attempt"
                             || reason == "dispatch_acknowledgement_unknown"
                     })

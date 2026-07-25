@@ -26,7 +26,7 @@ A session/run has exactly one Orbit owner for an assignment generation. There is
 Axis publishes immutable configuration revisions and signs a `RunAssignment` containing:
 
 ```text
-run_id, owner_envoy_id, assignment_generation,
+run_id, owner_orbit_id, assignment_generation,
 workflow/plugin/app/vault/model-policy revisions,
 allowed tools/models/resources,
 max cost/tokens/model calls/tool calls,

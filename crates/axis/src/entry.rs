@@ -288,10 +288,10 @@ pub async fn run() -> Result<()> {
     // Negative-polarity rollback flag: Orbit observation is default-on, so the
     // legacy Axis poll is disabled unless an operator explicitly sets this to
     // false/0/off.
-    let disable_hall_statedb_poll = std::env::var("STELLARC_DISABLE_AXIS_STATEDB_POLL")
+    let disable_axis_statedb_poll = std::env::var("STELLARC_DISABLE_AXIS_STATEDB_POLL")
         .map(|value| !matches!(value.to_ascii_lowercase().as_str(), "0" | "false" | "off"))
         .unwrap_or(true);
-    if !disable_hall_statedb_poll {
+    if !disable_axis_statedb_poll {
         let sync_log = Arc::clone(&log_arc);
         let sync_views = Arc::clone(&state.views);
         let sync_search = Arc::clone(&state.search);
@@ -326,7 +326,7 @@ pub async fn run() -> Result<()> {
 
     // Spawn the iroh listener for REMOTE orbits (ADR 0008 §1, S7). Public n0
     // relays; peers are gated by the node-id allowlist in ~/.stellarc/axis.toml
-    // (`allowed_envoys = ["<node-id>", ...]`) — fail closed: no file or empty
+    // (`allowed_orbits = ["<node-id>", ...]`) — fail closed: no file or empty
     // list means no remote orbits can connect (the endpoint still binds and
     // prints its node id so the operator can set up the allowlist).
     //

@@ -217,7 +217,7 @@ install_agent_adapters() {
 }
 
 # ── 4. Transport config validation ──────────────────────────────────────
-validate_hall_addr() {
+validate_axis_addr() {
     case "$AXIS_ADDR" in
         uds:*)
             local path="${AXIS_ADDR#uds:}"
@@ -361,7 +361,7 @@ main() {
     locate_repo
     check_required_clis
     install_agent_adapters
-    validate_hall_addr
+    validate_axis_addr
     build_and_install
     install_systemd_unit
     write_instance_override

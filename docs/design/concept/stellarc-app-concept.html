@@ -923,12 +923,12 @@ checking diff coverage … 87%</div></div>
             <div class="kv"><span class="k">BIND</span><span class="v" id="flbind">127.0.0.1:8787</span></div>
             <div class="kv"><span class="k">HEARTBEAT</span><span class="v" id="flhb">18s ago</span></div>
             <div class="grow"><span class="k mono" style="font-size:10px;letter-spacing:.5px;color:var(--faint)">SLOTS</span><span style="display:flex;align-items:center;gap:8px"><button class="btn" id="flsm" style="padding:2px 8px">−</button><span class="v mono" id="flslots" style="font-size:12px">2 / 4</span><button class="btn" id="flsp" style="padding:2px 8px">+</button></span></div>
-            <div id="flenvoy" style="display:none"><div class="gk" style="margin-bottom:6px">orbit setup · run on the node</div>
+            <div id="florbit" style="display:none"><div class="gk" style="margin-bottom:6px">orbit setup · run on the node</div>
               <div class="cmdline" id="flcmd">curl -sSL https://get.stellarc.dev/orbit | sh</div>
               <div class="dr-actions" style="margin-top:8px"><button class="btn" id="flcopy">Copy command</button></div>
               <div class="mono" style="font-size:10px;color:var(--faint);margin-top:8px" id="flwait">waiting for orbit handshake…</div>
             </div>
-            <div id="flenvoyinfo"><div class="gk" style="margin-bottom:6px">orbit</div>
+            <div id="florbitinfo"><div class="gk" style="margin-bottom:6px">orbit</div>
               <div class="kv"><span class="k">VERSION</span><span class="v" id="flver">v0.3.1</span></div>
               <div class="kv" style="margin-top:6px"><span class="k">ADAPTER</span><span class="v" id="flad">hermes-acp</span></div>
               <div class="kv" style="margin-top:6px"><span class="k">TOKEN</span><span class="v">••••••••4f2a</span></div>
@@ -1642,8 +1642,8 @@ function flOpen(n){const d=NODES[n];if(!d)return;flSel=n;
  document.getElementById('flver').textContent=d.ver;document.getElementById('flad').textContent=d.ad;
  document.getElementById('flagents').innerHTML=d.agents.map(a=>'<span>'+a+'</span>').join('');
  const pend=d.st==='awaiting orbit';
- document.getElementById('flenvoy').style.display=pend?'block':'none';
- document.getElementById('flenvoyinfo').style.display=pend?'none':'block';
+ document.getElementById('florbit').style.display=pend?'block':'none';
+ document.getElementById('florbitinfo').style.display=pend?'none':'block';
  document.getElementById('flcmd').textContent='curl -sSL https://get.stellarc.dev/orbit | sh -s -- --node '+n+' --bind '+d.bind+' --token ol_rt_••••4f2a';
  document.getElementById('fldrain').textContent=d.st==='draining'?'Undrain':'Drain';
  const rm=document.getElementById('flremove');rm.textContent='Remove';rm.style.color='';

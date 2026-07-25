@@ -9,7 +9,7 @@
 //!    downloads the orbit binary from Axis, installs the systemd user unit,
 //!    generates the iroh key, and POSTs the orbit's iroh node id back to
 //!    `/api/enroll/<token>` — Axis appends it to `axis.toml`'s
-//!    `allowed_envoys` (the fail-closed allowlist) and the orbit connects.
+//!    `allowed_orbits` (the fail-closed allowlist) and the orbit connects.
 //! 3. The node appears in the Fleet view within one heartbeat.
 //!
 //! Security model: the enroll token is a capability — single-use, expiring
@@ -115,7 +115,7 @@ impl EnrollStore {
 
 // ── axis.toml allowlist mutation ────────────────────────────────────────
 //
-// The allowlist file (`<home>/axis.toml`, `allowed_envoys = [...]`) is read
+// The allowlist file (`<home>/axis.toml`, `allowed_orbits = [...]`) is read
 // per-connection by the iroh accept loop, so appending here takes effect on
 // the orbit's next connect attempt — no Axis restart. Writes are atomic
 // (tmp + rename) and preserve unknown keys by rewriting only via the parsed
@@ -124,7 +124,7 @@ impl EnrollStore {
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 struct AxisConfigFile {
     #[serde(default)]
-    allowed_envoys: Vec<String>,
+    allowed_orbits: Vec<String>,
 }
 
 fn read_config(home: &std::path::Path) -> AxisConfigFile {
@@ -152,10 +152,10 @@ pub fn allowlist_add(home: &std::path::Path, node_id: &str) -> anyhow::Result<bo
         .parse::<iroh::PublicKey>()
         .map_err(|e| anyhow::anyhow!("invalid iroh node id {node_id:?}: {e}"))?;
     let mut cfg = read_config(home);
-    if cfg.allowed_envoys.iter().any(|s| s == node_id) {
+    if cfg.allowed_orbits.iter().any(|s| s == node_id) {
         return Ok(false); // already present
     }
-    cfg.allowed_envoys.push(node_id.to_string());
+    cfg.allowed_orbits.push(node_id.to_string());
     write_config(home, &cfg)?;
     Ok(true)
 }
@@ -163,9 +163,9 @@ pub fn allowlist_add(home: &std::path::Path, node_id: &str) -> anyhow::Result<bo
 /// Remove an iroh node id from the allowlist. Returns whether it was present.
 pub fn allowlist_remove(home: &std::path::Path, node_id: &str) -> anyhow::Result<bool> {
     let mut cfg = read_config(home);
-    let before = cfg.allowed_envoys.len();
-    cfg.allowed_envoys.retain(|s| s != node_id);
-    let removed = cfg.allowed_envoys.len() != before;
+    let before = cfg.allowed_orbits.len();
+    cfg.allowed_orbits.retain(|s| s != node_id);
+    let removed = cfg.allowed_orbits.len() != before;
     if removed {
         write_config(home, &cfg)?;
     }
@@ -174,7 +174,7 @@ pub fn allowlist_remove(home: &std::path::Path, node_id: &str) -> anyhow::Result
 
 /// List the current allowlist (raw strings as stored).
 pub fn allowlist_list(home: &std::path::Path) -> Vec<String> {
-    read_config(home).allowed_envoys
+    read_config(home).allowed_orbits
 }
 
 #[cfg(test)]

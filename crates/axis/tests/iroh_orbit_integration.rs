@@ -2,7 +2,7 @@
 //! a remote orbit over iroh; full hello → ensure_runtime round-trip works with
 //! allowlist enforcement.
 //!
-//! These tests exercise the transport-generic `handle_envoy_conn` dispatch over
+//! These tests exercise the transport-generic `handle_orbit_conn` dispatch over
 //! real iroh QUIC streams (public n0 relays, loopback). The same dispatch code
 //! runs over UDS for local orbits — no protocol fork (ADR 0008 §1).
 
@@ -16,10 +16,10 @@ use stellarc_proto::version::{BuildVersion, PROTOCOL_VERSION};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-/// Spawn a axis-side iroh accept loop that delegates to `handle_envoy_conn`.
+/// Spawn a axis-side iroh accept loop that delegates to `handle_orbit_conn`.
 /// Peers not in `allowlist` are rejected at accept (fail closed). An empty
 /// allowlist rejects ALL peers (fail-closed default).
-async fn spawn_hall(
+async fn spawn_axis(
     allowlist: Vec<PublicKey>,
 ) -> (Endpoint, PublicKey, NodeRegistry, OrbitConnections) {
     let secret = SecretKey::generate();
@@ -53,7 +53,7 @@ async fn spawn_hall(
             let c = cs.clone();
             tokio::spawn(async move {
                 if let Ok((send, recv)) = conn.accept_bi().await {
-                    node::handle_envoy_conn(
+                    node::handle_orbit_conn(
                         recv,
                         send,
                         r,
@@ -98,10 +98,10 @@ async fn wait_for_node(registry: &NodeRegistry, node_id: &str, timeout_secs: u64
 }
 
 #[tokio::test]
-async fn iroh_envoy_hello_registers_in_registry() {
+async fn iroh_orbit_hello_registers_in_registry() {
     let orbit_secret = SecretKey::generate();
     let orbit_pub = orbit_secret.public();
-    let (axis_ep, _hall_key, registry, _conns) = spawn_hall(vec![orbit_pub]).await;
+    let (axis_ep, _axis_key, registry, _conns) = spawn_axis(vec![orbit_pub]).await;
 
     // The orbit endpoint MUST stay alive for the connection lifetime.
     let orbit_ep = Endpoint::builder(presets::N0)
@@ -137,8 +137,8 @@ async fn iroh_envoy_hello_registers_in_registry() {
 }
 
 #[tokio::test]
-async fn iroh_non_allowlisted_envoy_rejected() {
-    let (axis_ep, _hall_key, registry, _conns) = spawn_hall(vec![]).await;
+async fn iroh_non_allowlisted_orbit_rejected() {
+    let (axis_ep, _axis_key, registry, _conns) = spawn_axis(vec![]).await;
 
     let orbit_secret = SecretKey::generate();
     let orbit_ep = Endpoint::builder(presets::N0)
@@ -177,7 +177,7 @@ async fn iroh_ensure_runtime_round_trip() {
     // orbit reads it and responds with Resp → RemoteRuntime resolves.
     let orbit_secret = SecretKey::generate();
     let orbit_pub = orbit_secret.public();
-    let (axis_ep, _hall_key, registry, conns) = spawn_hall(vec![orbit_pub]).await;
+    let (axis_ep, _axis_key, registry, conns) = spawn_axis(vec![orbit_pub]).await;
 
     // Orbit endpoint stays alive for the whole test.
     let orbit_ep = Endpoint::builder(presets::N0)

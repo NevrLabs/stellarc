@@ -37,7 +37,7 @@ TARGET_DIR="$(cargo metadata --no-deps --format-version 1 \
 
 mkdir -p "$BIN_DIR"
 
-build_hall() {
+build_axis() {
     echo "→ Building stellarc-axis (release)…"
     cargo build --release -p stellarc-axis
     echo "→ Installing stellarc-axis-${GIT_HASH}…"
@@ -68,7 +68,7 @@ provision_claude_adapter() {
         || { echo "ERROR: Claude ACP adapter executable missing" >&2; exit 2; }
 }
 
-build_envoy() {
+build_orbit() {
     provision_claude_adapter
     echo "→ Building stellarc-orbit (release)…"
     cargo build --release -p stellarc-orbit
@@ -79,9 +79,9 @@ build_envoy() {
 }
 
 case "$WHAT" in
-    axis)  build_hall ;;
-    orbit) build_envoy ;;
-    both)  build_hall; build_envoy ;;
+    axis)  build_axis ;;
+    orbit) build_orbit ;;
+    both)  build_axis; build_orbit ;;
     *) echo "Usage: $0 {axis|orbit|both}" >&2; exit 1 ;;
 esac
 

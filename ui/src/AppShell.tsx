@@ -22,7 +22,7 @@ import { Cockpit } from "./cockpit/Cockpit";
 import { SearchPill, CommandPalette } from "./CommandPalette";
 import { parseRoute, type SurfaceName } from "./router";
 import { useTheme } from "./theme";
-import { useHallAuth } from "./auth";
+import { useAxisAuth } from "./auth";
 import { SessionsView } from "./views/SessionsView";
 import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
 import { ProjectsView } from "./views/ProjectsView";
@@ -106,7 +106,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
   const navigate = useNavigate();
   const { toggleSidebar } = useUIStore();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useHallAuth();
+  const { user, logout } = useAxisAuth();
 
   return (
     <div className="topbar">
@@ -182,7 +182,7 @@ function CockpitToggle() {
 }
 
 function OrgChip() {
-  const { organization, organizations, selectOrganization } = useHallAuth();
+  const { organization, organizations, selectOrganization } = useAxisAuth();
   return (
     <label className="org" title="Organization">
       <span className="mk" />

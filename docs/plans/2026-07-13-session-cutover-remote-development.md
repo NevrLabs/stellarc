@@ -141,7 +141,7 @@ duplicates.
 - Modify: `crates/proto/src/frames.rs`
 - Create: `crates/axis/src/views/runtime_attempt.rs`
 - Modify: `crates/axis/src/node.rs`
-- Test: `crates/axis/tests/iroh_envoy_integration.rs`
+- Test: `crates/axis/tests/iroh_orbit_integration.rs`
 
 **Inventory:** attempt ID, logical session, harness/provenance, child identity,
 state, resumability, in-flight/pending-permission state, and last sequence.
@@ -549,7 +549,7 @@ than reimplementing recovery late.
 - Modify: `crates/orbit/src/runtime_table.rs`
 - Modify: `crates/proto/src/frames.rs`
 - Modify: `crates/axis/src/server/routes/sessions.rs`
-- Test: `crates/axis/tests/iroh_envoy_integration.rs`
+- Test: `crates/axis/tests/iroh_orbit_integration.rs`
 
 **Decision:** no live process migration. Reattach the same attempt only when the
 same Orbit proves from durable local attempt+cgroup+process identity that the

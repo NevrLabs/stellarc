@@ -112,7 +112,7 @@ impl Log {
     }
 
     /// Persist a sequenced Orbit frame and advance its watermark atomically.
-    pub fn append_envoy_event(&self, identity: &str, seq: u64, event: &Event) -> Result<bool> {
+    pub fn append_orbit_event(&self, identity: &str, seq: u64, event: &Event) -> Result<bool> {
         let mut conn = self.conn.lock().expect("SQLite mutex poisoned");
         let tx = conn.transaction()?;
         let current: Option<i64> = tx
@@ -193,7 +193,7 @@ impl Log {
 
     /// Durably advance the per-session Orbit transport watermark. Returns
     /// false for a duplicate and fails closed if delivery has a gap.
-    pub fn accept_envoy_seq(&self, session_id: &str, seq: u64) -> Result<bool> {
+    pub fn accept_orbit_seq(&self, session_id: &str, seq: u64) -> Result<bool> {
         let mut conn = self.conn.lock().expect("SQLite mutex poisoned");
         let tx = conn.transaction()?;
         let current: Option<i64> = tx

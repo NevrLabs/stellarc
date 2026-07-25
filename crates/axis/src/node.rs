@@ -710,7 +710,7 @@ async fn handle_uds_conn(
     orbit_conns: crate::server::orbit_conn::OrbitConnections,
 ) {
     let (reader, writer) = stream.into_split();
-    handle_envoy_conn(
+    handle_orbit_conn(
         reader,
         writer,
         registry,
@@ -725,7 +725,7 @@ async fn handle_uds_conn(
 /// runs over UDS (local) and iroh QUIC streams (remote, S7). ADR 0008 §1.
 /// `transport` + `peer_iroh_id` describe HOW the orbit reached us (shown in
 /// the Fleet view; the iroh id also enables allowlist revocation on Remove).
-pub async fn handle_envoy_conn<R, W>(
+pub async fn handle_orbit_conn<R, W>(
     reader: R,
     writer: W,
     registry: NodeRegistry,
@@ -772,7 +772,7 @@ pub async fn handle_envoy_conn<R, W>(
             if !matches!(frame, stellarc_proto::frames::OrbitFrame::Hello { .. }) {
                 break;
             }
-            let new_conn = handle_envoy_hello(
+            let new_conn = handle_orbit_hello(
                 frame,
                 &registry,
                 &orbit_conns,
@@ -790,7 +790,7 @@ pub async fn handle_envoy_conn<R, W>(
             }
             continue;
         }
-        if handle_envoy_frame(
+        if handle_orbit_frame(
             frame,
             &registry,
             &orbit_conns,
@@ -834,7 +834,7 @@ enum HelloOutcome {
 /// Handle an OrbitFrame::Hello: validate protocol version, register the node,
 /// create the OrbitConnection with the writer, and return the connection.
 #[allow(clippy::too_many_arguments)]
-async fn handle_envoy_hello(
+async fn handle_orbit_hello(
     frame: stellarc_proto::frames::OrbitFrame,
     registry: &NodeRegistry,
     orbit_conns: &crate::server::orbit_conn::OrbitConnections,
@@ -860,7 +860,7 @@ async fn handle_envoy_hello(
         job_attempts,
     } = frame
     else {
-        unreachable!("handle_envoy_hello called with non-Hello frame")
+        unreachable!("handle_orbit_hello called with non-Hello frame")
     };
 
     if protocol_version != PROTOCOL_VERSION {
@@ -1031,7 +1031,7 @@ async fn reregister_hello(
 
 /// Dispatch a parsed OrbitFrame (ADR 0008 protocol v1) — all variants except
 /// the initial Hello. Resp and Event frames route through `conn`.
-async fn handle_envoy_frame(
+async fn handle_orbit_frame(
     frame: stellarc_proto::frames::OrbitFrame,
     registry: &NodeRegistry,
     orbit_conns: &crate::server::orbit_conn::OrbitConnections,
@@ -1194,12 +1194,12 @@ async fn handle_envoy_frame(
 /// Axis-side allowlist config, loaded from `<home>/axis.toml`:
 ///
 /// ```toml
-/// allowed_envoys = ["<iroh-node-id>", ...]
+/// allowed_orbits = ["<iroh-node-id>", ...]
 /// ```
 #[derive(Debug, Default, serde::Deserialize)]
 struct AxisConfig {
     #[serde(default)]
-    allowed_envoys: Vec<String>,
+    allowed_orbits: Vec<String>,
 }
 
 fn load_allowlist(home: &std::path::Path) -> Vec<iroh::PublicKey> {
@@ -1214,7 +1214,7 @@ fn load_allowlist(home: &std::path::Path) -> Vec<iroh::PublicKey> {
             return Vec::new();
         }
     };
-    cfg.allowed_envoys
+    cfg.allowed_orbits
         .iter()
         .filter_map(|s| match s.parse::<iroh::PublicKey>() {
             Ok(k) => Some(k),
@@ -1242,7 +1242,7 @@ pub async fn create_iroh_endpoint(
 }
 
 /// Run the iroh accept loop: each accepted + allowlisted connection speaks the
-/// identical JSON-lines protocol via [`handle_envoy_conn`]. The allowlist is
+/// identical JSON-lines protocol via [`handle_orbit_conn`]. The allowlist is
 /// re-read from `axis.toml` per connection so additions don't need a restart.
 pub async fn run_iroh_accept_loop(
     home: std::path::PathBuf,
@@ -1273,7 +1273,7 @@ pub async fn run_iroh_accept_loop(
             // The orbit opens the bi-stream; axis accepts it.
             match conn.accept_bi().await {
                 Ok((send, recv)) => {
-                    handle_envoy_conn(
+                    handle_orbit_conn(
                         recv,
                         send,
                         reg,
@@ -1425,9 +1425,9 @@ mod tests {
     async fn newer_hello_supersedes_and_closes_old_connection() {
         let registry = NodeRegistry::new();
         let conns = crate::server::orbit_conn::OrbitConnections::new();
-        let (old_hall, mut old_envoy) = tokio::io::duplex(4096);
-        let (old_reader, old_writer) = tokio::io::split(old_hall);
-        let old_task = tokio::spawn(handle_envoy_conn(
+        let (old_axis, mut old_orbit) = tokio::io::duplex(4096);
+        let (old_reader, old_writer) = tokio::io::split(old_axis);
+        let old_task = tokio::spawn(handle_orbit_conn(
             old_reader,
             old_writer,
             registry.clone(),
@@ -1435,7 +1435,7 @@ mod tests {
             NodeTransport::Iroh,
             Some("key".into()),
         ));
-        old_envoy
+        old_orbit
             .write_all(format!("{}\n", serde_json::to_string(&hello("node")).unwrap()).as_bytes())
             .await
             .unwrap();
@@ -1443,9 +1443,9 @@ mod tests {
             tokio::task::yield_now().await;
         }
 
-        let (new_hall, mut new_envoy) = tokio::io::duplex(4096);
-        let (new_reader, new_writer) = tokio::io::split(new_hall);
-        let new_task = tokio::spawn(handle_envoy_conn(
+        let (new_axis, mut new_orbit) = tokio::io::duplex(4096);
+        let (new_reader, new_writer) = tokio::io::split(new_axis);
+        let new_task = tokio::spawn(handle_orbit_conn(
             new_reader,
             new_writer,
             registry.clone(),
@@ -1453,7 +1453,7 @@ mod tests {
             NodeTransport::Iroh,
             Some("key".into()),
         ));
-        new_envoy
+        new_orbit
             .write_all(format!("{}\n", serde_json::to_string(&hello("node")).unwrap()).as_bytes())
             .await
             .unwrap();
@@ -1463,7 +1463,7 @@ mod tests {
             .expect("superseded connection must be actively closed")
             .unwrap();
         assert!(registry.get("node").await.is_some());
-        drop(new_envoy);
+        drop(new_orbit);
         new_task.await.unwrap();
     }
 
@@ -1474,7 +1474,7 @@ mod tests {
         let (axis, orbit) = tokio::io::duplex(4096);
         let (axis_reader, axis_writer) = tokio::io::split(axis);
         let (orbit_reader, mut orbit_writer) = tokio::io::split(orbit);
-        let task = tokio::spawn(handle_envoy_conn(
+        let task = tokio::spawn(handle_orbit_conn(
             axis_reader,
             axis_writer,
             registry.clone(),
@@ -1568,7 +1568,7 @@ mod tests {
             let conns = crate::server::orbit_conn::OrbitConnections::new();
             let (axis, mut orbit) = tokio::io::duplex(4096);
             let (reader, writer) = tokio::io::split(axis);
-            let task = tokio::spawn(handle_envoy_conn(
+            let task = tokio::spawn(handle_orbit_conn(
                 reader,
                 writer,
                 registry.clone(),
@@ -1600,7 +1600,7 @@ mod tests {
         let registry = NodeRegistry::new();
         let (axis, mut orbit) = tokio::io::duplex(4096);
         let (reader, writer) = tokio::io::split(axis);
-        let task = tokio::spawn(handle_envoy_conn(
+        let task = tokio::spawn(handle_orbit_conn(
             reader,
             writer,
             registry.clone(),

@@ -37,7 +37,7 @@ Branch from main after ARCH-B and ARCH-D merge (both are parents).
 3. Axis: a receive-side ingester that applies observed frames to the event log
    idempotently (dedupe key: session hermes_id + message_id — mirror what
    sync.rs does today). Axis's direct state.db poll is then feature-flagged OFF
-   by default (`disable_hall_statedb_poll` semantics: negative-polarity flag,
+   by default (`disable_axis_statedb_poll` semantics: negative-polarity flag,
    new path on by default, flag rolls back to legacy — operator convention).
    Do NOT delete sync.rs in this card.
 4. Cold-boot import: STAYS in Axis for now (it reads a local state.db once for

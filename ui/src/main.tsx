@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
 import { qk, useLiveSync } from "./hooks/queries";
 import { ThemeProvider } from "./theme";
-import { AuthGate, useHallAuth } from "./auth";
+import { AuthGate, useAxisAuth } from "./auth";
 // Design system: tokens (colors, type, spacing, radius, motion, fonts) + base
 // resets + .ol-* component classes. Imported before index.css so the app-shell
 // aliases in index.css can reference the design-system tokens.
@@ -35,7 +35,7 @@ function Root() {
 }
 
 function AuthenticatedApp() {
-  const { organization } = useHallAuth();
+  const { organization } = useAxisAuth();
   useLiveSync(organization.id);
   return <RouterProvider router={router} />;
 }

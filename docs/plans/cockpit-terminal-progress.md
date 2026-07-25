@@ -26,7 +26,7 @@ Axis-default + hover node-picker, per-host PTY. Building directly (not swarm).
 - control-plane/src/server/orbit_conn.rs: TerminalFrame enum;
   terminal_channels on OrbitConnection; subscribe_terminal / forward_terminal /
   drop_terminal.
-- control-plane/src/node.rs: handle_envoy_frame arms for TerminalOutput
+- control-plane/src/node.rs: handle_orbit_frame arms for TerminalOutput
   (forward_terminal) + TerminalExited (forward + drop_terminal). This resolves
   the exhaustive-match compile blocker.
 
