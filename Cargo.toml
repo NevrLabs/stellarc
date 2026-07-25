@@ -29,3 +29,11 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "tokio"] }
 http-body-util = "0.1"
 argon2 = "0.5"
+
+[profile.dev]
+debug = 1              # line tables only; full debuginfo=2 is the big link cost
+incremental = true
+
+[profile.dev.package."*"]
+debug = false          # dependencies are never stepped through
+opt-level = 2          # deps compiled once, run fast forever
