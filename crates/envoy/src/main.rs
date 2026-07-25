@@ -51,6 +51,11 @@ const IDLE_REAP_THRESHOLD: std::time::Duration = std::time::Duration::from_secs(
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> Result<()> {
+    if flag_present("--version") {
+        println!("olympus-envoy {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     let node_id = arg_value("--node-id").unwrap_or_else(|| {
         std::env::var("OLYMPUS_NODE_ID").unwrap_or_else(|_| {
             hostname::get()

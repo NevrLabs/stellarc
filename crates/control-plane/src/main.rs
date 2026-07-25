@@ -79,6 +79,11 @@ fn hermes_state_db() -> Result<PathBuf> {
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> Result<()> {
+    if std::env::args().any(|a| a == "--version") {
+        println!("olympus-hall {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .with_target(false)
         .compact()

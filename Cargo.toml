@@ -37,3 +37,6 @@ incremental = true
 [profile.dev.package."*"]
 debug = false          # dependencies are never stepped through
 opt-level = 2          # deps compiled once, run fast forever
+
+[profile.release]
+strip = "symbols"   # ~35% smaller binaries; edge devices ship these
