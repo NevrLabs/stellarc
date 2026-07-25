@@ -80,7 +80,7 @@ fn hermes_state_db() -> Result<PathBuf> {
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 pub async fn run() -> Result<()> {
     if std::env::args().any(|a| a == "--version" || a == "-V") {
-        println!("stellarc-axis {}", env!("CARGO_PKG_VERSION"));
+        println!("stellarc axis {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 

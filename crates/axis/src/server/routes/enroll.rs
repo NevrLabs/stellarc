@@ -125,8 +125,8 @@ pub(crate) async fn enroll_install_script(
         .into_response()
 }
 
-/// GET /api/enroll/:token/binary — serve the stellarc-orbit binary from
-/// `<home>/bin/stellarc-orbit` (the deployed symlink). Token-gated. Streaming
+/// GET /api/enroll/:token/binary — serve the stellarc binary from
+/// `<home>/bin/stellarc` (single role-dispatched binary). Token-gated. Streaming
 /// is unnecessary at ~20MB; read + send is fine for an enrollment path.
 pub(crate) async fn enroll_binary(
     State(state): State<AppState>,
@@ -135,7 +135,7 @@ pub(crate) async fn enroll_binary(
     if !state.enroll.is_valid(&token).await {
         return (StatusCode::FORBIDDEN, "enroll token invalid or expired").into_response();
     }
-    let path = state.home.join("bin").join("stellarc-orbit");
+    let path = state.home.join("bin").join("stellarc");
     match tokio::fs::read(&path).await {
         Ok(bytes) => (
             StatusCode::OK,
