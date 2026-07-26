@@ -11,6 +11,7 @@ stellarc-orbit = { path = "../orbit" }
 serde.workspace = true
 zstd.workspace = true
 anyhow.workspace = true
+dirs = "5"
 tracing.workspace = true
 tracing-subscriber.workspace = true
 rusqlite = { workspace = true, features = ["bundled"] }

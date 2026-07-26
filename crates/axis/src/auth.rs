@@ -26,8 +26,8 @@ fn token_path() -> Result<PathBuf> {
     if let Ok(dir) = std::env::var("STELLARC_HOME") {
         return Ok(PathBuf::from(dir).join("token"));
     }
-    let home = std::env::var("HOME").context("HOME is not set")?;
-    Ok(PathBuf::from(home).join(".stellarc").join("token"))
+    let home = crate::home::home_dir()?;
+    Ok(home.join(".stellarc").join("token"))
 }
 
 /// Load the per-install token, generating and persisting it on first run.

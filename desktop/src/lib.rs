@@ -88,10 +88,13 @@ pub fn run() {
                 .spawn(move || {
                     if let Err(error) = stellarc_axis::entry::run() {
                         // A dead control plane is fatal for a Lite install —
-                        // the window would be an empty shell. Say so rather
-                        // than leaving a blank window and no explanation.
-                        eprintln!("stellarc: axis failed to start: {error:#}");
-                        handle.exit(1);
+                        // the window would be an empty shell.
+                        //
+                        // MUST be a dialog, not `eprintln!`: a Windows
+                        // GUI-subsystem binary has no attached console, so
+                        // stderr is discarded and `exit(1)` made the process
+                        // vanish with no window and no message at all.
+                        fatal(&handle, &format!("Axis failed to start.\n\n{error:#}"));
                     }
                 })?;
 
@@ -109,8 +112,10 @@ pub fn run() {
                             .min_inner_size(900.0, 600.0)
                             .build();
                 } else {
-                    eprintln!("stellarc: axis did not become ready at {url}");
-                    handle.exit(1);
+                    fatal(
+                        &handle,
+                        &format!("Axis did not become ready at {url} within 30 seconds."),
+                    );
                 }
             });
 
@@ -118,6 +123,54 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Stellarc desktop");
+}
+
+/// Report a fatal startup failure to the user, then exit.
+///
+/// Never use `eprintln!` alone: on Windows the bundle is a GUI-subsystem binary
+/// with no attached console, so stderr is discarded and the process appears to
+/// do nothing when it fails — which is how a missing `HOME` turned into
+/// "installed it, can't open it".
+///
+/// ponytail: native `MessageBoxW` rather than tauri-plugin-dialog. The plugin
+/// would add a dependency, plugin registration and a capability entry just to
+/// show one error box before any window exists. Switch to it if the desktop
+/// ever needs dialogs during normal operation.
+fn fatal(handle: &tauri::AppHandle, message: &str) {
+    tracing::error!("{message}");
+    eprintln!("stellarc: {message}");
+    show_error_box("Stellarc could not start", message);
+    handle.exit(1);
+}
+
+#[cfg(windows)]
+fn show_error_box(title: &str, message: &str) {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+
+    fn wide(value: &str) -> Vec<u16> {
+        std::ffi::OsStr::new(value)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    let (message, title) = (wide(message), wide(title));
+    // SAFETY: both buffers are NUL-terminated and outlive the call.
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            message.as_ptr(),
+            title.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn show_error_box(_title: &str, _message: &str) {
+    // Linux and macOS launch from a terminal or capture stderr to the system
+    // log, so the `eprintln!` in `fatal` is already visible.
 }
 
 /// Poll axis's health endpoint until it answers. Returns false on timeout.

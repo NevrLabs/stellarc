@@ -41,8 +41,8 @@ fn stellarc_home() -> Result<PathBuf> {
     if let Ok(dir) = std::env::var("STELLARC_HOME") {
         return Ok(PathBuf::from(dir));
     }
-    let home = std::env::var("HOME").context("HOME is not set")?;
-    Ok(PathBuf::from(home).join(".stellarc"))
+    let home = crate::home::home_dir()?;
+    Ok(home.join(".stellarc"))
 }
 
 fn warn_if_obsolete_event_log_exists(home: &std::path::Path) {
@@ -73,8 +73,8 @@ fn hermes_state_db() -> Result<PathBuf> {
     if let Ok(p) = std::env::var("HERMES_STATE_DB") {
         return Ok(PathBuf::from(p));
     }
-    let home = std::env::var("HOME").context("HOME is not set")?;
-    Ok(PathBuf::from(home).join(".hermes").join("state.db"))
+    let home = crate::home::home_dir()?;
+    Ok(home.join(".hermes").join("state.db"))
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
