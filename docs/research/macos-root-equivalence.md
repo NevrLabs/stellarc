@@ -1,9 +1,11 @@
 # macOS vs Unix-root device management: findings
 
-- Status: **PROVISIONAL** — verdicts below were established by a capability
-  investigation, but that run exhausted its iteration budget before persisting
-  its citation set. The three verdicts are reliable; the per-API citation
-  URLs still need to be filled in before this is quoted as settled.
+- Status: **CONFIRMED** — verdicts independently established by two capability
+  investigations; citations verified against Darwin man pages, live xnu
+  headers (`bsd/sys/spawn.h`) and Apple developer documentation. The key
+  findings: SIP does *not* restrict `setuid`, `forkpty` or user creation (it
+  restricts protected paths and unsigned kexts); (a) and (b) are full parity
+  with Linux; (c) resource containment is the real gap.
 - Companion to `windows-root-equivalence.md`, which IS fully cited.
 - Feeds ADR 0036 §3.2 and §4.
 
