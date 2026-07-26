@@ -42,13 +42,27 @@ addresses** — no relays, no DNS, no public internet.
 5. Stellarc Desktop is a Tauri shell bundling **axis + UI**, and it configures
    and supervises axis on first run — the user installs one thing and it works.
    Lite edition per ADR 0032: SQLite, single org, user tier per ADR 0031.
-6. **Windows desktop cannot bundle orbit.** Verified by cross-compiling
-   `x86_64-pc-windows-gnu`: axis compiles clean; orbit fails with 37 errors,
-   30 of them in `pty.rs` (`forkpty`, `setsid`, `ioctl`, `waitpid`,
+6. **Windows desktop cannot bundle orbit**, and **axis does not build for
+   Windows yet either.** Verified on CI (`windows-latest`,
+   `x86_64-pc-windows-msvc`): `cargo check -p stellarc-axis` fails, because
+   `crates/axis` declares `stellarc-orbit = { path = "../orbit" }` and pulls in
+   Unix process control — `forkpty`, `setsid`, `ioctl`, `waitpid`,
    `WEXITSTATUS`, `winsize`, `TIOCSWINSZ`, `SIGHUP`/`SIGKILL`, `pid_t`,
-   `std::os::fd`). These are Unix process-control primitives with no Windows
-   equivalent worth emulating. On Windows the node runtime lives in WSL2, which
-   is Linux; on Linux and macOS the desktop bundles orbit natively.
+   `std::os::fd`, `tokio::net::UnixStream`.
+
+   An earlier cross-compile was misread as "axis clean, orbit fails"; the
+   failures were axis's own build, since checking axis builds orbit first.
+
+   The shared surface is mostly platform-neutral (`adapter`, `runtime_table`,
+   `RegistryEntry`, `SlugResolver`, the iroh transport). Only `pty` and the
+   signal/process code are Unix-bound — and `server/terminal_ws.rs` reuses
+   `orbit::pty::PtyManager` so axis can host operator terminals locally.
+   Extracting the neutral parts into a platform-neutral crate, and making local
+   terminal hosting `#[cfg(unix)]`, is the prerequisite for a Windows axis.
+   Tracked as WIN-1; the `axis-windows-check` CI job gates it and is red today.
+
+   On Windows the node runtime lives in WSL2, which is Linux; on Linux and
+   macOS the desktop bundles orbit natively.
 7. **WSL orbit installation is opt-in.** The app MAY detect WSL2 distros and
    offer to install orbit into a named one; it MUST NOT install automatically.
    The prompt names the target distro (a machine may have several), and a
@@ -104,8 +118,10 @@ one thing that edition exists to do.
     known tarpit. A self-hosted Windows runner may replace the hosted one
     later without changing the workflow shape.
 15. CI MUST gate `cargo check -p stellarc-axis --target x86_64-pc-windows-msvc`
-    on every change. Axis is Windows-clean today; nothing currently prevents a
-    regression, because every existing workflow is `ubuntu-latest`.
+    on every change. This job is **red today** (§1.2.6, WIN-1) and must stay in
+    place as the acceptance test for the split — not be removed to make the
+    board green. Every other workflow is `ubuntu-latest`, so nothing else would
+    catch it.
 16. `crates/orbit` is **not** expected to build for Windows. CI must not gate
     it on that target; the WSL2/Linux/macOS path is the supported one.
 
@@ -115,10 +131,12 @@ one thing that edition exists to do.
    with the largest correctness win, and independent of the desktop work.
 2. Windows CI gate for axis (§3.15) — cheap, prevents regression of a property
    already true.
-3. `src-tauri` scaffold + `windows-latest` bundle workflow (§3.14).
-4. First-run flow: configure and supervise bundled axis (§1.2.5).
-5. Opt-in WSL distro detection and orbit install prompt (§1.2.7).
-6. Desktop connection catalog for multiple axes (§1.4.12).
+3. Split orbit's platform-neutral surface out so axis builds for Windows
+   (WIN-1) — prerequisite for any Windows bundle.
+4. `desktop/` Tauri scaffold + `windows-latest` bundle workflow (§3.14).
+5. First-run flow: configure and supervise bundled axis (§1.2.5).
+6. Opt-in WSL distro detection and orbit install prompt (§1.2.7).
+7. Desktop connection catalog for multiple axes (§1.4.12).
 
 ## 5. Rejected
 
