@@ -35,3 +35,6 @@ ui/test-results/
 ui/test-evidence/
 .maestro/recordings/
 .maestro/screenshots/
+
+# Tauri build-generated ACL schemas
+desktop/gen/
