@@ -38,3 +38,6 @@ ui/test-evidence/
 
 # Tauri build-generated ACL schemas
 desktop/gen/
+
+# Maestro drops <name>_diff.png here when a screenshot comparison fails
+baselines/
