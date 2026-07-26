@@ -20,7 +20,6 @@ use std::sync::{
     Arc,
 };
 
-use anyhow::{Context, Result};
 use crate::{
     auth, import,
     log::Log,
@@ -31,6 +30,7 @@ use crate::{
     vault::VaultStore,
     views::ViewManager,
 };
+use anyhow::{Context, Result};
 use tokio::sync::{broadcast, RwLock};
 
 /// Where Stellarc keeps its own INTERNAL state (event log, search index, token).
@@ -114,7 +114,9 @@ pub async fn run() -> Result<()> {
             .context("bootstrapping Axis administrator")?,
         (None, None) => {}
         _ => {
-            anyhow::bail!("STELLARC_ADMIN_USERNAME and STELLARC_ADMIN_PASSWORD must be set together")
+            anyhow::bail!(
+                "STELLARC_ADMIN_USERNAME and STELLARC_ADMIN_PASSWORD must be set together"
+            )
         }
     }
     let session_cookie_secure = std::env::var("STELLARC_INSECURE_COOKIES").as_deref() != Ok("1");
@@ -157,10 +159,8 @@ pub async fn run() -> Result<()> {
     let (deltas, _rx) = broadcast::channel(1024);
     // `log` is already an Arc<Log> (opened at the top); reuse it directly.
     let log_arc = log;
-    let jobs = Arc::new(
-        crate::jobs::JobService::open(log_arc.clone())
-            .context("replaying durable jobs")?,
-    );
+    let jobs =
+        Arc::new(crate::jobs::JobService::open(log_arc.clone()).context("replaying durable jobs")?);
     let bridge = std::sync::Arc::new(
         crate::server::bridge_mgr::BridgeManager::with_factory(
             log_arc.clone(),
@@ -251,14 +251,14 @@ pub async fn run() -> Result<()> {
         ),
         axis_pty: crate::server::terminal_ws::AxisTerminals::new(),
         proxy: crate::proxy::ProxyTable::new(),
-        edge: crate::edge::EdgeManager::new(Arc::new(
-            crate::edge::caddy::CaddyDriver::localhost("127.0.0.1:8787"),
-        )),
+        edge: crate::edge::EdgeManager::new(Arc::new(crate::edge::caddy::CaddyDriver::localhost(
+            "127.0.0.1:8787",
+        ))),
         vaults: Arc::new(VaultStore::new(org_workspace_root(&default_org())?)),
         state_db: state_db_reader.map(Arc::new),
-        projects: Arc::new(crate::projects::ProjectStore::new(
-            org_workspace_root(&default_org())?,
-        )),
+        projects: Arc::new(crate::projects::ProjectStore::new(org_workspace_root(
+            &default_org(),
+        )?)),
         repos: Arc::new(crate::repos::RepoStore::new(
             &org_workspace_root(&default_org())?,
             &default_org(),
@@ -343,10 +343,8 @@ pub async fn run() -> Result<()> {
                 let conns = state.orbit_conns.clone();
                 let axis_home = home.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = crate::node::run_iroh_accept_loop(
-                        axis_home, endpoint, reg, conns,
-                    )
-                    .await
+                    if let Err(e) =
+                        crate::node::run_iroh_accept_loop(axis_home, endpoint, reg, conns).await
                     {
                         tracing::error!(error = format!("{e:#}"), "iroh accept loop failed");
                     }

@@ -11,7 +11,7 @@ use iroh::{Endpoint, PublicKey, RelayMode, SecretKey};
 use stellarc_axis::node::{self, NodeRegistry};
 use stellarc_axis::server::orbit_conn::OrbitConnections;
 use stellarc_orbit::transport::STELLARC_ALPN;
-use stellarc_proto::frames::{OrbitFrame, AxisFrame};
+use stellarc_proto::frames::{AxisFrame, OrbitFrame};
 use stellarc_proto::version::{BuildVersion, PROTOCOL_VERSION};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -243,8 +243,7 @@ async fn iroh_ensure_runtime_round_trip() {
 
     // Use RemoteRuntime (axis-side) to drive ensure_runtime on the orbit.
     let conn = conns.get("orbit-rt").await.expect("conn exists");
-    let rt =
-        stellarc_axis::server::orbit_conn::RemoteRuntime::new_arc(conn, "s-iroh-rt".into());
+    let rt = stellarc_axis::server::orbit_conn::RemoteRuntime::new_arc(conn, "s-iroh-rt".into());
 
     let result = tokio::time::timeout(std::time::Duration::from_secs(15), rt.start(None)).await;
 

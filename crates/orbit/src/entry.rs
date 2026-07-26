@@ -17,8 +17,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
-use futures::StreamExt;
 use crate::{
     bridge::{AgentCommand, AgentEvent, AgentRuntime},
     discovery,
@@ -28,8 +26,10 @@ use crate::{
     runtime_table::RuntimeTable,
     spool::EventSpool,
 };
+use anyhow::{Context, Result};
+use futures::StreamExt;
 use stellarc_proto::{
-    frames::{OrbitFrame, AxisFrame, NodeRole},
+    frames::{AxisFrame, NodeRole, OrbitFrame},
     runtime::{RuntimeSpec, MANAGED_WORKSPACE_VERSION},
     version::{BuildVersion, PROTOCOL_VERSION},
 };
@@ -123,16 +123,22 @@ pub async fn run() -> Result<()> {
             .context("spawning state.db observer")?;
     }
 
-    // Transport selection: `--axis iroh:<node-id>` connects via iroh (public
-    // n0 relays, ADR 0008 §1 / S7); otherwise UDS (default local path).
+    // Transport selection: `--axis iroh:<node-id>` connects via iroh, using n0
+    // discovery + relays (ADR 0008 §1 / S7). `iroh:<node-id>@<addr>[,<addr>]`
+    // dials those addresses directly with no DNS/relay dependency — the
+    // Windows-axis <-> WSL-orbit path (ADR 0035 §1.1). Otherwise UDS.
     let axis = arg_value("--axis").or_else(|| std::env::var("STELLARC_AXIS").ok());
     if let Some(target) = axis.as_deref().and_then(|h| h.strip_prefix("iroh:")) {
         let state_dir = orbit_state_dir(&node_id)?;
         let secret = crate::transport::load_or_create_secret(&state_dir)?;
         let my_id = secret.public();
-        tracing::info!(orbit_node_id = %my_id, axis = %target, "connecting to Axis via iroh");
+        let reach = crate::transport::Reach::for_target(target);
+        tracing::info!(
+            orbit_node_id = %my_id, axis = %target, ?reach,
+            "connecting to Axis via iroh"
+        );
         println!("orbit iroh node id: {my_id}  (add to axis.toml allowed_orbits)");
-        let endpoint = crate::transport::bind_endpoint(secret).await?;
+        let endpoint = crate::transport::bind_endpoint_with(secret, reach).await?;
         loop {
             match crate::transport::connect_to_axis(&endpoint, target).await {
                 Ok((send, recv)) => {

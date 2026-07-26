@@ -3,8 +3,8 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use stellarc_proto::frames::{AxisFrame, JobAttemptState, JobAttemptStatus, JobStream};
 use serde::Serialize;
+use stellarc_proto::frames::{AxisFrame, JobAttemptState, JobAttemptStatus, JobStream};
 
 use crate::event::Event;
 use crate::log::Log;

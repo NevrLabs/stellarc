@@ -14,6 +14,6 @@ pub mod runtime;
 pub mod version;
 
 pub use agent::{AgentCommand, AgentEvent, PermissionOption};
-pub use frames::{OrbitFrame, AxisFrame, RuntimeStatus};
+pub use frames::{AxisFrame, OrbitFrame, RuntimeStatus};
 pub use runtime::{AcpFraming, ModelSetStyle, RuntimeSpec};
 pub use version::{BuildVersion, PROTOCOL_VERSION};

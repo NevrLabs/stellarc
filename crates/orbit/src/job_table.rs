@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use stellarc_proto::frames::{OrbitFrame, JobAttemptState, JobAttemptStatus, JobStream};
 use serde::{Deserialize, Serialize};
+use stellarc_proto::frames::{JobAttemptState, JobAttemptStatus, JobStream, OrbitFrame};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::{mpsc, oneshot, RwLock};

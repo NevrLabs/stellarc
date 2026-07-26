@@ -981,10 +981,10 @@ mod tests {
 
     #[tokio::test]
     async fn observed_state_db_rows_survive_axis_restart_exactly_once() {
+        use rusqlite::Connection;
         use stellarc_orbit::observer::StateDbObserver;
         use stellarc_orbit::spool::EventSpool;
-        use stellarc_proto::frames::{OrbitFrame, ObservedEvent};
-        use rusqlite::Connection;
+        use stellarc_proto::frames::{ObservedEvent, OrbitFrame};
 
         let dir = tempfile::tempdir().unwrap();
         let state_db = dir.path().join("state.db");

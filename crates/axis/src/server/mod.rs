@@ -6,8 +6,8 @@
 pub mod bridge_mgr;
 pub mod capability;
 pub mod dto;
-pub mod orbit_conn;
 mod identity;
+pub mod orbit_conn;
 pub mod principal;
 pub(crate) mod routes;
 pub mod terminal_ws;

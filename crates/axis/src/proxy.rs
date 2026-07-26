@@ -512,7 +512,10 @@ mod tests {
     #[test]
     fn extract_slug_with_port() {
         assert_eq!(
-            ProxyTable::extract_slug_from_host("myapp.stellarc.localhost:8799", "stellarc.localhost"),
+            ProxyTable::extract_slug_from_host(
+                "myapp.stellarc.localhost:8799",
+                "stellarc.localhost"
+            ),
             Some("myapp".to_string())
         );
     }
