@@ -22,6 +22,8 @@ pub mod repos;
 pub mod search;
 pub mod server;
 pub mod state_db_reader;
+pub mod store;
+pub mod store_sqlite;
 pub mod sync;
 pub mod vault;
 pub mod views;
