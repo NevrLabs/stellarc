@@ -179,11 +179,13 @@ impl ChildHandle {
                 .await
                 .is_err()
         {
+            #[cfg(unix)]
             signal_process_group(&self.child, libc::SIGTERM);
             if tokio::time::timeout(std::time::Duration::from_secs(1), self.child.wait())
                 .await
                 .is_err()
             {
+                #[cfg(unix)]
                 signal_process_group(&self.child, libc::SIGKILL);
                 let _ = self.child.wait().await;
             }
@@ -213,8 +215,15 @@ fn capture_stderr(
     })
 }
 
+/// Signal number, as the platform's C int. Defined locally so the
+/// signature does not name `libc::c_int` on targets where signals are absent.
 #[cfg(unix)]
-fn signal_process_group(child: &Child, signal: libc::c_int) {
+type Signal = libc::c_int;
+#[cfg(not(unix))]
+type Signal = i32;
+
+#[cfg(unix)]
+fn signal_process_group(child: &Child, signal: Signal) {
     let Some(pid) = child.id() else {
         return;
     };
@@ -225,8 +234,10 @@ fn signal_process_group(child: &Child, signal: libc::c_int) {
     }
 }
 
+/// No process groups on Windows. Reachable only if the orbit role were
+/// started there, which `entry::run` refuses to do.
 #[cfg(not(unix))]
-fn signal_process_group(_child: &Child, _signal: libc::c_int) {}
+fn signal_process_group(_child: &Child, _signal: Signal) {}
 
 fn push_bounded(buffer: &mut Vec<u8>, bytes: &[u8]) {
     if bytes.len() >= STDERR_BUF_CAP {

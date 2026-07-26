@@ -249,6 +249,7 @@ pub async fn run() -> Result<()> {
             log_arc.clone(),
             jobs,
         ),
+        #[cfg(unix)]
         axis_pty: crate::server::terminal_ws::AxisTerminals::new(),
         proxy: crate::proxy::ProxyTable::new(),
         edge: crate::edge::EdgeManager::new(Arc::new(crate::edge::caddy::CaddyDriver::localhost(
@@ -361,9 +362,12 @@ pub async fn run() -> Result<()> {
 
     let app = server::build_router(state.clone());
 
-    // Spawn the UDS listener for node (orbit) registration.
-    let uds_path = home.join("control.sock");
+    // Spawn the UDS listener for same-host node (orbit) registration.
+    // Unix-only: on Windows the orbit lives in WSL2 and registers over iroh
+    // instead (ADR 0035 §1.1), so there is no local socket to listen on.
+    #[cfg(unix)]
     {
+        let uds_path = home.join("control.sock");
         let reg = node_registry.clone();
         let conns = state.orbit_conns.clone();
         tokio::spawn(async move {

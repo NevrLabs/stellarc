@@ -77,6 +77,9 @@ impl SetupAdapter for HermesAdapter {
                 Ok(dir) => {
                     let link = skills_dir.join(&entry.slug);
                     // Symlink (best effort — if it exists, skip).
+                    // Unix only: Windows symlinks need developer mode or
+                    // elevation, and the orbit role doesn't run there.
+                    #[cfg(unix)]
                     let _ = std::os::unix::fs::symlink(&dir, &link);
                     skill_paths.push(link.to_string_lossy().into_owned());
                 }

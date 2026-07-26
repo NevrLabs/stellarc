@@ -11,6 +11,10 @@ pub mod discovery;
 pub mod job_table;
 pub mod mock_runtime;
 pub mod observer;
+/// PTY hosting is Unix-only: forkpty/ioctl/waitpid have no Windows
+/// equivalent. On Windows the orbit role is unavailable (ADR 0035 §1.2.6),
+/// so nothing here is reachable.
+#[cfg(unix)]
 pub mod pty;
 pub mod runtime_table;
 pub mod spool;

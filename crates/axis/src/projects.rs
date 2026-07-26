@@ -110,7 +110,7 @@ impl ProjectStore {
                 format!("removing existing project symlink {}", link_path.display())
             })?;
         }
-        std::os::unix::fs::symlink(&project_dir, &link_path).with_context(|| {
+        symlink_dir(&project_dir, &link_path).with_context(|| {
             format!(
                 "creating project symlink {} → {}",
                 link_path.display(),
@@ -184,6 +184,21 @@ fn manifest_from_value(project_id: &str, v: Value) -> Result<ProjectManifest> {
         boards: strings(&v, "boards"),
         created_at: v.get("created_at").and_then(Value::as_f64).unwrap_or(0.0),
     })
+}
+
+/// Create a directory symlink.
+///
+/// Windows separates `symlink_dir` from `symlink_file` and (outside developer
+/// mode) needs elevation, so a failure here is expected on a locked-down
+/// Windows host and surfaces as a normal error rather than a panic.
+#[cfg(unix)]
+fn symlink_dir(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn symlink_dir(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_dir(target, link)
 }
 
 #[cfg(test)]

@@ -674,6 +674,10 @@ impl std::error::Error for NodeError {}
 ///
 /// `orbit_conns` holds the per-node write halves for RemoteRuntime; `registry`
 /// holds the node metadata. Both are shared clones.
+/// Unix-only: a same-host orbit connects over UDS. On Windows the orbit
+/// lives in WSL2 and connects over iroh instead (ADR 0035 §1.1), so there
+/// is nothing for this listener to accept.
+#[cfg(unix)]
 pub async fn run_uds_listener(
     path: std::path::PathBuf,
     registry: NodeRegistry,
@@ -704,6 +708,7 @@ pub async fn run_uds_listener(
 /// Handle a single UDS connection (one orbit's lifecycle).
 ///
 /// The first frame must be an exact-v1 `OrbitFrame::Hello`.
+#[cfg(unix)]
 async fn handle_uds_conn(
     stream: tokio::net::UnixStream,
     registry: NodeRegistry,

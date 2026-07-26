@@ -1041,6 +1041,7 @@ mod tests {
             irc: IrcBus::new(),
             nodes: NodeRegistry::new(),
             orbit_conns: crate::server::orbit_conn::OrbitConnections::new(),
+            #[cfg(unix)]
             axis_pty: crate::server::terminal_ws::AxisTerminals::new(),
             axis_iroh_id: None,
             proxy: ProxyTable::new(),

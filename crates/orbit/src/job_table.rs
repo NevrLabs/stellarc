@@ -382,6 +382,10 @@ fn gated_command(
         }
     }
     // SAFETY: setsid is async-signal-safe and touches no Rust-managed state.
+    // Unix-only: the job gets its own process group so `kill_group` can reap
+    // the whole tree. The Windows equivalent is a job object (ADR 0035 §1.2.6,
+    // not wired — the orbit role does not run on Windows).
+    #[cfg(unix)]
     unsafe {
         command.pre_exec(|| {
             if libc::setsid() == -1 {
@@ -393,12 +397,18 @@ fn gated_command(
     command
 }
 
+#[cfg(unix)]
 fn kill_group(pid: u32) {
     // Negative pid targets the process group created by setsid.
     unsafe {
         libc::kill(-(pid as i32), libc::SIGKILL);
     }
 }
+
+/// No process groups on Windows; a job object would be the equivalent. Only
+/// reachable if the orbit role ran there, which `entry::run` refuses.
+#[cfg(not(unix))]
+fn kill_group(_pid: u32) {}
 
 pub fn wire_id(job_id: &str, attempt_epoch: u64) -> String {
     format!("job:{job_id}:{attempt_epoch}")
@@ -699,6 +709,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn restart_kills_persisted_running_process_group() {
         use std::os::unix::process::CommandExt;

@@ -10,6 +10,10 @@ mod identity;
 pub mod orbit_conn;
 pub mod principal;
 pub(crate) mod routes;
+/// Axis-hosted operator terminals. Unix-only: reuses orbit's PtyManager,
+/// and PTY has no Windows equivalent. Terminals on remote nodes are
+/// unaffected — those run on the node's orbit (ADR 0035 §1.2.6).
+#[cfg(unix)]
 pub mod terminal_ws;
 pub mod ws;
 
@@ -113,6 +117,7 @@ pub struct AppState {
     /// the cockpit picker (ADR 0021). Axis has no OrbitConnection to itself, so
     /// it runs shells directly via the same node-agnostic PtyManager the orbit
     /// uses. Operator-only; reachable solely from the operator terminal WS.
+    #[cfg(unix)]
     pub axis_pty: Arc<crate::server::terminal_ws::AxisTerminals>,
     /// Axis's iroh node id (public key, z-base-32). `None` when iroh is not
     /// enabled (no listener bound). Exposed via GET /api/nodes/axis-identity
@@ -172,12 +177,18 @@ pub fn build_router(state: AppState) -> Router {
             "/api/proxy/{slug}",
             axum::routing::delete(crate::proxy::delete_proxy_endpoint),
         )
-        .route("/ws", get(ws::ws_handler))
-        .route(
-            "/ws/operator/terminals/{terminal_id}",
-            get(terminal_ws::terminal_ws_handler),
-        )
-        .route_layer(middleware::from_fn_with_state(state.clone(), auth_gate));
+        .route("/ws", get(ws::ws_handler));
+
+    // Axis-hosted terminals need a local PTY, which Windows lacks. Terminals on
+    // remote nodes are unaffected: those run on the node's orbit and stream in
+    // over the wire (ADR 0035 §1.2.6).
+    #[cfg(unix)]
+    let protected = protected.route(
+        "/ws/operator/terminals/{terminal_id}",
+        get(terminal_ws::terminal_ws_handler),
+    );
+
+    let protected = protected.route_layer(middleware::from_fn_with_state(state.clone(), auth_gate));
 
     // The catch-all proxy forward is PUBLIC (auth is checked per-endpoint).
     // Must be registered AFTER all /api/* routes so it doesn't shadow them.
