@@ -66,7 +66,7 @@ pub fn run() {
             // — `entry::run` is the same code path the CLI uses, so the desktop
             // cannot drift from `stellarc axis`.
             std::env::set_var("STELLARC_BIND", format!("127.0.0.1:{port}"));
-            if let Some(dist) = bundled_ui_dist(&app.handle()) {
+            if let Some(dist) = bundled_ui_dist(app.handle()) {
                 std::env::set_var("STELLARC_UI_DIST", dist);
             }
             if std::env::var_os("STELLARC_HOME").is_none() {
@@ -102,15 +102,12 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 if wait_for_axis(&url).await {
                     let parsed = url.parse().expect("origin is a valid url");
-                    let _ = WebviewWindowBuilder::new(
-                        &handle,
-                        "main",
-                        WebviewUrl::External(parsed),
-                    )
-                    .title("Stellarc")
-                    .inner_size(1440.0, 900.0)
-                    .min_inner_size(900.0, 600.0)
-                    .build();
+                    let _ =
+                        WebviewWindowBuilder::new(&handle, "main", WebviewUrl::External(parsed))
+                            .title("Stellarc")
+                            .inner_size(1440.0, 900.0)
+                            .min_inner_size(900.0, 600.0)
+                            .build();
                 } else {
                     eprintln!("stellarc: axis did not become ready at {url}");
                     handle.exit(1);
@@ -131,7 +128,10 @@ pub fn run() {
 async fn wait_for_axis(origin: &str) -> bool {
     let health = format!("{origin}/api/health");
     for _ in 0..300 {
-        if reqwest::get(&health).await.is_ok_and(|r| r.status().is_success()) {
+        if reqwest::get(&health)
+            .await
+            .is_ok_and(|r| r.status().is_success())
+        {
             return true;
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -151,6 +151,9 @@ mod tests {
         // Must be immediately rebindable — otherwise axis would fail to start
         // on the port we just handed it.
         let again = TcpListener::bind(("127.0.0.1", port));
-        assert!(again.is_ok(), "port {port} was not released for axis to bind");
+        assert!(
+            again.is_ok(),
+            "port {port} was not released for axis to bind"
+        );
     }
 }
