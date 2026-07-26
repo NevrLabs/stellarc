@@ -42,28 +42,40 @@ addresses** — no relays, no DNS, no public internet.
 5. Stellarc Desktop is a Tauri shell bundling **axis + UI**, and it configures
    and supervises axis on first run — the user installs one thing and it works.
    Lite edition per ADR 0032: SQLite, single org, user tier per ADR 0031.
-6. **Windows desktop cannot bundle orbit**, and **axis does not build for
-   Windows yet either.** Verified on CI (`windows-latest`,
-   `x86_64-pc-windows-msvc`): `cargo check -p stellarc-axis` fails, because
-   `crates/axis` declares `stellarc-orbit = { path = "../orbit" }` and pulls in
-   Unix process control — `forkpty`, `setsid`, `ioctl`, `waitpid`,
-   `WEXITSTATUS`, `winsize`, `TIOCSWINSZ`, `SIGHUP`/`SIGKILL`, `pid_t`,
-   `std::os::fd`, `tokio::net::UnixStream`.
+6. **One binary, one crate set, two compile targets.** The Unix-only internals
+   are `#[cfg(unix)]`-gated so the same source builds for Linux and Windows.
+   No crate split: an earlier plan to extract orbit's platform-neutral surface
+   was unnecessary — gating the ~10 Unix-bound sites is 113 lines across 11
+   files and preserves the single-binary property.
 
-   An earlier cross-compile was misread as "axis clean, orbit fails"; the
+   Unix-gated, with the reason each has no Windows equivalent:
+
+   | Surface | Why |
+   |---|---|
+   | `orbit::pty` | `forkpty`/`ioctl`/`waitpid`/`winsize` |
+   | orbit connection runtime (`Conn`, `run_connection`, `dispatch_frame`) | threads `PtyManager`; reachable only from `run_orbit` |
+   | `job_table` process groups | `setsid` in `pre_exec`, `kill_group` on negative pgid (Windows: job object, not wired) |
+   | `bridge::child::signal_process_group` | signature named `libc::c_int`; now a local `Signal` alias |
+   | axis `run_uds_listener` | same-host orbit uses UDS; on Windows the orbit is in WSL2 over iroh (§1.1) |
+   | axis `server::terminal_ws` | Axis hosting terminals on its OWN host needs a local PTY |
+
+   Terminals on **remote** nodes are unaffected — those run on the node's orbit
+   and stream over the wire. Where a real Windows equivalent exists it is used
+   rather than disabling the feature: `projects::attach_symlink` calls a
+   `symlink_dir` helper backed by `std::os::unix::fs::symlink` or
+   `std::os::windows::fs::symlink_dir`.
+
+7. **The orbit role refuses to start on a non-Unix host**, with a message
+   pointing at WSL2. Registering with Axis and then failing to spawn anything
+   would look like an Axis bug from the outside. Pinned by a `cfg(not(unix))`
+   test.
+
+   An earlier cross-compile was misread as "axis clean, orbit fails" — the
    failures were axis's own build, since checking axis builds orbit first.
-
-   The shared surface is mostly platform-neutral (`adapter`, `runtime_table`,
-   `RegistryEntry`, `SlugResolver`, the iroh transport). Only `pty` and the
-   signal/process code are Unix-bound — and `server/terminal_ws.rs` reuses
-   `orbit::pty::PtyManager` so axis can host operator terminals locally.
-   Extracting the neutral parts into a platform-neutral crate, and making local
-   terminal hosting `#[cfg(unix)]`, is the prerequisite for a Windows axis.
-   Tracked as WIN-1; the `axis-windows-check` CI job gates it and is red today.
 
    On Windows the node runtime lives in WSL2, which is Linux; on Linux and
    macOS the desktop bundles orbit natively.
-7. **WSL orbit installation is opt-in.** The app MAY detect WSL2 distros and
+8. **WSL orbit installation is opt-in.** The app MAY detect WSL2 distros and
    offer to install orbit into a named one; it MUST NOT install automatically.
    The prompt names the target distro (a machine may have several), and a
    decline is remembered. Silent installation into a user's Linux environment
@@ -117,13 +129,14 @@ one thing that edition exists to do.
     needs WebView2 plus WiX/NSIS, and cross-building those from Linux is a
     known tarpit. A self-hosted Windows runner may replace the hosted one
     later without changing the workflow shape.
-15. CI MUST gate `cargo check -p stellarc-axis --target x86_64-pc-windows-msvc`
-    on every change. This job is **red today** (§1.2.6, WIN-1) and must stay in
-    place as the acceptance test for the split — not be removed to make the
-    board green. Every other workflow is `ubuntu-latest`, so nothing else would
-    catch it.
-16. `crates/orbit` is **not** expected to build for Windows. CI must not gate
-    it on that target; the WSL2/Linux/macOS path is the supported one.
+15. CI MUST gate the Windows target on every change. Every other workflow is
+    `ubuntu-latest`, so nothing else would catch a regression. The gate checks
+    the whole binary (`-p stellarc`), not just one lib, since the point is that
+    the single artifact builds.
+16. `crates/orbit` **does** build for Windows (the cfg-gated surfaces compile
+    away); what it does not do is *run* the orbit role there. The binary is one
+    artifact, so orbit cannot be excluded from the Windows build even if the
+    role is unavailable.
 
 ## 4. Migration order
 
@@ -131,8 +144,8 @@ one thing that edition exists to do.
    with the largest correctness win, and independent of the desktop work.
 2. Windows CI gate for axis (§3.15) — cheap, prevents regression of a property
    already true.
-3. Split orbit's platform-neutral surface out so axis builds for Windows
-   (WIN-1) — prerequisite for any Windows bundle.
+3. ~~cfg-gate the Unix-only surfaces so the binary builds for Windows~~ —
+   done; no crate split was needed.
 4. `desktop/` Tauri scaffold + `windows-latest` bundle workflow (§3.14).
 5. First-run flow: configure and supervise bundled axis (§1.2.5).
 6. Opt-in WSL distro detection and orbit install prompt (§1.2.7).
@@ -153,5 +166,10 @@ one thing that edition exists to do.
 - **Compiling orbit for Windows** (native `ConPTY` + job-object port) — a
   parallel process-control implementation for a platform where WSL2 already
   provides Linux. Revisit only if a Windows-native node becomes a requirement.
+- **Splitting orbit into a platform-neutral crate plus a Unix crate** — the
+  motivating problem (axis pulling Unix internals in on Windows) is solved by
+  ~10 `#[cfg(unix)]` gates. A new crate boundary would be a larger diff, a new
+  public surface to maintain, and would not preserve the one-binary property
+  any better.
 - **Multi-axis in the web UI** — would mean a served page holding credentials
   for other axes; the origin model exists for a reason.

@@ -7,23 +7,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Axis must keep compiling for Windows: the desktop app bundles it there.
-  # Nothing guarded this before — every other workflow is ubuntu-only, so a
-  # Windows regression in axis would have landed silently (ADR 0035 §3.15).
-  axis-windows-check:
+  # The single stellarc binary must keep compiling for Windows: the desktop app
+  # bundles it there. Nothing guarded this before — every other workflow is
+  # ubuntu-only, so a Windows regression would land silently (ADR 0035 §3.15).
+  #
+  # Checks the whole binary (-p stellarc, --all-targets), not one lib: the point
+  # is that the single artifact builds. Unix-only surfaces (pty, process groups,
+  # UDS, Axis-local terminals) are cfg-gated and compile away; what is
+  # unavailable on Windows is *running* the orbit role, not building it.
+  windows-check:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: cargo check axis (windows)
-        run: cargo check -p stellarc-axis --target x86_64-pc-windows-msvc
-      # crates/orbit is intentionally NOT checked here: it uses Unix process
-      # control (forkpty/waitpid/ioctl) and is not expected to build for
-      # Windows. On Windows the node runtime lives in WSL2. ADR 0035 §3.16.
+      - name: cargo check (windows, whole binary)
+        run: cargo check -p stellarc --all-targets --target x86_64-pc-windows-msvc
 
   bundle:
-    needs: axis-windows-check
+    needs: windows-check
     strategy:
       fail-fast: false
       matrix:
