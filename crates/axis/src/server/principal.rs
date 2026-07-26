@@ -75,14 +75,20 @@ pub fn route_class(path: &str) -> RouteClass<'_> {
     if path == "/api/nodes" || (path.starts_with("/api/nodes/") && path.ends_with("/agents")) {
         return RouteClass::Admin;
     }
+    // Console routes place a process on a node, so they are operator-class
+    // regardless of the `/operator/` prefix being cosmetic (ADR 0036 §3 rule 1;
+    // docs/postmortems/console-authz-any-user.md). `authorize_operator` also
+    // enforces owner standing at the handler; this keeps the route table from
+    // contradicting it.
+    if path.starts_with("/ws/operator/terminals/") || path == "/api/terminal/targets" {
+        return RouteClass::Admin;
+    }
     if path == "/ws"
-        || path.starts_with("/ws/operator/terminals/")
         || path == "/api/auth/session"
         || path == "/api/auth/logout"
         || path == "/api/organizations"
         || path == "/api/models"
         || path == "/api/agents"
-        || path == "/api/terminal/targets"
         || path == "/api/edge/static"
         || (path.starts_with("/api/agents/") && path.ends_with("/models"))
         || path == "/api/nodes/axis-identity"

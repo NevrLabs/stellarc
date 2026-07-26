@@ -161,7 +161,8 @@ pub async fn terminal_ws_handler(
     headers: axum::http::HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
-    if !super::ws::authorize_operator(&state, q.token.as_deref(), &headers) {
+    // ADR 0036 §5 step 1: operator standing is required to open a console.
+    if super::ws::authorize_operator(&state, q.token.as_deref(), &headers).is_err() {
         return (axum::http::StatusCode::UNAUTHORIZED, "unauthorized").into_response();
     }
     let node = q.node.clone().unwrap_or_else(|| "axis".to_string());
