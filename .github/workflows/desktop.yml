@@ -61,6 +61,12 @@ jobs:
       - name: install ui deps
         run: cd ui && bun install --frozen-lockfile
 
+      # desktop/package.json declares @tauri-apps/cli, which tauriScript below
+      # invokes as `bun run --cwd desktop tauri`. Without this the CLI is absent
+      # and the bundle step dies with "tauri: command not found".
+      - name: install desktop (tauri cli) deps
+        run: cd desktop && bun install
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
