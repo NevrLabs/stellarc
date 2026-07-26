@@ -41,3 +41,7 @@ desktop/gen/
 
 # Maestro drops <name>_diff.png here when a screenshot comparison fails
 baselines/
+
+# Tauri desktop staging (built UI copied in by scripts/stage-ui.sh)
+desktop/ui-dist/
+desktop/placeholder/

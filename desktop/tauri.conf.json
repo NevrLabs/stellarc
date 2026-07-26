@@ -4,31 +4,22 @@
   "version": "0.1.0",
   "identifier": "dev.stellarc.desktop",
   "build": {
-    "beforeDevCommand": "cd ../ui && bun run dev",
-    "devUrl": "http://localhost:5177",
-    "beforeBuildCommand": "cd ../ui && bun run build",
-    "frontendDist": "../ui/dist"
+    "beforeBuildCommand": "bash scripts/stage-ui.sh",
+    "frontendDist": "./placeholder"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Stellarc",
-        "width": 1440,
-        "height": 900,
-        "minWidth": 900,
-        "minHeight": 600,
-        "resizable": true,
-        "fullscreen": false
-      }
-    ],
+    "windows": [],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'"
+      "csp": null
     }
   },
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis", "deb", "appimage", "dmg"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico", "icons/icon.icns"],
+    "resources": {
+      "ui-dist/": "ui-dist/"
+    },
     "shortDescription": "Stellarc — control plane for AI coding agents",
     "longDescription": "Stellarc Desktop bundles a local Axis control plane and the Stellarc UI. Lite edition: single user, single org, SQLite."
   }
