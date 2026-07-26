@@ -27,18 +27,21 @@ jobs:
       - name: Install mold
         run: sudo apt-get update && sudo apt-get install -y mold
 
-      - name: Build release binaries
+      # `stellarc-axis` and `stellarc-orbit` are LIBRARIES; the only binary in
+      # the workspace is `stellarc`, which dispatches by role (stellarc axis |
+      # stellarc orbit). Building the lib crates produced no executables, so
+      # the staging step below failed on a missing file.
+      - name: Build release binary
         env:
           RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
-        run: cargo build --release -p stellarc-axis -p stellarc-orbit
+        run: cargo build --release -p stellarc
 
       - name: Stage artifacts
         run: |
           mkdir -p dist
-          cp target/release/stellarc-axis dist/
-          cp target/release/stellarc-orbit dist/
+          cp target/release/stellarc dist/
           cd dist
-          sha256sum stellarc-axis stellarc-orbit > SHA256SUMS
+          sha256sum stellarc > SHA256SUMS
           ls -lh
 
       - uses: actions/upload-artifact@v4
@@ -53,6 +56,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/stellarc-axis
-            dist/stellarc-orbit
+            dist/stellarc
             dist/SHA256SUMS

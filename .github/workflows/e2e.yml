@@ -7,6 +7,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # .cargo/config.toml pins -fuse-ld=mold for this target, so mold must
+      # exist or every link fails with "cannot find 'ld'".
+      - run: sudo apt-get update && sudo apt-get install -y mold
       - uses: taiki-e/install-action@v2
         with:
           tool: jj-cli@0.43.0
