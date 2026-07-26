@@ -92,10 +92,14 @@ describe("SessionSidebar", () => {
   });
 
   it("writes a dockview session drag payload", () => {
-    render(<SessionSidebar width={220} activeSessionId="s-1" />);
+    // The session is rendered twice on purpose: RECENT is cross-project and the
+    // PROJECTS tree also lists it under project-a. Select by data attribute —
+    // getByText("Focused session") would match both rows and throw.
+    const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" />);
     const data = new Map<string, string>();
 
-    fireEvent.dragStart(screen.getByText("Focused session").closest(".srow") as HTMLElement, {
+    const row = container.querySelector("[data-session-id='s-1']") as HTMLElement;
+    fireEvent.dragStart(row, {
       dataTransfer: {
         effectAllowed: "none",
         setData: (type: string, value: string) => data.set(type, value),
@@ -155,7 +159,10 @@ describe("SessionSidebar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Focused session"));
+    // Same duplication as above: click the first rendered row explicitly.
+    fireEvent.click(
+      document.querySelector("[data-session-id='s-1']") as HTMLElement,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not open session: Project unavailable",
@@ -174,12 +181,26 @@ describe("SessionSidebar", () => {
 
   it("collapses and expands sections on header click", () => {
     const { container } = render(<SessionSidebar width={220} activeSessionId="s-1" />);
-    const recentHeader = container.querySelector(".sec-head-toggle") as HTMLElement;
-    expect(container.querySelector("[data-session-id='s-1']")).toBeTruthy();
+    const [recentHeader, projectsHeader] = Array.from(
+      container.querySelectorAll(".sec-head-toggle"),
+    ) as HTMLElement[];
 
+    expect(recentHeader).toHaveAttribute("aria-expanded", "true");
+    expect(container.querySelector(".sec-recent [data-session-id='s-1']")).toBeTruthy();
+
+    // Collapsing RECENT hides only RECENT's rows. The session also appears in
+    // the PROJECTS tree (it has projectId project-a), so asserting on the
+    // container as a whole would still find it there.
     fireEvent.click(recentHeader);
-    // After collapse, the session row should be gone
-    // (section content is conditionally rendered)
+    expect(recentHeader).toHaveAttribute("aria-expanded", "false");
+    expect(container.querySelector(".sec-recent [data-session-id='s-1']")).toBeFalsy();
+
+    // With both sections collapsed no row is rendered anywhere.
+    fireEvent.click(projectsHeader);
     expect(container.querySelector("[data-session-id='s-1']")).toBeFalsy();
+
+    // Expanding RECENT brings its rows back.
+    fireEvent.click(recentHeader);
+    expect(container.querySelector(".sec-recent [data-session-id='s-1']")).toBeTruthy();
   });
 });
