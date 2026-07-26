@@ -4,11 +4,16 @@ Short map for coding agents working on Stellarc. Detailed guidance lives in `doc
 
 ## What Stellarc is
 
-A clean-room, Rust-native AI control plane for Hermes Agent: a single-binary
-**event-sourced control plane** (redb log → in-memory materialized views →
-tantivy search → axum REST/WS API) plus a **Vite + React UI** under `ui/`. It
-unifies all Hermes sessions from every channel into one searchable, resumable
-interface. NOT a fork of Hermes Studio. The earlier Convex/Bun/TS design was
+A clean-room, Rust-native control plane for **AI coding agents**: a
+single-binary **event-sourced control plane** (SQLite event log → in-memory
+materialized views → FTS5 search → axum REST/WS API) plus a **Vite + React UI**
+under `ui/`. It unifies agent sessions from every host and channel into one
+searchable, resumable interface.
+
+Stellarc is **agent-agnostic by design.** Agents are discovered per node behind
+an adapter seam (`adapters/`, ACP) — Hermes, Claude Code, Codex, Cursor and
+others are all first-class. Do not add agent-specific branching outside an
+adapter, and do not treat Hermes as the default. NOT a fork of Hermes Studio. The earlier Convex/Bun/TS design was
 removed (ADR 0003); do not reintroduce it. See `docs/architecture/architecture.md`,
 `docs/adrs/0002-stellarc-fleet-control-plane.md`, and
 `docs/adrs/0003-remove-convex-rust-native-substrate.md`.
@@ -26,9 +31,9 @@ removed (ADR 0003); do not reintroduce it. See `docs/architecture/architecture.m
 ## Workspace
 
 - `crates/axis/src/` — the Rust control plane:
-  - `event.rs`, `log.rs`, `compress.rs` — event-sourced append-only log (redb + zstd).
+  - `event.rs`, `log.rs`, `compress.rs` — event-sourced append-only log (SQLite + JSON/zstd).
   - `views/` — in-memory materialized projections (session + message views).
-  - `search.rs` — tantivy full-text index.
+  - `search.rs` — SQLite FTS5 full-text index.
   - `import.rs` — read-only bulk import from Hermes `state.db`.
   - `auth.rs` — per-install token + Bearer/Origin gate.
   - `server/` — axum REST + `/ws` delta stream + camelCase DTOs + CORS.
@@ -79,7 +84,7 @@ symlinks (`stellarc-axis` / `stellarc-orbit`) as the deploy pointer. The
 
 ## Hard rules
 
-- The redb event log is the sole source of truth; views are pure projections.
+- The SQLite event log is the sole source of truth; views are pure projections.
   Never mutate view state outside an `apply(event)` path.
 - `state.db` is read ONLY (open `SQLITE_OPEN_READ_ONLY`); never write the live
   Hermes DB. Cross-channel continuation is a FORK, never an in-place edit.
