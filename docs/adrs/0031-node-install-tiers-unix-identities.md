@@ -7,6 +7,8 @@
   (bwrap no-root), 0014 (unprivileged edge), 0015 (rootless podman), 0017
   (static OS identities), 0022 (human RBAC), 0024 (secret store), 0027
   (sharing, BYOK, shared nodes)
+- Amended by: ADR 0034 (custodial storage layout, deletion approval, actor
+  attribution)
 - Amends: ADR 0008 (system vs user units per tier), 0011 §5 (where root
   lives), 0015 (per-user subuid ranges), 0017 (its four static identities
   become the pre-provisioned subset of this scheme)
