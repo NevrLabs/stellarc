@@ -8,7 +8,8 @@
   (static OS identities), 0022 (human RBAC), 0024 (secret store), 0027
   (sharing, BYOK, shared nodes)
 - Amended by: ADR 0034 (custodial storage layout, deletion approval, actor
-  attribution)
+  attribution), ADR 0036 (§3c rules 12-13: macOS/Windows tier cap becomes
+  conditional on an implemented isolation mechanism, not the platform name)
 - Amends: ADR 0008 (system vs user units per tier), 0011 §5 (where root
   lives), 0015 (per-user subuid ranges), 0017 (its four static identities
   become the pre-provisioned subset of this scheme)
@@ -162,11 +163,25 @@ systemd. It ports; the mechanisms differ, and one of them does not exist.
     equivalent — resource limits degrade to advisory. TCC/keychain prompts make
     unattended per-user provisioning fragile; treat macOS as user tier until a
     system-tier spike proves headless account creation.
+
+    **Amended by ADR 0036.** macOS is system-tier-capable; SIP does not
+    restrict `setuid`/`forkpty`/account creation. The cap is now the mechanism
+    test (ADR 0036 §1), not the platform. The advisory-resource-limit ceiling
+    above stands and is the accepted cost. The headless-provisioning spike is
+    still unrun and gates implementation, not eligibility.
 13. **Windows** has SIDs, ACLs and `CreateProcessAsUser`, which is a genuine
     boundary, but the ADR's Unix vocabulary (`initgroups`, setgid dirs, subuid
     ranges for rootless podman) has no mapping. Windows nodes are **user tier
     only** until a separate ADR defines the SID/ACL equivalent; ADR 0015's
     rootless-podman assumption does not hold there at all.
+
+    **Superseded by ADR 0036** — that is the separate ADR this rule called for.
+    Windows is system-tier-capable: `LogonUserExExW` + `CreateProcessAsUserW` +
+    `conhost.exe --headless` for the console, `NetUserAdd`/`NetLocalGroupAdd`
+    for accounts, job objects for containment. Job objects give a *stronger*
+    process-tree kill than `killpg`, so Windows containment is not weaker than
+    Linux — it is better. The remaining work is implementation. ADR 0015's
+    rootless-podman assumption still does not hold.
 14. **The permission fallbacks are currently unsound off Unix.** Today
     `auth_store::secure_permissions` is `#[cfg(not(unix))] -> Ok(())` and
     `capability::write_secret` applies no mode outside `#[cfg(unix)]`, so the
