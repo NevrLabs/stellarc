@@ -1416,3 +1416,110 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
 
 /* ── ctx-sep for context menu (was referenced but maybe missing) ── */
 .ctx-sep { height: 1px; background: var(--border-faint); margin: var(--space-1) 0; }
+
+/* ── DraftSession — new-session setup, constrained to composer width ── */
+.draft-setup {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-6);
+  max-width: var(--measure); width: 100%; margin: 0 auto;
+  padding: var(--space-6) var(--space-8) var(--space-4);
+  overflow-y: auto;
+}
+.draft-banner {
+  display: flex; align-items: center; gap: var(--space-3);
+  font-size: var(--fs-12); color: var(--faint);
+  padding-bottom: var(--space-3); border-bottom: 1px solid var(--border-faint);
+}
+.draft-banner-dot {
+  width: 6px; height: 6px; border-radius: 99px; background: var(--warn); flex-shrink: 0;
+}
+.draft-row { display: flex; flex-direction: column; gap: var(--space-3); }
+.draft-label {
+  font: 9.5px var(--font-mono); color: var(--faint);
+  text-transform: uppercase; letter-spacing: .1em; margin-bottom: -2px;
+}
+.draft-pill {
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; font-size: 11.5px;
+  color: var(--dim); white-space: nowrap; flex-shrink: 0; background: none; cursor: pointer;
+  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.draft-pill:hover { border-color: var(--border-strong); color: var(--text); }
+
+/* Project row */
+.draft-project-row { display: flex; align-items: center; gap: 6px; }
+.draft-project-chip {
+  display: flex; align-items: center; gap: 7px; background: var(--accent-wash);
+  border: 1px solid var(--border-strong); border-radius: 999px;
+  padding: 4px 12px; font-size: 12.5px; font-weight: 600; flex-shrink: 0;
+}
+.draft-project-scroller {
+  display: flex; gap: 5px; overflow-x: auto; min-width: 0; scrollbar-width: none;
+}
+.draft-project-scroller::-webkit-scrollbar { display: none; }
+
+/* Attach row */
+.draft-attach-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.draft-chips { display: flex; gap: 6px; flex-wrap: wrap; min-height: 23px; }
+
+/* Agent selector — single compact searchable list */
+.draft-agent-sel {
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  flex: 1; min-height: 80px; max-height: 280px; display: flex; flex-direction: column;
+  background: var(--elev); overflow: hidden;
+}
+.draft-agent-search {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-faint);
+}
+.draft-agent-search input {
+  flex: 1; background: none; border: none; outline: none; color: var(--text);
+  font-family: var(--font-sans); font-size: var(--fs-13);
+}
+.draft-agent-search input::placeholder { color: var(--faint); }
+.draft-agent-toggle {
+  background: none; border: none; color: var(--faint); cursor: pointer; font-size: 11px;
+  padding: 2px 4px; border-radius: var(--radius);
+}
+.draft-agent-toggle:hover { color: var(--text); background: var(--hover); }
+.draft-agent-list {
+  flex: 1; overflow-y: auto; scrollbar-width: thin;
+}
+.draft-agent-list::-webkit-scrollbar { width: 4px; }
+.draft-agent-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.draft-agent-empty { padding: 12px; color: var(--dim); font-size: var(--fs-12); text-align: center; }
+.draft-agent-item {
+  width: 100%; display: flex; align-items: center; gap: var(--space-4);
+  padding: 6px var(--space-4); font-size: 12.5px; text-align: left; background: none;
+  border: none; cursor: pointer; transition: background var(--dur) var(--ease);
+}
+.draft-agent-item:hover { background: var(--hover); }
+.draft-agent-item.on {
+  background: var(--accent-wash-2);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.draft-agent-name {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text);
+}
+.draft-agent-item.on .draft-agent-name { color: var(--accent); }
+.draft-agent-recent {
+  font-size: 10px; color: var(--faint); flex-shrink: 0;
+}
+.draft-agent-node {
+  font: 9px var(--font-mono); color: var(--dim);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; flex-shrink: 0;
+}
+.draft-agent-model {
+  font: 9px var(--font-mono); color: var(--dim); flex-shrink: 0; max-width: 120px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Model preview — visible above composer, no secret affordance needed */
+.draft-model-preview {
+  display: flex; align-items: center; gap: var(--space-3);
+  font: 10px var(--font-mono); color: var(--text);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-faint); border-radius: var(--radius);
+  background: var(--bg-elev-2);
+}
+.draft-model-sep { width: 1px; height: 10px; background: var(--border-strong); flex-shrink: 0; }
+.draft-model-count { margin-left: auto; color: var(--faint); font-size: 9px; }

@@ -55,9 +55,28 @@ describe("DraftSession", () => {
     expect(navigate).toHaveBeenCalledWith({ to: "/sessions/$sessionId", params: { sessionId: "created" }, replace: true });
   });
 
-  it("shows the selected agent with a full ring", () => {
+  it("shows the selected agent highlighted in the selector", () => {
     render(<DraftSession />);
-    const selected = screen.getAllByRole("button", { name: "default on olympus" })[0];
-    expect(selected).toHaveStyle({ boxShadow: "inset 0 0 0 1px var(--accent-line)" });
+    // The default agent is auto-selected and should have aria-selected=true
+    const option = screen.getByRole("option", { name: "default on olympus" });
+    expect(option).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("filters agents by search query", () => {
+    render(<DraftSession />);
+    const search = screen.getByRole("textbox", { name: "Search agents" });
+    // Default agent visible before filtering
+    expect(screen.getByRole("option", { name: "default on olympus" })).toBeInTheDocument();
+    // Search for something that doesn't match
+    fireEvent.change(search, { target: { value: "zzz" } });
+    expect(screen.getByText("No matching agents")).toBeInTheDocument();
+  });
+
+  it("exposes model preview for the selected agent", () => {
+    render(<DraftSession />);
+    // The model preview should show the agent model — it appears in both the
+    // agent list item and the model preview bar.
+    const matches = screen.getAllByText("claude");
+    expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });

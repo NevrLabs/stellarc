@@ -604,10 +604,14 @@ function SessionDockPanel({ params }: IDockviewPanelProps<SessionPanelParams>) {
 }
 
 function SessionPanel({ sessionId }: { sessionId: string }) {
+  const isNew = sessionId === "new";
   const [rsCollapsed, setRsCollapsed] = useSessionPanelState(sessionId, "rsCollapsed", false);
-  const [bpCollapsed, setBpCollapsed] = useSessionPanelState(sessionId, "bpCollapsed", false);
+  // Collapse bottom panel for draft sessions — Terminal is unavailable and the
+  // draft view owns the full viewport.
+  const [bpCollapsed, setBpCollapsed] = useSessionPanelState(sessionId, "bpCollapsed", isNew);
   const [rsTab, setRsTab] = useSessionPanelState<RsTab>(sessionId, "rsTab", "overview");
-  const [bpTab, setBpTab] = useSessionPanelState<BpTab>(sessionId, "bpTab", "terminal");
+  // Default to "logs" for new sessions — Terminal is a placeholder.
+  const [bpTab, setBpTab] = useSessionPanelState<BpTab>(sessionId, "bpTab", isNew ? "logs" : "terminal");
   const rightPanel = useResizable({
     axis: "x", min: 200, max: 450, initial: 279,
     direction: "left", persistKey: `stellarc-session-${sessionId}-rsidebar-w`,
@@ -681,8 +685,11 @@ function SessionChatLayout({
   onBpTabChange: (t: BpTab) => void;
   onCloseBp: () => void;
 }) {
-  const { data: session } = useSession(sessionId);
-  const { data: msgData } = useMessages(sessionId);
+  // "new" is a virtual draft-session route, not a real session id.
+  // Passing it to useSession/useMessages would fire GET /sessions/new (404).
+  const realSessionId = sessionId === "new" ? null : sessionId;
+  const { data: session } = useSession(realSessionId);
+  const { data: msgData } = useMessages(realSessionId);
   const { data: agentsData } = useAgents();
   const messages = msgData?.messages ?? [];
   const navigate = useNavigate();
