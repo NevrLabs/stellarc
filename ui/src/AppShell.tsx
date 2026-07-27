@@ -14,6 +14,7 @@
 // provides its own secondary sidebar slot (session list, vault tree, etc.).
 // Surfaces whose card hasn't merged render a .ol-* placeholder pane.
 
+import { useState } from "react";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
 import { useUIStore } from "./store";
@@ -106,7 +107,8 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
   const navigate = useNavigate();
   const { toggleSidebar } = useUIStore();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAxisAuth();
+  const { user, organization, organizations, logout } = useAxisAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <div className="topbar">
@@ -158,9 +160,44 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
           <Icon name={theme === "obsidian" ? "sun" : "moon"} size={14} />
         </button>
         <OrgChip />
-        <button className="profile" title={`Sign out ${user.username}`} onClick={() => void logout()}>
-          {user.username.slice(0, 2).toLowerCase()}
-        </button>
+        <div className="account-menu-wrap">
+          <button
+            type="button"
+            className="profile"
+            title={`Account menu for ${user.username}`}
+            aria-label={`Account menu for ${user.username}`}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            onClick={() => setAccountOpen((open) => !open)}
+          >
+            {user.username.slice(0, 2).toLowerCase()}
+          </button>
+          {accountOpen && (
+            <div className="account-menu" role="menu">
+              <div className="account-menu-user" role="none">
+                <span className="profile" aria-hidden="true">{user.username.slice(0, 2).toLowerCase()}</span>
+                <div>
+                  <div className="account-menu-name">{user.username}</div>
+                  <div className="account-menu-meta">{user.kind}</div>
+                </div>
+              </div>
+              <div className="account-menu-sep" role="separator" />
+              <div className="account-menu-item account-menu-muted" role="menuitem" aria-disabled="true">
+                <span>Organization</span>
+                <strong>{organization.displayName}</strong>
+              </div>
+              <div className="account-menu-item account-menu-muted" role="menuitem" aria-disabled="true">
+                {organizations.length > 1 ? "Use the organization selector in the top bar." : "No other organizations available."}
+              </div>
+              <button type="button" className="account-menu-item" role="menuitem" onClick={() => { setAccountOpen(false); void navigate({ to: "/settings" }); }}>
+                Settings
+              </button>
+              <button type="button" className="account-menu-item danger" role="menuitem" onClick={() => void logout()}>
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

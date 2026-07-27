@@ -6,25 +6,32 @@
  *   - Assignee filter (unique agents from card list)
  */
 
+import type React from "react";
 import { Icon } from "../../../components/Icon";
 import type { Card } from "../../../types";
 
 export function ProjectSidebar({
+  width,
   assignees,
   activeFilter,
   onFilterChange,
   cards,
+  onResizeStart,
 }: {
+  width: number;
   assignees: string[];
   activeFilter: string | null;
   onFilterChange: (v: string | null) => void;
   cards: Card[];
+  onResizeStart: (event: React.MouseEvent) => void;
 }) {
   return (
-    <div className="sb-scroll">
+    <>
+      <aside className="sidebar projects-sidebar" style={{ width }}>
+        <div className="sb-scroll">
       {/* Board section */}
       <div className="sec-head">
-        <span className="lbl">BOARD</span>
+        <span className="lbl">PROJECTS</span>
         <span className="sp" />
         <span className="ct">{cards.length}</span>
       </div>
@@ -37,10 +44,12 @@ export function ProjectSidebar({
         >
           <Icon name="kanban" size={12} />
           <span className="title" style={{ marginLeft: 6 }}>
-            All Cards
+            Default board
           </span>
         </button>
       </div>
+
+      <div className="sec-content projects-sidebar-note">Boards contain cards. Projects group boards and context.</div>
 
       {/* Assignee filter */}
       {assignees.length > 0 && (
@@ -110,6 +119,9 @@ export function ProjectSidebar({
           </div>
         </>
       )}
-    </div>
+        </div>
+      </aside>
+      <div className="rz-x" role="separator" aria-label="Resize projects sidebar" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={360} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} />
+    </>
   );
 }
