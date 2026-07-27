@@ -58,7 +58,7 @@ fn warn_if_obsolete_event_log_exists(home: &std::path::Path) {
 /// The default org slug for the single-operator case (ADR 0005 §3 — org replaces
 /// context). Multi-org management is post-MVP; the MVP runs one org. Override
 /// with `STELLARC_DEFAULT_ORG`.
-fn default_org() -> String {
+pub fn default_org() -> String {
     std::env::var("STELLARC_DEFAULT_ORG").unwrap_or_else(|_| "default".to_string())
 }
 
@@ -109,9 +109,11 @@ pub async fn run() -> Result<()> {
     std::env::remove_var("STELLARC_ADMIN_USERNAME");
     std::env::remove_var("STELLARC_ADMIN_PASSWORD");
     match (bootstrap_username, bootstrap_password) {
-        (Some(username), Some(password)) => auth_store
-            .bootstrap_admin(&username, &password, &default_org(), "Default")
-            .context("bootstrapping Axis administrator")?,
+        (Some(username), Some(password)) => {
+            auth_store
+                .bootstrap_admin(&username, &password, &default_org(), "Default")
+                .context("bootstrapping Axis administrator")?;
+        }
         (None, None) => {}
         _ => {
             anyhow::bail!(

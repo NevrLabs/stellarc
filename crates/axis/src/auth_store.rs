@@ -104,13 +104,20 @@ impl AuthStore {
         })
     }
 
+    /// Create the first user, its organization, and the owner membership.
+    ///
+    /// Returns `true` when this call created the account and `false` when a
+    /// user already existed (a no-op). The existence check and the inserts
+    /// share one IMMEDIATE transaction, so concurrent callers cannot both
+    /// observe an empty table — which is what lets the unauthenticated
+    /// registration route fail closed.
     pub fn bootstrap_admin(
         &self,
         username: &str,
         password: &str,
         organization_slug: &str,
         organization_name: &str,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         validate_username(username)?;
         validate_password(password)?;
         validate_slug(organization_slug)?;
@@ -122,7 +129,7 @@ impl AuthStore {
             transaction.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
         if existing_users > 0 {
             transaction.commit()?;
-            return Ok(());
+            return Ok(false);
         }
 
         let user_id = uuid::Uuid::new_v4().to_string();
@@ -140,7 +147,16 @@ impl AuthStore {
             params![organization_id, user_id],
         )?;
         transaction.commit()?;
-        Ok(())
+        Ok(true)
+    }
+
+    /// Whether any user exists. The only fact the unauthenticated bootstrap
+    /// probe is allowed to reveal.
+    pub fn has_any_user(&self) -> Result<bool> {
+        let connection = self.connection.lock().expect("auth store mutex poisoned");
+        let count: i64 =
+            connection.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
+        Ok(count > 0)
     }
 
     pub fn authenticate(&self, username: &str, password: &str) -> Result<Option<Principal>> {
@@ -324,7 +340,7 @@ fn secure_permissions(_path: &Path, _mode: u32) -> Result<()> {
     Ok(())
 }
 
-fn validate_username(username: &str) -> Result<()> {
+pub fn validate_username(username: &str) -> Result<()> {
     if username.len() < 3
         || username.len() > 64
         || !username.chars().all(|character| {
@@ -336,7 +352,7 @@ fn validate_username(username: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_password(password: &str) -> Result<()> {
+pub fn validate_password(password: &str) -> Result<()> {
     if password.len() < 8 || password.len() > 1024 {
         bail!("password must be 8-1024 bytes");
     }

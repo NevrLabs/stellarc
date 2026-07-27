@@ -211,6 +211,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/health", get(health))
         .route("/api/metrics", get(metrics))
         .route("/api/auth/login", post(identity::login))
+        .route("/api/auth/bootstrap", get(identity::bootstrap_state))
+        .route("/api/auth/register", post(identity::register))
         .route("/api/edge/auth", get(routes::edge::forward_auth))
         .merge(protected)
         .merge(routes::enroll::router())

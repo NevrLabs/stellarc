@@ -234,6 +234,117 @@ async fn concurrent_colliding_package_activations_append_exactly_one_success() {
 }
 
 #[tokio::test]
+async fn register_bootstraps_the_first_user_then_fails_closed() {
+    let (state, _dir) = test_state();
+    let app = build_router(state.clone());
+
+    let probe = |app: Router| async move {
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/auth/bootstrap")
+                    .header("sec-fetch-site", "same-origin")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()
+    };
+    // Fresh install: the probe says "unclaimed" and reveals nothing else.
+    let before = probe(app.clone()).await;
+    assert_eq!(before, serde_json::json!({ "usersExist": false }));
+
+    let register = |app: Router, username: &'static str| async move {
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/register")
+                .header("origin", "http://127.0.0.1:5173")
+                .header("host", "127.0.0.1:5173")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"username":"{username}","password":"password-123"}}"#
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    };
+
+    let first = register(app.clone(), "founder").await;
+    assert_eq!(first.status(), StatusCode::OK);
+    // Registration logs the new account straight in.
+    let set_cookie = first.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(set_cookie.contains("stellarc_session="));
+    assert!(set_cookie.contains("HttpOnly"));
+    let cookie = set_cookie.split(';').next().unwrap().to_string();
+    let session = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/auth/session")
+                .header("cookie", cookie)
+                .header("sec-fetch-site", "same-origin")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(session.status(), StatusCode::OK);
+    // The org and owner membership were created alongside the user.
+    let principal = state
+        .auth_store
+        .authenticate("founder", "password-123")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        state
+            .auth_store
+            .organizations_for_user(&principal.user_id)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Fail closed: the endpoint stays unauthenticated forever, so a second
+    // call must be rejected once any user exists.
+    assert_eq!(
+        probe(app.clone()).await,
+        serde_json::json!({ "usersExist": true })
+    );
+    let second = register(app.clone(), "intruder").await;
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+    assert!(state
+        .auth_store
+        .authenticate("intruder", "password-123")
+        .unwrap()
+        .is_none());
+
+    // The Origin gate is not weakened for registration.
+    let foreign = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/register")
+                .header("origin", "http://evil.example")
+                .header("host", "127.0.0.1:5173")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"username":"evil","password":"password-123"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(foreign.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn login_cookie_authenticates_session_and_organization_routes() {
     let (state, _dir) = test_state();
     state

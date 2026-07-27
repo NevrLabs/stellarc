@@ -42,6 +42,7 @@ describe("AuthGate", () => {
     let authenticated = false;
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const path = String(input);
+      if (path.endsWith("/api/auth/bootstrap")) return json({ usersExist: true });
       if (path.endsWith("/api/auth/session")) {
         return authenticated
           ? json({ user: { userId: "u1", username: "alice", kind: "user" } })
@@ -94,6 +95,7 @@ describe("AuthGate", () => {
   it("surfaces a bad-credential failure as an alert without leaving the login form", async () => {
     vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const path = String(input);
+      if (path.endsWith("/api/auth/bootstrap")) return json({ usersExist: true });
       if (path.endsWith("/api/auth/session")) return new Response(null, { status: 401 });
       if (path.endsWith("/api/auth/login") && init?.method === "POST") {
         return new Response(null, { status: 401 });
@@ -136,5 +138,44 @@ describe("AuthGate", () => {
     await waitFor(() => expect(screen.getByText("alice:Org B")).toBeInTheDocument());
     expect(localStorage.getItem("stellarc-organization-id")).toBe("org-b");
     expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("registers the first account when the Axis is unclaimed", async () => {
+    let registered = false;
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const path = String(input);
+      if (path.endsWith("/api/auth/bootstrap")) return json({ usersExist: registered });
+      if (path.endsWith("/api/auth/session")) {
+        return registered
+          ? json({ user: { userId: "u1", username: "founder", kind: "user" } })
+          : new Response(null, { status: 401 });
+      }
+      if (path.endsWith("/api/auth/register") && init?.method === "POST") {
+        registered = true;
+        return json({ user: { userId: "u1", username: "founder", kind: "user" } });
+      }
+      if (path.endsWith("/api/organizations")) {
+        return json({ organizations: [{ id: "org-a", slug: "a", displayName: "Org A", role: "owner" }] });
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+
+    renderGate();
+    expect(await screen.findByRole("heading", { name: "Create the first account" })).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Username"), "founder");
+    await userEvent.type(screen.getByLabelText("Password"), "correct horse battery staple");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "correct horse battery stapl");
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Passwords do not match.");
+    expect(fetchMock.mock.calls.some(([, i]) => i?.method === "POST")).toBe(false);
+
+    await userEvent.type(screen.getByLabelText("Confirm password"), "e");
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByText("founder:Org A")).toBeInTheDocument();
+    const call = fetchMock.mock.calls.find(([, i]) => i?.method === "POST");
+    expect(String(call?.[0])).toMatch(/\/api\/auth\/register$/);
+    expect(call?.[1]?.credentials).toBe("include");
   });
 });
