@@ -196,12 +196,17 @@ impl PgLog {
     // ---- read ------------------------------------------------------------
 
     pub async fn read_from(&self, seq: u64, limit: usize) -> Result<Vec<(u64, Event)>> {
-        let rows =
-            sqlx::query("SELECT seq, payload FROM events WHERE seq > $1 ORDER BY seq LIMIT $2")
-                .bind(seq as i64)
-                .bind(limit as i64)
-                .fetch_all(&self.pool)
-                .await?;
+        let rows = sqlx::query(
+            // `>=`, inclusive, matching the SQLite backend: `read_all` calls
+            // `read_from(0, MAX)` and `GET /api/events?since=N` pages with an
+            // explicit cursor, so an exclusive bound silently drops the event at
+            // `since` on every page.
+            "SELECT seq, payload FROM events WHERE seq >= $1 ORDER BY seq LIMIT $2",
+        )
+        .bind(seq as i64)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
         rows.iter().map(decode_event_row).collect()
     }
 

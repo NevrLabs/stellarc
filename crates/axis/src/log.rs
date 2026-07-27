@@ -26,6 +26,7 @@ impl Log {
         conn.execute_batch(SCHEMA)
             .context("initializing Stellarc SQLite schema")?;
         migrate_event_payloads_to_json(&mut conn)?;
+        repair_fts_duplicates(&conn)?;
         // Migrate pre-session_id databases (ADR 0009 incremental migration).
         let has_sid: bool = conn
             .prepare("PRAGMA table_info(events)")?
@@ -587,6 +588,38 @@ fn decode_event_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(u64, Event)> {
         )
     })?;
     Ok((seq, event))
+}
+
+/// Rebuild the FTS index when it holds more rows than `messages`.
+///
+/// `INSERT OR REPLACE INTO messages` is a DELETE+INSERT internally, but
+/// `recursive_triggers` defaulted OFF, so the AFTER DELETE trigger never fired
+/// while AFTER INSERT did — every re-appended message left a stale FTS row and
+/// search returned it as a duplicate hit. Reproduced against sqlite 3.53.1: one
+/// message, three appends, three identical hits.
+///
+/// The schema now sets `recursive_triggers=ON`, which stops new skew. This heals
+/// databases already carrying it. `messages_fts` is a pure derivative of
+/// `messages`, so rebuilding is correct by construction rather than trying to
+/// identify individual stale rows.
+fn repair_fts_duplicates(conn: &Connection) -> Result<()> {
+    let messages: i64 = conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?;
+    let indexed: i64 = conn.query_row("SELECT COUNT(*) FROM messages_fts", [], |row| row.get(0))?;
+    if indexed <= messages {
+        return Ok(());
+    }
+    tracing::warn!(
+        messages,
+        indexed,
+        "FTS index holds stale rows (pre-recursive_triggers duplicates); rebuilding"
+    );
+    conn.execute_batch(
+        "DELETE FROM messages_fts;
+         INSERT INTO messages_fts(session_id,message_id,content,role,tool_name,timestamp)
+           SELECT session_id,message_id,content,role,tool_name,timestamp FROM messages;",
+    )
+    .context("rebuilding the FTS index")?;
+    Ok(())
 }
 
 /// Enforces that the database has already been migrated to the JSON+zstd codec.
@@ -1246,7 +1279,7 @@ fn card_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CardRow> {
 }
 
 const SCHEMA: &str = r#"
-PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA cache_size=-4096; PRAGMA temp_store=MEMORY;
+PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA recursive_triggers=ON; PRAGMA cache_size=-4096; PRAGMA temp_store=MEMORY;
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,event_type TEXT NOT NULL,payload BLOB NOT NULL,created_at REAL NOT NULL,session_id TEXT);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
@@ -1679,5 +1712,57 @@ fn batch_append_throughput_fixture() {
          (timing is informational — no wall-clock assertions)\n",
         seq_per = seq_us as f64 / n as f64,
         batch_per = batch_us as f64 / n as f64,
+    );
+}
+
+/// Re-appending a message must not inflate the FTS index.
+///
+/// `INSERT OR REPLACE` is a DELETE+INSERT, and with `recursive_triggers`
+/// OFF the AFTER DELETE trigger never fired while AFTER INSERT did — so one
+/// message appended three times produced three identical search hits.
+/// Reproduced against sqlite 3.53.1 before the pragma was added.
+#[test]
+fn reappending_a_message_does_not_duplicate_search_hits() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let log = Log::open(&dir.path().join("fts.db")).expect("open");
+
+    log.append(&Event::SessionCreated {
+        session_id: "s1".into(),
+        hermes_id: "h1".into(),
+        source: String::new(),
+        model: None,
+        title: None,
+        started_at: 1.0,
+        message_count: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        agent: None,
+        node: None,
+    })
+    .expect("session");
+
+    let message = Event::MessageAppended {
+        session_id: "s1".into(),
+        hermes_session_id: "s1".into(),
+        message_id: 0,
+        role: "user".into(),
+        content: Some("the quick brown fox".into()),
+        tool_name: None,
+        tool_calls: None,
+        reasoning: None,
+        timestamp: 2.0,
+        token_count: None,
+        finish_reason: None,
+    };
+    for _ in 0..3 {
+        log.append(&message).expect("append");
+    }
+
+    let hits = log.search("brown", 10).expect("search");
+    assert_eq!(
+        hits.len(),
+        1,
+        "one message must yield one hit, got {}: {hits:?}",
+        hits.len()
     );
 }

@@ -299,3 +299,52 @@ async fn pg_concurrent_writers_do_not_serialize() {
         );
     }
 }
+
+/// `read_from` must be INCLUSIVE of `seq`, identically on both backends.
+///
+/// Postgres had `seq > $1` where SQLite has `seq >= ?1`. `read_all` calls
+/// `read_from(0, MAX)` so the full read masked it, but
+/// `GET /api/events?since=N` pages with an explicit cursor and Postgres was
+/// dropping the event AT `since` on every page. The original parity test missed
+/// this because it only ever compared whole-log reads.
+#[tokio::test]
+async fn pg_read_from_cursor_matches_sqlite() {
+    let Some(url) = pg_url() else {
+        eprintln!("SKIP: STELLARC_TEST_PG_URL unset");
+        return;
+    };
+    let pg = fresh(&url).await;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let sqlite = Log::open(&dir.path().join("cursor.db")).expect("open sqlite");
+
+    pg.append(&session_created("s1")).await.expect("pg");
+    sqlite.append(&session_created("s1")).expect("lite");
+    for id in 0..5u64 {
+        let event = message("s1", id, "body", 100.0 + id as f64);
+        pg.append(&event).await.expect("pg append");
+        sqlite.append(&event).expect("lite append");
+    }
+
+    // Paging from an explicit cursor must return the same rows on both.
+    for cursor in [0u64, 1, 2, 3] {
+        let from_pg = pg.read_from(cursor, 100).await.expect("pg read_from");
+        let from_lite = sqlite.read_from(cursor, 100).expect("lite read_from");
+        assert_eq!(
+            from_pg.len(),
+            from_lite.len(),
+            "cursor {cursor}: pg returned {} rows, sqlite {}",
+            from_pg.len(),
+            from_lite.len()
+        );
+        let pg_seqs: Vec<u64> = from_pg.iter().map(|(seq, _)| *seq).collect();
+        let lite_seqs: Vec<u64> = from_lite.iter().map(|(seq, _)| *seq).collect();
+        assert_eq!(pg_seqs, lite_seqs, "cursor {cursor}: seq sets diverged");
+        // Inclusive: the event AT the cursor must be present.
+        if cursor > 0 {
+            assert!(
+                pg_seqs.contains(&cursor),
+                "cursor {cursor} dropped its own event on pg"
+            );
+        }
+    }
+}
