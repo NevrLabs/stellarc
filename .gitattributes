@@ -1,0 +1,14 @@
+# Shell scripts are embedded verbatim into the binary with include_str! and
+# served to Unix hosts. A Windows checkout with core.autocrlf=true would
+# rewrite them to CRLF, baking \r into the installer so bash fails with
+# ': invalid option nameipefail'. Pin them to LF everywhere.
+*.sh text eol=lf
+
+# Same reasoning for anything else executed rather than read.
+*.bash text eol=lf
+configure text eol=lf
+
+# Windows-native scripts genuinely want CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

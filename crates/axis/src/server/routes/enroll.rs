@@ -112,7 +112,14 @@ pub(crate) async fn enroll_install_script(
             .into_response();
     };
 
+    // Normalise line endings. `.gitattributes` pins *.sh to LF, but a binary
+    // built from a working copy checked out before that (notably on Windows,
+    // where core.autocrlf=true rewrites LF to CRLF) has \r baked in by
+    // `include_str!`. bash then reads `set -euo pipefail\r` and dies with
+    // ": invalid option nameipefail". Belt and braces: this is generated
+    // output for a Unix host, so CR is never wanted.
     let script = include_str!("../../../../../scripts/orbit-bootstrap.sh")
+        .replace("\r\n", "\n")
         .replace("{{AXIS_URL}}", &base)
         .replace("{{ENROLL_TOKEN}}", &token)
         .replace("{{AXIS_IROH_ID}}", axis_iroh.as_str());
@@ -233,4 +240,30 @@ pub(crate) async fn enroll_status(
             .collect::<Vec<_>>(),
     }))
     .into_response()
+}
+
+#[cfg(test)]
+mod crlf_tests {
+    /// The embedded installer must be LF-only.
+    ///
+    /// `include_str!` bakes the file in exactly as checked out, and Windows git
+    /// with core.autocrlf=true rewrites *.sh to CRLF. The resulting installer
+    /// fails on the very first line with ": invalid option nameipefail",
+    /// because bash reads `set -euo pipefail\r`. `.gitattributes` pins the
+    /// source to LF; this asserts the served bytes regardless.
+    #[test]
+    fn served_installer_has_no_carriage_returns() {
+        let script =
+            include_str!("../../../../../scripts/orbit-bootstrap.sh").replace("\r\n", "\n");
+        assert!(
+            !script.contains('\r'),
+            "the installer still contains a carriage return; bash will fail with \
+             \": invalid option nameipefail\""
+        );
+        // Guard the exact line that breaks first, so a regression is obvious.
+        assert!(
+            script.contains("set -euo pipefail\n") || !script.contains("pipefail"),
+            "pipefail line is not LF-terminated"
+        );
+    }
 }
