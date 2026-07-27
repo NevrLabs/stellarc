@@ -331,7 +331,7 @@ impl Log {
                     message_count, input_tokens, output_tokens, archived, pinned,
                     last_activity, agent, node, parent_session_id, card_id, project_id,
                     context_projects, org_id, capabilities
-             FROM sessions ORDER BY started_at DESC, session_id",
+             FROM sessions ORDER BY started_at DESC, session_id DESC",
         )?;
         let rows = stmt.query_map([], session_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
@@ -501,7 +501,7 @@ impl Log {
 
     pub fn list_projects(&self) -> Result<Vec<ProjectRow>> {
         let conn = self.conn.lock().expect("SQLite mutex poisoned");
-        let mut stmt = conn.prepare("SELECT project_id,org_id,name,vaults,repos,boards,layout,created_at,deleted_at FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC")?;
+        let mut stmt = conn.prepare("SELECT project_id,org_id,name,vaults,repos,boards,layout,created_at,deleted_at FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC, project_id DESC")?;
         let rows = stmt.query_map([], project_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(Into::into)
@@ -534,7 +534,7 @@ impl Log {
 
     pub fn list_cards(&self) -> Result<Vec<CardRow>> {
         let conn = self.conn.lock().expect("SQLite mutex poisoned");
-        let mut stmt = conn.prepare("SELECT card_id,org_id,board_id,title,status,assigned_id,assigned_kind,current_session_id,current_bookmark,blocked_by,priority,attempts,created_at,status_changed_at FROM cards ORDER BY created_at DESC")?;
+        let mut stmt = conn.prepare("SELECT card_id,org_id,board_id,title,status,assigned_id,assigned_kind,current_session_id,current_bookmark,blocked_by,priority,attempts,created_at,status_changed_at FROM cards ORDER BY created_at DESC, card_id DESC")?;
         let rows = stmt.query_map([], card_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(Into::into)
@@ -1032,7 +1032,7 @@ fn json<T: serde::Serialize + ?Sized>(value: &T) -> String {
 fn json_vec(raw: String) -> Vec<String> {
     serde_json::from_str(&raw).unwrap_or_default()
 }
-fn event_type(event: &Event) -> &'static str {
+pub(crate) fn event_type(event: &Event) -> &'static str {
     match event {
         Event::JobDispatchIntent { .. } => "job.dispatch_intent",
         Event::JobOutputPersisted { .. } => "job.output_persisted",
@@ -1074,7 +1074,7 @@ fn event_type(event: &Event) -> &'static str {
         Event::SessionContextProjectDetached { .. } => "session.context_project_detached",
     }
 }
-fn event_time(event: &Event) -> f64 {
+pub(crate) fn event_time(event: &Event) -> f64 {
     match event {
         Event::JobDispatchIntent { created_at, .. } => *created_at,
         Event::JobOutputPersisted { persisted_at, .. } => *persisted_at,
@@ -1118,7 +1118,7 @@ fn event_time(event: &Event) -> f64 {
 /// unconditionally-native events (setup, registry, card, project, repo).
 /// Used to populate the `events.session_id` column so `retain_native` can
 /// be a pure SQL DELETE without deserializing any event payload into RAM.
-fn event_session_id(event: &Event) -> Option<&str> {
+pub(crate) fn event_session_id(event: &Event) -> Option<&str> {
     match event {
         Event::SessionCreated { session_id, .. }
         | Event::SessionUpdated { session_id, .. }
