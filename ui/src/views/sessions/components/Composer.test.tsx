@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-// Mock useAgents to return an agent with grouped models (multi-provider Hermes
+// Mock the per-node catalog with duplicate agent IDs to prove node-scoped sync.
 // profile + a claude-code harness). This tests the grouped selector rendering.
 vi.mock("../../../hooks/queries", () => ({
-  useAgents: () => ({
+  useAgentCatalog: () => ({
     data: {
-      agents: [
+      nodes: [{ nodeId: "local", agents: [
         {
           id: "default",
           provider: "zai",
@@ -32,7 +32,14 @@ vi.mock("../../../hooks/queries", () => ({
             { provider: "claude-code", id: "claude-haiku-4-5" },
           ],
         },
-      ],
+      ]}, {
+        nodeId: "remote",
+        agents: [{
+          id: "default", provider: "remote-provider", model: "remote-model",
+          kind: "hermes", isDefault: true,
+          models: [{ provider: "remote-provider", id: "remote-model", default: true }],
+        }],
+      }],
     },
   }),
 }));
@@ -75,6 +82,13 @@ describe("Composer model selector", () => {
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("thinking")).toBeInTheDocument();
+  });
+
+  it("uses the provider and models from the session's node", () => {
+    renderComposer({ sessionNode: "remote" });
+    fireEvent.click(screen.getByTitle("Model & thinking"));
+    expect(screen.getByText("remote-provider")).toBeInTheDocument();
+    expect(screen.queryByText("zai")).not.toBeInTheDocument();
   });
 
   it("groups models by provider with headers", () => {
