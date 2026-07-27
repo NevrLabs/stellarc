@@ -82,9 +82,9 @@ export function VaultMarkdownEditor(props: VaultMarkdownEditorProps) {
       {props.saveError && <div className="vault-save-error" role="alert">{props.saveError}</div>}
       {mode === "rich" ? (
         <Suspense fallback={<div className="vault-editor-loading">Loading rich editor…</div>}>
-          <MilkdownRichEditor key={editorGeneration} markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} />
+          <MilkdownRichEditor key={editorGeneration} markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} dirty={props.dirty} />
         </Suspense>
-      ) : <SourceMarkdownEditor markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} saveError={props.saveError} />}
+      ) : <SourceMarkdownEditor markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} dirty={props.dirty} saveError={props.saveError} />}
     </div>
   );
 }

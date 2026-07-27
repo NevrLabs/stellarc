@@ -94,6 +94,16 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
     }
   };
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      if (dirty && !saving) void handleSave();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dirty, saving]);
+
   const handleDelete = async () => {
     try {
       await deleteVaultNote(vaultId, notePath);
