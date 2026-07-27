@@ -9,8 +9,18 @@ properties:
     visible: "New session"
     timeout: 15000
 - tapOn: "New session"
+# The picker's job is to expose per-node agent choices, so assert on those.
+# It previously asserted ".*stellarc.*" — inherited from ".*olympus.*", which
+# had matched incidental fixture text (a session title) behind the dialog, not
+# anything the picker renders. The dialog covers the main pane and the sidebar
+# truncates the node column, so no such text is *visible* once the picker opens.
 - assertVisible: "default"
 - assertVisible: "coding-agent"
-- assertVisible: ".*stellarc.*"
+# Node grouping with live status — the reason this picker exists (ADR 0031
+# fail-closed scheduling makes node identity visible at selection time).
+- assertVisible: ".*localhost.*"
+- assertVisible: ".*online.*"
+# Unavailable nodes are shown with their agents withheld, not hidden outright.
+- assertVisible: ".*draining.*"
 - takeScreenshot:
     path: screenshots/agent-picker

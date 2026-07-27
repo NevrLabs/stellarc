@@ -46,6 +46,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // null while unknown; false means this Axis has no account yet, so the
+  // unauthenticated view is "claim this install" rather than "sign in".
+  const [usersExist, setUsersExist] = useState<boolean | null>(null);
 
   async function loadIdentity(): Promise<boolean> {
     const session = await axisFetch("/api/auth/session");
@@ -69,7 +72,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    void loadIdentity()
+    void (async () => {
+      if (await loadIdentity()) return;
+      // Only an unauthenticated visitor needs to know whether the install is
+      // still unclaimed. The probe returns a bare boolean.
+      const bootstrap = await axisFetch("/api/auth/bootstrap");
+      setUsersExist(bootstrap.ok ? (await bootstrap.json() as { usersExist: boolean }).usersExist : true);
+    })()
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Authentication unavailable"))
       .finally(() => setLoading(false));
   }, []);
@@ -101,16 +110,28 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     logout,
   } : null, [user, organizations, organization]);
 
-  if (loading) return <LoadingPanel />;
-  if (!value) return <LoginPanel error={error} onLogin={async (username, password) => {
+  // Both panels post credentials and then resolve the session the same way;
+  // only the path and the failure wording differ.
+  async function submitCredentials(path: string, username: string, password: string): Promise<void> {
     setError("");
-    const response = await axisFetch("/api/auth/login", {
+    const response = await axisFetch(path, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
     if (!response.ok) {
-      setError(response.status === 401 ? "Invalid username or password." : `Login failed (${response.status}).`);
+      if (response.status === 409) {
+        // Someone else claimed this Axis first. Fall back to the login form.
+        setUsersExist(true);
+        setError("This Axis already has an account. Sign in instead.");
+        return;
+      }
+      setError(
+        response.status === 401 ? "Invalid username or password."
+          : response.status === 400 ? (await response.text()) || "Invalid username or password."
+            : response.status === 429 ? "Too many attempts. Wait a minute and try again."
+              : `${path.endsWith("register") ? "Registration" : "Login"} failed (${response.status}).`,
+      );
       return;
     }
     try {
@@ -118,7 +139,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Authentication unavailable");
     }
-  }} />;
+  }
+
+  if (loading) return <LoadingPanel />;
+  if (!value && usersExist === false) {
+    return <RegisterPanel error={error}
+      onRegister={(username, password) => submitCredentials("/api/auth/register", username, password)} />;
+  }
+  if (!value) return <LoginPanel error={error}
+    onLogin={(username, password) => submitCredentials("/api/auth/login", username, password)} />;
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -164,6 +193,54 @@ function LoadingPanel() {
       <span className="ol-spinner ol-spinner-lg" aria-hidden="true" />
       <span className="auth-status-text">Connecting…</span>
     </div>
+  </AuthShell>;
+}
+
+function RegisterPanel({ error, onRegister }: {
+  error: string; onRegister(username: string, password: string): Promise<void>;
+}) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [mismatch, setMismatch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const errorId = "auth-error";
+  const shown = mismatch || error;
+  return <AuthShell title="Create the first account"
+    subtitle="This Axis has no account yet. The account you create owns it.">
+    <form className="auth-form" onSubmit={(event) => {
+      event.preventDefault();
+      if (password !== confirm) {
+        setMismatch("Passwords do not match.");
+        return;
+      }
+      setMismatch("");
+      setSubmitting(true);
+      void onRegister(username, password).finally(() => setSubmitting(false));
+    }}>
+      <label className="auth-field">
+        <span className="ol-field-label">Username</span>
+        <input className="ol-input" autoFocus autoComplete="username" required
+          aria-invalid={shown ? true : undefined} aria-describedby={shown ? errorId : undefined}
+          value={username} onChange={(event) => setUsername(event.target.value)} />
+      </label>
+      <label className="auth-field">
+        <span className="ol-field-label">Password</span>
+        <input className="ol-input" type="password" autoComplete="new-password" required minLength={8}
+          aria-invalid={shown ? true : undefined} aria-describedby={shown ? errorId : undefined}
+          value={password} onChange={(event) => setPassword(event.target.value)} />
+      </label>
+      <label className="auth-field">
+        <span className="ol-field-label">Confirm password</span>
+        <input className="ol-input" type="password" autoComplete="new-password" required minLength={8}
+          aria-invalid={shown ? true : undefined} aria-describedby={shown ? errorId : undefined}
+          value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+      </label>
+      {shown && <p className="auth-error" role="alert" id={errorId}>{shown}</p>}
+      <button type="submit" className="ol-btn ol-btn-primary ol-btn-block auth-submit" disabled={submitting}>
+        {submitting ? "Creating account…" : "Create account"}
+      </button>
+    </form>
   </AuthShell>;
 }
 

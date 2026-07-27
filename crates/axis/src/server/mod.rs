@@ -6,10 +6,14 @@
 pub mod bridge_mgr;
 pub mod capability;
 pub mod dto;
-pub mod orbit_conn;
 mod identity;
+pub mod orbit_conn;
 pub mod principal;
 pub(crate) mod routes;
+/// Axis-hosted operator terminals. Unix-only: reuses orbit's PtyManager,
+/// and PTY has no Windows equivalent. Terminals on remote nodes are
+/// unaffected — those run on the node's orbit (ADR 0035 §1.2.6).
+#[cfg(unix)]
 pub mod terminal_ws;
 pub mod ws;
 
@@ -40,7 +44,6 @@ use serde_json::json;
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::log::Log;
 use crate::search::SearchIndex;
 use crate::state_db_reader::StateDbReader;
 use crate::views::ViewManager;
@@ -96,7 +99,11 @@ pub struct AppState {
     pub snapshot_messages: u64,
     /// The durable event log — sole source of truth. Appended to on new
     /// session creation and message events.
-    pub log: Arc<Log>,
+    pub log: Arc<crate::event_log::EventLog>,
+    /// Which engine backs `log`. A runtime fact: a binary compiled with the
+    /// `postgres` feature can still be pointed at SQLite, so callers that need
+    /// to branch (or the UI showing the edition) must ask this, not `cfg!`.
+    pub storage_backend: crate::store::Backend,
     /// Event-backed durable job records and reconciliation state.
     pub jobs: Arc<crate::jobs::JobService>,
     /// Bridge manager: owns agent runtimes for managed (stellarc-source) sessions.
@@ -113,6 +120,7 @@ pub struct AppState {
     /// the cockpit picker (ADR 0021). Axis has no OrbitConnection to itself, so
     /// it runs shells directly via the same node-agnostic PtyManager the orbit
     /// uses. Operator-only; reachable solely from the operator terminal WS.
+    #[cfg(unix)]
     pub axis_pty: Arc<crate::server::terminal_ws::AxisTerminals>,
     /// Axis's iroh node id (public key, z-base-32). `None` when iroh is not
     /// enabled (no listener bound). Exposed via GET /api/nodes/axis-identity
@@ -172,12 +180,18 @@ pub fn build_router(state: AppState) -> Router {
             "/api/proxy/{slug}",
             axum::routing::delete(crate::proxy::delete_proxy_endpoint),
         )
-        .route("/ws", get(ws::ws_handler))
-        .route(
-            "/ws/operator/terminals/{terminal_id}",
-            get(terminal_ws::terminal_ws_handler),
-        )
-        .route_layer(middleware::from_fn_with_state(state.clone(), auth_gate));
+        .route("/ws", get(ws::ws_handler));
+
+    // Axis-hosted terminals need a local PTY, which Windows lacks. Terminals on
+    // remote nodes are unaffected: those run on the node's orbit and stream in
+    // over the wire (ADR 0035 §1.2.6).
+    #[cfg(unix)]
+    let protected = protected.route(
+        "/ws/operator/terminals/{terminal_id}",
+        get(terminal_ws::terminal_ws_handler),
+    );
+
+    let protected = protected.route_layer(middleware::from_fn_with_state(state.clone(), auth_gate));
 
     // The catch-all proxy forward is PUBLIC (auth is checked per-endpoint).
     // Must be registered AFTER all /api/* routes so it doesn't shadow them.
@@ -200,6 +214,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/health", get(health))
         .route("/api/metrics", get(metrics))
         .route("/api/auth/login", post(identity::login))
+        .route("/api/auth/bootstrap", get(identity::bootstrap_state))
+        .route("/api/auth/register", post(identity::register))
         .route("/api/edge/auth", get(routes::edge::forward_auth))
         .merge(protected)
         .merge(routes::enroll::router())
@@ -312,6 +328,9 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
         "syncConnected": state.sync_connected.load(Ordering::SeqCst),
         "hermesProfile": state.hermes_profile.as_str(),
         "edge": if state.edge.healthy() { "ready" } else { "missing" },
+        // Runtime fact, not a compile-time one: a binary built with the
+        // postgres feature can still be running on SQLite.
+        "storageBackend": state.storage_backend.as_str(),
     }))
 }
 

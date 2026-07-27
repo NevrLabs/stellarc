@@ -7,6 +7,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # mold: .cargo/config.toml no longer forces it, but keep the fast linker
+      # here since CI rebuilds from cold caches.
+      # webkit2gtk/glib: the `desktop` crate (Tauri) is a workspace member, so
+      # `--workspace` builds it and needs the GTK system libraries.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y mold libwebkit2gtk-4.1-dev \
+            libappindicator3-dev librsvg2-dev patchelf
       - uses: taiki-e/install-action@v2
         with:
           tool: jj-cli@0.43.0

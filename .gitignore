@@ -35,3 +35,20 @@ ui/test-results/
 ui/test-evidence/
 .maestro/recordings/
 .maestro/screenshots/
+
+# Tauri build-generated ACL schemas
+desktop/gen/
+
+# Maestro drops <name>_diff.png here when a screenshot comparison fails
+baselines/
+
+# Tauri desktop staging (built UI copied in by scripts/stage-ui.sh).
+# The directory itself is tracked: tauri_build::build() validates the declared
+# `resources` paths at compile time, so `cargo test --workspace` fails on a
+# fresh checkout if it is missing. Only the staged contents are ignored.
+desktop/ui-dist/*
+!desktop/ui-dist/.gitkeep
+!desktop/ui-dist/README.md
+desktop/placeholder/*
+!desktop/placeholder/.gitkeep
+!desktop/placeholder/README.md

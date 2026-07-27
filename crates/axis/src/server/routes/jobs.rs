@@ -5,9 +5,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use stellarc_proto::frames::{AxisFrame, NodeRole};
 use serde::Deserialize;
 use serde_json::json;
+use stellarc_proto::frames::{AxisFrame, NodeRole};
 
 use crate::event::Event;
 use crate::server::principal::Principal;

@@ -10,10 +10,13 @@ pub mod edge;
 pub mod edit_model;
 pub mod enroll;
 pub mod event;
+pub mod event_log;
 pub mod import;
 pub mod irc;
 pub mod jobs;
 pub mod log;
+#[cfg(feature = "postgres")]
+pub mod log_pg;
 pub mod node;
 pub mod package;
 pub mod projects;
@@ -22,6 +25,8 @@ pub mod repos;
 pub mod search;
 pub mod server;
 pub mod state_db_reader;
+pub mod store;
+pub mod store_sqlite;
 pub mod sync;
 pub mod vault;
 pub mod views;
@@ -34,3 +39,4 @@ pub use stellarc_orbit::adapter;
 pub use stellarc_orbit::bridge;
 
 pub mod entry;
+pub mod home;

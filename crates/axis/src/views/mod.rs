@@ -28,8 +28,6 @@ pub use setup::{SetupRow, SetupView};
 
 use anyhow::Result;
 
-use crate::log::Log;
-
 /// Replays the log on startup and fans events out to both views.
 ///
 /// Owns the two projections. Call [`ViewManager::replay`] once on startup to
@@ -71,7 +69,7 @@ impl ViewManager {
     ///
     /// Clears any existing in-memory state first, so this is idempotent and
     /// safe to call on restart.
-    pub fn replay(&mut self, log: &Log) -> Result<()> {
+    pub fn replay(&mut self, log: &crate::event_log::EventLog) -> Result<()> {
         self.sessions = SessionView::new();
         self.messages = MessageView::new();
         self.cards = CardView::new();
@@ -110,7 +108,6 @@ impl Default for ViewManager {
 mod tests {
     use super::*;
     use crate::event::Event;
-    use crate::log::Log;
 
     // ---- test helpers (shared event factories) ----
 
@@ -146,9 +143,9 @@ mod tests {
         }
     }
 
-    fn fresh_log() -> (tempfile::NamedTempFile, Log) {
+    fn fresh_log() -> (tempfile::NamedTempFile, crate::event_log::EventLog) {
         let f = tempfile::NamedTempFile::new().unwrap();
-        let log = Log::open(f.path()).unwrap();
+        let log = crate::event_log::EventLog::open_sqlite_for_test(f.path()).unwrap();
         (f, log)
     }
 

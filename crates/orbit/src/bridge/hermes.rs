@@ -470,20 +470,38 @@ mod tests {
             cwd: dir.path().to_string_lossy().into_owned(),
             session_source: None,
             event_buffer: 8,
-            start_timeout_secs: 1,
+            // Not 1: this is a wall clock that includes process spawn, and on a
+            // loaded 2-core CI runner it expired before the interpreter exec'd,
+            // so the adapter never ran at all. The test is about retry
+            // behaviour, not timeout precision.
+            start_timeout_secs: 3,
             mcp_servers: Vec::new(),
             env: Vec::new(),
             framing: AcpFraming::NewlineJson,
             ..Default::default()
         });
 
-        let error = runtime.start(None).await.unwrap_err().to_string();
+        let error_text = runtime.start(None).await.unwrap_err().to_string();
 
-        assert_eq!(std::fs::read_to_string(counter).unwrap().trim(), "2");
-        assert!(error.contains("attempt 1"), "{error}");
-        assert!(error.contains("attempt-1"), "{error}");
-        assert!(error.contains("attempt 2"), "{error}");
-        assert!(error.contains("attempt-2"), "{error}");
+        // The stderr assertions below are the real proof of the retry. This one
+        // is a cross-check on the adapter's own bookkeeping, so it must explain
+        // itself rather than panicking with a bare NotFound: the file is absent
+        // whenever the interpreter never ran (no bash on the runner, noexec
+        // tmpdir), and that is a different failure from "retried the wrong
+        // number of times".
+        let attempts = std::fs::read_to_string(&counter).unwrap_or_else(|error| {
+            panic!(
+                "fake adapter never recorded an attempt at {}: {error}. \
+                 stderr from the run was: {error_text}",
+                counter.display(),
+                error_text = error_text,
+            )
+        });
+        assert_eq!(attempts.trim(), "2");
+        assert!(error_text.contains("attempt 1"), "{error_text}");
+        assert!(error_text.contains("attempt-1"), "{error_text}");
+        assert!(error_text.contains("attempt 2"), "{error_text}");
+        assert!(error_text.contains("attempt-2"), "{error_text}");
     }
 
     #[cfg(unix)]

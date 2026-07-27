@@ -59,7 +59,11 @@ mod tests {
     #[test]
     fn role_word_is_not_mistaken_for_a_flag() {
         let argv = ["stellarc", "orbit", "--node-id", "fx-02"];
-        let flags: Vec<&str> = argv.iter().copied().filter(|a| a.starts_with("--")).collect();
+        let flags: Vec<&str> = argv
+            .iter()
+            .copied()
+            .filter(|a| a.starts_with("--"))
+            .collect();
         assert_eq!(flags, ["--node-id"]);
         assert!(!argv[1].starts_with("--"), "role word must stay positional");
     }

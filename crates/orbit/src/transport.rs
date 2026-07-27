@@ -1,8 +1,10 @@
 //! Iroh transport for the Axis↔Orbit wire protocol (ADR 0008 §1, milestone S7).
 //!
 //! The JSON-lines OrbitFrame/AxisFrame protocol is transport-agnostic: locally
-//! it runs over UDS, remotely over an iroh QUIC connection (public n0 relays,
-//! e2e-encrypted, NAT-traversing, keyed by node ids). One orbit connection =
+//! it runs over UDS, or over iroh QUIC — e2e-encrypted and keyed by node ids
+//! either way. Remote peers use n0 discovery + relays for NAT traversal;
+//! same-host and LAN peers use [`Reach::Local`], which dials a direct address
+//! with no DNS, relay, or public-internet dependency (ADR 0035 §1.1). One orbit connection =
 //! one bidirectional QUIC stream carrying the same newline-delimited JSON both
 //! ways — so the Axis/orbit read-loops don't fork per transport.
 //!
@@ -45,16 +47,80 @@ pub fn load_or_create_secret(dir: &Path) -> Result<SecretKey> {
     Ok(key)
 }
 
-/// Bind an iroh endpoint with the given secret key using the public n0 relay
-/// preset, accepting the Stellarc ALPN.
-pub async fn bind_endpoint(secret: SecretKey) -> Result<Endpoint> {
-    let ep = Endpoint::builder(presets::N0)
-        .secret_key(secret)
-        .alpns(vec![STELLARC_ALPN.to_vec()])
-        .bind()
-        .await
-        .context("binding iroh endpoint")?;
+/// How an endpoint reaches its peers.
+///
+/// `presets::N0` publishes this endpoint to n0's pkarr/DNS servers and enables
+/// relay fallback. That is correct for a node on someone else's network and
+/// wrong for a peer on this machine: it makes reaching `localhost` depend on
+/// public internet reachability. ADR 0035 §1.1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Reach {
+    /// Same host or LAN, dialed by direct address. No DNS, no relays, no
+    /// public internet. Used for the Windows-axis <-> WSL-orbit pair.
+    Local,
+    /// Remote node: n0 discovery + relay fallback for NAT traversal.
+    #[default]
+    Global,
+}
+
+impl Reach {
+    /// `Local` when the axis target is an explicit socket address, `Global`
+    /// when it is a bare node id that has to be discovered.
+    pub fn for_target(target: &str) -> Self {
+        if parse_direct_target(target).is_some() {
+            Self::Local
+        } else {
+            Self::Global
+        }
+    }
+}
+
+/// Bind an iroh endpoint accepting the Stellarc ALPN.
+///
+/// `Reach::Local` uses the minimal preset (crypto provider only) so no traffic
+/// leaves the machine for peer discovery.
+pub async fn bind_endpoint_with(secret: SecretKey, reach: Reach) -> Result<Endpoint> {
+    let alpns = vec![STELLARC_ALPN.to_vec()];
+    let ep = match reach {
+        Reach::Local => {
+            Endpoint::builder(presets::Minimal)
+                .secret_key(secret)
+                .alpns(alpns)
+                .bind()
+                .await
+        }
+        Reach::Global => {
+            Endpoint::builder(presets::N0)
+                .secret_key(secret)
+                .alpns(alpns)
+                .bind()
+                .await
+        }
+    }
+    .context("binding iroh endpoint")?;
     Ok(ep)
+}
+
+/// Bind for a remote (internet-reachable) peer. Equivalent to
+/// `bind_endpoint_with(secret, Reach::Global)`.
+pub async fn bind_endpoint(secret: SecretKey) -> Result<Endpoint> {
+    bind_endpoint_with(secret, Reach::Global).await
+}
+
+/// Split a `<node-id>@<socket-addr>[,<socket-addr>...]` target.
+///
+/// Returns `None` for a bare node id, which is the discovery path.
+fn parse_direct_target(target: &str) -> Option<(&str, Vec<std::net::SocketAddr>)> {
+    let (id, addrs) = target.split_once('@')?;
+    let parsed: Vec<std::net::SocketAddr> = addrs
+        .split(',')
+        .filter(|part| !part.is_empty())
+        .filter_map(|part| part.trim().parse().ok())
+        .collect();
+    if parsed.is_empty() {
+        return None;
+    }
+    Some((id, parsed))
 }
 
 /// Connect to a Axis by its iroh node id (public key, z-base-32 or hex as
@@ -64,10 +130,19 @@ pub async fn connect_to_axis(
     endpoint: &Endpoint,
     axis_node_id: &str,
 ) -> Result<(iroh::endpoint::SendStream, iroh::endpoint::RecvStream)> {
-    let key: PublicKey = axis_node_id
+    // `<id>@<addr>` dials the address directly; a bare `<id>` needs discovery.
+    // Without at least one of the two, iroh has no way to reach the peer.
+    let (id_part, direct) = match parse_direct_target(axis_node_id) {
+        Some((id, addrs)) => (id, addrs),
+        None => (axis_node_id, Vec::new()),
+    };
+    let key: PublicKey = id_part
         .parse()
-        .with_context(|| format!("parsing axis node id {axis_node_id:?}"))?;
-    let addr = EndpointAddr::from(key);
+        .with_context(|| format!("parsing axis node id {id_part:?}"))?;
+    let mut addr = EndpointAddr::from(key);
+    for socket in direct {
+        addr = addr.with_ip_addr(socket);
+    }
     let conn = endpoint
         .connect(addr, STELLARC_ALPN)
         .await
@@ -82,6 +157,36 @@ pub async fn connect_to_axis(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A same-host peer must never be routed through n0 discovery: requiring
+    /// internet reachability to reach localhost is the bug ADR 0035 §1.1 fixes.
+    #[test]
+    fn direct_target_selects_local_reach() {
+        let id = "k7hqz4vfbnbcmxwzptlqzstsqvenzyzpxvhwvhwvhwvhwvhwvhwa";
+
+        let one = format!("{id}@127.0.0.1:9999");
+        let (parsed_id, addrs) =
+            parse_direct_target(&one).expect("id@addr must parse as a direct target");
+        assert_eq!(parsed_id, id);
+        assert_eq!(addrs.len(), 1);
+        assert_eq!(addrs[0].port(), 9999);
+        assert!(addrs[0].ip().is_loopback());
+
+        // multiple addresses (e.g. WSL NAT address + mirrored loopback)
+        let multi = format!("{id}@127.0.0.1:1,172.20.0.2:2");
+        let (_, many) = parse_direct_target(&multi).expect("comma-separated addrs must parse");
+        assert_eq!(many.len(), 2);
+
+        // a bare node id has no address, so it must fall back to discovery
+        assert!(parse_direct_target(id).is_none());
+        // an unparseable address is not a direct target either
+        let bad = format!("{id}@not-an-addr");
+        assert!(parse_direct_target(&bad).is_none());
+
+        assert_eq!(Reach::for_target(&one), Reach::Local);
+        assert_eq!(Reach::for_target(id), Reach::Global);
+        assert_eq!(Reach::default(), Reach::Global, "remote stays the default");
+    }
 
     #[test]
     fn key_persists_and_reloads() {

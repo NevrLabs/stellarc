@@ -17,23 +17,25 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
-use futures::StreamExt;
+#[cfg(unix)]
+use crate::pty;
 use crate::{
     bridge::{AgentCommand, AgentEvent, AgentRuntime},
     discovery,
     job_table::{JobFrame, JobSpec, JobTable},
     mock_runtime::MockAgentRuntime,
-    pty,
     runtime_table::RuntimeTable,
     spool::EventSpool,
 };
+use anyhow::{Context, Result};
+use futures::StreamExt;
 use stellarc_proto::{
-    frames::{OrbitFrame, AxisFrame, NodeRole},
+    frames::{AxisFrame, NodeRole, OrbitFrame},
     runtime::{RuntimeSpec, MANAGED_WORKSPACE_VERSION},
     version::{BuildVersion, PROTOCOL_VERSION},
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
+#[cfg(unix)]
 use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 
@@ -56,6 +58,26 @@ pub async fn run() -> Result<()> {
         return Ok(());
     }
 
+    // The orbit role owns process execution: PTYs (forkpty/ioctl), process
+    // groups (setsid), and signal-based reaping. None exist on Windows, and a
+    // ConPTY + job-object port is out of scope while WSL2 already provides
+    // Linux (ADR 0035 §1.2.6). Fail loudly at startup rather than half-running:
+    // a node that registers and then cannot spawn anything looks like an Axis
+    // bug from the outside.
+    #[cfg(not(unix))]
+    return Err(anyhow::anyhow!(
+        "the orbit role requires a Unix host (PTY, process groups, signals). \
+         On Windows, run the orbit inside WSL2 and point it at this Axis with \
+         `--axis iroh:<axis-id>@127.0.0.1:<port>`."
+    ));
+
+    #[cfg(unix)]
+    run_orbit().await
+}
+
+/// The real orbit entry point. Unix-only; see [`run`].
+#[cfg(unix)]
+async fn run_orbit() -> Result<()> {
     let node_id = arg_value("--node-id").unwrap_or_else(|| {
         std::env::var("STELLARC_NODE_ID").unwrap_or_else(|_| {
             hostname::get()
@@ -123,16 +145,22 @@ pub async fn run() -> Result<()> {
             .context("spawning state.db observer")?;
     }
 
-    // Transport selection: `--axis iroh:<node-id>` connects via iroh (public
-    // n0 relays, ADR 0008 §1 / S7); otherwise UDS (default local path).
+    // Transport selection: `--axis iroh:<node-id>` connects via iroh, using n0
+    // discovery + relays (ADR 0008 §1 / S7). `iroh:<node-id>@<addr>[,<addr>]`
+    // dials those addresses directly with no DNS/relay dependency — the
+    // Windows-axis <-> WSL-orbit path (ADR 0035 §1.1). Otherwise UDS.
     let axis = arg_value("--axis").or_else(|| std::env::var("STELLARC_AXIS").ok());
     if let Some(target) = axis.as_deref().and_then(|h| h.strip_prefix("iroh:")) {
         let state_dir = orbit_state_dir(&node_id)?;
         let secret = crate::transport::load_or_create_secret(&state_dir)?;
         let my_id = secret.public();
-        tracing::info!(orbit_node_id = %my_id, axis = %target, "connecting to Axis via iroh");
+        let reach = crate::transport::Reach::for_target(target);
+        tracing::info!(
+            orbit_node_id = %my_id, axis = %target, ?reach,
+            "connecting to Axis via iroh"
+        );
         println!("orbit iroh node id: {my_id}  (add to axis.toml allowed_orbits)");
-        let endpoint = crate::transport::bind_endpoint(secret).await?;
+        let endpoint = crate::transport::bind_endpoint_with(secret, reach).await?;
         loop {
             match crate::transport::connect_to_axis(&endpoint, target).await {
                 Ok((send, recv)) => {
@@ -223,6 +251,7 @@ type BoxedWriter = Box<dyn tokio::io::AsyncWrite + Send + Unpin>;
 
 /// Shared connection state: writer, runtime table, durable event spool, and
 /// per-session turn counters.
+#[cfg(unix)]
 struct Conn {
     writer: Mutex<BufWriter<BoxedWriter>>,
     table: Arc<RuntimeTable>,
@@ -236,6 +265,7 @@ struct Conn {
     unacked_heartbeats: std::sync::atomic::AtomicUsize,
 }
 
+#[cfg(unix)]
 impl Conn {
     async fn send_hello(&self) -> Result<()> {
         let hello = self
@@ -293,6 +323,7 @@ impl Conn {
 
 /// Run the full connection lifecycle: hello → heartbeat loop + read loop.
 #[allow(clippy::too_many_arguments)] // connection wiring: every arg is a distinct owned subsystem
+#[cfg(unix)]
 async fn run_connection<R, W>(
     reader: R,
     writer: W,
@@ -555,6 +586,7 @@ where
     Ok(())
 }
 
+#[cfg(unix)]
 fn frame_sequence(frame: &OrbitFrame) -> Option<u64> {
     match frame {
         OrbitFrame::Event { seq, .. }
@@ -565,6 +597,7 @@ fn frame_sequence(frame: &OrbitFrame) -> Option<u64> {
     }
 }
 
+#[cfg(unix)]
 fn periodic_replay_after(
     sent_through: &std::collections::HashMap<String, u64>,
     session_id: &str,
@@ -572,6 +605,7 @@ fn periodic_replay_after(
     sent_through.get(session_id).copied()
 }
 
+#[cfg(unix)]
 fn mark_periodic_replay_sent(
     sent_through: &mut std::collections::HashMap<String, u64>,
     session_id: &str,
@@ -582,11 +616,13 @@ fn mark_periodic_replay_sent(
     }
 }
 
+#[cfg(unix)]
 fn dispatch_inline(frame: &AxisFrame) -> bool {
     matches!(frame, AxisFrame::Ack { .. })
 }
 
 /// Dispatch a single AxisFrame.
+#[cfg(unix)]
 async fn dispatch_frame(conn: Arc<Conn>, frame: AxisFrame) -> Result<()> {
     match frame {
         AxisFrame::HeartbeatAck => {
@@ -831,6 +867,7 @@ async fn dispatch_frame(conn: Arc<Conn>, frame: AxisFrame) -> Result<()> {
 }
 /// Send a command to a session's runtime and drain its event stream into
 /// `OrbitFrame::Event` frames with per-session monotonic seq.
+#[cfg(unix)]
 async fn send_and_stream(conn: &Conn, session_id: &str, cmd: AgentCommand) -> Result<()> {
     let runtime = conn
         .table
@@ -934,6 +971,7 @@ fn run_observer(path: PathBuf, spool: Arc<EventSpool>) {
     }
 }
 
+#[cfg(unix)]
 impl Conn {
     /// The turn id to stamp on event frames for the current turn. We reuse the
     /// turn counter's current value (assigned in send_and_stream) so all events
@@ -960,6 +998,7 @@ fn resolve_socket() -> Result<PathBuf> {
 
 /// Connect to the UDS socket, retrying forever (used by the reconnect loop —
 /// a downed Axis must never terminate a running orbit, ADR 0008 §2).
+#[cfg(unix)]
 async fn connect_forever(path: &PathBuf) -> UnixStream {
     loop {
         match UnixStream::connect(path).await {
@@ -972,6 +1011,7 @@ async fn connect_forever(path: &PathBuf) -> UnixStream {
     }
 }
 
+#[cfg(unix)]
 async fn connect_with_retry(path: &PathBuf) -> Result<UnixStream> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     loop {
@@ -1160,6 +1200,23 @@ fn configured_roles() -> Result<Vec<NodeRole>> {
     });
     roles.dedup();
     Ok(roles)
+}
+
+/// The orbit role must refuse to start on a non-Unix host rather than
+/// half-running. A node that registers with Axis and then cannot spawn a PTY or
+/// reap a process group looks like an Axis bug from the outside; failing at
+/// startup with the WSL2 instruction is the honest behaviour (ADR 0035 §1.2.6).
+#[cfg(all(test, not(unix)))]
+mod windows_guard {
+    #[tokio::test]
+    async fn orbit_role_refuses_to_start() {
+        let err = super::run()
+            .await
+            .expect_err("orbit must not start off Unix");
+        let msg = err.to_string();
+        assert!(msg.contains("requires a Unix host"), "unexpected: {msg}");
+        assert!(msg.contains("WSL2"), "must point the user at WSL2: {msg}");
+    }
 }
 
 #[cfg(test)]

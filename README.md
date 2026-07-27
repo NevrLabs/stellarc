@@ -1,55 +1,77 @@
 # Stellarc
 
-> AI control plane for Hermes Agent — React + self-hosted Convex + a thin Bun host runtime.
+> Rust-native control plane for AI coding agents.
 
-**Status:** v0 — docs-first foundation. Greenfield successor concept to Hermes Studio.
+**Status:** v0, pre-release. Single-binary control plane + React UI.
 
-Stellarc is a clean-room product, not a fork of Hermes Studio (that maintained fork lives at
-`IEatCodeDaily/hermes-studio`). Stellarc keeps durable truth and orchestration in
-**self-hosted Convex**, renders a **React** UI subscribed to Convex, and performs
-privileged host actions through a **thin Bun runtime adapter** that talks to Hermes Agent.
-
-## Doctrine
-
-> Convex is the brain and memory. Bun is the hands on the host. Hermes is the current
-> execution engine behind a thin, swappable adapter. React is UI only.
+Stellarc unifies AI coding agent sessions from every host and channel into one
+searchable, resumable interface. It is **agent-agnostic**: agents are discovered
+per node behind an adapter seam, so Hermes, Claude Code, Codex, Cursor, and
+others are all first-class — no agent is privileged in the architecture.
 
 ## Architecture (at a glance)
 
 ```text
-React UI
-  -> self-hosted Convex (sessions, messages, agents, tool calls, runtime commands/events, authz)
-  -> Stellarc Bun runtime (claims commands, runs host effects via Hermes adapter, streams events back)
-  -> Hermes Agent (existing tool/process/PTY execution engine)
+React UI (ui/)
+  -> axis    — the control plane: event log, projections, REST + WS API, auth
+  -> orbit   — the per-host node daemon: holds agent runtimes, PTYs, jobs
+  -> agents  — hermes / claude-code / codex / ... behind one adapter interface
 ```
 
-See `docs/architecture/architecture.md` for the full model and `docs/adrs/` for decisions.
+One binary, dispatched by role:
+
+| Role | What it is | Runs |
+|---|---|---|
+| **axis** | central control plane; owns the event log and the API | one per install |
+| **orbit** | node daemon; spawns and supervises agent runtimes | one per host |
+
+Axis and orbit speak a versioned frame protocol (`crates/proto`) over iroh, so
+nodes need no inbound ports or public address.
+
+See `docs/architecture/architecture.md` for the full model and `docs/adrs/` for
+decisions.
 
 ## Workspace
 
 ```text
-apps/web/              React frontend (Convex-subscribed UI)
-apps/runtime/          Bun host runtime adapter (compiles to a single executable)
-convex/                Convex schema + functions (control plane / agent state)
-packages/protocol/     Shared runtime command/event/tool schemas
-packages/hermes-adapter/  AgentRuntime interface + Hermes implementation
-docs/                  architecture, ADRs, plans, product
+crates/axis/     control plane: event log, views, search, REST/WS API, auth
+crates/orbit/    node daemon: agent runtimes, PTY, jobs, host observation
+crates/proto/    axis <-> orbit frame protocol (versioned, forward-tolerant)
+crates/stellarc/ the binary: role dispatch (axis | orbit)
+adapters/        per-agent adapters (ACP; claude-agent-acp today)
+ui/              Vite + React + TypeScript client
+docs/            architecture, ADRs, plans, reviews
 ```
 
-## Toolchain (Bun-first)
+## Toolchain
+
+Rust for the backend, Bun for the UI.
 
 ```bash
-bun install
-bun run convex:dev      # self-hosted/local Convex dev deployment
-bun run runtime:dev     # Bun host runtime adapter
-bun run web:dev         # React dev server (port 5177)
-bun run lint            # oxlint
-bun run typecheck       # tsc --noEmit
-bun run build           # protocol tests + web build + runtime binary
+make verify        # all gates: Rust (test/clippy/fmt) + UI (typecheck/build/e2e)
+make verify-rust   # cargo test --workspace && clippy -D warnings && fmt --check
+make verify-ui     # cd ui && typecheck + build + Maestro web e2e
+make test          # cargo test --workspace (fast inner loop)
+make run           # serve the API locally
 ```
 
-## Why not "everything in Convex"
+`make verify` must be green before a PR.
 
-Convex owns app/agent state and orchestration intent extremely well, but it is not an OS
-process supervisor. PTYs, long-lived bridge workers, local filesystem authority, and Hermes
-process lifecycle stay in the Bun runtime. The Bun runtime is intentionally small.
+## Why a single binary
+
+Two roles, one artifact: the version that speaks the protocol is the same
+version on both ends, so an upgrade can't desynchronize axis from its nodes.
+Role is chosen at startup, not at build time.
+
+## License
+
+Licensed under either of
+
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you shall be dual licensed as above, without any
+additional terms or conditions.

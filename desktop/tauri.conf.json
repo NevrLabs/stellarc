@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Stellarc",
+  "version": "0.1.0",
+  "identifier": "dev.stellarc.desktop",
+  "build": {
+    "beforeBuildCommand": "bash scripts/stage-ui.sh",
+    "frontendDist": "./placeholder"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "deb", "appimage", "dmg"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico", "icons/icon.icns"],
+    "resources": {
+      "ui-dist/": "ui-dist/"
+    },
+    "shortDescription": "Stellarc — control plane for AI coding agents",
+    "longDescription": "Stellarc Desktop bundles a local Axis control plane and the Stellarc UI. Lite edition: single user, single org, SQLite."
+  }
+}

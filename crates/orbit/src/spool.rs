@@ -8,8 +8,8 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
-use stellarc_proto::frames::OrbitFrame;
 use rusqlite::{params, Connection, OptionalExtension};
+use stellarc_proto::frames::OrbitFrame;
 
 pub const DEFAULT_SESSION_CAP: u64 = 512 * 1024 * 1024;
 
@@ -210,6 +210,10 @@ fn event_identity(frame: &OrbitFrame) -> Option<(&str, u64)> {
 
 /// Sequence number of a spoolable frame, or `None` for frames that carry no
 /// sequence. Thin projection of [`event_identity`], which returns `(id, seq)`.
+///
+/// Test-only: production paths use `event_identity` directly because they need
+/// the session id too. Gated so a non-test build doesn't trip dead_code.
+#[cfg(test)]
 fn event_seq(frame: &OrbitFrame) -> Option<u64> {
     event_identity(frame).map(|(_, seq)| seq)
 }

@@ -24,6 +24,74 @@ pub struct LoginRequest {
     password: String,
 }
 
+/// Unauthenticated probe: has this Axis been claimed yet? Deliberately a bare
+/// boolean — no usernames, no counts, no org names.
+pub async fn bootstrap_state(State(state): State<AppState>) -> Response {
+    match state.auth_store.has_any_user() {
+        Ok(exists) => Json(json!({ "usersExist": exists })).into_response(),
+        Err(error) => {
+            tracing::error!(%error, "reading Axis bootstrap state");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "authentication unavailable",
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Claim a fresh install: create the first user plus its organization, then log
+/// it straight in. This route is necessarily unauthenticated, so it fails
+/// closed — `bootstrap_admin` performs the "no users yet" check inside the same
+/// IMMEDIATE transaction as the inserts, and anything but a fresh table is a
+/// 409. Same Origin gate and same rate limiter as `login`.
+pub async fn register(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<LoginRequest>,
+) -> Response {
+    if !crate::auth::request_origin_ok(&headers, false) {
+        return (StatusCode::FORBIDDEN, "forbidden origin").into_response();
+    }
+    if !allow_login_attempt(&body.username, unix_timestamp()) {
+        return (StatusCode::TOO_MANY_REQUESTS, "too many login attempts").into_response();
+    }
+    // Validate before touching the store so malformed input is a 400 and a
+    // storage failure stays a 500 (never echo a rusqlite error to an
+    // unauthenticated caller).
+    if let Err(error) = crate::auth_store::validate_username(&body.username)
+        .and_then(|()| crate::auth_store::validate_password(&body.password))
+    {
+        return (StatusCode::BAD_REQUEST, error.to_string()).into_response();
+    }
+
+    let organization = crate::entry::default_org();
+    match state
+        .auth_store
+        .bootstrap_admin(&body.username, &body.password, &organization, "Default")
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            return (
+                StatusCode::CONFLICT,
+                "this Axis already has an account; sign in instead",
+            )
+                .into_response()
+        }
+        Err(error) => {
+            tracing::error!(%error, "registering the first Axis user");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "registration unavailable",
+            )
+                .into_response();
+        }
+    }
+    tracing::info!(username = %body.username, "registered the first Axis user");
+
+    login(State(state), headers, Json(body)).await
+}
+
 pub async fn login(
     State(state): State<AppState>,
     headers: HeaderMap,

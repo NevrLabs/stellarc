@@ -15,12 +15,27 @@ properties:
 - extendedWaitUntil:
     visible: "Findings"
     timeout: 10000
+
+# Workspace tabs persist to localStorage (uiState.saveWorkspaceState), so
+# vault-workbench.yaml — which opens conflicted-note.md and never closes it —
+# leaks a second tab into this flow. That changed the document behind the vault
+# menu (conflict markers, CONFLICT SOURCE badge, disabled Save) and sank the
+# golden comparison to ~96-97%.
+#
+# A guard existed here already but ran too late to help: the leak is fixed at
+# the source (vault-workbench.yaml now closes the tabs it opens). This stays as
+# a belt-and-braces check, and now re-asserts the expected document is focused
+# rather than trusting the tab strip.
 - runFlow:
     when:
       visible: "Conflicted note"
     commands:
       - tapOn:
           id: "Close Conflicted note"
+      - extendedWaitUntil:
+          visible: "Findings"
+          timeout: 10000
+
 - tapOn: "Engineering"
 - assertVisible: "Create vault…"
 - takeScreenshot:

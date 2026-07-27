@@ -39,7 +39,10 @@ pub(crate) async fn terminal_targets(State(state): State<AppState>) -> Response 
         }
         if state
             .nodes
-            .has_role(&node.node_id, stellarc_proto::frames::NodeRole::TerminalHost)
+            .has_role(
+                &node.node_id,
+                stellarc_proto::frames::NodeRole::TerminalHost,
+            )
             .await
         {
             targets.push(json!({

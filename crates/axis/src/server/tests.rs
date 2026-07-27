@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::event::Event;
-use crate::log::Log;
 use crate::server::dto::SessionDto;
 use axum::body::Body;
 use axum::http::Request;
@@ -10,7 +9,8 @@ use tower::ServiceExt; // oneshot
 
 fn test_state() -> (AppState, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
-    let log = Log::open(&dir.path().join("log.redb")).unwrap();
+    let log =
+        crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("log.redb")).unwrap();
     log.append(&Event::SessionCreated {
         session_id: "s1".into(),
         hermes_id: "h1".into(),
@@ -48,6 +48,7 @@ fn test_state() -> (AppState, tempfile::TempDir) {
     let mut search = SearchIndex::from_log(log_arc.clone());
     search.build_from_log(&log_arc).unwrap();
     let state = AppState {
+        storage_backend: crate::store::Backend::Sqlite,
         views: Arc::new(RwLock::new(views)),
         search: Arc::new(RwLock::new(search)),
         token: Arc::new("testtoken".to_string()),
@@ -70,6 +71,7 @@ fn test_state() -> (AppState, tempfile::TempDir) {
         irc: crate::irc::IrcBus::new(),
         nodes: crate::node::NodeRegistry::new(),
         orbit_conns: crate::server::orbit_conn::OrbitConnections::new(),
+        #[cfg(unix)]
         axis_pty: crate::server::terminal_ws::AxisTerminals::new(),
         axis_iroh_id: None,
         proxy: crate::proxy::ProxyTable::new(),
@@ -230,6 +232,117 @@ async fn concurrent_colliding_package_activations_append_exactly_one_success() {
             .count(),
         1
     );
+}
+
+#[tokio::test]
+async fn register_bootstraps_the_first_user_then_fails_closed() {
+    let (state, _dir) = test_state();
+    let app = build_router(state.clone());
+
+    let probe = |app: Router| async move {
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/auth/bootstrap")
+                    .header("sec-fetch-site", "same-origin")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()
+    };
+    // Fresh install: the probe says "unclaimed" and reveals nothing else.
+    let before = probe(app.clone()).await;
+    assert_eq!(before, serde_json::json!({ "usersExist": false }));
+
+    let register = |app: Router, username: &'static str| async move {
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/register")
+                .header("origin", "http://127.0.0.1:5173")
+                .header("host", "127.0.0.1:5173")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"username":"{username}","password":"password-123"}}"#
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    };
+
+    let first = register(app.clone(), "founder").await;
+    assert_eq!(first.status(), StatusCode::OK);
+    // Registration logs the new account straight in.
+    let set_cookie = first.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(set_cookie.contains("stellarc_session="));
+    assert!(set_cookie.contains("HttpOnly"));
+    let cookie = set_cookie.split(';').next().unwrap().to_string();
+    let session = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/auth/session")
+                .header("cookie", cookie)
+                .header("sec-fetch-site", "same-origin")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(session.status(), StatusCode::OK);
+    // The org and owner membership were created alongside the user.
+    let principal = state
+        .auth_store
+        .authenticate("founder", "password-123")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        state
+            .auth_store
+            .organizations_for_user(&principal.user_id)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Fail closed: the endpoint stays unauthenticated forever, so a second
+    // call must be rejected once any user exists.
+    assert_eq!(
+        probe(app.clone()).await,
+        serde_json::json!({ "usersExist": true })
+    );
+    let second = register(app.clone(), "intruder").await;
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+    assert!(state
+        .auth_store
+        .authenticate("intruder", "password-123")
+        .unwrap()
+        .is_none());
+
+    // The Origin gate is not weakened for registration.
+    let foreign = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/register")
+                .header("origin", "http://evil.example")
+                .header("host", "127.0.0.1:5173")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"username":"evil","password":"password-123"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(foreign.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -1049,7 +1162,8 @@ async fn sort_by_message_count_orders_descending() {
     // Build a 3-session state where started_at order != messageCount order,
     // so a working sort is distinguishable from the view's default.
     let dir = tempfile::tempdir().unwrap();
-    let log = Log::open(&dir.path().join("log.redb")).unwrap();
+    let log =
+        crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("log.redb")).unwrap();
     let mk = |id: &str, started: f64, msgs: u64| Event::SessionCreated {
         session_id: id.into(),
         hermes_id: id.into(),
@@ -1074,6 +1188,7 @@ async fn sort_by_message_count_orders_descending() {
     let (tx, _rx) = broadcast::channel(64);
     let log = Arc::new(log);
     let state = AppState {
+        storage_backend: crate::store::Backend::Sqlite,
         views: Arc::new(RwLock::new(views)),
         search: Arc::new(RwLock::new(search)),
         token: Arc::new("testtoken".to_string()),
@@ -1089,13 +1204,19 @@ async fn sort_by_message_count_orders_descending() {
         log: log.clone(),
         jobs: Arc::new(crate::jobs::JobService::open(log.clone()).unwrap()),
         bridge: Arc::new(BridgeManager::with_factory(
-            Arc::new(Log::open(&dir.path().join("bridge-log.redb")).unwrap()),
+            Arc::new(
+                crate::event_log::EventLog::open_sqlite_for_test(
+                    &dir.path().join("bridge-log.redb"),
+                )
+                .unwrap(),
+            ),
             test_support::mock_factory(),
         )),
         sync_connected: Arc::new(AtomicBool::new(true)),
         irc: crate::irc::IrcBus::new(),
         nodes: crate::node::NodeRegistry::new(),
         orbit_conns: crate::server::orbit_conn::OrbitConnections::new(),
+        #[cfg(unix)]
         axis_pty: crate::server::terminal_ws::AxisTerminals::new(),
         axis_iroh_id: None,
         proxy: crate::proxy::ProxyTable::new(),
@@ -1219,6 +1340,9 @@ async fn health_is_unauthenticated() {
     assert_eq!(v["importState"], "done");
     assert_eq!(v["hermesProfile"], "default");
     assert_eq!(v["syncConnected"], true);
+    // The backend must be reported, and must be a runtime fact rather than a
+    // compile-time guess.
+    assert_eq!(v["storageBackend"], "sqlite");
 }
 
 #[tokio::test]
@@ -1424,7 +1548,10 @@ async fn post_sessions_creates_managed_stellarc_session() {
     // id is backfilled lazily on the first send).
     let (mut state, _d) = test_state();
     state.bridge = Arc::new(BridgeManager::with_factory(
-        Arc::new(Log::open(&_d.path().join("bridge-log-a.redb")).unwrap()),
+        Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&_d.path().join("bridge-log-a.redb"))
+                .unwrap(),
+        ),
         test_support::mock_factory(),
     ));
     let app = build_router(state);
@@ -2425,7 +2552,7 @@ fn cards_survive_restart_via_replay() {
     // a fresh ViewManager, verify the card state is fully reconstructed.
     let dir = tempfile::tempdir().unwrap();
     let log_path = dir.path().join("log.redb");
-    let log = Log::open(&log_path).unwrap();
+    let log = crate::event_log::EventLog::open_sqlite_for_test(&log_path).unwrap();
 
     // Card 1: create → assign → claim → complete
     log.append(&Event::CardCreated {
@@ -2500,7 +2627,7 @@ fn cards_survive_restart_via_replay() {
 
     // Drop the log, reopen it (simulating restart), replay.
     drop(log);
-    let reopened = Log::open(&log_path).unwrap();
+    let reopened = crate::event_log::EventLog::open_sqlite_for_test(&log_path).unwrap();
     let mut views = ViewManager::new();
     views.replay(&reopened).unwrap();
 

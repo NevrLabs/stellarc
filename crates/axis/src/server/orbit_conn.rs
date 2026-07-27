@@ -68,7 +68,7 @@ pub struct OrbitConnection {
     /// Stellarc session id. RemoteRuntime reads this to implement
     /// `hermes_session_id()`.
     hermes_ids: std::sync::Mutex<HashMap<String, String>>,
-    log: Option<Arc<crate::log::Log>>,
+    log: Option<Arc<crate::event_log::EventLog>>,
     jobs: Option<Arc<crate::jobs::JobService>>,
 }
 
@@ -82,7 +82,7 @@ pub enum TerminalFrame {
 impl OrbitConnection {
     fn new(
         writer: BoxedWriter,
-        log: Option<Arc<crate::log::Log>>,
+        log: Option<Arc<crate::event_log::EventLog>>,
         jobs: Option<Arc<crate::jobs::JobService>>,
     ) -> Arc<Self> {
         let (shutdown, _) = tokio::sync::watch::channel(false);
@@ -91,7 +91,7 @@ impl OrbitConnection {
 
     fn new_with_epoch(
         writer: BoxedWriter,
-        log: Option<Arc<crate::log::Log>>,
+        log: Option<Arc<crate::event_log::EventLog>>,
         jobs: Option<Arc<crate::jobs::JobService>>,
         epoch: u64,
         shutdown: tokio::sync::watch::Sender<bool>,
@@ -526,7 +526,7 @@ fn inject_req_id(frame: AxisFrame, req_id: u64) -> AxisFrame {
 #[derive(Clone, Default)]
 pub struct OrbitConnections {
     inner: Arc<RwLock<HashMap<String, Arc<OrbitConnection>>>>,
-    log: Option<Arc<crate::log::Log>>,
+    log: Option<Arc<crate::event_log::EventLog>>,
     next_epoch: Arc<AtomicU64>,
     jobs: Option<Arc<crate::jobs::JobService>>,
 }
@@ -537,7 +537,7 @@ impl OrbitConnections {
     }
 
     pub fn with_log_and_jobs(
-        log: Arc<crate::log::Log>,
+        log: Arc<crate::event_log::EventLog>,
         jobs: Arc<crate::jobs::JobService>,
     ) -> Self {
         Self {
@@ -925,7 +925,7 @@ mod tests {
     async fn durable_watermark_drops_duplicates_across_axis_restart() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("axis.db");
-        let log = Arc::new(crate::log::Log::open(&db).unwrap());
+        let log = Arc::new(crate::event_log::EventLog::open_sqlite_for_test(&db).unwrap());
         let (writer, mut peer) = tokio::io::duplex(4096);
         let conn = OrbitConnection::new(Box::new(writer), Some(log.clone()), None);
         let mut events = conn.subscribe_events("s1");
@@ -962,7 +962,7 @@ mod tests {
         drop(conn);
         drop(log);
 
-        let reopened = Arc::new(crate::log::Log::open(&db).unwrap());
+        let reopened = Arc::new(crate::event_log::EventLog::open_sqlite_for_test(&db).unwrap());
         let (writer, _peer) = tokio::io::duplex(4096);
         let conn = OrbitConnection::new(Box::new(writer), Some(reopened.clone()), None);
         let mut events = conn.subscribe_events("s1");
@@ -981,10 +981,10 @@ mod tests {
 
     #[tokio::test]
     async fn observed_state_db_rows_survive_axis_restart_exactly_once() {
+        use rusqlite::Connection;
         use stellarc_orbit::observer::StateDbObserver;
         use stellarc_orbit::spool::EventSpool;
-        use stellarc_proto::frames::{OrbitFrame, ObservedEvent};
-        use rusqlite::Connection;
+        use stellarc_proto::frames::{ObservedEvent, OrbitFrame};
 
         let dir = tempfile::tempdir().unwrap();
         let state_db = dir.path().join("state.db");
@@ -1026,7 +1026,7 @@ mod tests {
 
         insert("remote", "one", 1.0);
         spool_poll(&mut observer, &spool);
-        let log = Arc::new(crate::log::Log::open(&axis_db).unwrap());
+        let log = Arc::new(crate::event_log::EventLog::open_sqlite_for_test(&axis_db).unwrap());
         let (writer, _peer) = tokio::io::duplex(4096);
         let conn = OrbitConnection::new(Box::new(writer), Some(log.clone()), None);
         for frame in spool.read("observed:remote", None).unwrap() {
@@ -1047,7 +1047,8 @@ mod tests {
 
         insert("remote", "two", 2.0);
         spool_poll(&mut observer, &spool);
-        let reopened = Arc::new(crate::log::Log::open(&axis_db).unwrap());
+        let reopened =
+            Arc::new(crate::event_log::EventLog::open_sqlite_for_test(&axis_db).unwrap());
         let (writer, _peer) = tokio::io::duplex(4096);
         let conn = OrbitConnection::new(Box::new(writer), Some(reopened.clone()), None);
         for _ in 0..2 {
@@ -1075,7 +1076,7 @@ mod tests {
     #[tokio::test]
     async fn sequence_gap_is_not_forwarded_or_acknowledged() {
         let file = tempfile::NamedTempFile::new().unwrap();
-        let log = Arc::new(crate::log::Log::open(file.path()).unwrap());
+        let log = Arc::new(crate::event_log::EventLog::open_sqlite_for_test(file.path()).unwrap());
         let (writer, mut peer) = tokio::io::duplex(512);
         let conn = OrbitConnection::new(Box::new(writer), Some(log.clone()), None);
         let mut events = conn.subscribe_events("s1");

@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use stellarc_proto::frames::ObservedEvent;
 use rusqlite::{params, Connection, OpenFlags};
+use stellarc_proto::frames::ObservedEvent;
 
 /// Stateful tailer. Existing rows are treated as Axis cold-boot history; only
 /// sessions/messages created after construction are emitted.

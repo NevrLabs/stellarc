@@ -26,6 +26,7 @@ impl Log {
         conn.execute_batch(SCHEMA)
             .context("initializing Stellarc SQLite schema")?;
         migrate_event_payloads_to_json(&mut conn)?;
+        repair_fts_duplicates(&conn)?;
         // Migrate pre-session_id databases (ADR 0009 incremental migration).
         let has_sid: bool = conn
             .prepare("PRAGMA table_info(events)")?
@@ -331,7 +332,7 @@ impl Log {
                     message_count, input_tokens, output_tokens, archived, pinned,
                     last_activity, agent, node, parent_session_id, card_id, project_id,
                     context_projects, org_id, capabilities
-             FROM sessions ORDER BY started_at DESC, session_id",
+             FROM sessions ORDER BY started_at DESC, session_id DESC",
         )?;
         let rows = stmt.query_map([], session_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
@@ -501,7 +502,7 @@ impl Log {
 
     pub fn list_projects(&self) -> Result<Vec<ProjectRow>> {
         let conn = self.conn.lock().expect("SQLite mutex poisoned");
-        let mut stmt = conn.prepare("SELECT project_id,org_id,name,vaults,repos,boards,layout,created_at,deleted_at FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC")?;
+        let mut stmt = conn.prepare("SELECT project_id,org_id,name,vaults,repos,boards,layout,created_at,deleted_at FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC, project_id DESC")?;
         let rows = stmt.query_map([], project_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(Into::into)
@@ -534,7 +535,7 @@ impl Log {
 
     pub fn list_cards(&self) -> Result<Vec<CardRow>> {
         let conn = self.conn.lock().expect("SQLite mutex poisoned");
-        let mut stmt = conn.prepare("SELECT card_id,org_id,board_id,title,status,assigned_id,assigned_kind,current_session_id,current_bookmark,blocked_by,priority,attempts,created_at,status_changed_at FROM cards ORDER BY created_at DESC")?;
+        let mut stmt = conn.prepare("SELECT card_id,org_id,board_id,title,status,assigned_id,assigned_kind,current_session_id,current_bookmark,blocked_by,priority,attempts,created_at,status_changed_at FROM cards ORDER BY created_at DESC, card_id DESC")?;
         let rows = stmt.query_map([], card_row)?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(Into::into)
@@ -587,6 +588,38 @@ fn decode_event_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(u64, Event)> {
         )
     })?;
     Ok((seq, event))
+}
+
+/// Rebuild the FTS index when it holds more rows than `messages`.
+///
+/// `INSERT OR REPLACE INTO messages` is a DELETE+INSERT internally, but
+/// `recursive_triggers` defaulted OFF, so the AFTER DELETE trigger never fired
+/// while AFTER INSERT did — every re-appended message left a stale FTS row and
+/// search returned it as a duplicate hit. Reproduced against sqlite 3.53.1: one
+/// message, three appends, three identical hits.
+///
+/// The schema now sets `recursive_triggers=ON`, which stops new skew. This heals
+/// databases already carrying it. `messages_fts` is a pure derivative of
+/// `messages`, so rebuilding is correct by construction rather than trying to
+/// identify individual stale rows.
+fn repair_fts_duplicates(conn: &Connection) -> Result<()> {
+    let messages: i64 = conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?;
+    let indexed: i64 = conn.query_row("SELECT COUNT(*) FROM messages_fts", [], |row| row.get(0))?;
+    if indexed <= messages {
+        return Ok(());
+    }
+    tracing::warn!(
+        messages,
+        indexed,
+        "FTS index holds stale rows (pre-recursive_triggers duplicates); rebuilding"
+    );
+    conn.execute_batch(
+        "DELETE FROM messages_fts;
+         INSERT INTO messages_fts(session_id,message_id,content,role,tool_name,timestamp)
+           SELECT session_id,message_id,content,role,tool_name,timestamp FROM messages;",
+    )
+    .context("rebuilding the FTS index")?;
+    Ok(())
 }
 
 /// Enforces that the database has already been migrated to the JSON+zstd codec.
@@ -647,7 +680,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             agent,
             node,
         } => {
-            tx.execute("INSERT OR REPLACE INTO sessions(session_id,hermes_id,source,model,title,started_at,message_count,input_tokens,output_tokens,archived,pinned,last_activity,agent,node,parent_session_id,card_id,project_id,org_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,0,0,?6,?10,?11,NULL,NULL,NULL,'personal')", params![session_id,hermes_id,source,model,title,started_at,*message_count as i64,*input_tokens as i64,*output_tokens as i64,agent,node])?;
+            tx.execute("INSERT INTO sessions(session_id,hermes_id,source,model,title,started_at,message_count,input_tokens,output_tokens,archived,pinned,last_activity,agent,node,parent_session_id,card_id,project_id,org_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,0,0,?6,?10,?11,NULL,NULL,NULL,'personal') ON CONFLICT(session_id) DO UPDATE SET hermes_id=excluded.hermes_id,source=excluded.source,model=excluded.model,title=excluded.title,started_at=excluded.started_at,message_count=excluded.message_count,input_tokens=excluded.input_tokens,output_tokens=excluded.output_tokens,last_activity=excluded.last_activity,agent=excluded.agent,node=excluded.node", params![session_id,hermes_id,source,model,title,started_at,*message_count as i64,*input_tokens as i64,*output_tokens as i64,agent,node])?;
         }
         Event::SessionOrganizationAssigned {
             session_id,
@@ -694,7 +727,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             finish_reason,
             ..
         } => {
-            tx.execute("INSERT OR REPLACE INTO messages(session_id,message_id,role,content,tool_name,tool_calls,reasoning,timestamp,token_count,finish_reason) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)", params![session_id,*message_id as i64,role,content,tool_name,tool_calls,reasoning,timestamp,token_count.map(|v| v as i64),finish_reason])?;
+            tx.execute("INSERT INTO messages(session_id,message_id,role,content,tool_name,tool_calls,reasoning,timestamp,token_count,finish_reason) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(session_id,message_id) DO UPDATE SET role=excluded.role,content=excluded.content,tool_name=excluded.tool_name,tool_calls=excluded.tool_calls,reasoning=excluded.reasoning,timestamp=excluded.timestamp,token_count=excluded.token_count,finish_reason=excluded.finish_reason", params![session_id,*message_id as i64,role,content,tool_name,tool_calls,reasoning,timestamp,token_count.map(|v| v as i64),finish_reason])?;
             tx.execute(
                 "UPDATE sessions SET last_activity=MAX(last_activity,?2) WHERE session_id=?1",
                 params![session_id, timestamp],
@@ -719,7 +752,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             declared_at,
         } => {
             tx.execute(
-                "INSERT OR REPLACE INTO setup VALUES(?1,?2,?3,?4,?5,?6)",
+                "INSERT INTO setup(scope,skills,mcp,plugins,hooks,declared_at) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(scope) DO UPDATE SET skills=excluded.skills,mcp=excluded.mcp,plugins=excluded.plugins,hooks=excluded.hooks,declared_at=excluded.declared_at",
                 params![
                     scope,
                     json(skills),
@@ -737,7 +770,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             registered_at,
         } => {
             tx.execute(
-                "INSERT OR REPLACE INTO registry VALUES(?1,?2,?3,?4)",
+                "INSERT INTO registry(kind,slug,definition,registered_at) VALUES(?1,?2,?3,?4) ON CONFLICT(kind,slug) DO UPDATE SET definition=excluded.definition,registered_at=excluded.registered_at",
                 params![kind, slug, definition, registered_at],
             )?;
         }
@@ -748,7 +781,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             registered_at,
         } => {
             tx.execute(
-                "INSERT OR REPLACE INTO repos VALUES(?1,?2,?3,?4)",
+                "INSERT INTO repos(slug,url,default_branch,registered_at) VALUES(?1,?2,?3,?4) ON CONFLICT(slug) DO UPDATE SET url=excluded.url,default_branch=excluded.default_branch,registered_at=excluded.registered_at",
                 params![slug, url, default_branch, registered_at],
             )?;
         }
@@ -771,7 +804,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             created_at,
         } => {
             tx.execute(
-                "INSERT OR REPLACE INTO projects(project_id,name,vaults,repos,boards,created_at,deleted_at,org_id) VALUES(?1,?2,'[]','[]','[]',?3,NULL,'personal')",
+                "INSERT INTO projects(project_id,name,vaults,repos,boards,created_at,deleted_at,org_id) VALUES(?1,?2,'[]','[]','[]',?3,NULL,'personal') ON CONFLICT(project_id) DO UPDATE SET name=excluded.name,created_at=excluded.created_at,deleted_at=NULL",
                 params![project_id, name, created_at],
             )?;
         }
@@ -905,7 +938,7 @@ fn apply_projection(tx: &Transaction<'_>, event: &Event) -> Result<()> {
             title,
             created_at,
         } => {
-            tx.execute("INSERT OR REPLACE INTO cards(card_id,board_id,title,status,assigned_id,assigned_kind,current_session_id,current_bookmark,blocked_by,priority,attempts,created_at,status_changed_at,org_id) VALUES(?1,?2,?3,'todo',NULL,NULL,NULL,NULL,'[]',0,'[]',?4,?4,'personal')", params![card_id,board_id,title,created_at])?;
+            tx.execute("INSERT INTO cards(card_id,board_id,title,status,assigned_id,assigned_kind,current_session_id,current_bookmark,blocked_by,priority,attempts,created_at,status_changed_at,org_id) VALUES(?1,?2,?3,'todo',NULL,NULL,NULL,NULL,'[]',0,'[]',?4,?4,'personal') ON CONFLICT(card_id) DO UPDATE SET board_id=excluded.board_id,title=excluded.title,created_at=excluded.created_at,status_changed_at=excluded.status_changed_at", params![card_id,board_id,title,created_at])?;
         }
         Event::CardOrganizationAssigned {
             card_id,
@@ -1032,7 +1065,7 @@ fn json<T: serde::Serialize + ?Sized>(value: &T) -> String {
 fn json_vec(raw: String) -> Vec<String> {
     serde_json::from_str(&raw).unwrap_or_default()
 }
-fn event_type(event: &Event) -> &'static str {
+pub(crate) fn event_type(event: &Event) -> &'static str {
     match event {
         Event::JobDispatchIntent { .. } => "job.dispatch_intent",
         Event::JobOutputPersisted { .. } => "job.output_persisted",
@@ -1074,7 +1107,7 @@ fn event_type(event: &Event) -> &'static str {
         Event::SessionContextProjectDetached { .. } => "session.context_project_detached",
     }
 }
-fn event_time(event: &Event) -> f64 {
+pub(crate) fn event_time(event: &Event) -> f64 {
     match event {
         Event::JobDispatchIntent { created_at, .. } => *created_at,
         Event::JobOutputPersisted { persisted_at, .. } => *persisted_at,
@@ -1118,7 +1151,7 @@ fn event_time(event: &Event) -> f64 {
 /// unconditionally-native events (setup, registry, card, project, repo).
 /// Used to populate the `events.session_id` column so `retain_native` can
 /// be a pure SQL DELETE without deserializing any event payload into RAM.
-fn event_session_id(event: &Event) -> Option<&str> {
+pub(crate) fn event_session_id(event: &Event) -> Option<&str> {
     match event {
         Event::SessionCreated { session_id, .. }
         | Event::SessionUpdated { session_id, .. }
@@ -1246,7 +1279,7 @@ fn card_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CardRow> {
 }
 
 const SCHEMA: &str = r#"
-PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA cache_size=-4096; PRAGMA temp_store=MEMORY;
+PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA recursive_triggers=ON; PRAGMA cache_size=-4096; PRAGMA temp_store=MEMORY;
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,event_type TEXT NOT NULL,payload BLOB NOT NULL,created_at REAL NOT NULL,session_id TEXT);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
@@ -1680,4 +1713,128 @@ fn batch_append_throughput_fixture() {
         seq_per = seq_us as f64 / n as f64,
         batch_per = batch_us as f64 / n as f64,
     );
+}
+
+/// Re-appending a message must not inflate the FTS index.
+///
+/// `INSERT OR REPLACE` is a DELETE+INSERT, and with `recursive_triggers`
+/// OFF the AFTER DELETE trigger never fired while AFTER INSERT did — so one
+/// message appended three times produced three identical search hits.
+/// Reproduced against sqlite 3.53.1 before the pragma was added.
+#[test]
+fn reappending_a_message_does_not_duplicate_search_hits() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let log = Log::open(&dir.path().join("fts.db")).expect("open");
+
+    log.append(&Event::SessionCreated {
+        session_id: "s1".into(),
+        hermes_id: "h1".into(),
+        source: String::new(),
+        model: None,
+        title: None,
+        started_at: 1.0,
+        message_count: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        agent: None,
+        node: None,
+    })
+    .expect("session");
+
+    let message = Event::MessageAppended {
+        session_id: "s1".into(),
+        hermes_session_id: "s1".into(),
+        message_id: 0,
+        role: "user".into(),
+        content: Some("the quick brown fox".into()),
+        tool_name: None,
+        tool_calls: None,
+        reasoning: None,
+        timestamp: 2.0,
+        token_count: None,
+        finish_reason: None,
+    };
+    for _ in 0..3 {
+        log.append(&message).expect("append");
+    }
+
+    let hits = log.search("brown", 10).expect("search");
+    assert_eq!(
+        hits.len(),
+        1,
+        "one message must yield one hit, got {}: {hits:?}",
+        hits.len()
+    );
+}
+
+/// Replaying `SessionCreated` must not reset state the event does not mention.
+///
+/// `INSERT OR REPLACE` deletes the row and re-inserts it, so every unnamed
+/// column reverted to its schema default. Measured before the fix: a replay
+/// wiped archived, pinned, org_id, card_id, project_id AND context_projects.
+/// The Postgres backend used `ON CONFLICT DO UPDATE` and preserved them, so the
+/// two backends disagreed on the contents of a live session.
+#[test]
+fn replaying_session_created_preserves_accumulated_state() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let log = Log::open(&dir.path().join("replay.db")).expect("open");
+
+    let created = Event::SessionCreated {
+        session_id: "s1".into(),
+        hermes_id: "h1".into(),
+        source: String::new(),
+        model: None,
+        title: Some("original".into()),
+        started_at: 100.0,
+        message_count: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        agent: None,
+        node: None,
+    };
+    log.append(&created).expect("create");
+
+    // Accumulate the state a real session picks up over its life.
+    log.append(&Event::SessionOrganizationAssigned {
+        session_id: "s1".into(),
+        organization_id: "acme".into(),
+    })
+    .expect("org");
+    log.append(&Event::ProjectCreated {
+        project_id: "p1".into(),
+        name: "P".into(),
+        created_at: 90.0,
+    })
+    .expect("project");
+    log.append(&Event::SessionProjectAttached {
+        session_id: "s1".into(),
+        project_id: "p1".into(),
+        attached_at: 110.0,
+    })
+    .expect("attach");
+    log.append(&Event::SessionUpdated {
+        session_id: "s1".into(),
+        title: None,
+        model: None,
+        archived: Some(true),
+        message_count: None,
+        agent: None,
+        node: None,
+        hermes_id: None,
+        pinned: Some(true),
+    })
+    .expect("update");
+
+    // Replay the creation event, as a re-import or a retried append would.
+    log.append(&created).expect("replay");
+
+    let session = log.get_session("s1").expect("get").expect("present");
+    assert_eq!(session.org_id, "acme", "org_id was reset by the replay");
+    assert_eq!(
+        session.project_id.as_deref(),
+        Some("p1"),
+        "project_id was reset by the replay"
+    );
+    assert!(session.archived, "archived was reset by the replay");
+    assert!(session.pinned, "pinned was reset by the replay");
 }

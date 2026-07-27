@@ -82,3 +82,21 @@ properties:
     point: "94%,7%"
 - takeScreenshot:
     path: screenshots/vault-integrated-tabs-split
+
+# ── Clean up after ourselves ───────────────────────────────────────────────
+# Workspace tabs persist to localStorage (uiState.saveWorkspaceState), so tabs
+# left open here leak into every later flow in the same browser session. That
+# is what broke vaults.yaml's golden: the conflicted note stayed open and
+# changed the document behind the vault menu. A flow that opens a tab closes it.
+- runFlow:
+    when:
+      visible: "Conflicted note"
+    commands:
+      - tapOn:
+          id: "Close Conflicted note"
+- runFlow:
+    when:
+      visible: "ACP wire spike"
+    commands:
+      - tapOn:
+          id: "Close ACP wire spike"

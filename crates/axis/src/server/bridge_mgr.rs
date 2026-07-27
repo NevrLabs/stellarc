@@ -18,7 +18,6 @@ use tokio::sync::RwLock;
 
 use crate::bridge::AgentRuntime;
 use crate::event::Event;
-use crate::log::Log;
 
 // RuntimeSpec moved to `stellarc-proto` (ADR 0008); re-exported so existing
 // call sites keep working unchanged.
@@ -50,7 +49,7 @@ pub struct ForkedSession {
 /// Manages the lifecycle of agent runtimes for managed (stellarc-source) sessions.
 pub struct BridgeManager {
     /// Event log (for appending SessionCreated / MessageAppended events).
-    log: Arc<Log>,
+    log: Arc<crate::event_log::EventLog>,
     /// Per-session runtime mechanics (orbit-side: runtimes map + factory).
     table: RuntimeTable,
     /// Sessions with a turn currently in-flight (prompt sent, awaiting Done).
@@ -75,7 +74,7 @@ pub struct BridgeManager {
 
 impl BridgeManager {
     /// Create a bridge manager with the given runtime factory.
-    pub fn with_factory(log: Arc<Log>, factory: RuntimeFactory) -> Self {
+    pub fn with_factory(log: Arc<crate::event_log::EventLog>, factory: RuntimeFactory) -> Self {
         Self {
             log,
             table: RuntimeTable::with_factory(factory),
@@ -564,9 +563,9 @@ fn compact_utc_stamp(epoch_secs: u64) -> String {
 mod space_tests {
     use super::*;
 
-    fn test_log() -> (tempfile::NamedTempFile, Arc<Log>) {
+    fn test_log() -> (tempfile::NamedTempFile, Arc<crate::event_log::EventLog>) {
         let f = tempfile::NamedTempFile::new().unwrap();
-        let log = Arc::new(Log::open(f.path()).unwrap());
+        let log = Arc::new(crate::event_log::EventLog::open_sqlite_for_test(f.path()).unwrap());
         (f, log)
     }
 

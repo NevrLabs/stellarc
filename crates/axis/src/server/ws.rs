@@ -29,6 +29,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use super::AppState;
+use crate::auth_store::Principal;
 use crate::server::dto::{MessageDto, SessionDto, ToolCallDto};
 
 /// How long (seconds) a `user.typing` indicator is valid before the client
@@ -254,19 +255,37 @@ fn authorize_ws(
 /// cookie. Returns true if the caller is an authenticated operator. (A finer
 /// operator-only RBAC is future hardening per the terminal review; today any
 /// authenticated Axis principal is an operator.)
+/// Authorize a caller for an **operator-class** WebSocket route.
+///
+/// Returns the authorized [`Principal`] rather than a bare `bool` so callers
+/// can attribute the session and, for routes that place a process under an OS
+/// identity (ADR 0036 §3 rule 3), forward the principal to the node.
+///
+/// Session *validity* is not sufficient: this requires organization-owner
+/// standing. The previous version resolved any valid session and returned
+/// `true`, which — with the route classified `RouteClass::User` — meant any
+/// authenticated account could open a root console on any connected node
+/// (`docs/postmortems/console-authz-any-user.md`).
+///
+/// `Ok(None)` = authenticated but not authorized (caller should answer 403);
+/// `Err` = no usable credential at all (401).
 pub(crate) fn authorize_operator(
     state: &AppState,
     query_token: Option<&str>,
     headers: &axum::http::HeaderMap,
-) -> bool {
+) -> Result<Option<Principal>, ()> {
+    // Installation token: the node-enrollment credential. It is the
+    // deployment's root secret, so it stays operator-equivalent, but it
+    // carries no user identity — hence `None` principal with `Ok`.
     let legacy_ok = state.allow_installation_token
         && query_token
             .map(|t| t == state.token.as_str())
             .unwrap_or(false);
     if legacy_ok {
-        return true;
+        return Ok(None);
     }
-    super::identity::session_token(headers)
+
+    let principal = super::identity::session_token(headers)
         .as_deref()
         .and_then(|token| {
             state
@@ -275,7 +294,21 @@ pub(crate) fn authorize_operator(
                 .ok()
                 .flatten()
         })
-        .is_some()
+        .ok_or(())?;
+
+    // Fail closed: an unreadable membership table denies rather than admits.
+    match state
+        .auth_store
+        .user_is_organization_owner(&principal.user_id)
+    {
+        Ok(true) => Ok(Some(principal)),
+        Ok(false) => Err(()),
+        Err(error) => {
+            tracing::error!(%error, user = %principal.user_id,
+                "resolving operator standing; denying");
+            Err(())
+        }
+    }
 }
 
 fn websocket_authorization_is_current(state: &AppState, authorization: &WsAuthorization) -> bool {
@@ -1014,9 +1047,12 @@ mod tests {
         use tokio::sync::RwLock;
 
         let dir = tempfile::tempdir().unwrap();
-        let log = std::sync::Arc::new(crate::log::Log::open(&dir.path().join("l.redb")).unwrap());
+        let log = std::sync::Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("l.redb")).unwrap(),
+        );
 
         AppState {
+            storage_backend: crate::store::Backend::Sqlite,
             views: Arc::new(RwLock::new(crate::views::ViewManager::new())),
             search: Arc::new(RwLock::new(
                 crate::search::SearchIndex::open(&dir.path().join("idx")).unwrap(),
@@ -1041,6 +1077,7 @@ mod tests {
             irc: IrcBus::new(),
             nodes: NodeRegistry::new(),
             orbit_conns: crate::server::orbit_conn::OrbitConnections::new(),
+            #[cfg(unix)]
             axis_pty: crate::server::terminal_ws::AxisTerminals::new(),
             axis_iroh_id: None,
             proxy: ProxyTable::new(),
@@ -1055,5 +1092,48 @@ mod tests {
             enroll: crate::enroll::EnrollStore::new(),
             home: Arc::new(dir.path().to_path_buf()),
         }
+    }
+}
+
+#[cfg(test)]
+mod operator_authz_tests {
+    use crate::auth_store::AuthStore;
+
+    /// A session for a non-owner must NOT clear the operator bar, while an
+    /// owner's does. Regression guard for
+    /// `docs/postmortems/console-authz-any-user.md`, where any valid session
+    /// opened a console on any node.
+    ///
+    /// This exercises the store-level predicate `authorize_operator` relies on;
+    /// the function itself needs an `AppState`, which is not constructible in a
+    /// unit test.
+    #[test]
+    fn only_organization_owners_clear_the_operator_bar() {
+        let store = AuthStore::open_in_memory().expect("in-memory auth store");
+        store
+            .bootstrap_admin("owner", "correct horse battery", "acme", "Acme")
+            .expect("bootstrap");
+
+        let owner = store
+            .authenticate("owner", "correct horse battery")
+            .expect("authenticate")
+            .expect("owner principal");
+
+        assert!(
+            store
+                .user_is_organization_owner(&owner.user_id)
+                .expect("owner lookup"),
+            "the bootstrapped admin owns its organization"
+        );
+
+        // No route can mint a non-owner account yet (only `bootstrap_admin`
+        // exists), so a user id with no membership row stands in for the
+        // member accounts ADR 0022 will add. It must be denied.
+        assert!(
+            !store
+                .user_is_organization_owner("no-such-user")
+                .expect("non-member lookup"),
+            "a principal with no owner membership must be denied operator standing"
+        );
     }
 }

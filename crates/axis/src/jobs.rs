@@ -3,11 +3,10 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use stellarc_proto::frames::{AxisFrame, JobAttemptState, JobAttemptStatus, JobStream};
 use serde::Serialize;
+use stellarc_proto::frames::{AxisFrame, JobAttemptState, JobAttemptStatus, JobStream};
 
 use crate::event::Event;
-use crate::log::Log;
 
 const MAX_RETAINED_COMPLETED_JOBS: usize = 1024;
 
@@ -43,12 +42,12 @@ pub struct JobRecord {
 
 #[derive(Clone)]
 pub struct JobService {
-    log: Arc<Log>,
+    log: Arc<crate::event_log::EventLog>,
     jobs: Arc<RwLock<HashMap<String, JobRecord>>>,
 }
 
 impl JobService {
-    pub fn open(log: Arc<Log>) -> Result<Self> {
+    pub fn open(log: Arc<crate::event_log::EventLog>) -> Result<Self> {
         let service = Self {
             log: log.clone(),
             jobs: Arc::new(RwLock::new(HashMap::new())),
@@ -557,7 +556,9 @@ mod tests {
     #[test]
     fn restart_reconciliation_duplicate_result_and_output_gap_refusal() {
         let dir = tempfile::tempdir().unwrap();
-        let log = Arc::new(Log::open(&dir.path().join("db")).unwrap());
+        let log = Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("db")).unwrap(),
+        );
         let jobs = JobService::open(log.clone()).unwrap();
         jobs.create(dispatch("done")).unwrap();
         jobs.persist_output("done", 1, 0, JobStream::Stdout, "a".into())
@@ -645,7 +646,9 @@ mod tests {
     #[test]
     fn axis_restart_before_terminal_ack_replays_to_completion() {
         let dir = tempfile::tempdir().unwrap();
-        let log = Arc::new(Log::open(&dir.path().join("db")).unwrap());
+        let log = Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("db")).unwrap(),
+        );
         let jobs = JobService::open(log.clone()).unwrap();
         jobs.create(dispatch("recover")).unwrap();
         drop(jobs);
@@ -689,7 +692,9 @@ mod tests {
     #[test]
     fn completed_job_history_is_bounded() {
         let dir = tempfile::tempdir().unwrap();
-        let log = Arc::new(Log::open(&dir.path().join("db")).unwrap());
+        let log = Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("db")).unwrap(),
+        );
         let jobs = JobService::open(log.clone()).unwrap();
         for index in 0..=1024 {
             let id = format!("retained-{index:04}");
@@ -708,7 +713,9 @@ mod tests {
     #[test]
     fn newer_dispatch_intent_advances_epoch_and_fences_stale_output() {
         let dir = tempfile::tempdir().unwrap();
-        let log = Arc::new(Log::open(&dir.path().join("db")).unwrap());
+        let log = Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("db")).unwrap(),
+        );
         let jobs = JobService::open(log).unwrap();
         jobs.create(dispatch_epoch("retry", 1)).unwrap();
         jobs.create(dispatch_epoch("retry", 2)).unwrap();
