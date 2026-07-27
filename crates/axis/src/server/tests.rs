@@ -48,6 +48,7 @@ fn test_state() -> (AppState, tempfile::TempDir) {
     let mut search = SearchIndex::from_log(log_arc.clone());
     search.build_from_log(&log_arc).unwrap();
     let state = AppState {
+        storage_backend: crate::store::Backend::Sqlite,
         views: Arc::new(RwLock::new(views)),
         search: Arc::new(RwLock::new(search)),
         token: Arc::new("testtoken".to_string()),
@@ -1186,6 +1187,7 @@ async fn sort_by_message_count_orders_descending() {
     let (tx, _rx) = broadcast::channel(64);
     let log = Arc::new(log);
     let state = AppState {
+        storage_backend: crate::store::Backend::Sqlite,
         views: Arc::new(RwLock::new(views)),
         search: Arc::new(RwLock::new(search)),
         token: Arc::new("testtoken".to_string()),
@@ -1332,6 +1334,9 @@ async fn health_is_unauthenticated() {
     assert_eq!(v["importState"], "done");
     assert_eq!(v["hermesProfile"], "default");
     assert_eq!(v["syncConnected"], true);
+    // The backend must be reported, and must be a runtime fact rather than a
+    // compile-time guess.
+    assert_eq!(v["storageBackend"], "sqlite");
 }
 
 #[tokio::test]

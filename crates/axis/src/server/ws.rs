@@ -1050,6 +1050,7 @@ mod tests {
         let log = std::sync::Arc::new(crate::log::Log::open(&dir.path().join("l.redb")).unwrap());
 
         AppState {
+            storage_backend: crate::store::Backend::Sqlite,
             views: Arc::new(RwLock::new(crate::views::ViewManager::new())),
             search: Arc::new(RwLock::new(
                 crate::search::SearchIndex::open(&dir.path().join("idx")).unwrap(),

@@ -17,6 +17,48 @@ use crate::event::Event;
 use crate::log::SearchHit;
 use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, SessionRow, SetupRow};
 
+/// Which storage engine is behind the seam.
+///
+/// Axis needs this at runtime, not compile time: the same binary can be built
+/// with the `postgres` feature and still be pointed at SQLite, so a `cfg!`
+/// check would answer the wrong question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    /// Lite edition: single file, single writer, in-process (ADR 0032).
+    Sqlite,
+    /// Full edition: many writers, shared with other subsystems (ADR 0037).
+    Postgres,
+}
+
+impl Backend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Backend::Sqlite => "sqlite",
+            Backend::Postgres => "postgres",
+        }
+    }
+}
+
+/// A capability that exists on one backend and not the other.
+///
+/// This enum is deliberately small and grows only when a real feature needs to
+/// branch. Speculative entries invite dead gates that drift out of truth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Capability {
+    /// Writers on unrelated sessions proceed in parallel. SQLite serializes
+    /// every write through one connection, so a caller that wants real
+    /// concurrency has to know.
+    ConcurrentWriters,
+    /// `pgvector` embedding search. Installed on Full; no SQLite equivalent
+    /// ships with the bundled build.
+    VectorSearch,
+    /// Other subsystems (boards, repo sync, managed apps) can share this
+    /// database. A Lite install's SQLite file is private to axis by design.
+    SharedSubstrate,
+    /// Server-pushed change notification (`LISTEN`/`NOTIFY`). Lite polls.
+    ChangeNotification,
+}
+
 /// The Axis event log: an append-only event stream plus its projections.
 ///
 /// Every `append*` method writes the immutable event **and** applies its
@@ -25,6 +67,23 @@ use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, Sess
 /// the source of truth.
 #[async_trait]
 pub trait EventStore: Send + Sync {
+    /// Which engine is actually in use. Callers branch on this rather than on
+    /// a cargo feature, because the feature only says what was compiled in.
+    fn backend(&self) -> Backend;
+
+    /// Whether a capability is available on this backend.
+    ///
+    /// Derived from `backend()` rather than left to each impl, so adding a
+    /// backend cannot silently claim capabilities it lacks.
+    fn supports(&self, capability: Capability) -> bool {
+        match (self.backend(), capability) {
+            (Backend::Postgres, _) => true,
+            // SQLite has none of these, and pretending otherwise is how a
+            // Lite install ends up with a feature that corrupts or hangs.
+            (Backend::Sqlite, _) => false,
+        }
+    }
+
     // ---- append ----------------------------------------------------------
 
     async fn append(&self, event: &Event) -> Result<u64>;

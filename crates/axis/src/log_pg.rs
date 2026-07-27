@@ -51,6 +51,11 @@ impl PgLog {
         Ok(Self { pool })
     }
 
+    /// Which engine this is, for the runtime check axis exposes on /api/health.
+    pub fn backend(&self) -> crate::store::Backend {
+        crate::store::Backend::Postgres
+    }
+
     /// Shared pool, so other subsystems (boards, repo sync, managed apps) reuse
     /// one set of connections instead of opening their own.
     pub fn pool(&self) -> &PgPool {

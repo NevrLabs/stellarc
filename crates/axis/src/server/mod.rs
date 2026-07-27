@@ -101,6 +101,10 @@ pub struct AppState {
     /// The durable event log — sole source of truth. Appended to on new
     /// session creation and message events.
     pub log: Arc<Log>,
+    /// Which engine backs `log`. A runtime fact: a binary compiled with the
+    /// `postgres` feature can still be pointed at SQLite, so callers that need
+    /// to branch (or the UI showing the edition) must ask this, not `cfg!`.
+    pub storage_backend: crate::store::Backend,
     /// Event-backed durable job records and reconciliation state.
     pub jobs: Arc<crate::jobs::JobService>,
     /// Bridge manager: owns agent runtimes for managed (stellarc-source) sessions.
@@ -325,6 +329,9 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
         "syncConnected": state.sync_connected.load(Ordering::SeqCst),
         "hermesProfile": state.hermes_profile.as_str(),
         "edge": if state.edge.healthy() { "ready" } else { "missing" },
+        // Runtime fact, not a compile-time one: a binary built with the
+        // postgres feature can still be running on SQLite.
+        "storageBackend": state.storage_backend.as_str(),
     }))
 }
 

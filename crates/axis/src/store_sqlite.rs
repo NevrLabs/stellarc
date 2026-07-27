@@ -16,7 +16,7 @@ use async_trait::async_trait;
 
 use crate::event::Event;
 use crate::log::{Log, SearchHit};
-use crate::store::EventStore;
+use crate::store::{Backend, EventStore};
 use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, SessionRow, SetupRow};
 
 /// Runs a blocking closure off the async runtime with a cloned `Arc<Log>`.
@@ -39,6 +39,10 @@ pub struct SqliteStore(pub Arc<Log>);
 
 #[async_trait]
 impl EventStore for SqliteStore {
+    fn backend(&self) -> Backend {
+        Backend::Sqlite
+    }
+
     // ---- append ----------------------------------------------------------
 
     async fn append(&self, event: &Event) -> Result<u64> {
@@ -192,6 +196,7 @@ impl EventStore for SqliteStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::Capability;
 
     /// The seam must be object-safe and actually usable as `Arc<dyn
     /// EventStore>` — that is the whole reason for `async_trait` here. This
@@ -201,6 +206,15 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let log = Arc::new(Log::open(&dir.path().join("t.db")).expect("open"));
         let store: Arc<dyn EventStore> = Arc::new(SqliteStore(log));
+
+        assert_eq!(store.backend(), Backend::Sqlite);
+        assert_eq!(store.backend().as_str(), "sqlite");
+        // Lite must not claim Full-only capabilities — a false positive here is
+        // how a feature that needs concurrent writers ships broken on SQLite.
+        assert!(!store.supports(Capability::ConcurrentWriters));
+        assert!(!store.supports(Capability::VectorSearch));
+        assert!(!store.supports(Capability::SharedSubstrate));
+        assert!(!store.supports(Capability::ChangeNotification));
 
         assert_eq!(store.event_count().await.expect("count"), 0);
         assert!(store.list_sessions().await.expect("sessions").is_empty());

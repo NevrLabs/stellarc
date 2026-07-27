@@ -229,6 +229,7 @@ pub async fn run() -> Result<()> {
     let node_registry = NodeRegistry::with_inventory(&home)?;
 
     let mut state = AppState {
+        storage_backend: crate::store::Backend::Sqlite,
         views: Arc::new(RwLock::new(views)),
         search: Arc::new(RwLock::new(search)),
         token: Arc::new(token.clone()),
