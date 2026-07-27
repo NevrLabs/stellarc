@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Icon } from "../../../components/Icon";
 import { BrandIcon, agentBrand } from "../../../components/BrandIcons";
-import { useAgents } from "../../../hooks/queries";
+import { useAgentCatalog } from "../../../hooks/queries";
 import type { ModelEntry } from "../../../types";
 
 const THINKING_KEY = "stellarc-thinking";
@@ -62,12 +62,12 @@ export function Composer({
   sessionAgent: string | null;
   sessionNode: string | null;
 }) {
-  const { data: agentsData } = useAgents();
-  const agents = agentsData?.agents ?? [];
+  const { data: catalog } = useAgentCatalog();
+  const nodeAgents = catalog?.nodes.find((node) => node.nodeId === sessionNode)?.agents ?? [];
 
-  // The agent is locked from the session — find it for icon + provider + models.
-  const lockedAgent = agents.find(
-    (a) => a.id === sessionAgent || (sessionAgent == null && a.isDefault),
+  // Agent IDs are only unique within a node; resolve the session's exact node first.
+  const lockedAgent = nodeAgents.find(
+    (agent) => agent.id === sessionAgent || (sessionAgent == null && agent.isDefault),
   );
   const agentIcon = agentBrand(lockedAgent?.kind, lockedAgent?.provider);
   const agentName = lockedAgent?.id ?? sessionAgent ?? "agent";
