@@ -22,7 +22,6 @@ use std::sync::{
 
 use crate::{
     auth, import,
-    log::Log,
     node::NodeRegistry,
     search::SearchIndex,
     server::{self, AppState, ImportState},
@@ -129,7 +128,7 @@ pub async fn run() -> Result<()> {
 
     // ---- open the SQLite event log (sole source of truth for native data) ----
     let log_path = home.join("stellarc.db");
-    let log = Arc::new(Log::open(&log_path).context("opening event log")?);
+    let log = Arc::new(crate::event_log::EventLog::open(&log_path).context("opening event log")?);
     // Drop the previous boot's state.db-imported sessions so the re-index is
     // idempotent (native events survive a restart).
     log.retain_native().context("retaining native events")?;
@@ -159,7 +158,7 @@ pub async fn run() -> Result<()> {
 
     // ---- assemble server state ----
     let (deltas, _rx) = broadcast::channel(1024);
-    // `log` is already an Arc<Log> (opened at the top); reuse it directly.
+    // `log` is already an Arc<crate::event_log::EventLog> (opened at the top); reuse it directly.
     let log_arc = log;
     let jobs =
         Arc::new(crate::jobs::JobService::open(log_arc.clone()).context("replaying durable jobs")?);
@@ -229,7 +228,7 @@ pub async fn run() -> Result<()> {
     let node_registry = NodeRegistry::with_inventory(&home)?;
 
     let mut state = AppState {
-        storage_backend: crate::store::Backend::Sqlite,
+        storage_backend: log_arc.backend(),
         views: Arc::new(RwLock::new(views)),
         search: Arc::new(RwLock::new(search)),
         token: Arc::new(token.clone()),

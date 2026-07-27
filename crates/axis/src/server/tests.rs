@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::event::Event;
-use crate::log::Log;
 use crate::server::dto::SessionDto;
 use axum::body::Body;
 use axum::http::Request;
@@ -10,7 +9,8 @@ use tower::ServiceExt; // oneshot
 
 fn test_state() -> (AppState, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
-    let log = Log::open(&dir.path().join("log.redb")).unwrap();
+    let log =
+        crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("log.redb")).unwrap();
     log.append(&Event::SessionCreated {
         session_id: "s1".into(),
         hermes_id: "h1".into(),
@@ -1162,7 +1162,8 @@ async fn sort_by_message_count_orders_descending() {
     // Build a 3-session state where started_at order != messageCount order,
     // so a working sort is distinguishable from the view's default.
     let dir = tempfile::tempdir().unwrap();
-    let log = Log::open(&dir.path().join("log.redb")).unwrap();
+    let log =
+        crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("log.redb")).unwrap();
     let mk = |id: &str, started: f64, msgs: u64| Event::SessionCreated {
         session_id: id.into(),
         hermes_id: id.into(),
@@ -1203,7 +1204,12 @@ async fn sort_by_message_count_orders_descending() {
         log: log.clone(),
         jobs: Arc::new(crate::jobs::JobService::open(log.clone()).unwrap()),
         bridge: Arc::new(BridgeManager::with_factory(
-            Arc::new(Log::open(&dir.path().join("bridge-log.redb")).unwrap()),
+            Arc::new(
+                crate::event_log::EventLog::open_sqlite_for_test(
+                    &dir.path().join("bridge-log.redb"),
+                )
+                .unwrap(),
+            ),
             test_support::mock_factory(),
         )),
         sync_connected: Arc::new(AtomicBool::new(true)),
@@ -1542,7 +1548,10 @@ async fn post_sessions_creates_managed_stellarc_session() {
     // id is backfilled lazily on the first send).
     let (mut state, _d) = test_state();
     state.bridge = Arc::new(BridgeManager::with_factory(
-        Arc::new(Log::open(&_d.path().join("bridge-log-a.redb")).unwrap()),
+        Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&_d.path().join("bridge-log-a.redb"))
+                .unwrap(),
+        ),
         test_support::mock_factory(),
     ));
     let app = build_router(state);
@@ -2543,7 +2552,7 @@ fn cards_survive_restart_via_replay() {
     // a fresh ViewManager, verify the card state is fully reconstructed.
     let dir = tempfile::tempdir().unwrap();
     let log_path = dir.path().join("log.redb");
-    let log = Log::open(&log_path).unwrap();
+    let log = crate::event_log::EventLog::open_sqlite_for_test(&log_path).unwrap();
 
     // Card 1: create → assign → claim → complete
     log.append(&Event::CardCreated {
@@ -2618,7 +2627,7 @@ fn cards_survive_restart_via_replay() {
 
     // Drop the log, reopen it (simulating restart), replay.
     drop(log);
-    let reopened = Log::open(&log_path).unwrap();
+    let reopened = crate::event_log::EventLog::open_sqlite_for_test(&log_path).unwrap();
     let mut views = ViewManager::new();
     views.replay(&reopened).unwrap();
 

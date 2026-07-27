@@ -9,11 +9,10 @@ use std::sync::Arc;
 
 use anyhow::{bail, Result};
 
-use crate::log::Log;
 pub use crate::log::SearchHit;
 
 pub struct SearchIndex {
-    log: Option<Arc<Log>>,
+    log: Option<Arc<crate::event_log::EventLog>>,
 }
 
 impl SearchIndex {
@@ -23,11 +22,11 @@ impl SearchIndex {
         Ok(Self { log: None })
     }
 
-    pub fn from_log(log: Arc<Log>) -> Self {
+    pub fn from_log(log: Arc<crate::event_log::EventLog>) -> Self {
         Self { log: Some(log) }
     }
 
-    pub fn build_from_log(&mut self, _log: &Log) -> Result<()> {
+    pub fn build_from_log(&mut self, _log: &crate::event_log::EventLog) -> Result<()> {
         Ok(())
     }
 
@@ -60,7 +59,10 @@ mod tests {
     #[test]
     fn fts_search_reads_transactional_message_projection() {
         let dir = tempfile::tempdir().unwrap();
-        let log = Arc::new(Log::open(&dir.path().join("stellarc.db")).unwrap());
+        let log = Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("stellarc.db"))
+                .unwrap(),
+        );
         log.append(&Event::SessionCreated {
             session_id: "s".into(),
             hermes_id: "h".into(),

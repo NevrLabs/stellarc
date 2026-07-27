@@ -44,7 +44,6 @@ use serde_json::json;
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::log::Log;
 use crate::search::SearchIndex;
 use crate::state_db_reader::StateDbReader;
 use crate::views::ViewManager;
@@ -100,7 +99,7 @@ pub struct AppState {
     pub snapshot_messages: u64,
     /// The durable event log — sole source of truth. Appended to on new
     /// session creation and message events.
-    pub log: Arc<Log>,
+    pub log: Arc<crate::event_log::EventLog>,
     /// Which engine backs `log`. A runtime fact: a binary compiled with the
     /// `postgres` feature can still be pointed at SQLite, so callers that need
     /// to branch (or the UI showing the edition) must ask this, not `cfg!`.

@@ -10,6 +10,7 @@ pub mod edge;
 pub mod edit_model;
 pub mod enroll;
 pub mod event;
+pub mod event_log;
 pub mod import;
 pub mod irc;
 pub mod jobs;

@@ -289,9 +289,8 @@ mod tests {
 
     #[test]
     fn project_created_json_roundtrips() {
-        use crate::log::Log;
         let f = tempfile::NamedTempFile::new().unwrap();
-        let log = Log::open(f.path()).unwrap();
+        let log = crate::event_log::EventLog::open_sqlite_for_test(f.path()).unwrap();
         log.append(&created("p1", "Test", 1.0)).unwrap();
         let events = log.read_all().unwrap();
         assert_eq!(events.len(), 1);
@@ -304,9 +303,8 @@ mod tests {
 
     #[test]
     fn project_updated_json_roundtrips() {
-        use crate::log::Log;
         let f = tempfile::NamedTempFile::new().unwrap();
-        let log = Log::open(f.path()).unwrap();
+        let log = crate::event_log::EventLog::open_sqlite_for_test(f.path()).unwrap();
         let e = Event::ProjectUpdated {
             project_id: "p1".into(),
             name: Some("New".into()),
@@ -321,9 +319,8 @@ mod tests {
 
     #[test]
     fn session_project_attached_json_roundtrips() {
-        use crate::log::Log;
         let f = tempfile::NamedTempFile::new().unwrap();
-        let log = Log::open(f.path()).unwrap();
+        let log = crate::event_log::EventLog::open_sqlite_for_test(f.path()).unwrap();
         let e = Event::SessionProjectAttached {
             session_id: "sess-1".into(),
             project_id: "p1".into(),

@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OpenFlags};
 
 use crate::event::Event;
-use crate::log::Log;
 
 const MESSAGE_BATCH_SIZE: i64 = 1_000;
 
@@ -21,7 +20,7 @@ pub struct ImportStats {
 }
 
 /// Import Hermes sessions from `state.db` as `Event::SessionCreated` events.
-pub fn import_sessions(state_db: &Path, log: &Log) -> Result<ImportStats> {
+pub fn import_sessions(state_db: &Path, log: &crate::event_log::EventLog) -> Result<ImportStats> {
     let started = Instant::now();
     let conn = open_read_only(state_db)?;
     let mut stmt = conn.prepare(
@@ -68,7 +67,7 @@ pub fn import_sessions(state_db: &Path, log: &Log) -> Result<ImportStats> {
 }
 
 /// Import active Hermes messages from `state.db` as `Event::MessageAppended` events.
-pub fn import_messages(state_db: &Path, log: &Log) -> Result<ImportStats> {
+pub fn import_messages(state_db: &Path, log: &crate::event_log::EventLog) -> Result<ImportStats> {
     let started = Instant::now();
     let conn = open_read_only(state_db)?;
     let mut offset = 0;
@@ -207,9 +206,9 @@ mod tests {
         file
     }
 
-    fn fresh_log() -> (NamedTempFile, Log) {
+    fn fresh_log() -> (NamedTempFile, crate::event_log::EventLog) {
         let file = NamedTempFile::new().unwrap();
-        let log = Log::open(file.path()).unwrap();
+        let log = crate::event_log::EventLog::open_sqlite_for_test(file.path()).unwrap();
         (file, log)
     }
 

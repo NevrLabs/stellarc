@@ -656,7 +656,7 @@ platforms = ["*"]
     #[test]
     fn legacy_migration_is_idempotent_across_double_replay() {
         let file = tempfile::NamedTempFile::new().unwrap();
-        let log = crate::log::Log::open(file.path()).unwrap();
+        let log = crate::event_log::EventLog::Sqlite(crate::log::Log::open(file.path()).unwrap());
         log.append(&registered(
             "mcp",
             "gitnexus",

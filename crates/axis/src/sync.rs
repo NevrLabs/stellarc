@@ -17,7 +17,6 @@ use rusqlite::{params, Connection};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::event::Event;
-use crate::log::Log;
 use crate::search::SearchIndex;
 use crate::server::dto::MessageDto;
 use crate::server::ws::ServerFrame;
@@ -390,7 +389,7 @@ pub fn reconcile_session(
 /// reconciles each session's hot window when compaction/tombstones happen.
 pub fn run_live_sync(
     state_db: PathBuf,
-    log: Arc<Log>,
+    log: Arc<crate::event_log::EventLog>,
     views: Arc<RwLock<ViewManager>>,
     search: Arc<RwLock<SearchIndex>>,
     deltas: broadcast::Sender<ServerFrame>,
@@ -456,7 +455,7 @@ pub fn run_live_sync(
 }
 
 fn apply_events(
-    log: &Log,
+    log: &crate::event_log::EventLog,
     views: &Arc<RwLock<ViewManager>>,
     search: &Arc<RwLock<SearchIndex>>,
     deltas: &broadcast::Sender<ServerFrame>,
@@ -752,7 +751,7 @@ mod tests {
         drop(conn);
 
         let log_file = NamedTempFile::new().unwrap();
-        let log = Log::open(log_file.path()).unwrap();
+        let log = crate::event_log::EventLog::open_sqlite_for_test(log_file.path()).unwrap();
         let views = Arc::new(RwLock::new(ViewManager::new()));
         let search_dir = tempfile::tempdir().unwrap();
         let search = Arc::new(RwLock::new(SearchIndex::open(search_dir.path()).unwrap()));

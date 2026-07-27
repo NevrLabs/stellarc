@@ -1047,7 +1047,9 @@ mod tests {
         use tokio::sync::RwLock;
 
         let dir = tempfile::tempdir().unwrap();
-        let log = std::sync::Arc::new(crate::log::Log::open(&dir.path().join("l.redb")).unwrap());
+        let log = std::sync::Arc::new(
+            crate::event_log::EventLog::open_sqlite_for_test(&dir.path().join("l.redb")).unwrap(),
+        );
 
         AppState {
             storage_backend: crate::store::Backend::Sqlite,
