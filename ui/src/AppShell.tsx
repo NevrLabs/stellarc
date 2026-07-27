@@ -120,6 +120,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
         >
           <Icon name="mountain" size={14} />
         </button>
+        {import.meta.env.VITE_STELLARC_ENV === "dev" && <span className="env-pill">DEV</span>}
         <span className="divider" />
         {/* View selector — icon chips for each surface (concept: topbar .layouts) */}
         <div className="layouts" role="tablist" aria-label="Surfaces">

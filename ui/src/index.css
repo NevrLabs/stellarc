@@ -68,6 +68,7 @@ button {
 /* ── TopBar ──────────────────────────────────────── */
 .topbar { height: var(--topbar-h); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-6); background: var(--chrome); }
 .tb-left { display: flex; align-items: center; gap: var(--space-4); flex: 1; }
+.env-pill { padding: 2px 6px; border: var(--border-w) solid var(--silver-line); border-radius: var(--radius-full); color: var(--silver); font-family: var(--font-mono); font-size: var(--fs-9); font-weight: var(--fw-semibold); letter-spacing: .08em; }
 .icobtn { display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: var(--radius); color: var(--dim); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
 .icobtn:hover { background: var(--hover); color: var(--text); }
 .icobtn:focus-visible { outline: var(--ring-w) solid var(--ring); outline-offset: var(--ring-offset); }
