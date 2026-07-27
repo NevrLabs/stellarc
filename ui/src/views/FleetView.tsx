@@ -546,7 +546,9 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
               </div>
               <div className="kv">
                 <span className="k">HOST</span>
-                <span className="v">{node.hostname}</span>
+                <span className="v fleet-host" title={node.hostname}>
+                  {shortNodeId(node.hostname)}
+                </span>
               </div>
             </div>
             <div className="gcard">

@@ -83,6 +83,21 @@ export const NODES: NodeInfo[] = [
     transport: "iroh",
     irohNodeId: "93141ef93390a387aec148672f7ae44a9ee4c02a0f23f82c0bb80fcc2e499321",
   },
+  {
+    // Evicted Orbit that never reported a hostname: its nodeId IS its raw iroh
+    // key. Proves the Fleet handles a long id without overflowing at 1280px and
+    // that role/name shortening reads off live topology, not a curated label.
+    nodeId: "f79c02440bdf488b08b91e52796db23218109ba5f73954ec192d96be791fb021",
+    hostname: "f79c02440bdf488b08b91e52796db23218109ba5f73954ec192d96be791fb021",
+    status: "offline",
+    slotsUsed: 0,
+    slotsTotal: 0,
+    version: "",
+    local: false,
+    lastHeartbeatAgoSecs: 9717,
+    transport: "iroh",
+    irohNodeId: "f79c02440bdf488b08b91e52796db23218109ba5f73954ec192d96be791fb021",
+  },
 ];
 
 const TITLES = [

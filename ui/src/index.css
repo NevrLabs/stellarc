@@ -516,6 +516,16 @@ button {
 .fleet-default-tag { margin-left: var(--space-4); font-family: var(--font-mono); font-size: var(--fs-10); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--faint); }
 .fleet-empty { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--faint); padding: var(--space-6) 0; }
 .fleet-detect-err { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); padding: var(--space-4) var(--space-5-5); font-size: var(--fs-12); color: var(--red); background: var(--err-wash); border: var(--border-w) solid var(--err-line); border-radius: var(--radius); }
+/* Node identity — role tag + overflow-safe names (long evicted ids). */
+.fleet-role.axis { color: var(--accent); background: var(--accent-wash); border-color: var(--accent-line); }
+.fleet-role.orbit { color: var(--dim); }
+.fleet-card-name { display: block; min-width: 0; font-size: var(--fs-13); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fleet-card-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.fleet-node-header .kv { gap: var(--space-4); }
+.fleet-node-header .kv .v { min-width: 0; }
+.fleet-host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.ggrid .gcard .grow { min-width: 0; }
+.ggrid .gcard .gtitle { min-width: 0; }
 .ubar-row { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5-5) var(--space-10); background: var(--elev); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); }
 
 /* ── Chat edge overlays / hover zones ────────────── */
