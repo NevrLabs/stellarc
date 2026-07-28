@@ -399,17 +399,6 @@ export async function updateSession(
   return res.json() as Promise<Session>;
 }
 
-/** Fork an observed session into an Stellarc-managed session and return it. */
-export async function forkSession(sessionId: string): Promise<Session> {
-  const res = await fetch(`${BASE}/api/sessions/${sessionId}/fork`, {
-    method: "POST",
-    headers: { ...authHeaders(), "content-type": "application/json" },
-    body: JSON.stringify({ forkType: "sub" }),
-  });
-  if (!res.ok) throw new Error(`fork failed (${res.status})`);
-  const body = (await res.json()) as { session: Session };
-  return body.session;
-}
 
 /**
  * Send a message to a MANAGED (acp-source) session. The agent's response

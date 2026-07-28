@@ -301,33 +301,6 @@ export const handlers = [
     },
   ),
 
-  // POST /api/sessions/:id/fork
-  http.post<{ id: string }>("http://127.0.0.1:8787/api/organizations/:organizationId/sessions/:id/fork", ({ params }) => {
-    const source = SESSIONS.find((session) => session.id === params.id);
-    if (!source) return new HttpResponse(null, { status: 404 });
-    const id = `${source.id}-fork`;
-    const now = Date.now() / 1000;
-    const forked = {
-      ...source,
-      id,
-      hermesId: `${source.hermesId}-fork`,
-      source: "stellarc" as const,
-      forkedFrom: source.id,
-      forkPoint: source.messageCount,
-      forkType: "sub" as const,
-      managed: true,
-      archived: false,
-      startedAt: now,
-      lastActivity: now,
-      liveness: "active" as const,
-    };
-    MESSAGES_BY_SESSION[id] = (MESSAGES_BY_SESSION[source.id] ?? []).map((message) => ({
-      ...message,
-      sessionId: id,
-    }));
-    SESSIONS.unshift(forked);
-    return HttpResponse.json({ session: forked });
-  }),
 
   // GET /api/sessions/:id/messages
   http.get<{ id: string }>(

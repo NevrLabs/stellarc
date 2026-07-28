@@ -1430,91 +1430,6 @@ async fn post_message_to_unknown_session_is_404() {
 }
 
 #[tokio::test]
-async fn post_fork_observed_session_returns_managed_fork_and_leaves_source() {
-    let (mut state, _d) = test_state();
-    state.bridge = Arc::new(BridgeManager::with_factory(
-        state.log.clone(),
-        test_support::mock_factory(),
-    ));
-    for event in [
-        Event::ProjectCreated {
-            project_id: "primary".into(),
-            name: "Primary".into(),
-            created_at: 102.0,
-        },
-        Event::ProjectCreated {
-            project_id: "context".into(),
-            name: "Context".into(),
-            created_at: 103.0,
-        },
-        Event::SessionProjectAttached {
-            session_id: "s1".into(),
-            project_id: "primary".into(),
-            attached_at: 104.0,
-        },
-        Event::SessionContextProjectAttached {
-            session_id: "s1".into(),
-            project_id: "context".into(),
-            mode: "read".into(),
-            attached_by: "operator".into(),
-            attached_at: 105.0,
-        },
-    ] {
-        state.log.append(&event).unwrap();
-        state.views.write().await.apply(&event);
-    }
-    let app = build_router(state.clone());
-
-    let source_before = {
-        let views = state.views.read().await;
-        SessionDto::from_row(views.sessions.get("s1").unwrap())
-    };
-
-    let res = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/api/sessions/s1/fork")
-                .header("authorization", "Bearer testtoken")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"forkType":"sub"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-
-    assert_eq!(v["session"]["source"], "stellarc");
-    assert_eq!(v["session"]["managed"], true);
-    assert_eq!(v["session"]["forkedFrom"], "s1");
-    assert_eq!(v["session"]["forkType"], "sub");
-    assert_eq!(v["session"]["projectId"], "primary");
-    assert_eq!(v["session"]["contextProjects"], serde_json::json!([]));
-    let child_id = v["session"]["id"].as_str().unwrap();
-    assert_ne!(child_id, "s1");
-    let child = state
-        .views
-        .read()
-        .await
-        .sessions
-        .get(child_id)
-        .cloned()
-        .unwrap();
-    assert_eq!(child.project_id.as_deref(), Some("primary"));
-    assert!(child.context_projects.is_empty());
-
-    let source_after = {
-        let views = state.views.read().await;
-        SessionDto::from_row(views.sessions.get("s1").unwrap())
-    };
-    assert_eq!(source_after, source_before);
-}
-
-#[tokio::test]
 async fn search_finds_indexed_message() {
     let (state, _d) = test_state();
     let app = build_router(state);
@@ -2687,7 +2602,6 @@ async fn route_contract_all_expected_routes_exist() {
         ("GET", "/api/sessions/s1", &[200]),
         ("GET", "/api/sessions/nonexistent", &[404]),
         ("PATCH", "/api/sessions/s1", &[200]),
-        ("POST", "/api/sessions/s1/fork", &[200, 409]),
         ("POST", "/api/sessions/s1/cancel", &[200, 409]),
         ("GET", "/api/sessions/s1/messages", &[200]),
         ("GET", "/api/search", &[200]),

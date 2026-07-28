@@ -40,12 +40,6 @@ pub struct NewSession {
     pub space: Option<String>,
 }
 
-/// The result of forking an observed session into a managed one.
-pub struct ForkedSession {
-    pub session_id: String,
-    pub hermes_id: String,
-}
-
 /// Manages the lifecycle of agent runtimes for managed (stellarc-source) sessions.
 pub struct BridgeManager {
     /// Event log (for appending SessionCreated / MessageAppended events).
@@ -309,54 +303,6 @@ impl BridgeManager {
         self.table
             .ensure_runtime(session_id, spec, resume_hermes_id)
             .await
-    }
-
-    /// Fork an existing Hermes session into a new managed Stellarc session,
-    /// append the SessionCreated event, and register the runtime for prompts.
-    pub async fn fork_session(
-        &self,
-        source_hermes_id: &str,
-        model: Option<String>,
-        title: Option<String>,
-        message_count: u64,
-        organization_id: Option<&str>,
-    ) -> Result<ForkedSession> {
-        let forked = self.table.fork_runtime(source_hermes_id).await?;
-        let hermes_id = forked.hermes_id;
-        let session_id = self.new_session_id();
-
-        // A fork is a real managed session — give it its own space too.
-        let _ = self.ensure_space(organization_id.unwrap_or("personal"), &session_id);
-
-        let now = chrono_epoch_pub();
-        let created = Event::SessionCreated {
-            session_id: session_id.clone(),
-            hermes_id: hermes_id.clone(),
-            source: "stellarc".into(),
-            model,
-            title,
-            started_at: now,
-            message_count,
-            input_tokens: 0,
-            output_tokens: 0,
-            agent: None,
-            node: None,
-        };
-        let mut events = vec![created];
-        if let Some(organization_id) = organization_id {
-            events.push(Event::SessionOrganizationAssigned {
-                session_id: session_id.clone(),
-                organization_id: organization_id.to_string(),
-            });
-        }
-        self.log.append_batch(&events)?;
-
-        self.table.register(&session_id, forked.runtime).await;
-
-        Ok(ForkedSession {
-            session_id,
-            hermes_id,
-        })
     }
 
     /// Send a prompt to a managed session and return the runtime so the caller

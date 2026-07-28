@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,7 +28,6 @@ import {
   sendMessage,
   cancelSession,
   steerSession,
-  forkSession,
   onFrame,
   respondPermission,
   sendFrame,
@@ -41,7 +39,6 @@ import { ToolCard } from "../components/ToolCard";
 import { DiffCard } from "../components/DiffCard";
 import { isDiffResult } from "../helpers";
 import { Composer } from "../components/Composer";
-import { ForkModal } from "../components/ForkModal";
 import { QueuePanel, type QueuedMsg } from "../components/QueuePanel";
 import { DraftSession } from "../components/DraftSession";
 
@@ -78,29 +75,16 @@ function saveQueue(sessionId: string, items: QueuedMsg[]) {
   }
 }
 
-export function ChatPage({
-  sessionId,
-  onForkRequested,
-}: {
-  sessionId: string;
-  onForkRequested?: (sessionId: string) => void;
-}) {
+export function ChatPage({ sessionId }: { sessionId: string }) {
   if (sessionId === "new") {
     return <DraftSession initialProjectId={new URLSearchParams(window.location.search).get("project")} />;
   }
-  return <ActiveChatPage sessionId={sessionId} onForkRequested={onForkRequested} />;
+  return <ActiveChatPage sessionId={sessionId} />;
 }
 
-function ActiveChatPage({
-  sessionId,
-  onForkRequested,
-}: {
-  sessionId: string;
-  onForkRequested?: (sessionId: string) => void;
-}) {
+function ActiveChatPage({ sessionId }: { sessionId: string }) {
   const { data: session } = useSession(sessionId);
   const { data: msgData, isLoading } = useMessages(sessionId);
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
   // streaming + status — ALL session-scoped, reset on session change.
@@ -661,27 +645,6 @@ function ActiveChatPage({
     [sessionId],
   );
 
-  // ── Fork (fixed-position modal) ───────────────────────────────────
-  const [forkOpen, setForkOpen] = useState(false);
-  const handleForkRequest = useCallback(() => {
-    setForkOpen(true);
-  }, []);
-  const handleForkConfirm = useCallback(async () => {
-    setForkOpen(false);
-    try {
-      const forked = await forkSession(sessionId);
-      if (forked?.id) {
-        void navigate({
-          to: "/sessions/$sessionId",
-          params: { sessionId: forked.id },
-        });
-      }
-    } catch {
-      // user can retry
-    }
-    onForkRequested?.(sessionId);
-  }, [sessionId, navigate, onForkRequested]);
-
 
   return (
     <>
@@ -701,7 +664,6 @@ function ActiveChatPage({
                 key={`${sessionId}-${m.messageId}`}
                 msg={m}
                 steerPending={pendingSteers.has(m.messageId)}
-                onFork={handleForkRequest}
               />
             ))}
             {/* Streaming assistant reply — interleaved text, tool calls, reasoning */}
@@ -791,11 +753,8 @@ function ActiveChatPage({
           <div className="obsbanner">
             <Icon name="alert" size={14} />
             <span style={{ flex: 1 }}>
-              This is an observed session — read-only. Fork it to continue from Stellarc.
+              This is an observed session — read-only.
             </span>
-            <Button type="button" className="btn pri" onClick={() => setForkOpen(true)}>
-              Fork to continue
-            </Button>
           </div>
         </div>
       ) : (
@@ -821,15 +780,6 @@ function ActiveChatPage({
         </div>
       )}
 
-      {/* Fixed-position fork modal */}
-      <ForkModal
-        open={forkOpen}
-        title="Fork this session?"
-        message="A new Stellarc-managed session will be created, branching from this point. The original session stays unchanged."
-        confirmLabel="Fork to continue"
-        onConfirm={handleForkConfirm}
-        onCancel={() => setForkOpen(false)}
-      />
     </>
   );
 }

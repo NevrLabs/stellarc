@@ -214,26 +214,6 @@ impl AcpClient {
         Ok(())
     }
 
-    pub async fn session_fork(
-        &self,
-        session_id: &str,
-        cwd: &str,
-        mcp_servers: &[Value],
-    ) -> Result<()> {
-        let result = self
-            .request_and_wait(
-                build_session_fork_request(session_id, cwd, mcp_servers, self.alloc_id()),
-                PendingKind::Handshake,
-            )
-            .await?;
-        let forked_id = result
-            .get("sessionId")
-            .and_then(Value::as_str)
-            .context("ACP session/fork response omitted sessionId")?;
-        self.state.lock().await.session_id = Some(forked_id.to_owned());
-        Ok(())
-    }
-
     pub async fn send_command(&self, command: &AgentCommand) -> Result<()> {
         let session_id = self
             .session_id()
@@ -401,15 +381,6 @@ pub fn build_session_resume_request(
     id: AcpId,
 ) -> AcpRequest {
     session_request("session/resume", session_id, cwd, mcp_servers, id)
-}
-
-pub fn build_session_fork_request(
-    session_id: &str,
-    cwd: &str,
-    mcp_servers: &[Value],
-    id: AcpId,
-) -> AcpRequest {
-    session_request("session/fork", session_id, cwd, mcp_servers, id)
 }
 
 fn session_request(

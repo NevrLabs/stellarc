@@ -40,10 +40,6 @@ pub struct RuntimeEntry {
 
 /// The result of forking a source agent session into a fresh runtime: the
 /// started runtime and the agent session id it captured.
-pub struct ForkedRuntime {
-    pub runtime: Arc<dyn AgentRuntime>,
-    pub hermes_id: String,
-}
 
 /// Active agent runtimes keyed by Stellarc session id, plus the factory that
 /// spawns them (ensure/send/stop per-session mechanics).
@@ -132,23 +128,6 @@ impl RuntimeTable {
         );
 
         Ok((runtime, hermes_id))
-    }
-
-    /// Fork a source agent session into a fresh runtime (not yet registered —
-    /// the caller assigns the Stellarc session id and calls [`Self::register`]).
-    pub async fn fork_runtime(&self, source_hermes_id: &str) -> Result<ForkedRuntime> {
-        let runtime = (self.factory)(None, &RuntimeSpec::default())?;
-        runtime
-            .fork_session(source_hermes_id)
-            .await
-            .context("forking agent runtime session")?;
-
-        let hermes_id = runtime
-            .hermes_session_id()
-            .await
-            .filter(|id| !id.is_empty())
-            .unwrap_or_else(|| format!("fork-{}", chrono_millis()));
-        Ok(ForkedRuntime { runtime, hermes_id })
     }
 
     /// Register an already-started runtime under an Stellarc session id,
@@ -277,10 +256,6 @@ mod tests {
             Ok(())
         }
 
-        async fn fork_session(&self, _session_id: &str) -> Result<()> {
-            Ok(())
-        }
-
         async fn send(&self, _cmd: AgentCommand) -> Result<()> {
             Ok(())
         }
@@ -296,19 +271,6 @@ mod tests {
         async fn hermes_session_id(&self) -> Option<String> {
             self.hermes_id.lock().await.clone()
         }
-    }
-
-    #[tokio::test]
-    async fn fork_runtime_replaces_empty_runtime_id() {
-        let table = RuntimeTable::with_factory(Arc::new(|_, _| {
-            Ok(Arc::new(SlowRuntime {
-                started: Arc::new(Notify::new()),
-                release: Arc::new(Notify::new()),
-                hermes_id: Mutex::new(Some(String::new())),
-            }) as Arc<dyn AgentRuntime>)
-        }));
-        let fork = table.fork_runtime("source").await.unwrap();
-        assert!(fork.hermes_id.starts_with("fork-"));
     }
 
     #[tokio::test]

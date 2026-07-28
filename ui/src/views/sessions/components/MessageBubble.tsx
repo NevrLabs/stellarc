@@ -26,11 +26,9 @@ import { DiffCard } from "./DiffCard";
 export const MessageBubble = React.memo(function MessageBubble({
   msg,
   steerPending = false,
-  onFork,
 }: {
   msg: Message;
   steerPending?: boolean;
-  onFork: () => void;
 }) {
   const isUser = msg.role === "user";
   const isSteer = msg.role === "user" && msg.finishReason === "steer";
@@ -174,9 +172,6 @@ export const MessageBubble = React.memo(function MessageBubble({
         <MessageActions>
           <MessageAction className="mt-btn" onClick={handleCopy} tooltip="Copy" label="Copy message">
             <Icon name={copied ? "check" : "copy"} size={10} />
-          </MessageAction>
-          <MessageAction className="mt-btn" tooltip="Fork from here" label="Fork message" onClick={onFork}>
-            <Icon name="git-branch" size={10} />
           </MessageAction>
         </MessageActions>
         <Marker className="mt-dt">{dt}</Marker>
