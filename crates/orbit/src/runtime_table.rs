@@ -146,6 +146,7 @@ impl RuntimeTable {
         let hermes_id = runtime
             .hermes_session_id()
             .await
+            .filter(|id| !id.is_empty())
             .unwrap_or_else(|| format!("fork-{}", chrono_millis()));
         Ok(ForkedRuntime { runtime, hermes_id })
     }
@@ -295,6 +296,19 @@ mod tests {
         async fn hermes_session_id(&self) -> Option<String> {
             self.hermes_id.lock().await.clone()
         }
+    }
+
+    #[tokio::test]
+    async fn fork_runtime_replaces_empty_runtime_id() {
+        let table = RuntimeTable::with_factory(Arc::new(|_, _| {
+            Ok(Arc::new(SlowRuntime {
+                started: Arc::new(Notify::new()),
+                release: Arc::new(Notify::new()),
+                hermes_id: Mutex::new(Some(String::new())),
+            }) as Arc<dyn AgentRuntime>)
+        }));
+        let fork = table.fork_runtime("source").await.unwrap();
+        assert!(fork.hermes_id.starts_with("fork-"));
     }
 
     #[tokio::test]

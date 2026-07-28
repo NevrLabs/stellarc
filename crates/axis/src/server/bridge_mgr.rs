@@ -323,7 +323,7 @@ impl BridgeManager {
     ) -> Result<ForkedSession> {
         let forked = self.table.fork_runtime(source_hermes_id).await?;
         let hermes_id = forked.hermes_id;
-        let session_id = format!("oly-{}", &hermes_id[..hermes_id.len().min(8)]);
+        let session_id = format!("oly-{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
 
         // A fork is a real managed session — give it its own space too.
         let _ = self.ensure_space(organization_id.unwrap_or("personal"), &session_id);
