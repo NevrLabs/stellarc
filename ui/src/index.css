@@ -191,7 +191,7 @@ button {
 .chatcol { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .transcript { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-12) var(--space-12); }
 .tcol { width: 100%; max-width: var(--measure); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-12); }
-.msg-row { display: flex; flex-direction: column; max-width: 80%; }
+.msg-row { display: flex; flex-direction: column; width: fit-content; max-width: 80%; }
 .msg-row-user { margin-left: auto; align-items: flex-end; }
 .msg-row-ai { margin-right: auto; align-items: flex-start; max-width: var(--measure-msg); }
 .msg-user { position: relative; display: flex; flex-direction: column; align-items: flex-end; font-size: var(--fs-13-5); line-height: var(--lh-normal); color: var(--text); }
@@ -451,9 +451,10 @@ button {
 /* ── Message toolbar: [Copy] [Fork] datetime ──
    Hover-only (matches the old action bar behavior). Hidden by default,
    fades in on message hover. */
-.msg-toolbar { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); opacity: 1; pointer-events: auto; }
+.msg-toolbar { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease); }
 .msg-row-user .msg-toolbar { justify-content: flex-end; }
 .msg-row-ai .msg-toolbar { justify-content: flex-start; }
+.msg-row:hover > .msg-toolbar, .msg-row:focus-within > .msg-toolbar { opacity: 1; pointer-events: auto; }
 .mt-btn { display: flex; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--faint); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); cursor: pointer; border: none; background: none; }
 .mt-btn:hover { background: var(--hover); color: var(--text); }
 .mt-dt { font-family: var(--font-mono); font-size: var(--fs-9); color: var(--faint); margin-left: var(--space-2); white-space: nowrap; }
