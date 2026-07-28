@@ -173,10 +173,10 @@ export const MessageBubble = React.memo(function MessageBubble({
       <MessageToolbar className="msg-toolbar">
         <MessageActions>
           <MessageAction className="mt-btn" onClick={handleCopy} tooltip="Copy" label="Copy message">
-            <Icon name={copied ? "check" : "copy"} size={12} />
+            <Icon name={copied ? "check" : "copy"} size={10} />
           </MessageAction>
           <MessageAction className="mt-btn" tooltip="Fork from here" label="Fork message" onClick={onFork}>
-            <Icon name="git-branch" size={12} />
+            <Icon name="git-branch" size={10} />
           </MessageAction>
         </MessageActions>
         <Marker className="mt-dt">{dt}</Marker>

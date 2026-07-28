@@ -440,12 +440,13 @@ button {
 .tc-body { padding: var(--space-2) 0 var(--space-4); }
 .tc-out { font-family: var(--font-mono); font-size: var(--fs-11-5); line-height: var(--lh-normal); color: var(--dim); white-space: pre-wrap; }
 
-/* ── Message toolbar: [Copy] [Fork] datetime ──
-   Always visible below the message; one implementation, no hover overlay. */
-.msg-toolbar { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); opacity: 1; pointer-events: auto; }
+/* ── Message toolbar: compact, revealed by row hover or keyboard focus. ── */
+.msg-toolbar { display: flex; align-items: center; gap: 1px; margin-top: var(--space-1); opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease); }
+.msg-row:hover > .msg-toolbar,
+.msg-row:focus-within > .msg-toolbar { opacity: 1; pointer-events: auto; }
 .msg-row-user .msg-toolbar { justify-content: flex-end; }
 .msg-row-ai .msg-toolbar { justify-content: flex-start; }
-.mt-btn { display: flex; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--dim); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); cursor: pointer; border: none; background: none; }
+.mt-btn { display: flex; width: 20px; height: 20px; min-width: 20px; padding: 0; border-radius: var(--radius-sm); color: var(--dim); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); cursor: pointer; border: none; background: none; }
 .mt-btn:hover { background: var(--hover); color: var(--text); }
 .mt-dt { font-family: var(--font-mono); font-size: var(--fs-9); color: var(--dim); margin-left: var(--space-2); white-space: nowrap; }
 .msg-row-user .mt-dt { margin-left: 0; margin-right: var(--space-2); }
