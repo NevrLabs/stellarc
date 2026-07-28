@@ -191,14 +191,15 @@ button {
 .chatcol { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .transcript { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-12) var(--space-12); }
 .tcol { width: 100%; max-width: var(--measure); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-12); }
-.msg-row { display: flex; flex-direction: column; width: fit-content; max-width: 80%; }
-.msg-row-user { margin-left: auto !important; align-items: flex-end; }
-.msg-row-ai { margin-right: auto; align-items: flex-start; max-width: var(--measure-msg); }
-.msg-user { position: relative; display: flex; flex-direction: column; width: fit-content; max-width: 80%; margin-left: auto; align-items: flex-end; font-size: var(--fs-13-5); line-height: var(--lh-normal); color: var(--text); }
+.msg-row { display: flex; flex-direction: column; width: 100%; }
+.msg-row-user { align-items: flex-end; }
+.msg-row-ai { align-items: flex-start; }
+.msg-user { position: relative; display: flex; flex-direction: column; width: fit-content; max-width: 80%; align-items: flex-end; font-size: var(--fs-13-5); line-height: var(--lh-normal); color: var(--text); }
   .msg-user .msg-bubble { background: var(--elev); border: var(--border-w) solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius-lg); padding: var(--space-5) var(--space-6); }
 /* Steer — a user interrupt injected mid-turn. Distinct border + badge. */
 .msg-steer .msg-bubble { border-color: var(--silver); border-style: dashed; }
 .steer-badge { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: var(--fs-9); letter-spacing: 0.5px; text-transform: uppercase; color: var(--silver); margin-bottom: var(--space-2); }
+.msg-row-ai > .msg-ai { width: min(100%, var(--measure-msg)); }
 .msg-ai { position: relative; max-width: var(--measure-msg); font-size: var(--fs-14); line-height: var(--lh-relaxed); color: var(--text); padding: 2px 0; }
 .msg-ai .who { font-family: var(--font-mono); font-size: var(--fs-9); letter-spacing: var(--tracking-caps); color: var(--faint); margin-bottom: var(--space-3); }
 .msg-ai p { margin-bottom: var(--space-5); }
@@ -439,24 +440,14 @@ button {
 .tc-body { padding: var(--space-2) 0 var(--space-4); }
 .tc-out { font-family: var(--font-mono); font-size: var(--fs-11-5); line-height: var(--lh-normal); color: var(--dim); white-space: pre-wrap; }
 
-/* ── Message action bar ──────────────────────────── */
-.msg-acts { position: absolute; bottom: -30px; left: 0; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 5px; background: var(--chrome); border: var(--border-w) solid var(--border); border-radius: var(--radius); opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--dur-slow); z-index: 3; box-shadow: var(--shadow-pop); }
-.msg-acts::before { content: ''; position: absolute; left: -12px; right: -12px; top: -12px; height: 12px; }
-.msg-user .msg-acts { left: auto; right: 0; }
-.msg-user:hover .msg-acts, .msg-ai:hover .msg-acts, .msg-acts:hover { opacity: 1; pointer-events: auto; transition-delay: 0s; }
-.msg-acts .ts { font-family: var(--font-mono); font-size: var(--fs-9); color: var(--faint); padding: 0 5px; white-space: nowrap; }
-.msg-acts button { display: flex; padding: 3px; border-radius: var(--radius-sm); color: var(--faint); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
-.msg-acts button:hover { background: var(--hover); color: var(--text); }
-
 /* ── Message toolbar: [Copy] [Fork] datetime ──
-   Hover-only (matches the old action bar behavior). Hidden by default,
-   fades in on message hover. */
+   Always visible below the message; one implementation, no hover overlay. */
 .msg-toolbar { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); opacity: 1; pointer-events: auto; }
 .msg-row-user .msg-toolbar { justify-content: flex-end; }
 .msg-row-ai .msg-toolbar { justify-content: flex-start; }
-.mt-btn { display: flex; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--faint); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); cursor: pointer; border: none; background: none; }
+.mt-btn { display: flex; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--dim); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); cursor: pointer; border: none; background: none; }
 .mt-btn:hover { background: var(--hover); color: var(--text); }
-.mt-dt { font-family: var(--font-mono); font-size: var(--fs-9); color: var(--faint); margin-left: var(--space-2); white-space: nowrap; }
+.mt-dt { font-family: var(--font-mono); font-size: var(--fs-9); color: var(--dim); margin-left: var(--space-2); white-space: nowrap; }
 .msg-row-user .mt-dt { margin-left: 0; margin-right: var(--space-2); }
 
 /* Steer delivery status */

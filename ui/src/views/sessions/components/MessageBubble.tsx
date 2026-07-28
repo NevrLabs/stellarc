@@ -10,7 +10,7 @@ import { Marker } from "@/components/ui/marker";
  *  - Assistant tool calls are interleaved at their `anchor` offset inside
  *    the markdown body — not dumped at the bottom. Each card carries its
  *    lifecycle status (pending / in_progress / completed / failed).
- *  - Toolbar at bottom: [Copy] [Fork] <datetime> (hover-only).
+ *  - Toolbar below the message: [Copy] [Fork] <datetime>.
  */
 
 import React, { useState, useCallback, useMemo } from "react";
@@ -55,16 +55,6 @@ export const MessageBubble = React.memo(function MessageBubble({
     });
   }, []);
 
-  if (isSystem) {
-    return (
-      <div className="msg-system" data-ts={dt}>
-        <span className="gk">{msg.content}</span>
-      </div>
-    );
-  }
-
-  if (msg.role === "tool") return null;
-
   // Build chronologically interleaved segments: text split at each tool call's
   // anchor offset, with the card inserted between segments.
   const segments = useMemo(() => {
@@ -104,6 +94,16 @@ export const MessageBubble = React.memo(function MessageBubble({
     }
     return segs;
   }, [msg.content, msg.toolCalls]);
+
+  if (isSystem) {
+    return (
+      <div className="msg-system" data-ts={dt}>
+        <span className="gk">{msg.content}</span>
+      </div>
+    );
+  }
+
+  if (msg.role === "tool") return null;
 
   // Old failed turns persisted blank assistant rows. They have no visible
   // content but still consumed transcript gap space.
