@@ -210,3 +210,12 @@ describe("SessionSidebar", () => {
     expect(container.querySelector(".sec-recent [data-session-id='s-1']")).toBeTruthy();
   });
 });
+
+
+describe("recent session limit", () => {
+  it("renders only the five newest recent sessions", () => {
+    const source = require("node:fs").readFileSync(new URL("src/views/sessions/components/SessionSidebar.tsx", `file://${process.cwd()}/`), "utf8");
+    expect(source).toContain("slice(0, 5)");
+    expect(source).not.toContain("Resize bar between RECENT and PROJECTS");
+  });
+});

@@ -414,6 +414,10 @@ function ActiveChatPage({
         });
       }
       if (frame.kind === "message.done") {
+        // Durable transcript is authoritative. The done frame carries no full
+        // assistant message, so refetch before removing the transient stream.
+        void qc.invalidateQueries({ queryKey: qk.messages(sessionId) });
+        void qc.invalidateQueries({ queryKey: qk.session(sessionId) });
         setStreamParts([]);
         setSending(false);
         setAgentStatus("done");

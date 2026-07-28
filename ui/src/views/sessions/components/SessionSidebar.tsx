@@ -8,7 +8,7 @@
  *  4. PROJECTS: tree — no-project pseudo-row, project rows (N live pill),
  *     sessions nested via .tree hairline, subsessions one deeper, N more… ghost
  *
- * Sections are collapsible (click header) + vertically resizable (RECENT↔PROJECTS).
+ * Sections are collapsible. RECENT is fixed to the five newest sessions.
  * Collapse/hidden-projects persist to localStorage.
  */
 
@@ -22,7 +22,6 @@ import { attachContextProject, attachSessionToProject } from "../../../api";
 import type { Session, Project } from "../../../types";
 import { timeAgo } from "../helpers";
 
-import { useResizable } from "../../../hooks/useResizable";
 import {
   DEFAULT_SESSION_METADATA_FIELDS,
   SESSION_METADATA_FIELDS,
@@ -74,7 +73,7 @@ export function SessionSidebar({
 
   // RECENT: all managed non-archived, newest first. Cap at a reasonable number.
   const recent = useMemo(
-    () => [...sessions].sort((a, b) => b.lastActivity - a.lastActivity).slice(0, 8),
+    () => [...sessions].sort((a, b) => b.lastActivity - a.lastActivity).slice(0, 5),
     [sessions],
   );
 
@@ -113,11 +112,6 @@ export function SessionSidebar({
 
   const { prefs, toggle, hideProject, showProject } = useSidebarPrefs();
 
-  // Vertical resize between RECENT and PROJECTS sections.
-  const recentResize = useResizable({
-    axis: "y", min: 80, max: 500, initial: 200, direction: "down",
-    persistKey: "stellarc-sidebar-recent-h",
-  });
 
   const handleNewSession = useCallback(() => {
     void navigate({
@@ -241,10 +235,7 @@ export function SessionSidebar({
             onToggle={() => toggle("recent")}
           />
           {!recentCollapsed && (
-            <div
-              className="sec-content sec-recent"
-              style={recent.length > 0 ? { maxHeight: recentResize.size, overflowY: "auto" } : undefined}
-            >
+            <div className="sec-content sec-recent">
               {recent.map((s) => (
                 <SessionRow
                   key={s.id}
@@ -262,10 +253,6 @@ export function SessionSidebar({
             </div>
           )}
 
-          {/* Resize bar between RECENT and PROJECTS */}
-          {!recentCollapsed && !projectsCollapsed && recent.length > 0 && (
-            <div className="rz-y rz-y-section" role="separator" aria-label="Resize sections" onMouseDown={recentResize.onResizeStart} />
-          )}
 
           {/* ── PROJECTS ── */}
           <SectionHeader
