@@ -107,7 +107,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 
   return (
     <ChatMessage from={isUser ? "user" : "assistant"} className={isSteer ? "msg-user msg-steer" : isUser ? "msg-user" : "msg-ai"} data-ts={dt}>
-      <MessageContent>
+      <MessageContent bubble={isUser}>
       {isSteer && (
         <span className={`steer-badge ${steerPending ? "steer-pending" : "steer-delivered"}`}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
