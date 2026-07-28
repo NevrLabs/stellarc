@@ -178,6 +178,15 @@ describe("MilkdownRichEditor — per-fixture: no dirty state on mount", () => {
 // into the heading (first focused node) is the most reliable insertion point.
 // The test uses kitchenSink so the first editable paragraph is well-formed prose.
 
+describe("MilkdownRichEditor — collaborative updates", () => {
+  it("applies a remote update while locally dirty", async () => {
+    const { container, rerender } = render(<MilkdownRichEditor markdown="# Local" onChange={vi.fn()} dirty />);
+    await waitFor(() => expect(container.querySelector(".ProseMirror")?.textContent).toContain("Local"), { timeout: 10_000 });
+    rerender(<MilkdownRichEditor markdown="# Remote" onChange={vi.fn()} dirty />);
+    await waitFor(() => expect(container.querySelector(".ProseMirror")?.textContent).toContain("Remote"), { timeout: 10_000 });
+  });
+});
+
 describe("MilkdownRichEditor — edit preserves constructs", () => {
   it("a trivial insert fires onChange with all preserved constructs intact", async () => {
     const onChange = vi.fn();

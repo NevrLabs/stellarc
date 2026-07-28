@@ -16,6 +16,7 @@ pub(crate) mod routes;
 #[cfg(unix)]
 pub mod terminal_ws;
 pub mod ws;
+pub mod vault_ws;
 
 // Agent discovery moved to `stellarc-orbit` (ADR 0008 S2) — probing the host
 // for Hermes profiles + CLI harnesses is the orbit's job. Re-exported so
@@ -180,7 +181,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/proxy/{slug}",
             axum::routing::delete(crate::proxy::delete_proxy_endpoint),
         )
-        .route("/ws", get(ws::ws_handler));
+        .route("/ws", get(ws::ws_handler))
+        .route("/ws/vaults/{vault_id}", get(vault_ws::handler));
 
     // Axis-hosted terminals need a local PTY, which Windows lacks. Terminals on
     // remote nodes are unaffected: those run on the node's orbit and stream in

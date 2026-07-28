@@ -82,7 +82,6 @@ export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUG
       emittedMarkdownRef.current = null;
       return;
     }
-    if (dirty) return;
     const crepe = crepeRef.current;
     if (!crepe) return;
     const nextDocument = splitVaultMarkdown(markdown);

@@ -47,7 +47,9 @@
     "react-router-dom": "^6.26.0",
     "react-syntax-highlighter": "^15.5.0",
     "remark-gfm": "^4.0.0",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "yjs": "^13.6.30",
+    "y-indexeddb": "^9.0.12"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

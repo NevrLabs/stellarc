@@ -8,6 +8,7 @@ import { deleteVaultNote, putVaultNote } from "../../../api";
 import { qk, useVaultNote } from "../../../hooks/queries";
 import { collectVaultSuggestions } from "../editor/vaultMarkdown";
 import { deleteVaultDraft, getVaultDraft, putVaultDraft } from "../../../lib/vaultDrafts";
+import { openVaultCollab } from "../../../lib/vaultCollab";
 
 const VaultMarkdownEditor = lazy(() =>
   import("../editor/VaultMarkdownEditor").then((module) => ({
@@ -39,6 +40,7 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const baseCidRef = useRef<string | null>(null);
+  const collabRef = useRef<ReturnType<typeof openVaultCollab> | null>(null);
 
   useEffect(() => {
     if (!note) return;
@@ -58,6 +60,17 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
     });
     return () => { active = false; };
   }, [note?.path, vaultId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!note || draftPath !== note.path) return;
+    const collab = openVaultCollab(vaultId, note.path, draftRef.current, (markdown) => {
+      if (markdown === draftRef.current) return;
+      draftRef.current = markdown; setDraft(markdown); setDirty(true); onDirtyChange(true);
+      void putVaultDraft(vaultId, note.path, markdown, baseCidRef.current);
+    });
+    collabRef.current = collab;
+    return () => { collab.destroy(); if (collabRef.current === collab) collabRef.current = null; };
+  }, [vaultId, note?.path, draftPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     if (!notePath) return;
@@ -163,6 +176,7 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
           onChange={(markdown) => {
             const nextDirty = markdown !== note.markdown;
             draftRef.current = markdown;
+            collabRef.current?.replace(markdown);
             setDraft(markdown);
             setDirty(nextDirty);
             onDirtyChange(nextDirty);
