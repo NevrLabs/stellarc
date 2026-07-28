@@ -6,6 +6,7 @@ import { router } from "./router";
 import { qk, useLiveSync } from "./hooks/queries";
 import { ThemeProvider } from "./theme";
 import { AuthGate, useAxisAuth } from "./auth";
+import { ErrorBoundary } from "./ErrorBoundary";
 // Design system: tokens (colors, type, spacing, radius, motion, fonts) + base
 // resets + .ol-* component classes. Imported before index.css so the app-shell
 // aliases in index.css can reference the design-system tokens.
@@ -58,9 +59,11 @@ async function bootstrap() {
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <Root />
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <Root />
+          </ThemeProvider>
+        </ErrorBoundary>
       </QueryClientProvider>
     </React.StrictMode>,
   );

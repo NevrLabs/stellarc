@@ -48,34 +48,6 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
     setSaveError(null);
   }, [note?.path, vaultId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!notePath) {
-    return (
-      <div className="vault-content">
-        <div className="empty-state">
-          <div className="empty-state-icon"><Icon name="file" size={32} /></div>
-          <div className="empty-state-title">No note selected</div>
-          <div className="empty-state-msg">Pick a note from the sidebar, or create a new one.</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading || (note && draftPath !== note.path)) {
-    return <div className="vault-content vault-note-surface"><div className="vault-editor-loading">Loading note…</div></div>;
-  }
-
-  if (error || !note) {
-    return (
-      <div className="vault-content">
-        <div className="empty-state">
-          <div className="empty-state-icon"><Icon name="alert" size={32} /></div>
-          <div className="empty-state-title">Note not found</div>
-          <div className="empty-state-msg">{notePath}</div>
-        </div>
-      </div>
-    );
-  }
-
   const handleSave = async () => {
     const submittedSnapshot = draftRef.current;
     setSaving(true);
@@ -103,6 +75,34 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [dirty, saving]);
+
+  if (!notePath) {
+    return (
+      <div className="vault-content">
+        <div className="empty-state">
+          <div className="empty-state-icon"><Icon name="file" size={32} /></div>
+          <div className="empty-state-title">No note selected</div>
+          <div className="empty-state-msg">Pick a note from the sidebar, or create a new one.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || (note && draftPath !== note.path)) {
+    return <div className="vault-content vault-note-surface"><div className="vault-editor-loading">Loading note…</div></div>;
+  }
+
+  if (error || !note) {
+    return (
+      <div className="vault-content">
+        <div className="empty-state">
+          <div className="empty-state-icon"><Icon name="alert" size={32} /></div>
+          <div className="empty-state-title">Note not found</div>
+          <div className="empty-state-msg">{notePath}</div>
+        </div>
+      </div>
+    );
+  }
 
   const handleDelete = async () => {
     try {
