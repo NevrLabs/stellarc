@@ -511,10 +511,12 @@ export interface NoteDocument {
   markdown: string;
   frontmatter: Record<string, unknown>;
   linkedNotes: string[];
+  cid?: string | null;
 }
 
 export interface PutNoteBody {
   markdown?: string;
   newPath?: string;
   createOnly?: boolean;
+  expectedCid?: string | null;
 }

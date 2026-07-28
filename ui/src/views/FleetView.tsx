@@ -38,6 +38,8 @@ import type { AgentInfo, EnrollResponse, NodeInfo, NodeStatus } from "../types";
 
 // ── Helpers ────────────────────────────────────────
 
+function shortNodeId(value: string): string { return value.length > 32 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value; }
+
 function statusDotColor(status: NodeStatus): string {
   if (status === "online") return "var(--green)";
   if (status === "draining") return "var(--amber)";

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { VaultWorkspace } from "./VaultWorkspace";
@@ -120,3 +121,9 @@ describe("VaultWorkspace", () => {
     expect(panels).toHaveLength(1);
   });
 });
+
+
+describe("restored panel callbacks",()=>{it("guards callbacks until Dockview rehydrates parameters",()=>{const source=readFileSync(new URL("src/views/vaults/components/VaultWorkspace.tsx",`file://${process.cwd()}/`),"utf8");expect(source).toContain("onDirtyChange?.(tab.id, dirty)");});});
+
+
+describe("restored panel callbacks",()=>{it("guards callbacks until Dockview rehydrates parameters",()=>{const source=readFileSync(new URL("src/views/vaults/components/VaultWorkspace.tsx",`file://${process.cwd()}/`),"utf8");expect(source).toContain("onDirtyChange?.(tab.id, dirty)");});});

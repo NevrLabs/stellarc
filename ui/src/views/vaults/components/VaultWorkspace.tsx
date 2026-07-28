@@ -251,9 +251,9 @@ function VaultPanel({ params }: IDockviewPanelProps<VaultPanelParams>) {
         vaultId={vaultId}
         notePath={tab.path ?? null}
         onNavigateNote={onOpenNote}
-        onDirtyChange={(dirty) => onDirtyChange(tab.id, dirty)}
+        onDirtyChange={(dirty) => onDirtyChange?.(tab.id, dirty)}
         editorMode={editorMode}
-        onEditorModeChange={(mode) => onEditorModeChange(tab.id, mode)}
+        onEditorModeChange={(mode) => onEditorModeChange?.(tab.id, mode)}
       />
     </ErrorBoundary>
   );
