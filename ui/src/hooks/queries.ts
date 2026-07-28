@@ -99,9 +99,9 @@ export function useProjects() {
  * now always observes the committed assistant row. */
 export function useMessages(sessionId: string | null) {
   return useQuery({
-    queryKey: sessionId ? qk.messages(sessionId) : ["messages", "none"],
+    queryKey: sessionId && sessionId !== "new" ? qk.messages(sessionId) : ["messages", "none"],
     queryFn: () => fetchMessages(sessionId!, { limit: 100 }),
-    enabled: !!sessionId,
+    enabled: !!sessionId && sessionId !== "new",
     staleTime: 0, // WS notifies; refetch on (re)subscribe reconstructs truth
   });
 }

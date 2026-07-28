@@ -191,7 +191,10 @@ button {
 .chatcol { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .transcript { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-12) var(--space-12); }
 .tcol { width: 100%; max-width: var(--measure); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-12); }
-.msg-user { position: relative; align-self: flex-end; max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; font-size: var(--fs-13-5); line-height: var(--lh-normal); color: var(--text); }
+.msg-row { display: flex; flex-direction: column; max-width: 80%; }
+.msg-row-user { align-self: flex-end; align-items: flex-end; }
+.msg-row-ai { align-self: flex-start; align-items: flex-start; max-width: var(--measure-msg); }
+.msg-user { position: relative; display: flex; flex-direction: column; align-items: flex-end; font-size: var(--fs-13-5); line-height: var(--lh-normal); color: var(--text); }
   .msg-user .msg-bubble { background: var(--elev); border: var(--border-w) solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius-lg); padding: var(--space-5) var(--space-6); }
 /* Steer — a user interrupt injected mid-turn. Distinct border + badge. */
 .msg-steer .msg-bubble { border-color: var(--silver); border-style: dashed; }
@@ -449,13 +452,13 @@ button {
    Hover-only (matches the old action bar behavior). Hidden by default,
    fades in on message hover. */
 .msg-toolbar { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease); }
-.msg-user .msg-toolbar { justify-content: flex-end; }
-.msg-ai .msg-toolbar { justify-content: flex-start; }
-.msg-user:hover .msg-toolbar, .msg-ai:hover .msg-toolbar, .msg-toolbar:hover { opacity: 1; pointer-events: auto; }
+.msg-row-user .msg-toolbar { justify-content: flex-end; }
+.msg-row-ai .msg-toolbar { justify-content: flex-start; }
+.msg-row:hover .msg-toolbar, .msg-toolbar:hover { opacity: 1; pointer-events: auto; }
 .mt-btn { display: flex; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--faint); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); cursor: pointer; border: none; background: none; }
 .mt-btn:hover { background: var(--hover); color: var(--text); }
 .mt-dt { font-family: var(--font-mono); font-size: var(--fs-9); color: var(--faint); margin-left: var(--space-2); white-space: nowrap; }
-.msg-user .mt-dt { margin-left: 0; margin-right: var(--space-2); }
+.msg-row-user .mt-dt { margin-left: 0; margin-right: var(--space-2); }
 
 /* Steer delivery status */
 .steer-pending { color: var(--amber, #e8a838); }

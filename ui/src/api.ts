@@ -49,6 +49,7 @@ const browserFetch = window.fetch.bind(window);
 let organizationId: string | null = null;
 
 export function setApiOrganization(id: string | null): void {
+  if (organizationId === id) return;
   organizationId = id;
   closeWs();
 }
