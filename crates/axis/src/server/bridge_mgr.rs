@@ -136,7 +136,7 @@ impl BridgeManager {
     /// only the space and agent session are lazy. Node is NOT baked into the id
     /// (per ADR 0005 §6): the node is inferred from the chosen agent and stored
     /// as a separate field, so the id stays portable across nodes.
-    fn new_session_id(&self) -> String {
+    pub(crate) fn new_session_id(&self) -> String {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -323,7 +323,7 @@ impl BridgeManager {
     ) -> Result<ForkedSession> {
         let forked = self.table.fork_runtime(source_hermes_id).await?;
         let hermes_id = forked.hermes_id;
-        let session_id = format!("oly-{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
+        let session_id = self.new_session_id();
 
         // A fork is a real managed session — give it its own space too.
         let _ = self.ensure_space(organization_id.unwrap_or("personal"), &session_id);

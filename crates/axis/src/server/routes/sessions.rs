@@ -960,7 +960,6 @@ pub(crate) async fn fork_session(
     Json(json!({ "session": dto })).into_response()
 }
 
-
 /// Build a user-facing diagnostic when a turn ends with no assistant text AND
 /// no tool calls — i.e. the model returned nothing usable (refusal / empty
 /// completion). Returns `None` when the turn produced content, so callers keep
@@ -1569,9 +1568,11 @@ pub(crate) async fn post_message(
                     // bubble that looks like a hang. ponytail: substitutes a
                     // fixed diagnostic string; richer provider-error passthrough
                     // if we later thread the raw error up the runtime stream.
-                    if let Some(diagnostic) =
-                        empty_turn_diagnostic(&assistant_text, tool_calls_acc.is_empty(), finish_reason.as_deref())
-                    {
+                    if let Some(diagnostic) = empty_turn_diagnostic(
+                        &assistant_text,
+                        tool_calls_acc.is_empty(),
+                        finish_reason.as_deref(),
+                    ) {
                         tracing::warn!(
                             session = %session_id,
                             finish = finish_reason.as_deref().unwrap_or("empty"),
@@ -2386,7 +2387,7 @@ pub(crate) async fn handover_session(
     };
 
     // Create the target session.
-    let target_id = format!("oly-{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
+    let target_id = state.bridge.new_session_id();
     if let Err(error) = state.bridge.ensure_space(&source.org_id, &target_id) {
         tracing::error!(%error, "creating organization-scoped handover workspace");
         return (
