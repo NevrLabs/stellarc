@@ -960,6 +960,26 @@ pub(crate) async fn fork_session(
     Json(json!({ "session": dto })).into_response()
 }
 
+
+/// Build a user-facing diagnostic when a turn ends with no assistant text AND
+/// no tool calls — i.e. the model returned nothing usable (refusal / empty
+/// completion). Returns `None` when the turn produced content, so callers keep
+/// the real reply. Kept pure so the empty-turn branch has a runnable check.
+fn empty_turn_diagnostic(
+    assistant_text: &str,
+    no_tool_calls: bool,
+    finish_reason: Option<&str>,
+) -> Option<String> {
+    if assistant_text.trim().is_empty() && no_tool_calls {
+        let reason = finish_reason.unwrap_or("empty");
+        Some(format!(
+            "\u{26a0} The model returned no content (finish reason: {reason}). This usually means the request was refused or the provider returned an empty completion."
+        ))
+    } else {
+        None
+    }
+}
+
 /// POST a message to drive a session.
 ///
 /// Only MANAGED (stellarc/acp-source) sessions are steerable. Observed sessions
@@ -1543,6 +1563,23 @@ pub(crate) async fn post_message(
                     } else {
                         Some(serde_json::Value::Array(tool_calls_acc.clone()).to_string())
                     };
+                    // An empty turn (no text AND no tool calls) means the model
+                    // returned nothing usable — usually a refusal or an empty
+                    // completion. Surface it instead of persisting a blank
+                    // bubble that looks like a hang. ponytail: substitutes a
+                    // fixed diagnostic string; richer provider-error passthrough
+                    // if we later thread the raw error up the runtime stream.
+                    if let Some(diagnostic) =
+                        empty_turn_diagnostic(&assistant_text, tool_calls_acc.is_empty(), finish_reason.as_deref())
+                    {
+                        tracing::warn!(
+                            session = %session_id,
+                            finish = finish_reason.as_deref().unwrap_or("empty"),
+                            "agent produced an empty turn (no text, no tool calls)"
+                        );
+                        emit_log("error", "agent", &diagnostic);
+                        assistant_text = diagnostic;
+                    }
                     // ADR 0020 v2 §4.1 — DURABLE-FIRST completion. Persist the
                     // final assistant message AND apply it to the views, and
                     // broadcast `message.appended`, BEFORE signalling
@@ -2714,4 +2751,32 @@ pub(crate) async fn detach_context_project(
     };
 
     Json(json!({ "contextProjects": context_projects })).into_response()
+}
+
+#[cfg(test)]
+mod empty_turn_tests {
+    use super::empty_turn_diagnostic;
+
+    #[test]
+    fn empty_refusal_produces_diagnostic() {
+        let d = empty_turn_diagnostic("", true, Some("refusal"));
+        assert!(d.is_some());
+        assert!(d.unwrap().contains("refusal"));
+    }
+
+    #[test]
+    fn whitespace_only_is_empty() {
+        assert!(empty_turn_diagnostic("   \n", true, None).is_some());
+    }
+
+    #[test]
+    fn real_text_returns_none() {
+        assert!(empty_turn_diagnostic("Hi!", true, Some("stop")).is_none());
+    }
+
+    #[test]
+    fn tool_calls_only_returns_none() {
+        // No text but a tool call ran — that is a valid turn, not empty.
+        assert!(empty_turn_diagnostic("", false, Some("tool_use")).is_none());
+    }
 }

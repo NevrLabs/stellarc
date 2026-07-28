@@ -1098,6 +1098,7 @@ mod tests {
                     ),
                     new_path: None,
                     create_only: false,
+                    expected_cid: None,
                 },
             )
             .unwrap();
@@ -1162,6 +1163,7 @@ mod tests {
                             markdown: Some(format!("# Writer {index}\n")),
                             new_path: None,
                             create_only: true,
+                    expected_cid: None,
                         },
                     )
                 })
@@ -1260,6 +1262,7 @@ mod tests {
                     markdown: Some("# Old\n".into()),
                     new_path: None,
                     create_only: false,
+                    expected_cid: None,
                 },
             )
             .unwrap();
@@ -1271,6 +1274,7 @@ mod tests {
                     markdown: Some("# New\n".into()),
                     new_path: Some("folder/new.md".into()),
                     create_only: false,
+                    expected_cid: None,
                 },
             )
             .unwrap();
@@ -1301,6 +1305,7 @@ mod tests {
                         markdown: Some(markdown.into()),
                         new_path: None,
                         create_only: false,
+                    expected_cid: None,
                     },
                 )
                 .unwrap();
@@ -1372,7 +1377,7 @@ mod tests {
     fn rejects_stale_expected_cid() {
         let dir = tempfile::tempdir().unwrap();
         let store = VaultStore::with_jj_mode(dir.path(), JjMode::Disabled);
-        let vault = store.create_vault("test", VaultBackend::Local).unwrap();
+        let vault = store.create_vault("test", VaultBackend::github("nevrlabs/test-notes", "main").unwrap()).unwrap();
         let first = store.write_note(&vault.id, "note.md", WriteNote { markdown: Some("# one".into()), new_path: None, create_only: false, expected_cid: None }).unwrap();
         let stale = store.write_note(&vault.id, "note.md", WriteNote { markdown: Some("# two".into()), new_path: None, create_only: false, expected_cid: Some("stale".into()) });
         assert!(stale.unwrap_err().to_string().contains("merge required"));
@@ -1396,6 +1401,7 @@ mod tests {
                     markdown: Some("# Hello\n".into()),
                     new_path: None,
                     create_only: false,
+                    expected_cid: None,
                 },
             )
             .unwrap();
