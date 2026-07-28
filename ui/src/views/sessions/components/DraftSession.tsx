@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { BrandIcon, agentBrand } from "../../../components/BrandIcons";
@@ -108,7 +110,7 @@ export function DraftSession({ initialProjectId = null }: { initialProjectId?: s
       }}
     >
       {icon} {name} <span style={{ fontSize: 9, color: "var(--faint)" }}>{source}</span>
-      <button type="button" aria-label={`Remove ${name}`} onClick={onRemove} style={{ color: "var(--faint)", fontSize: 10 }}>✕</button>
+      <Button type="button" aria-label={`Remove ${name}`} onClick={onRemove} style={{ color: "var(--faint)", fontSize: 10 }}>✕</Button>
     </span>
   );
 
@@ -129,13 +131,13 @@ export function DraftSession({ initialProjectId = null }: { initialProjectId?: s
           <div className="draft-project-row">
             <span className="draft-project-chip">
               ▣ {project?.name ?? "no project"}
-              {project && <button type="button" aria-label="No project" onClick={() => selectProject(null)} style={{ color: "var(--faint)", fontSize: 11 }}>✕</button>}
+              {project && <Button type="button" aria-label="No project" onClick={() => selectProject(null)} style={{ color: "var(--faint)", fontSize: 11 }}>✕</Button>}
             </span>
             <div className="draft-project-scroller">
               {otherProjects.map((item) => (
-                <button key={item.id} type="button" onClick={() => selectProject(item.id)} className="draft-pill">{item.name}</button>
+                <Button key={item.id} type="button" onClick={() => selectProject(item.id)} className="draft-pill">{item.name}</Button>
               ))}
-              {project && <button type="button" onClick={() => selectProject(null)} className="draft-pill" style={{ fontStyle: "italic" }}>no project</button>}
+              {project && <Button type="button" onClick={() => selectProject(null)} className="draft-pill" style={{ fontStyle: "italic" }}>no project</Button>}
             </div>
           </div>
         </div>
@@ -262,7 +264,7 @@ function AgentSelector({
   return (
     <div className="draft-agent-sel">
       <div className="draft-agent-search">
-        <input
+        <Input
           ref={inputRef}
           type="text"
           value={query}
@@ -272,14 +274,14 @@ function AgentSelector({
           aria-label="Search agents"
           autoFocus
         />
-        <button
+        <Button
           type="button"
           className="draft-agent-toggle"
           aria-label={open ? "Collapse agent list" : "Expand agent list"}
           onClick={() => setOpen((v) => !v)}
         >
           {open ? "▾" : "▸"}
-        </button>
+        </Button>
       </div>
       {open && (
         <div className="draft-agent-list" role="listbox">
@@ -288,7 +290,7 @@ function AgentSelector({
             const isSelected = selected ? pairKey(row) === pairKey(selected) : false;
             const isRecent = recentKeys.has(pairKey(row));
             return (
-              <button
+              <Button
                 key={pairKey(row)}
                 type="button"
                 role="option"
@@ -302,7 +304,7 @@ function AgentSelector({
                 {isRecent && <span className="draft-agent-recent" title="Recently used">◷</span>}
                 <span className="draft-agent-node">{row.node.hostname || row.node.nodeId}</span>
                 <span className="draft-agent-model">{row.agent.model ?? "auto"}</span>
-              </button>
+              </Button>
             );
           })}
         </div>

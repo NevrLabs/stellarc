@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 /**
  * Composer — the chat input bar.
  *
@@ -133,7 +135,7 @@ export function Composer({
   return (
     <div className="composer">
       <div className="comp-box">
-        <textarea
+        <Textarea
           rows={1}
           className="composer-input"
           placeholder={sending ? "Keep typing to queue follow-up changes…" : (placeholder ?? "Type a message…")}
@@ -146,7 +148,7 @@ export function Composer({
           {/* LEFT: + menu — attachments, mentions, etc. */}
           <div className="comp-l">
             <div className="selwrap" ref={plusRef} style={{ position: "relative" }}>
-              <button
+              <Button
                 type="button"
                 className="plusbtn"
                 title="Attach, mention…"
@@ -154,21 +156,21 @@ export function Composer({
                 onClick={() => setPlusOpen((v) => !v)}
               >
                 <Icon name="plus" size={16} />
-              </button>
+              </Button>
               {plusOpen && (
                 <div className="menu pluspop" style={{ display: "flex" }}>
-                  <button type="button" className="mi" onClick={() => setPlusOpen(false)}>
+                  <Button type="button" className="mi" onClick={() => setPlusOpen(false)}>
                     <Icon name="paperclip" size={13} />
                     <span>Attach file</span>
-                  </button>
-                  <button type="button" className="mi" onClick={() => setPlusOpen(false)}>
+                  </Button>
+                  <Button type="button" className="mi" onClick={() => setPlusOpen(false)}>
                     <Icon name="at" size={13} />
                     <span>Mention session</span>
-                  </button>
-                  <button type="button" className="mi" onClick={() => setPlusOpen(false)}>
+                  </Button>
+                  <Button type="button" className="mi" onClick={() => setPlusOpen(false)}>
                     <Icon name="file" size={13} />
                     <span>Reference file</span>
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -177,7 +179,7 @@ export function Composer({
           {/* RIGHT: model selector + thinking + send/stop */}
           <div className="comp-r">
             <div className="selwrap" ref={modelRef} style={{ position: "relative" }}>
-              <button
+              <Button
                 type="button"
                 className="modelpill"
                 title="Model & thinking"
@@ -194,7 +196,7 @@ export function Composer({
                   </>
                 )}
                 <Icon name="chevron-down" size={10} />
-              </button>
+              </Button>
 
               {modelOpen && (
                 <div className="menu selpop" style={{ display: "flex" }}>
@@ -209,7 +211,7 @@ export function Composer({
                         {provider}
                       </div>
                       {models.map((m) => (
-                        <button
+                        <Button
                           key={`${provider}-${m.id}`}
                           type="button"
                           className={`mi${selectedModel === m.id ? " on" : ""}`}
@@ -221,7 +223,7 @@ export function Composer({
                           <span>{m.id}</span>
                           {m.default && <span className="mk2" style={{ opacity: 0.4, fontSize: 9 }}>★</span>}
                           {selectedModel === m.id && <span className="mk2">✓</span>}
-                        </button>
+                        </Button>
                       ))}
                     </React.Fragment>
                   ))}
@@ -230,7 +232,7 @@ export function Composer({
 
                   <div className="gk" style={{ padding: "5px 8px 2px" }}>thinking</div>
                   {(["off", "low", "medium", "high"] as ThinkingLevel[]).map((lvl) => (
-                    <button
+                    <Button
                       key={lvl}
                       type="button"
                       className={`mi${thinking === lvl ? " on" : ""}`}
@@ -241,7 +243,7 @@ export function Composer({
                     >
                       <span>{lvl === "off" ? "Off" : lvl.charAt(0).toUpperCase() + lvl.slice(1)}</span>
                       {thinking === lvl && <span className="mk2">✓</span>}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -250,7 +252,7 @@ export function Composer({
             {sending ? (
               <>
                 {text.trim() && (
-                  <button
+                  <Button
                     type="button"
                     className="send queue-add"
                     onClick={() => onSend(selectedModel, thinking === "off" ? undefined : thinking)}
@@ -258,9 +260,9 @@ export function Composer({
                     aria-label="Queue message"
                   >
                     <Icon name="plus" size={14} />
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   type="button"
                   className="send stop"
                   onClick={onStop}
@@ -268,10 +270,10 @@ export function Composer({
                   aria-label="Stop"
                 >
                   <Icon name="stop" size={14} />
-                </button>
+                </Button>
               </>
             ) : (
-              <button
+              <Button
                 type="button"
                 className="send"
                 onClick={() => onSend(selectedModel, thinking === "off" ? undefined : thinking)}
@@ -279,7 +281,7 @@ export function Composer({
                 title="Send"
               >
                 <Icon name="arrow-up" size={14} />
-              </button>
+              </Button>
             )}
           </div>
         </div>

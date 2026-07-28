@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 import { useMemo, useState, type FormEvent } from "react";
 import { Icon } from "../../../components/Icon";
 import type { CreateVaultBody, NoteTreeEntry } from "../../../types";
@@ -15,9 +18,9 @@ function DialogShell({ title, icon, children, onClose }: DialogShellProps) {
       <div className="ol-dialog vault-dialog" onClick={(event) => event.stopPropagation()}>
         <div className="ol-dialog-head">
           <div className="vault-dialog-title"><Icon name={icon} size={18} /><span>{title}</span></div>
-          <button type="button" className="ibtn" aria-label="Close" onClick={onClose}>
+          <Button type="button" className="ibtn" aria-label="Close" onClick={onClose}>
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </div>
         {children}
       </div>
@@ -57,16 +60,16 @@ export function CreateVaultDialog({
     <DialogShell title="Create vault" icon="book" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="ol-dialog-body vault-form">
-          <label><span>Vault name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Engineering" required /></label>
-          <label><span>Backend store</span><select value="github" disabled><option value="github">GitHub repository</option></select></label>
-          <label><span>Repository</span><input value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="owner/repository" pattern="[^/\s]+/[^/\s]+" required /></label>
-          <label><span>Default branch</span><input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="main" required /></label>
+          <label><span>Vault name</span><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Engineering" required /></label>
+          <label><span>Backend store</span><NativeSelect value="github" disabled><option value="github">GitHub repository</option></NativeSelect></label>
+          <label><span>Repository</span><Input value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="owner/repository" pattern="[^/\s]+/[^/\s]+" required /></label>
+          <label><span>Default branch</span><Input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="main" required /></label>
           <div className="vault-form-note">Axis creates a local jj working copy and configures this existing GitHub repository as its durable remote. Credentials stay in Axis's Git environment.</div>
           {error && <div className="vault-form-error" role="alert">{error}</div>}
         </div>
         <div className="ol-dialog-foot">
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={busy || !name.trim() || !repository.trim() || !branch.trim()}>{busy ? "Creating…" : "Create vault"}</button>
+          <Button type="button" className="btn" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="btn primary" disabled={busy || !name.trim() || !repository.trim() || !branch.trim()}>{busy ? "Creating…" : "Create vault"}</Button>
         </div>
       </form>
     </DialogShell>
@@ -106,21 +109,21 @@ export function NewNoteDialog({
     <DialogShell title="New note" icon="file" onClose={onClose}>
       <form onSubmit={submit}>
         <div className="ol-dialog-body vault-form">
-          <label><span>Title</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Untitled" /></label>
+          <label><span>Title</span><Input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Untitled" /></label>
           <div className="vault-folder-picker">
             <div className="vault-folder-picker-head"><span>Destination</span><code>{preview}</code></div>
             <div className="vault-folder-tree" role="tree" aria-label="Destination folder">
-              <button type="button" role="treeitem" aria-pressed={destination === ""} className="vault-folder-option" onClick={() => setDestination("")}><Icon name="book" size={13} />Vault root</button>
+              <Button type="button" role="treeitem" aria-pressed={destination === ""} className="vault-folder-option" onClick={() => setDestination("")}><Icon name="book" size={13} />Vault root</Button>
               {folders.map((entry) => (
-                <button key={entry.path} type="button" role="treeitem" aria-pressed={destination === entry.path} className="vault-folder-option" style={{ paddingLeft: 10 + entry.depth * 14 }} onClick={() => setDestination(entry.path)}><Icon name="folder" size={13} />{entry.title}</button>
+                <Button key={entry.path} type="button" role="treeitem" aria-pressed={destination === entry.path} className="vault-folder-option" style={{ paddingLeft: 10 + entry.depth * 14 }} onClick={() => setDestination(entry.path)}><Icon name="folder" size={13} />{entry.title}</Button>
               ))}
             </div>
           </div>
           {error && <div className="vault-form-error" role="alert">{error}</div>}
         </div>
         <div className="ol-dialog-foot">
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Create note"}</button>
+          <Button type="button" className="btn" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Create note"}</Button>
         </div>
       </form>
     </DialogShell>

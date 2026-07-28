@@ -1,3 +1,4 @@
+import { NativeSelect } from "@/components/ui/native-select";
 // TablesPage — vault collections / structured data view.
 //
 // Scans for notes with `collection: true` in frontmatter (the collection
@@ -97,7 +98,7 @@ export function TablesPage({ vaultId }: { vaultId: string }) {
     <div className="vault-content" style={{ overflow: "auto" }}>
       {/* Collection picker */}
       <div className="hist-filters" style={{ padding: "0 0 12px" }}>
-        <select
+        <NativeSelect
           className="hist-select"
           value={selectedCollection ?? ""}
           onChange={(e) => setSelectedCollection(e.target.value || null)}
@@ -109,7 +110,7 @@ export function TablesPage({ vaultId }: { vaultId: string }) {
               {c.name} ({c.rowCount})
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
 
       {/* Data table */}

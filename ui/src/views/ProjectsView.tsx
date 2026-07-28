@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ProjectsView — the Projects View component (owns sidebar + kanban board).
  *
@@ -107,7 +108,7 @@ export function ProjectsView() {
               <span className="gtag">{cards.length} cards</span>
               <div className="sp" />
               {filterAssignee && (
-                <button
+                <Button
                   type="button"
                   className="gtag ok"
                   style={{ cursor: "pointer" }}
@@ -115,7 +116,7 @@ export function ProjectsView() {
                   title="Clear filter"
                 >
                   {filterAssignee === "__unassigned__" ? "No assignee" : filterAssignee} ×
-                </button>
+                </Button>
               )}
             </div>
 

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * SessionsView — the Sessions View component (owns sidebar + viewport layout).
  *
@@ -731,7 +732,7 @@ function SessionChatLayout({
       {/* ── vp-head ─────────────────────────────────────────────── */}
       <div className="vp-head">
         <div className="vp-left">
-          <button
+          <Button
             type="button"
             className="icobtn"
             style={{ padding: 0 }}
@@ -739,7 +740,7 @@ function SessionChatLayout({
             title="Back"
           >
             <Icon name="chevron-left" />
-          </button>
+          </Button>
           <span className="vp-title chat-title">{session?.title ?? "Untitled"}</span>
           {session?.agent && (
             <span className="proj-badge">
@@ -758,22 +759,22 @@ function SessionChatLayout({
           {session?.managed && session?.liveness !== "active" && (
             <span className="gtag ok chat-managed-badge">managed</span>
           )}
-          <button
+          <Button
             type="button"
             className="icobtn"
             title="Toggle bottom panel"
             onClick={onToggleBp}
           >
             <Icon name="panel-bottom" size={14} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className="icobtn"
             title="Toggle right panel"
             onClick={onToggleRs}
           >
             <Icon name="panel-right" size={14} />
-          </button>
+          </Button>
         </div>
       </div>
 

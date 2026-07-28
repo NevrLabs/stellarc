@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,9 +17,9 @@ function CurrentOrganization() {
   return <div>
     <span>{auth.user.username}:{auth.organization.displayName}</span>
     {auth.organizations.map((organization) => (
-      <button key={organization.id} onClick={() => auth.selectOrganization(organization.id)}>
+      <Button key={organization.id} onClick={() => auth.selectOrganization(organization.id)}>
         {organization.displayName}
-      </button>
+      </Button>
     ))}
   </div>;
 }

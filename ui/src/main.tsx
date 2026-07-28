@@ -7,6 +7,7 @@ import { qk, useLiveSync } from "./hooks/queries";
 import { ThemeProvider } from "./theme";
 import { AuthGate, useAxisAuth } from "./auth";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { TooltipProvider } from "@/components/ui/tooltip";
 // Design system: tokens (colors, type, spacing, radius, motion, fonts) + base
 // resets + .ol-* component classes. Imported before index.css so the app-shell
 // aliases in index.css can reference the design-system tokens.
@@ -61,7 +62,7 @@ async function bootstrap() {
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
           <ThemeProvider>
-            <Root />
+            <TooltipProvider><Root /></TooltipProvider>
           </ThemeProvider>
         </ErrorBoundary>
       </QueryClientProvider>

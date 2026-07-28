@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 // Operator Cockpit (ADR 0021) — a single floating, tabbed, operator-only
 // workspace mounted ONCE at the AppShell root (outside the surface switch), so
 // it persists across every view. Toggle from the top-right button; hiding never
@@ -75,7 +76,7 @@ export function Cockpit() {
         </span>
         <div className="cockpit-tabs">
           {tabs.map((t) => (
-            <button
+            <Button
               key={t.id}
               type="button"
               className={`cockpit-tab ${t.id === active?.id ? "on" : ""}`}
@@ -95,11 +96,11 @@ export function Cockpit() {
               >
                 <Icon name="x" size={9} />
               </span>
-            </button>
+            </Button>
           ))}
           <NewTabButton />
         </div>
-        <button
+        <Button
           type="button"
           className="cockpit-icobtn cockpit-hide"
           title="Hide cockpit (tabs stay open)"
@@ -107,7 +108,7 @@ export function Cockpit() {
           onClick={toggle}
         >
           <Icon name="x" size={13} />
-        </button>
+        </Button>
       </div>
 
       <div className="cockpit-body">
@@ -215,7 +216,7 @@ function NewTabButton({ inline }: { inline?: boolean }) {
 
   return (
     <span className="cockpit-newtab" ref={rootRef} data-cockpit-interactive onMouseEnter={clearCloseTimer} onMouseLeave={scheduleCloseSubmenu}>
-      <button
+      <Button
         type="button"
         className={inline ? "cockpit-newbtn-inline" : "cockpit-icobtn"}
         title="New tab"
@@ -227,12 +228,12 @@ function NewTabButton({ inline }: { inline?: boolean }) {
         }}
       >
         <Icon name="plus" size={inline ? 13 : 12} /> {inline ? "New tab" : null}
-      </button>
+      </Button>
       {open && (
         <div className="cockpit-menu menu on" role="menu">
           <div className="cockpit-menu-head">New tab</div>
           {listCockpitTabKinds().map((k) => (
-            <button
+            <Button
               key={k.kind}
               type="button"
               role="menuitem"
@@ -252,14 +253,14 @@ function NewTabButton({ inline }: { inline?: boolean }) {
               <Icon name={k.icon} size={12} />
               <span>{k.label}</span>
               {k.needsNode && <Icon name="chevron-right" size={11} />}
-            </button>
+            </Button>
           ))}
           {nodeKind && (
             <div className="cockpit-submenu menu on" role="menu" onMouseEnter={clearCloseTimer}>
               <div className="cockpit-menu-head">{getCockpitTabKind(nodeKind)?.label} on…</div>
               {targets === null && <div className="cockpit-menu-item is-loading">loading…</div>}
               {targets?.map((t) => (
-                <button
+                <Button
                   key={t.id}
                   type="button"
                   role="menuitem"
@@ -269,7 +270,7 @@ function NewTabButton({ inline }: { inline?: boolean }) {
                   <Icon name="server" size={12} />
                   <span>{t.label}</span>
                   {t.default && <span className="cockpit-menu-default">default</span>}
-                </button>
+                </Button>
               ))}
             </div>
           )}

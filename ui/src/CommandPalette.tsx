@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 // Command palette + topbar search pill (restores the topbar search regression).
 //
 // The concept design (docs/design/concept/stellarc-app-concept.html) puts a
@@ -27,7 +29,7 @@ export function SearchPill() {
   }, [setPaletteOpen]);
 
   return (
-    <button
+    <Button
       type="button"
       className="tb-search"
       onClick={() => setPaletteOpen(true)}
@@ -38,7 +40,7 @@ export function SearchPill() {
       <span className="ph">Search…</span>
       <span className="sp" />
       <span className="kbd">⌘K</span>
-    </button>
+    </Button>
   );
 }
 
@@ -145,7 +147,7 @@ export function CommandPalette() {
       <div className="pal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Command palette">
         <div className="pal-in">
           <Icon name="search" size={14} />
-          <input
+          <Input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -158,7 +160,7 @@ export function CommandPalette() {
         <div className="pal-list">
           {filtered.length === 0 && <div className="pal-gl">no matches</div>}
           {filtered.map((i, idx) => (
-            <button
+            <Button
               key={i.id}
               type="button"
               className={`pal-r${idx === active ? " sel" : ""}`}
@@ -168,7 +170,7 @@ export function CommandPalette() {
               <Icon name={i.icon} size={13} />
               <span>{i.label}</span>
               <span className="m">{i.hint}</span>
-            </button>
+            </Button>
           ))}
         </div>
       </div>

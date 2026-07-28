@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 /**
  * SessionSidebar — the View-owned left sidebar for Sessions (v4 layout).
  *
@@ -197,20 +199,20 @@ export function SessionSidebar({
       <aside className="sidebar" style={{ width }}>
         <div className="sb-pad">
           <div className="session-sidebar-primary">
-            <button type="button" className="newbtn" onClick={handleNewSession}>
+            <Button type="button" className="newbtn" onClick={handleNewSession}>
               <Icon name="plus" size={14} />
               New session
               <span className="kbd" style={{ marginLeft: "auto" }}>⌘N</span>
-            </button>
-            <button type="button" className="icobtn" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
+            </Button>
+            <Button type="button" className="icobtn" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
               <Icon name="settings-2" size={13} />
-            </button>
+            </Button>
           </div>
           {metadataOpen && (
             <div className="session-metadata-menu" role="group" aria-label="Session row metadata">
               {SESSION_METADATA_FIELDS.map((field) => (
                 <label key={field}>
-                  <input type="checkbox" checked={metadataFields.has(field)} onChange={() => setMetadataFields((current) => toggleSessionMetadataField(current, field))} />
+                  <Input type="checkbox" checked={metadataFields.has(field)} onChange={() => setMetadataFields((current) => toggleSessionMetadataField(current, field))} />
                   <span>{field}</span>
                 </label>
               ))}
@@ -267,9 +269,9 @@ export function SessionSidebar({
                 <div style={{ margin: "4px 8px 8px", padding: 8, border: "1px solid var(--border-strong)", borderRadius: 6, background: "var(--elev)", fontSize: 11 }}>
                   <div style={{ marginBottom: 6 }}>{contextOffer.projectName} is not the primary project. Attach as context?</div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <button type="button" className="btn" aria-label="Attach read-only" onClick={() => void handleAttachAsContext("read")}>read</button>
-                    <button type="button" className="btn" aria-label="Attach read-write" onClick={() => void handleAttachAsContext("write")}>write</button>
-                    <button type="button" className="btn" onClick={() => setContextOffer(null)}>dismiss</button>
+                    <Button type="button" className="btn" aria-label="Attach read-only" onClick={() => void handleAttachAsContext("read")}>read</Button>
+                    <Button type="button" className="btn" aria-label="Attach read-write" onClick={() => void handleAttachAsContext("write")}>write</Button>
+                    <Button type="button" className="btn" onClick={() => setContextOffer(null)}>dismiss</Button>
                   </div>
                 </div>
               )}
@@ -326,7 +328,7 @@ export function SessionSidebar({
                         />
                       ))}
                       {remaining > 0 && (
-                        <button
+                        <Button
                           type="button"
                           className="srow ghost-row"
                           onClick={() => void navigate({ to: "/sessions/history", search: { project: project.id } })}
@@ -334,7 +336,7 @@ export function SessionSidebar({
                           <span className="srow-copy">
                             <span className="srow-title ghost">{remaining} more…</span>
                           </span>
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -343,7 +345,7 @@ export function SessionSidebar({
 
               {/* hidden projects ghost row */}
               {prefs.hiddenProjects.length > 0 && (
-                <button
+                <Button
                   type="button"
                   className="srow ghost-row"
                   onClick={() => prefs.hiddenProjects.forEach(showProject)}
@@ -351,7 +353,7 @@ export function SessionSidebar({
                   <span className="srow-copy">
                     <span className="srow-title ghost">{prefs.hiddenProjects.length} hidden…</span>
                   </span>
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -400,12 +402,12 @@ function SectionHeader({
   onToggle: () => void;
 }) {
   return (
-    <button type="button" className="sec-head sec-head-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+    <Button type="button" className="sec-head sec-head-toggle" onClick={onToggle} aria-expanded={!collapsed}>
       <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={10} />
       <span className="lbl">{label}</span>
       <span className="sp" />
       <span className="ct">{count}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -423,7 +425,7 @@ function NavItem({
   const isActive = pathname === path;
 
   return (
-    <button
+    <Button
       type="button"
       className={`navitem${isActive ? " on" : ""}`}
       onClick={() => void navigate({ to: path })}
@@ -431,7 +433,7 @@ function NavItem({
     >
       <Icon name={icon} size={14} />
       <span>{label}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -458,7 +460,7 @@ function ProjectRow({
 
   if (!project) {
     return (
-      <button
+      <Button
         type="button"
         className={`navitem no-project-row${isActive ? " on" : ""}`}
         onClick={onNavigate}
@@ -466,7 +468,7 @@ function ProjectRow({
         <span className="srow-dot done" style={{ width: 6, height: 6, background: "transparent", border: "1px solid var(--faint)" }} />
         <span style={{ fontStyle: "italic", color: "var(--faint)" }}>no project</span>
         {sessionCount > 0 && <span className="ct" style={{ marginLeft: "auto" }}>{sessionCount}</span>}
-      </button>
+      </Button>
     );
   }
 
@@ -481,7 +483,7 @@ function ProjectRow({
       {liveCount > 0 && <span className="live-pill">{liveCount} live</span>}
       <span className="proj-actions">
         {onNewSession && (
-          <button
+          <Button
             type="button"
             className="srow-act"
             title={`New session in ${project.name}`}
@@ -489,27 +491,27 @@ function ProjectRow({
             onClick={(e) => { e.stopPropagation(); onNewSession(); }}
           >
             <Icon name="plus" size={11} />
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="button"
           className="srow-act"
           title="Project menu"
           onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
         >
           <Icon name="ellipsis" size={11} />
-        </button>
+        </Button>
       </span>
       {menu && onHide && (
         <div className="ctx-menu" style={{ position: "absolute", right: 0, top: "100%", zIndex: 1000 }} onClick={(e) => e.stopPropagation()}>
-          <button
+          <Button
             type="button"
             className="ctx-item"
             onClick={(e) => { e.stopPropagation(); setMenu(false); onHide(); }}
           >
             <Icon name="x" size={12} />
             Hide from sidebar
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -629,23 +631,23 @@ function SessionRow({
       <span className="srow-actions">
         {onOpenSession && (
           <>
-            <button type="button" className="srow-act" title="Open right" onClick={(e) => { e.stopPropagation(); fireOpen("right"); }}>
+            <Button type="button" className="srow-act" title="Open right" onClick={(e) => { e.stopPropagation(); fireOpen("right"); }}>
               <Icon name="panel-right" size={11} />
-            </button>
-            <button type="button" className="srow-act" title="Open below" onClick={(e) => { e.stopPropagation(); fireOpen("below"); }}>
+            </Button>
+            <Button type="button" className="srow-act" title="Open below" onClick={(e) => { e.stopPropagation(); fireOpen("below"); }}>
               <Icon name="panel-bottom" size={11} />
-            </button>
+            </Button>
           </>
         )}
-        <button type="button" className="srow-act" title="Open menu" onClick={openMenu}>
+        <Button type="button" className="srow-act" title="Open menu" onClick={openMenu}>
           <Icon name="ellipsis" size={11} />
-        </button>
-        <button type="button" className="srow-act" title={session.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
+        </Button>
+        <Button type="button" className="srow-act" title={session.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
           <Icon name="pin" size={11} />
-        </button>
-        <button type="button" className="srow-act" title="Archive" onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { archived: true } }); }}>
+        </Button>
+        <Button type="button" className="srow-act" title="Archive" onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { archived: true } }); }}>
           <Icon name="archive" size={11} />
-        </button>
+        </Button>
       </span>
       {menu && (
         <div
@@ -654,35 +656,35 @@ function SessionRow({
           style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 1000 }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen()}>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen()}>
             <Icon name="message-square" size={12} />
             Open
-          </button>
+          </Button>
           {onOpenSession && (
             <>
-              <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("right")}>
+              <Button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("right")}>
                 <Icon name="panel-right" size={12} />
                 Open Right
-              </button>
-              <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("below")}>
+              </Button>
+              <Button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("below")}>
                 <Icon name="panel-bottom" size={12} />
                 Open Below
-              </button>
+              </Button>
             </>
           )}
           <div className="ctx-sep" />
-          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
             <Icon name="pin" size={12} />
             {session.pinned ? "Unpin" : "Pin"}
-          </button>
-          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); navigator.clipboard?.writeText(session.id); }}>
+          </Button>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); navigator.clipboard?.writeText(session.id); }}>
             <Icon name="copy" size={12} />
             Copy ID
-          </button>
-          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { archived: true } }); }}>
+          </Button>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { archived: true } }); }}>
             <Icon name="archive" size={12} />
             Archive
-          </button>
+          </Button>
         </div>
       )}
     </div>

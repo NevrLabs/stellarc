@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DraftSession } from "./DraftSession";
@@ -24,8 +26,8 @@ vi.mock("../../../api", () => ({
 }));
 vi.mock("./Composer", () => ({
   Composer: ({ text, onTextChange, onSend, sessionAgent }: any) => <>
-    <input aria-label={`Message ${sessionAgent}`} value={text} onChange={onTextChange} />
-    <button type="button" onClick={() => onSend()}>Send</button>
+    <Input aria-label={`Message ${sessionAgent}`} value={text} onChange={onTextChange} />
+    <Button type="button" onClick={() => onSend()}>Send</Button>
   </>,
 }));
 

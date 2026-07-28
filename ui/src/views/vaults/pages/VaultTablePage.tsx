@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { Icon } from "../../../components/Icon";
 import { useVaultDocuments } from "../../../hooks/queries";
@@ -53,12 +54,12 @@ export function VaultTablePage({
       </div>
       <div className="vault-table-scroll">
         <table className="hist-table vault-document-table">
-          <thead><tr>{columns.map((column) => <th key={column}><button type="button" onClick={() => { if (sort === column) setDescending((value) => !value); else { setSort(column); setDescending(false); } }}>{column}{sort === column ? descending ? " ↓" : " ↑" : ""}</button></th>)}</tr></thead>
+          <thead><tr>{columns.map((column) => <th key={column}><Button type="button" onClick={() => { if (sort === column) setDescending((value) => !value); else { setSort(column); setDescending(false); } }}>{column}{sort === column ? descending ? " ↓" : " ↑" : ""}</Button></th>)}</tr></thead>
           <tbody>{rows.map((document) => (
             <tr key={document.path} className="hist-row" onDoubleClick={() => onOpenNote(document.path, document.title)}>
               {columns.map((column) => (
                 <td key={column}>
-                  {column === "title" ? <button type="button" className="vault-table-note" onClick={() => onOpenNote(document.path, document.title)}><Icon name="file" size={12} />{document.title}</button> : displayValue(column === "path" ? document.path : document.frontmatter[column])}
+                  {column === "title" ? <Button type="button" className="vault-table-note" onClick={() => onOpenNote(document.path, document.title)}><Icon name="file" size={12} />{document.title}</Button> : displayValue(column === "path" ? document.path : document.frontmatter[column])}
                 </td>
               ))}
             </tr>

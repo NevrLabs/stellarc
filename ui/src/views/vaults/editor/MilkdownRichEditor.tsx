@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx } from "@milkdown/kit/core";
@@ -146,9 +147,9 @@ export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUG
       {activeMatch && (
         <div className="vault-suggestions" role="listbox" aria-label={`${activeMatch.kind} suggestions`}>
           {matches.length > 0 ? matches.map((suggestion, index) => (
-            <button key={`${suggestion.kind}:${suggestion.id}`} type="button" role="option" aria-selected={index === selectedIndex} className={`vault-suggestion ${index === selectedIndex ? "selected" : ""}`} onMouseDown={(event) => { event.preventDefault(); chooseSuggestion(suggestion); }}>
+            <Button key={`${suggestion.kind}:${suggestion.id}`} type="button" role="option" aria-selected={index === selectedIndex} className={`vault-suggestion ${index === selectedIndex ? "selected" : ""}`} onMouseDown={(event) => { event.preventDefault(); chooseSuggestion(suggestion); }}>
               <span>{suggestion.label}</span><span className="mono">{suggestion.id}</span>
-            </button>
+            </Button>
           )) : <div className="vault-suggestion-empty">No matching {activeMatch.kind}s</div>}
         </div>
       )}

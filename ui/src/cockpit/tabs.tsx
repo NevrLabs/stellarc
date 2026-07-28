@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 // Cockpit tab-kind registry (ADR 0021) — kind → renderer + metadata.
 //
 // Built-in kinds: terminal (live PTY), browser (iframe), editor (placeholder
@@ -302,7 +304,7 @@ function BrowserPane({ tab }: { tab: CockpitTab; visible: boolean }) {
     <div className="cockpit-browser">
       <div className="cockpit-browser-bar">
         <Icon name="globe" size={12} />
-        <input
+        <Input
           className="cockpit-browser-url"
           placeholder="https://…"
           value={input}
@@ -311,9 +313,9 @@ function BrowserPane({ tab }: { tab: CockpitTab; visible: boolean }) {
             if (e.key === "Enter") go();
           }}
         />
-        <button type="button" className="ol-btn ol-btn-sm" onClick={go}>
+        <Button type="button" className="ol-btn ol-btn-sm" onClick={go}>
           Go
-        </button>
+        </Button>
       </div>
       {url ? (
         <iframe className="cockpit-browser-frame" src={url} title={tab.title} />

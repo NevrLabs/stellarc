@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * FleetView — the Fleet View component (owns sidebar + viewport layout).
  *
@@ -135,10 +136,10 @@ function FleetSidebar({
     <>
       <aside className="sidebar" style={{ width }}>
         <div className="sb-pad">
-          <button type="button" className="newbtn" onClick={() => setAddOpen(true)}>
+          <Button type="button" className="newbtn" onClick={() => setAddOpen(true)}>
             <Icon name="plus" size={14} />
             Add node
-          </button>
+          </Button>
         </div>
         <div className="sb-scroll">
           {nodes.length > 0 ? (
@@ -207,7 +208,7 @@ function NodeTreeItem({
           {agents.length > 0 ? `${agents.length}` : ""}
         </span>
         {agents.length > 0 && (
-          <button
+          <Button
             type="button"
             className="icobtn"
             style={{ padding: 0, width: 16, height: 16 }}
@@ -218,7 +219,7 @@ function NodeTreeItem({
             }}
           >
             <Icon name={expanded ? "chevron-down" : "chevron-right"} size={10} />
-          </button>
+          </Button>
         )}
       </div>
       {expanded &&
@@ -390,14 +391,14 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
     return (
       <div className="view on" data-view="fleet" style={{ flexDirection: "column" }}>
         <div className="gv-head">
-          <button
+          <Button
             type="button"
             className="icobtn"
             onClick={() => void navigate({ to: "/fleet" })}
             title="Back to fleet"
           >
             <Icon name="chevron-left" size={14} />
-          </button>
+          </Button>
           <span className="gv-title">{nodeId}</span>
         </div>
         <div className="gv-body">
@@ -470,20 +471,20 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
   return (
     <div className="view on" data-view="fleet" style={{ flexDirection: "column" }}>
       <div className="gv-head">
-        <button
+        <Button
           type="button"
           className="icobtn"
           onClick={() => void navigate({ to: "/fleet" })}
           title="Back to fleet"
         >
           <Icon name="chevron-left" size={14} />
-        </button>
+        </Button>
         <span className="gv-title" style={{ fontFamily: "var(--mono)" }}>
           {node.nodeId}
         </span>
         <span className="gv-sub">· {transportLabel(node)}</span>
         <div className="gv-actions">
-          <button
+          <Button
             type="button"
             className="btn"
             title="Re-detect agents on this node"
@@ -492,8 +493,8 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
           >
             <Icon name="activity" size={12} />
             {detecting ? "Detecting…" : "Detect agents"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className="btn"
             disabled={node.local || actionBusy || node.status === "draining"}
@@ -505,8 +506,8 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
             onClick={handleDrain}
           >
             Drain
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className="btn"
             disabled={node.local || actionBusy}
@@ -519,7 +520,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
           >
             <Icon name="trash" size={12} />
             Remove
-          </button>
+          </Button>
         </div>
       </div>
       <div className="gv-body">
@@ -738,7 +739,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
             <Icon name="server" size={18} />
             <div className="ol-dialog-title">Add node</div>
           </div>
-          <button
+          <Button
             type="button"
             className="icobtn"
             onClick={onClose}
@@ -746,7 +747,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
             aria-label="Close"
           >
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </div>
         <div className="ol-dialog-body">
           {error ? (
@@ -785,7 +786,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
                 >
                   {enroll.command}
                 </code>
-                <button
+                <Button
                   type="button"
                   className="icobtn"
                   title="Copy command"
@@ -793,7 +794,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
                   onClick={copy}
                 >
                   <Icon name={copied ? "check" : "copy"} size={13} />
-                </button>
+                </Button>
               </div>
               <p style={{ fontSize: 11, color: "var(--faint)", marginBottom: 0 }}>
                 Token is single-use and expires in{" "}

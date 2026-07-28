@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState } from "react";
 
 export interface PillPickerItem {
@@ -57,7 +59,7 @@ export function PillPicker({
 
   return (
     <div ref={rootRef} style={{ position: "relative" }}>
-      <button
+      <Button
         type="button"
         className="chip"
         aria-label={placeholder}
@@ -66,7 +68,7 @@ export function PillPicker({
       >
         <span style={{ color: "var(--faint)" }}>＋</span>
         {selected?.label ?? placeholder.replace(/^＋\s*/, "")}
-      </button>
+      </Button>
       <div
         ref={menuRef}
         className={`menu${open ? " on" : ""}`}
@@ -81,7 +83,7 @@ export function PillPicker({
         }}
       >
         {open && <>
-          <input
+          <Input
             className="ol-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -90,7 +92,7 @@ export function PillPicker({
             style={{ width: "100%", marginBottom: 4 }}
           />
           {filtered.map((item) => (
-            <button
+            <Button
               key={item.id}
               type="button"
               className={`mi${item.id === value ? " on" : ""}`}
@@ -102,7 +104,7 @@ export function PillPicker({
             >
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.detail && <span className="gk">{item.detail}</span>}
-            </button>
+            </Button>
           ))}
           {filtered.length === 0 && <div className="gk" style={{ padding: 8 }}>No matches</div>}
         </>}

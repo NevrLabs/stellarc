@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ForkModal — the fork-confirmation dialog.
  *
@@ -43,7 +44,7 @@ export function ForkModal({
               <div className="ol-dialog-title">{title}</div>
             </div>
           </div>
-          <button
+          <Button
             type="button"
             className="icobtn"
             onClick={onCancel}
@@ -51,18 +52,18 @@ export function ForkModal({
             aria-label="Close"
           >
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </div>
         <div className="ol-dialog-body">
           {message}
         </div>
         <div className="ol-dialog-foot">
-          <button type="button" className="btn" onClick={onCancel}>
+          <Button type="button" className="btn" onClick={onCancel}>
             Cancel
-          </button>
-          <button type="button" className="btn pri" onClick={onConfirm}>
+          </Button>
+          <Button type="button" className="btn pri" onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

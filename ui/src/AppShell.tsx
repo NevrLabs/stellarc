@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 // AppShell — the Stellarc application frame.
 //
 // Layout (matches docs/design/concept/stellarc-app-concept.html):
@@ -113,7 +115,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
   return (
     <div className="topbar">
       <div className="tb-left">
-        <button
+        <Button
           type="button"
           className="icobtn"
           onClick={toggleSidebar}
@@ -121,13 +123,13 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
           aria-label="Toggle sidebar"
         >
           <Icon name="mountain" size={14} />
-        </button>
+        </Button>
         {import.meta.env.VITE_STELLARC_ENV === "dev" && <span className="env-pill">DEV</span>}
         <span className="divider" />
         {/* View selector — icon chips for each surface (concept: topbar .layouts) */}
         <div className="layouts" role="tablist" aria-label="Surfaces">
           {SURFACES.map((s) => (
-            <button
+            <Button
               type="button"
               key={s.surface}
               className={`chip ${activeSurface === s.surface ? "on" : ""}`}
@@ -137,7 +139,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
               aria-current={activeSurface === s.surface ? "page" : undefined}
             >
               <Icon name={s.icon} size={13} />
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -150,7 +152,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
         {/* Operator cockpit toggle (ADR 0021) — floating terminal workspace. */}
         <CockpitToggle />
         {/* Theme toggle */}
-        <button
+        <Button
           type="button"
           className="icobtn"
           onClick={toggleTheme}
@@ -158,10 +160,10 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
           aria-label="Toggle theme"
         >
           <Icon name={theme === "obsidian" ? "sun" : "moon"} size={14} />
-        </button>
+        </Button>
         <OrgChip />
         <div className="account-menu-wrap">
-          <button
+          <Button
             type="button"
             className="profile"
             title={`Account menu for ${user.username}`}
@@ -171,7 +173,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
             onClick={() => setAccountOpen((open) => !open)}
           >
             {user.username.slice(0, 2).toLowerCase()}
-          </button>
+          </Button>
           {accountOpen && (
             <div className="account-menu" role="menu">
               <div className="account-menu-user" role="none">
@@ -189,12 +191,12 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
               <div className="account-menu-item account-menu-muted" role="menuitem" aria-disabled="true">
                 {organizations.length > 1 ? "Use the organization selector in the top bar." : "No other organizations available."}
               </div>
-              <button type="button" className="account-menu-item" role="menuitem" onClick={() => { setAccountOpen(false); void navigate({ to: "/settings" }); }}>
+              <Button type="button" className="account-menu-item" role="menuitem" onClick={() => { setAccountOpen(false); void navigate({ to: "/settings" }); }}>
                 Settings
-              </button>
-              <button type="button" className="account-menu-item danger" role="menuitem" onClick={() => void logout()}>
+              </Button>
+              <Button type="button" className="account-menu-item danger" role="menuitem" onClick={() => void logout()}>
                 Sign out
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -206,7 +208,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
 function CockpitToggle() {
   const { open, toggle } = useCockpit();
   return (
-    <button
+    <Button
       type="button"
       className={`icobtn ${open ? "on" : ""}`}
       onClick={toggle}
@@ -215,7 +217,7 @@ function CockpitToggle() {
       aria-pressed={open}
     >
       <Icon name="terminal" size={14} />
-    </button>
+    </Button>
   );
 }
 
@@ -224,14 +226,14 @@ function OrgChip() {
   return (
     <label className="org" title="Organization">
       <span className="mk" />
-      <select
+      <NativeSelect
         aria-label="Organization"
         value={organization.id}
         onChange={(event) => selectOrganization(event.target.value)}
         style={{ background: "transparent", border: 0, color: "inherit", maxWidth: 180 }}
       >
         {organizations.map((org) => <option key={org.id} value={org.id}>{org.displayName}</option>)}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

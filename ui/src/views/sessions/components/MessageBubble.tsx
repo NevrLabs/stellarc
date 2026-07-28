@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Message as ChatMessage, MessageContent, MessageActions, MessageAction, MessageToolbar } from "@/components/ai-elements/message";
+import { Marker } from "@/components/ui/marker";
 /**
  * MessageBubble — a single message in the transcript.
  *
@@ -103,7 +106,8 @@ export const MessageBubble = React.memo(function MessageBubble({
   }, [msg.content, msg.toolCalls]);
 
   return (
-    <div className={isSteer ? "msg-user msg-steer" : isUser ? "msg-user" : "msg-ai"} data-ts={dt}>
+    <ChatMessage from={isUser ? "user" : "assistant"} className={isSteer ? "msg-user msg-steer" : isUser ? "msg-user" : "msg-ai"} data-ts={dt}>
+      <MessageContent>
       {isSteer && (
         <span className={`steer-badge ${steerPending ? "steer-pending" : "steer-delivered"}`}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -116,7 +120,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       {/* Reasoning block */}
       {msg.reasoning && (
         <div className="reasoning-block">
-          <button
+          <Button
             type="button"
             className="reasoning-toggle"
             onClick={() => setReasonExpanded((v) => !v)}
@@ -125,7 +129,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             <span className="gk" style={{ fontSize: 10 }}>
               thinking
             </span>
-          </button>
+          </Button>
           {reasonExpanded && (
             <div className="reasoning-body">{msg.reasoning}</div>
           )}
@@ -159,16 +163,19 @@ export const MessageBubble = React.memo(function MessageBubble({
       )}
 
       {/* Toolbar: [Copy] [Fork] datetime */}
-      <div className="msg-toolbar">
-        <button type="button" className="mt-btn" onClick={handleCopy} title="Copy">
-          <Icon name={copied ? "check" : "copy"} size={12} />
-        </button>
-        <button type="button" className="mt-btn" title="Fork from here" onClick={onFork}>
-          <Icon name="git-branch" size={12} />
-        </button>
-        <span className="mt-dt">{dt}</span>
-      </div>
-    </div>
+      </MessageContent>
+      <MessageToolbar className="msg-toolbar">
+        <MessageActions>
+          <MessageAction className="mt-btn" onClick={handleCopy} tooltip="Copy" label="Copy message">
+            <Icon name={copied ? "check" : "copy"} size={12} />
+          </MessageAction>
+          <MessageAction className="mt-btn" tooltip="Fork from here" label="Fork message" onClick={onFork}>
+            <Icon name="git-branch" size={12} />
+          </MessageAction>
+        </MessageActions>
+        <Marker className="mt-dt">{dt}</Marker>
+      </MessageToolbar>
+    </ChatMessage>
   );
 });
 

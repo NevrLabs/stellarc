@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ProjectSidebar — left sidebar for the Projects View.
  *
@@ -36,7 +37,7 @@ export function ProjectSidebar({
         <span className="ct">{cards.length}</span>
       </div>
       <div className="sec-content">
-        <button
+        <Button
           type="button"
           className={`srow${!activeFilter ? " on" : ""}`}
           style={{ width: "100%", justifyContent: "flex-start" }}
@@ -46,7 +47,7 @@ export function ProjectSidebar({
           <span className="title" style={{ marginLeft: 6 }}>
             Default board
           </span>
-        </button>
+        </Button>
       </div>
 
       <div className="sec-content projects-sidebar-note">Boards contain cards. Projects group boards and context.</div>
@@ -61,7 +62,7 @@ export function ProjectSidebar({
           </div>
           <div className="sec-content">
             {assignees.map((a) => (
-              <button
+              <Button
                 key={a}
                 type="button"
                 className={`srow${activeFilter === a ? " on" : ""}`}
@@ -86,7 +87,7 @@ export function ProjectSidebar({
                     cards.filter((c) => c.assignedId === a).length
                   }
                 </span>
-              </button>
+              </Button>
             ))}
           </div>
         </>
@@ -99,7 +100,7 @@ export function ProjectSidebar({
             <span className="lbl">UNASSIGNED</span>
           </div>
           <div className="sec-content">
-            <button
+            <Button
               type="button"
               className={`srow${activeFilter === "__unassigned__" ? " on" : ""}`}
               style={{ width: "100%", justifyContent: "flex-start" }}
@@ -115,7 +116,7 @@ export function ProjectSidebar({
               <span className="meta">
                 {cards.filter((c) => !c.assignedId).length}
               </span>
-            </button>
+            </Button>
           </div>
         </>
       )}

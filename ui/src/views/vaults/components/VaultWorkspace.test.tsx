@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -76,7 +77,7 @@ vi.mock("dockview-react", () => ({
 vi.mock("../pages/GraphPage", () => ({ GraphPage: () => <div>Graph</div> }));
 vi.mock("../pages/NotePage", () => ({
   NotePage: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
-    <button type="button" onClick={() => onDirtyChange(true)}>Dirty note</button>
+    <Button type="button" onClick={() => onDirtyChange(true)}>Dirty note</Button>
   ),
 }));
 vi.mock("../pages/VaultTablePage", () => ({ VaultTablePage: () => <div>Table</div> }));

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ChatPage — viewport content for the active session chat.
  *
@@ -730,22 +731,22 @@ function ActiveChatPage({
                 </div>
                 <div className="perm-opts">
                   {permission.options.map((o) => (
-                    <button
+                    <Button
                       key={o.optionId}
                       type="button"
                       className={`btn${o.kind.startsWith("allow") ? " pri" : ""}`}
                       onClick={() => void handlePermission(o.optionId)}
                     >
                       {o.name}
-                    </button>
+                    </Button>
                   ))}
-                  <button
+                  <Button
                     type="button"
                     className="btn"
                     onClick={() => void handlePermission(null)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -758,9 +759,9 @@ function ActiveChatPage({
             <span style={{ flex: 1 }}>
               This is an observed session — read-only. Fork it to continue from Stellarc.
             </span>
-            <button type="button" className="btn pri" onClick={() => setForkOpen(true)}>
+            <Button type="button" className="btn pri" onClick={() => setForkOpen(true)}>
               Fork to continue
-            </button>
+            </Button>
           </div>
         </div>
       ) : (

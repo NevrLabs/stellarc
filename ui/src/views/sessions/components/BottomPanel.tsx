@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 /**
  * BottomPanel — View-owned collapsible bottom panel.
  *
@@ -270,7 +272,7 @@ export function BottomPanel({
       <div className="bp-tabs">
         <div className="bp-tablist" role="tablist" aria-label="Session bottom panel">
           {tabs.map((t) => (
-            <button
+            <Button
               key={t.id}
               type="button"
               role="tab"
@@ -280,13 +282,13 @@ export function BottomPanel({
               onClick={() => onTabChange(t.id)}
             >
               {t.label}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="bp-right">
-          <button type="button" className="icobtn" title="Close panel" onClick={onClose}>
+          <Button type="button" className="icobtn" title="Close panel" onClick={onClose}>
             <Icon name="chevron-down" size={13} />
-          </button>
+          </Button>
         </div>
       </div>
       <div className="bp-body">
@@ -346,30 +348,30 @@ function LogsTab({
   return (
     <div className="bp-debug">
       <div className="bp-debug-bar">
-        <button
+        <Button
           type="button"
           className={`bp-mini-btn${levelFilter === "all" ? " on" : ""}`}
           onClick={() => setLevelFilter("all")}
         >
           All
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           className={`bp-mini-btn${levelFilter === "warn" ? " on" : ""}`}
           onClick={() => setLevelFilter("warn")}
         >
           Warn+
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           className={`bp-mini-btn${levelFilter === "error" ? " on" : ""}`}
           onClick={() => setLevelFilter("error")}
         >
           Errors
-        </button>
-        <button type="button" className="bp-mini-btn" onClick={onClear} title="Clear log">
+        </Button>
+        <Button type="button" className="bp-mini-btn" onClick={onClear} title="Clear log">
           <Icon name="trash" size={12} />
-        </button>
+        </Button>
         <span className="bp-count d">{filtered.length}/{entries.length}</span>
       </div>
       <div className="bp-debug-list" ref={scrollRef}>
@@ -550,29 +552,29 @@ function DebugTab({
     <div className="bp-debug">
       <div className="bp-debug-bar">
         <Icon name="search" size={12} />
-        <input
+        <Input
           className="bp-filter"
           type="text"
           placeholder="Filter frames…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button
+        <Button
           type="button"
           className={`bp-mini-btn${paused ? " on" : ""}`}
           onClick={() => setPaused((v) => !v)}
           title={paused ? "Resume capture" : "Pause capture"}
         >
           {paused ? "Resume" : "Pause"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           className="bp-mini-btn"
           onClick={onClear}
           title="Clear buffer"
         >
           <Icon name="trash" size={12} />
-        </button>
+        </Button>
         <span className="bp-count d">{filtered.length}/{displayFrames.length}</span>
       </div>
       <div className="bp-debug-list" ref={scrollRef}>

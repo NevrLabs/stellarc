@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DockviewReact,
@@ -219,7 +220,7 @@ function VaultTab({ api, params }: IDockviewPanelHeaderProps<VaultPanelParams>) 
   return (
     <div className="vault-dock-tab">
       <span>{api.title}</span>
-      <button
+      <Button
         type="button"
         aria-label={`Close ${params.tab.title}`}
         onClick={(event) => {
@@ -228,7 +229,7 @@ function VaultTab({ api, params }: IDockviewPanelHeaderProps<VaultPanelParams>) 
         }}
       >
         ×
-      </button>
+      </Button>
     </div>
   );
 }
@@ -244,7 +245,7 @@ function VaultPanel({ params }: IDockviewPanelProps<VaultPanelParams>) {
       <div className="vault-content"><div className="empty-state" role="alert">
         <div className="empty-state-title">This note could not be displayed</div>
         <div className="empty-state-msg">{error.message}</div>
-        <button type="button" className="btn" onClick={retry}>Retry note</button>
+        <Button type="button" className="btn" onClick={retry}>Retry note</Button>
       </div></div>
     )}>
       <NotePage

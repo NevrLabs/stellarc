@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 // Settings → Organization management (ADR 0022, better-auth pattern).
 //
 // Members table (role dropdown, remove, invite), role editor (resource×action
@@ -96,9 +99,9 @@ function OrganizationSettings() {
           <div className="org-invite-token">
             <span>Invitation link (share once):</span>
             <code>/api/auth/invitations/{inviteToken}/accept</code>
-            <button type="button" className="ol-btn ol-btn-sm ol-btn-ghost" onClick={() => setInviteToken(null)}>
+            <Button type="button" className="ol-btn ol-btn-sm ol-btn-ghost" onClick={() => setInviteToken(null)}>
               dismiss
-            </button>
+            </Button>
           </div>
         )}
         <table className="org-table">
@@ -114,7 +117,7 @@ function OrganizationSettings() {
               <tr key={m.userId}>
                 <td>{m.username}</td>
                 <td>
-                  <select
+                  <NativeSelect
                     className="ol-select org-role-select"
                     value={m.role}
                     onChange={(e) =>
@@ -125,17 +128,17 @@ function OrganizationSettings() {
                       <option key={n} value={n}>{n}</option>
                     ))}
                     {!roleNames.includes(m.role) && <option value={m.role}>{m.role}</option>}
-                  </select>
+                  </NativeSelect>
                 </td>
                 <td className="org-cell-actions">
-                  <button
+                  <Button
                     type="button"
                     className="ol-iconbtn"
                     title="Remove from organization"
                     onClick={() => removeMember(m.userId).then(reload).catch(onErr)}
                   >
                     <Icon name="trash" size={12} />
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -146,9 +149,9 @@ function OrganizationSettings() {
       <section className="org-section">
         <header className="org-sec-head">
           <h3 className="ol-field-label">Roles</h3>
-          <button type="button" className="ol-btn ol-btn-sm" onClick={() => setEditingRole("new")}>
+          <Button type="button" className="ol-btn ol-btn-sm" onClick={() => setEditingRole("new")}>
             <Icon name="plus" size={12} /> New role
-          </button>
+          </Button>
         </header>
         <div className="org-roles">
           {roles.map((r) => (
@@ -159,17 +162,17 @@ function OrganizationSettings() {
               </div>
               <PermissionSummary permissions={r.permissions} />
               <div className="org-role-actions">
-                <button type="button" className="ol-btn ol-btn-sm" onClick={() => setEditingRole(r)}>
+                <Button type="button" className="ol-btn ol-btn-sm" onClick={() => setEditingRole(r)}>
                   {r.builtin ? "View" : "Edit"}
-                </button>
+                </Button>
                 {!r.builtin && (
-                  <button
+                  <Button
                     type="button"
                     className="ol-btn ol-btn-sm ol-btn-danger"
                     onClick={() => deleteRole(r.name).then(reload).catch(onErr)}
                   >
                     Delete
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -203,13 +206,13 @@ function OrganizationSettings() {
                   </td>
                   <td className="org-cell-actions">
                     {i.status === "pending" && (
-                      <button
+                      <Button
                         type="button"
                         className="ol-btn ol-btn-sm ol-btn-danger"
                         onClick={() => revokeInvitation(i.id).then(reload).catch(onErr)}
                       >
                         revoke
-                      </button>
+                      </Button>
                     )}
                   </td>
                 </tr>
@@ -269,30 +272,30 @@ function InviteControl({
 
   if (!open) {
     return (
-      <button type="button" className="ol-btn ol-btn-sm ol-btn-primary" onClick={() => setOpen(true)}>
+      <Button type="button" className="ol-btn ol-btn-sm ol-btn-primary" onClick={() => setOpen(true)}>
         <Icon name="plus" size={12} /> Invite
-      </button>
+      </Button>
     );
   }
   return (
     <div className="org-invite-form">
-      <input
+      <Input
         className="ol-input"
         placeholder="username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
       />
-      <select className="ol-select" value={role} onChange={(e) => setRole(e.target.value)}>
+      <NativeSelect className="ol-select" value={role} onChange={(e) => setRole(e.target.value)}>
         {roleNames.map((n) => (
           <option key={n} value={n}>{n}</option>
         ))}
-      </select>
+      </NativeSelect>
       <label className="ol-check">
-        <input type="checkbox" checked={makeUser} onChange={(e) => setMakeUser(e.target.checked)} />
+        <Input type="checkbox" checked={makeUser} onChange={(e) => setMakeUser(e.target.checked)} />
         create user
       </label>
       {makeUser && (
-        <input
+        <Input
           className="ol-input"
           type="password"
           placeholder="password"
@@ -301,7 +304,7 @@ function InviteControl({
         />
       )}
       {localErr && <span className="org-inline-err">{localErr}</span>}
-      <button
+      <Button
         type="button"
         className="ol-btn ol-btn-sm ol-btn-primary"
         disabled={busy || !username || !role || (makeUser && !password)}
@@ -324,10 +327,10 @@ function InviteControl({
         }}
       >
         {busy ? "…" : "Send"}
-      </button>
-      <button type="button" className="ol-btn ol-btn-sm ol-btn-ghost" onClick={() => setOpen(false)}>
+      </Button>
+      <Button type="button" className="ol-btn ol-btn-sm ol-btn-ghost" onClick={() => setOpen(false)}>
         cancel
-      </button>
+      </Button>
     </div>
   );
 }
@@ -383,13 +386,13 @@ function RoleEditor({
           <div className="ol-dialog-title">
             {role ? (readOnly ? `Role: ${role.name} (preset)` : `Edit role: ${role.name}`) : "New role"}
           </div>
-          <button type="button" className="ol-iconbtn" onClick={onClose} aria-label="Close">
+          <Button type="button" className="ol-iconbtn" onClick={onClose} aria-label="Close">
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </header>
         <div className="ol-dialog-body">
           {!role && (
-            <input
+            <Input
               className="ol-input org-role-name-input"
               placeholder="role name (lowercase, dashes)"
               value={name}
@@ -411,7 +414,7 @@ function RoleEditor({
                           key={act}
                           className={`ol-tag ol-tag-btn ${on ? "ol-tag-active" : ""}`}
                         >
-                          <input
+                          <Input
                             type="checkbox"
                             className="org-chip-input"
                             checked={on}
@@ -430,10 +433,10 @@ function RoleEditor({
         </div>
         {!readOnly && (
           <footer className="ol-dialog-foot">
-            <button type="button" className="ol-btn ol-btn-ghost" onClick={onClose}>
+            <Button type="button" className="ol-btn ol-btn-ghost" onClick={onClose}>
               cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className="ol-btn ol-btn-primary"
               disabled={busy || (!role && !name)}
@@ -452,7 +455,7 @@ function RoleEditor({
               }}
             >
               {busy ? "Saving…" : "Save role"}
-            </button>
+            </Button>
           </footer>
         )}
       </div>

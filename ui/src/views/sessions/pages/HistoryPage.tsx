@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 /**
  * HistoryPage — the full session archive, styled as a proper data table
  * (shadcn Table/Select/Input patterns rendered with the Instrument .ol-*
@@ -77,7 +80,7 @@ export function HistoryPage() {
         <div className="hist-filters">
           <div className="hist-search-wrap">
             <Icon name="search" size={13} />
-            <input
+            <Input
               type="search"
               className="hist-search"
               placeholder="Filter by title, agent, model…"
@@ -88,7 +91,7 @@ export function HistoryPage() {
           <FilterSelect label="Node" value={node} onChange={setNode} options={nodes} />
           <FilterSelect label="Agent" value={agent} onChange={setAgent} options={agents} />
           <FilterSelect label="Channel" value={channel} onChange={setChannel} options={channels} />
-          <select
+          <NativeSelect
             className="hist-select"
             value={range}
             onChange={(e) => setRange(e.target.value as TimeRange)}
@@ -99,9 +102,9 @@ export function HistoryPage() {
                 {t.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
           <label className="hist-archived-toggle">
-            <input
+            <Input
               type="checkbox"
               checked={showArchived}
               onChange={(e) => setShowArchived(e.target.checked)}
@@ -152,13 +155,13 @@ export function HistoryPage() {
               </tbody>
             </table>
             {filtered.length > visible && (
-              <button
+              <Button
                 type="button"
                 className="btn hist-more"
                 onClick={() => setVisible((v) => v + PAGE_SIZE)}
               >
                 Show more ({filtered.length - visible} remaining)
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -183,7 +186,7 @@ function FilterSelect({
   options: string[];
 }) {
   return (
-    <select
+    <NativeSelect
       className="hist-select"
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -195,7 +198,7 @@ function FilterSelect({
           {o}
         </option>
       ))}
-    </select>
+    </NativeSelect>
   );
 }
 
@@ -233,7 +236,7 @@ function HistoryRow({
       <td className="col-time mono">{timeAgo(session.lastActivity)}</td>
       <td className="col-acts">
         <span className="hist-acts">
-          <button
+          <Button
             type="button"
             className="srow-act"
             title={session.pinned ? "Unpin" : "Pin"}
@@ -243,8 +246,8 @@ function HistoryRow({
             }}
           >
             <Icon name="pin" size={11} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className="srow-act"
             title={session.archived ? "Unarchive" : "Archive"}
@@ -254,7 +257,7 @@ function HistoryRow({
             }}
           >
             <Icon name="archive" size={11} />
-          </button>
+          </Button>
         </span>
       </td>
     </tr>
