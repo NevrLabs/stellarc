@@ -1591,3 +1591,9 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
     @apply font-sans;
   }
 }
+/* Message geometry: terminal authority after legacy/shadcn migration. */
+.msg-row-user > .msg-user {
+  width: fit-content !important;
+  max-width: 80%;
+  align-self: flex-end;
+}
