@@ -114,7 +114,14 @@ function ActiveChatPage({
   const [sending, setSending] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [text, setText] = useState("");
-  const [optimisticMsg, setOptimisticMsg] = useState<Message | null>(null);
+  const [optimisticMsg, setOptimisticMsg] = useState<Message | null>(() => {
+    const content = sessionStorage.getItem(`stellarc:first-message:${sessionId}`);
+    return content ? {
+      messageId: -1, sessionId, role: "user", content,
+      toolName: null, toolCalls: null, reasoning: null,
+      timestamp: Math.floor(Date.now() / 1000), tokenCount: null, finishReason: null,
+    } : null;
+  });
   const [queue, setQueue] = useState<QueuedMsg[]>([]);
   // Steer message IDs still waiting to be processed by the agent.
   // The backend broadcasts a `steer.delivered` session.log when the
@@ -146,7 +153,12 @@ function ActiveChatPage({
     setStreamParts([]);
     setSending(false);
     setAgentStatus("idle");
-    setOptimisticMsg(null);
+    const firstMessage = sessionStorage.getItem(`stellarc:first-message:${sessionId}`);
+    setOptimisticMsg(firstMessage ? {
+      messageId: -1, sessionId, role: "user", content: firstMessage,
+      toolName: null, toolCalls: null, reasoning: null,
+      timestamp: Math.floor(Date.now() / 1000), tokenCount: null, finishReason: null,
+    } : null);
     setPermission(null);
     setText("");
     setQueue(loadQueue(sessionId));
@@ -261,8 +273,11 @@ function ActiveChatPage({
 
   // Clear the optimistic copy as soon as the server echo lands.
   useEffect(() => {
-    if (hasServerEcho) setOptimisticMsg(null);
-  }, [hasServerEcho]);
+    if (hasServerEcho) {
+      sessionStorage.removeItem(`stellarc:first-message:${sessionId}`);
+      setOptimisticMsg(null);
+    }
+  }, [hasServerEcho, sessionId]);
 
   const isObserved = session?.managed === false;
 
@@ -500,9 +515,27 @@ function ActiveChatPage({
 
   // ── Auto-scroll ──────────────────────────────────────────────────
   useEffect(() => {
-    if (transcriptRef.current) {
-      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
-    }
+    const transcript = transcriptRef.current;
+    if (!transcript) return;
+    const alignTranscript = () => {
+      const userRows = transcript.querySelectorAll<HTMLElement>(".msg-row-user");
+      const latestUser = userRows.item(userRows.length - 1);
+      if (transcript.clientHeight < 300) {
+        if (!latestUser) {
+          transcript.scrollTop = 0;
+          return;
+        }
+        const transcriptTop = transcript.getBoundingClientRect().top;
+        const rowTop = latestUser.getBoundingClientRect().top;
+        transcript.scrollTop += rowTop - transcriptTop;
+        return;
+      }
+      transcript.scrollTop = transcript.scrollHeight;
+    };
+    alignTranscript();
+    const observer = new ResizeObserver(alignTranscript);
+    observer.observe(transcript);
+    return () => observer.disconnect();
   }, [messages.length, streamParts, agentStatus]);
 
   // ── Composer send: idle → send now; running → enqueue ─────────────

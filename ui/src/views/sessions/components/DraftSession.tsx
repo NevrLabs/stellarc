@@ -87,6 +87,7 @@ export function DraftSession({ initialProjectId = null }: { initialProjectId?: s
       }
       // ponytail: repo/vault bindings stay visual until Hall exposes a session-binding endpoint.
       await sendMessage(session.id, content, model, thinking);
+      sessionStorage.setItem(`stellarc:first-message:${session.id}`, content);
       void navigate({
         to: "/sessions/$sessionId",
         params: { sessionId: session.id },
