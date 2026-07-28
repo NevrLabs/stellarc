@@ -480,6 +480,23 @@ pub(crate) async fn create_session(
                     .into_response();
             }
         }
+    } else if let Some(agent_id) = body.agent.as_deref() {
+        if !state
+            .nodes
+            .all_agents()
+            .await
+            .iter()
+            .any(|agent| agent.id == agent_id)
+        {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "agent_unavailable",
+                    "message": format!("Agent {agent_id} is not available on any connected node"),
+                })),
+            )
+                .into_response();
+        }
     }
     let organization_id = scope.as_ref().map(|scope| scope.0.organization_id.as_str());
     let spec = crate::server::bridge_mgr::RuntimeSpec {

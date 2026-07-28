@@ -1558,6 +1558,25 @@ async fn post_sessions_with_agent_binds_it_at_creation() {
 }
 
 #[tokio::test]
+async fn post_sessions_rejects_unadvertised_agent_without_node() {
+    let (state, _d) = test_state();
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"agent":"nonexistent"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn post_sessions_rejects_unknown_node() {
     let (state, _d) = test_state();
     let app = build_router(state);
