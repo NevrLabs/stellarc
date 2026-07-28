@@ -422,7 +422,8 @@ function ActiveChatPage({
         setStreamParts([]);
         setSending(false);
         setAgentStatus("done");
-        setOptimisticMsg(null);
+        // Keep the optimistic user row until the durable refetch contains its
+        // server echo. Clearing here creates a message-less failure screen.
         setPermission(null);
         // Auto-drain: send the next queued message as a fresh prompt.
         const q = queueRef.current;
