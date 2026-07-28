@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 /**
  * Composer — the chat input bar.
  *
@@ -135,7 +134,7 @@ export function Composer({
   return (
     <div className="composer">
       <div className="comp-box">
-        <Textarea
+        <textarea
           rows={1}
           className="composer-input"
           placeholder={sending ? "Keep typing to queue follow-up changes…" : (placeholder ?? "Type a message…")}

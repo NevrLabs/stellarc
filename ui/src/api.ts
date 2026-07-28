@@ -578,6 +578,8 @@ type FrameListener = (frame: ServerFrame) => void;
 
 let ws: WebSocket | null = null;
 let connecting = false;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDelay = 1000;
 // Whether a WS connection has ever been established this page-load. Used to
 // distinguish first connect (no frames could have been missed) from a
 // RE-connect (frames broadcast during the outage were dropped by the server's
@@ -767,6 +769,9 @@ export function connectWs(): void {
 
     ws.onopen = () => {
       connecting = false;
+      reconnectDelay = 1000;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
       // A fresh socket after a drop means every frame broadcast during the
       // outage is lost forever (the stream has no replay). Tell consumers so
       // they can refetch durable truth (ChatPage resubscribes + invalidates
@@ -797,7 +802,13 @@ export function connectWs(): void {
       // In mock mode the MockWebSocket is a singleton-like stand-in; don't
       // reconnect (the mock never closes during normal operation).
       const useMocks = import.meta.env.VITE_USE_MOCKS !== "false";
-      if (!useMocks) setTimeout(() => connectWs(), 2000);
+      if (!useMocks && !reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connectWs();
+        }, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+      }
     };
   } catch {
     connecting = false;
@@ -806,6 +817,9 @@ export function connectWs(): void {
 }
 
 export function closeWs(): void {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  reconnectDelay = 1000;
   if (ws) {
     ws.onclose = null;
     ws.close();
