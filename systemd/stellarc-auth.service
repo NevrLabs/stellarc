@@ -1,0 +1,21 @@
+[Unit]
+Description=Stellarc authentication service
+After=network-online.target
+Before=stellarc-axis.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.stellarc/auth.env
+Environment=STELLARC_HOME=%h/.stellarc
+ExecStart=%h/.stellarc/bin/stellarc-auth
+Restart=on-failure
+RestartSec=2
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.stellarc
+
+[Install]
+WantedBy=default.target

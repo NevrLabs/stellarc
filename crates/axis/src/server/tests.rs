@@ -54,6 +54,8 @@ fn test_state() -> (AppState, tempfile::TempDir) {
         token: Arc::new("testtoken".to_string()),
         capability_signer: Arc::new(crate::server::capability::CapabilitySigner::for_tests()),
         auth_store: Arc::new(crate::auth_store::AuthStore::open_in_memory().unwrap()),
+        auth_mode: crate::auth_mode::AuthMode::Authenticated,
+        auth_sidecar_socket: None,
         allow_installation_token: true,
         session_cookie_secure: true,
         import_state: ImportState::done(),
@@ -1194,6 +1196,8 @@ async fn sort_by_message_count_orders_descending() {
         token: Arc::new("testtoken".to_string()),
         capability_signer: Arc::new(crate::server::capability::CapabilitySigner::for_tests()),
         auth_store: Arc::new(crate::auth_store::AuthStore::open_in_memory().unwrap()),
+        auth_mode: crate::auth_mode::AuthMode::Authenticated,
+        auth_sidecar_socket: None,
         allow_installation_token: true,
         session_cookie_secure: true,
         import_state: ImportState::done(),
@@ -3103,4 +3107,89 @@ id = "store.x"
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["error"], "unsupported_yet");
+}
+
+#[test]
+fn auth_mode_requires_an_explicit_first_run_choice() {
+    use crate::auth_mode::{AuthMode, AuthModeStore};
+    let dir = tempfile::tempdir().unwrap();
+    let store = AuthModeStore::new(dir.path().join("auth-mode"));
+    assert_eq!(store.load().unwrap(), AuthMode::Unconfigured);
+    assert_eq!(
+        store.choose(AuthMode::SingleUser).unwrap(),
+        AuthMode::SingleUser
+    );
+    assert_eq!(store.load().unwrap(), AuthMode::SingleUser);
+    assert!(store.choose(AuthMode::Authenticated).is_err());
+}
+
+#[test]
+fn auth_mode_fails_closed_on_unknown_value() {
+    use crate::auth_mode::AuthModeStore;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("auth-mode");
+    std::fs::write(
+        &path,
+        "disabled
+",
+    )
+    .unwrap();
+    assert!(AuthModeStore::new(path).load().is_err());
+}
+
+#[tokio::test]
+async fn unconfigured_auth_mode_blocks_protected_routes() {
+    let (mut state, _d) = test_state();
+    state.auth_mode = crate::auth_mode::AuthMode::Unconfigured;
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/sessions")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn single_user_auth_mode_exposes_local_owner_without_login() {
+    let (mut state, _d) = test_state();
+    state.auth_mode = crate::auth_mode::AuthMode::SingleUser;
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/auth/session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(value["user"]["username"], "local-owner");
+}
+
+#[tokio::test]
+async fn single_user_mode_preserves_installation_token_operator() {
+    let (mut state, _d) = test_state();
+    state.auth_mode = crate::auth_mode::AuthMode::SingleUser;
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/sessions")
+                .header("authorization", "Bearer testtoken")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 }

@@ -36,7 +36,7 @@ use tokio::sync::{broadcast, RwLock};
 /// This is the dotted `~/.stellarc/` root from ADR 0005 §4, which ALSO holds the
 /// org-scoped resource tree (`<org>/sessions/`, `<org>/repos/`, etc.). Internal
 /// state files live directly under it; resources live under `<org>/`.
-fn stellarc_home() -> Result<PathBuf> {
+pub fn stellarc_home() -> Result<PathBuf> {
     if let Ok(dir) = std::env::var("STELLARC_HOME") {
         return Ok(PathBuf::from(dir));
     }
@@ -101,6 +101,32 @@ pub async fn run() -> Result<()> {
         crate::auth_store::AuthStore::open(&home.join("auth.sqlite"))
             .context("opening Axis authentication store")?,
     );
+    let legacy_users_exist = auth_store.has_any_user()?;
+    let auth_mode_store = crate::auth_mode::AuthModeStore::new(home.join("auth-mode"));
+    let mut auth_mode = auth_mode_store
+        .load()
+        .context("loading authentication mode")?;
+    if auth_mode == crate::auth_mode::AuthMode::Unconfigured {
+        if legacy_users_exist {
+            auth_mode = auth_mode_store
+                .choose(crate::auth_mode::AuthMode::Authenticated)
+                .context("migrating claimed installation to authenticated mode")?;
+        } else if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+            use std::io::Write;
+            print!("Enable sign-in and organization access control? [Y/n] ");
+            std::io::stdout().flush()?;
+            let mut answer = String::new();
+            std::io::stdin().read_line(&mut answer)?;
+            let mode = if matches!(answer.trim().to_ascii_lowercase().as_str(), "n" | "no") {
+                crate::auth_mode::AuthMode::SingleUser
+            } else {
+                crate::auth_mode::AuthMode::Authenticated
+            };
+            auth_mode = auth_mode_store.choose(mode)?;
+        } else {
+            anyhow::bail!("authentication is not configured; run `stellarc setup --auth authenticated` or `stellarc setup --auth single-user`");
+        }
+    }
     let bootstrap_username = std::env::var("STELLARC_ADMIN_USERNAME").ok();
     let bootstrap_password = std::env::var("STELLARC_ADMIN_PASSWORD").ok();
     // Agent runtimes are child processes. Remove one-shot bootstrap secrets
@@ -234,6 +260,25 @@ pub async fn run() -> Result<()> {
         token: Arc::new(token.clone()),
         capability_signer,
         auth_store,
+        auth_mode,
+        auth_sidecar_socket: if auth_mode == crate::auth_mode::AuthMode::Authenticated
+            && !legacy_users_exist
+            && home.join("auth.sock").exists()
+        {
+            Some(Arc::new(home.join("auth.sock")))
+        } else if auth_mode == crate::auth_mode::AuthMode::Authenticated && !legacy_users_exist {
+            anyhow::bail!(
+                "authenticated mode requires the auth sidecar at {}",
+                home.join("auth.sock").display()
+            );
+        } else {
+            if auth_mode == crate::auth_mode::AuthMode::Authenticated {
+                tracing::warn!(
+                    "using legacy authentication until credentials are migrated to Better Auth"
+                );
+            }
+            None
+        },
         allow_installation_token,
         session_cookie_secure,
         import_state: ImportState::running(), // Hermes import runs after bind (below)

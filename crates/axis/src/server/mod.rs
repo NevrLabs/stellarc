@@ -15,8 +15,8 @@ pub(crate) mod routes;
 /// unaffected — those run on the node's orbit (ADR 0035 §1.2.6).
 #[cfg(unix)]
 pub mod terminal_ws;
-pub mod ws;
 pub mod vault_ws;
+pub mod ws;
 
 // Agent discovery moved to `stellarc-orbit` (ADR 0008 S2) — probing the host
 // for Hermes profiles + CLI harnesses is the orbit's job. Re-exported so
@@ -89,6 +89,8 @@ pub struct AppState {
     pub token: Arc<String>,
     pub capability_signer: Arc<capability::CapabilitySigner>,
     pub auth_store: Arc<crate::auth_store::AuthStore>,
+    pub auth_mode: crate::auth_mode::AuthMode,
+    pub auth_sidecar_socket: Option<Arc<std::path::PathBuf>>,
     pub allow_installation_token: bool,
     pub session_cookie_secure: bool,
     pub import_state: ImportState,

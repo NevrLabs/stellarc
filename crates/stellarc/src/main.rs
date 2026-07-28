@@ -27,14 +27,39 @@ USAGE:
 ROLES:
     axis     central role — event log, views, search, REST/WS API, scheduler
     orbit    per-host role — owns agent runtimes (ACP children)
+    setup    configure installation-local settings
 
 Run `stellarc <ROLE> --help` for role-specific flags.
 ";
+
+fn setup() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    let mode = args
+        .windows(2)
+        .find(|pair| pair[0] == "--auth")
+        .map(|pair| pair[1].as_str())
+        .ok_or_else(|| anyhow::anyhow!("usage: stellarc setup --auth authenticated|single-user"))?;
+    let mode = match mode {
+        "authenticated" => stellarc_axis::auth_mode::AuthMode::Authenticated,
+        "single-user" => stellarc_axis::auth_mode::AuthMode::SingleUser,
+        _ => {
+            return Err(anyhow::anyhow!(
+                "auth mode must be `authenticated` or `single-user`"
+            ))
+        }
+    };
+    let home = stellarc_axis::entry::stellarc_home()?;
+    let store = stellarc_axis::auth_mode::AuthModeStore::new(home.join("auth-mode"));
+    store.choose(mode)?;
+    println!("authentication mode: {}", mode.as_str());
+    Ok(())
+}
 
 fn main() -> Result<()> {
     match std::env::args().nth(1).as_deref() {
         Some("axis") => stellarc_axis::entry::run(),
         Some("orbit") => stellarc_orbit::entry::run(),
+        Some("setup") => setup(),
         Some("--version") | Some("-V") => {
             println!("stellarc {}", env!("CARGO_PKG_VERSION"));
             Ok(())

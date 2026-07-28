@@ -144,6 +144,16 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let state = AppState::from_ref(state);
+        match state.auth_mode {
+            crate::auth_mode::AuthMode::Unconfigured => {
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "authentication setup required",
+                )
+                    .into_response());
+            }
+            crate::auth_mode::AuthMode::SingleUser | crate::auth_mode::AuthMode::Authenticated => {}
+        }
         let authorization = parts
             .headers
             .get(axum::http::header::AUTHORIZATION)
@@ -170,6 +180,46 @@ where
             return Ok(Self::Operator);
         }
 
+        if state.auth_mode == crate::auth_mode::AuthMode::SingleUser {
+            return Ok(Self::User {
+                user_id: "local-owner".into(),
+                username: "local-owner".into(),
+                memberships: vec![Membership {
+                    organization_id: crate::entry::default_org(),
+                    role: "owner".into(),
+                }],
+            });
+        }
+
+        if let Some(socket) = &state.auth_sidecar_socket {
+            if !crate::auth::request_origin_ok(&parts.headers, false) {
+                return Err((StatusCode::FORBIDDEN, "forbidden origin").into_response());
+            }
+            let cookie = parts
+                .headers
+                .get(axum::http::header::COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("");
+            return match crate::auth_sidecar::session(socket, cookie).await {
+                Ok(Some(user)) => Ok(Self::User {
+                    user_id: user.id,
+                    username: user.username,
+                    memberships: vec![Membership {
+                        organization_id: crate::entry::default_org(),
+                        role: "owner".into(),
+                    }],
+                }),
+                Ok(None) => Err((StatusCode::UNAUTHORIZED, "unauthorized").into_response()),
+                Err(error) => {
+                    tracing::error!(%error, "validating auth sidecar session");
+                    Err((
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "authentication unavailable",
+                    )
+                        .into_response())
+                }
+            };
+        }
         let Some(token) = identity::session_token(&parts.headers) else {
             return Err((StatusCode::UNAUTHORIZED, "unauthorized").into_response());
         };

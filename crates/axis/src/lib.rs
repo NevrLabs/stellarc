@@ -5,6 +5,8 @@
 //! Phase 6: tantivy full-text search (`search`).
 
 pub mod auth;
+pub mod auth_mode;
+pub mod auth_sidecar;
 pub mod auth_store;
 pub mod edge;
 pub mod edit_model;
