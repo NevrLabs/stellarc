@@ -105,6 +105,10 @@ export const MessageBubble = React.memo(function MessageBubble({
     return segs;
   }, [msg.content, msg.toolCalls]);
 
+  // Old failed turns persisted blank assistant rows. They have no visible
+  // content but still consumed transcript gap space.
+  if (!isUser && !(msg.content ?? "").trim() && !msg.reasoning && !(msg.toolCalls?.length)) return null;
+
   return (
     <div className={isUser ? "msg-row msg-row-user" : "msg-row msg-row-ai"}>
       <ChatMessage from={isUser ? "user" : "assistant"} className={isSteer ? "msg-user msg-steer" : isUser ? "msg-user" : "msg-ai"} data-ts={dt}>
