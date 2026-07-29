@@ -46,23 +46,25 @@
    border), which shows as light-gray boxes with near-invisible text on the dark
    canvas. Neutralize all interactive-control chrome; .ol-* and shell classes
    supply the real styling. */
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  margin: 0;
-  padding: 0;
-  text-align: inherit;
-  -webkit-appearance: none;
-  appearance: none;
-}
-button {
-  cursor: pointer;
-  line-height: inherit;
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    text-align: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  button {
+    cursor: pointer;
+    line-height: inherit;
+  }
 }
 
 /* .mono utility class (used across views) */
