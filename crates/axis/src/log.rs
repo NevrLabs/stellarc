@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
 use crate::event::Event;
+use crate::migrations;
 use crate::views::card::CardAttempt;
 use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, SessionRow, SetupRow};
 
@@ -23,82 +24,9 @@ impl Log {
         let mut conn =
             Connection::open(path).with_context(|| format!("opening {}", path.display()))?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        conn.execute_batch(SCHEMA)
-            .context("initializing Stellarc SQLite schema")?;
+        migrations::run(&mut conn, SCHEMA)?;
         migrate_event_payloads_to_json(&mut conn)?;
         repair_fts_duplicates(&conn)?;
-        // Migrate pre-session_id databases (ADR 0009 incremental migration).
-        let has_sid: bool = conn
-            .prepare("PRAGMA table_info(events)")?
-            .query_map([], |r| r.get::<_, String>(1))?
-            .filter_map(|r| r.ok())
-            .any(|col| col == "session_id");
-        if !has_sid {
-            conn.execute_batch(
-                "ALTER TABLE events ADD COLUMN session_id TEXT;
-                 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);",
-            )
-            .context("migrating events table to add session_id column")?;
-        }
-        let has_org_id = conn
-            .prepare("PRAGMA table_info(sessions)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "org_id");
-        if !has_org_id {
-            conn.execute_batch(
-                "ALTER TABLE sessions ADD COLUMN org_id TEXT NOT NULL DEFAULT 'personal';",
-            )
-            .context("migrating sessions table to add org_id column")?;
-        }
-        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_sessions_org ON sessions(org_id);")
-            .context("indexing sessions by organization")?;
-        let has_capabilities = conn
-            .prepare("PRAGMA table_info(sessions)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "capabilities");
-        if !has_capabilities {
-            conn.execute_batch("ALTER TABLE sessions ADD COLUMN capabilities TEXT;")
-                .context("migrating sessions table to add capabilities")?;
-        }
-        let has_context_projects = conn
-            .prepare("PRAGMA table_info(sessions)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "context_projects");
-        if !has_context_projects {
-            conn.execute_batch(
-                "ALTER TABLE sessions ADD COLUMN context_projects TEXT NOT NULL DEFAULT '[]';",
-            )
-            .context("migrating sessions table to add context projects")?;
-        }
-        for table in ["cards", "projects"] {
-            let has_org_id = conn
-                .prepare(&format!("PRAGMA table_info({table})"))?
-                .query_map([], |row| row.get::<_, String>(1))?
-                .filter_map(Result::ok)
-                .any(|column| column == "org_id");
-            if !has_org_id {
-                conn.execute_batch(&format!(
-                    "ALTER TABLE {table} ADD COLUMN org_id TEXT NOT NULL DEFAULT 'personal';"
-                ))
-                .with_context(|| format!("migrating {table} table to add org_id column"))?;
-            }
-            conn.execute_batch(&format!(
-                "CREATE INDEX IF NOT EXISTS idx_{table}_org ON {table}(org_id);"
-            ))
-            .with_context(|| format!("indexing {table} by organization"))?;
-        }
-        let has_project_layout = conn
-            .prepare("PRAGMA table_info(projects)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "layout");
-        if !has_project_layout {
-            conn.execute_batch("ALTER TABLE projects ADD COLUMN layout TEXT;")
-                .context("migrating projects table to add layout")?;
-        }
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -1838,3 +1766,45 @@ fn replaying_session_created_preserves_accumulated_state() {
     assert!(session.archived, "archived was reset by the replay");
     assert!(session.pinned, "pinned was reset by the replay");
 }
+
+#[test]
+    fn migration_fixture_fresh_and_restart_safe() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("axis.sqlite");
+        Log::open(&path).unwrap();
+        Log::open(&path).unwrap();
+        let db = Connection::open(path).unwrap();
+        assert_eq!(db.query_row("SELECT count(*) FROM stellarc_migrations", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn migration_fixture_baselines_recognized_existing_schema_without_losing_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("axis.sqlite");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(SCHEMA).unwrap();
+        db.execute("INSERT INTO meta(key,value) VALUES('fixture','kept')", []).unwrap();
+        drop(db);
+        Log::open(&path).unwrap();
+        let db = Connection::open(path).unwrap();
+        assert_eq!(db.query_row("SELECT value FROM meta WHERE key='fixture'", [], |r| r.get::<_, String>(0)).unwrap(), "kept");
+        assert_eq!(db.query_row("SELECT count(*) FROM stellarc_migrations", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn migration_fixture_refuses_unknown_newer_and_changed_migrations() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("axis.sqlite");
+        Log::open(&path).unwrap();
+        let db = Connection::open(&path).unwrap();
+        db.execute("UPDATE stellarc_migrations SET checksum='changed'", []).unwrap();
+        drop(db);
+        assert!(Log::open(&path).err().unwrap().to_string().contains("checksum"));
+
+        let path = dir.path().join("newer.sqlite");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(SCHEMA).unwrap();
+        db.execute_batch("CREATE TABLE stellarc_migrations(id INTEGER PRIMARY KEY, checksum TEXT NOT NULL); INSERT INTO stellarc_migrations VALUES(999, 'future');").unwrap();
+        drop(db);
+        assert!(Log::open(&path).err().unwrap().to_string().contains("newer"));
+    }
