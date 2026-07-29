@@ -189,10 +189,10 @@ const PAGES: Page[] = [
           <Button variant="link">Link</Button>
         </Demo>
         <Demo title="Sizes" importLine={'import { Button } from "@/components/ui/button"'}>
-          <Button size="xs">xs</Button>
-          <Button size="sm">sm</Button>
-          <Button size="default">default</Button>
-          <Button size="lg">lg</Button>
+          <Button variant="outline" size="xs">xs</Button>
+          <Button variant="outline" size="sm">sm</Button>
+          <Button variant="outline" size="default">default</Button>
+          <Button variant="outline" size="lg">lg</Button>
         </Demo>
       </>
     ),
