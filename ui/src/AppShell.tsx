@@ -30,6 +30,7 @@ import { SessionsView } from "./views/SessionsView";
 import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
 import { ProjectsView } from "./views/ProjectsView";
 import FleetView from "./views/FleetView";
+import { DocsView } from "./views/docs/DocsView";
 import { SettingsView } from "./views/SettingsView";
 
 // ── Helpers ────────────────────────────────────────
@@ -49,6 +50,7 @@ const SURFACES: {
   { surface: "projects", label: "Projects", icon: "folder", path: "/projects" },
   { surface: "fleet", label: "Fleet", icon: "server", path: "/fleet" },
   { surface: "settings", label: "Settings", icon: "gear", path: "/settings" },
+  { surface: "docs", label: "Docs", icon: "book", path: "/docs" },
 ];
 
 // ── Helpers ────────────────────────────────────────
@@ -79,6 +81,8 @@ export function AppShell() {
         {surface === "projects" && <ProjectsView />}
 
         {surface === "fleet" && <FleetView nodeId={nodeId} />}
+
+        {surface === "docs" && <DocsView />}
 
         {/* Other surfaces keep the shell-level sidebar + viewport split */}
         {!sidebarCollapsed && surface === "settings" && (

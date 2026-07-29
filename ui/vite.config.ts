@@ -23,6 +23,8 @@ export default defineConfig(({ mode, command }) => {
     plugins: [react(), tailwindcss()],
     resolve: { alias: { "@": path.resolve(here, "src") } },
     server: {
+      // allow ?raw imports from the repo docs/ dir (DocsView design-system page)
+      fs: { allow: [path.resolve(here, "..")] },
       port: 5177,
       host: "127.0.0.1",
       allowedHosts,

@@ -112,6 +112,18 @@ const settingsRoute = createRoute({
   component: () => null,
 });
 
+const docsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/docs",
+  component: () => null,
+});
+
+const docsPageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/docs/$docSlug",
+  component: () => null,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   sessionsIndexRoute,
@@ -127,6 +139,8 @@ const routeTree = rootRoute.addChildren([
   fleetRoute,
   fleetNodeRoute,
   settingsRoute,
+  docsRoute,
+  docsPageRoute,
 ]);
 
 export const router = createRouter({ routeTree });
@@ -139,7 +153,7 @@ declare module "@tanstack/react-router" {
 }
 
 /** The five navigable surfaces (in nav order). */
-export type SurfaceName = "sessions" | "vaults" | "projects" | "fleet" | "settings";
+export type SurfaceName = "sessions" | "vaults" | "projects" | "fleet" | "settings" | "docs";
 
 /** The Sessions-view pages (left-sidebar NavItems inside the View). */
 export type SessionsPage = "chat" | "agents" | "usage" | "history";
@@ -196,5 +210,6 @@ export function parseRoute(pathname: string): {
   }
   if (pathname.startsWith("/fleet")) return { surface: "fleet", ...base };
   if (pathname.startsWith("/settings")) return { surface: "settings", ...base };
+  if (pathname.startsWith("/docs")) return { surface: "docs", ...base };
   return { surface: "sessions", ...base };
 }
