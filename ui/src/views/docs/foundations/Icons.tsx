@@ -1,0 +1,3 @@
+import { Icon } from "@/components/Icon";
+const samples = ["search", "plus", "check", "alert", "gear"] as const;
+export function Icons() { return <div className="space-y-4"><div className="flex items-end gap-5">{samples.map(name => <span key={name} className="grid justify-items-center gap-1"><Icon name={name} size={20} /><code className="text-xs">{name}</code></span>)}</div><ul className="list-disc pl-5 text-sm text-muted-foreground"><li>24 × 24 viewBox, 2px stroke, round caps and joins.</li><li>Use 14px inline, 16–20px in controls; icon-only buttons keep a 44px touch target and accessible name.</li><li>Icons are decorative by default; visible text or an aria-label carries meaning.</li></ul></div>; }

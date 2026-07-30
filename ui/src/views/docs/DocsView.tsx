@@ -51,56 +51,14 @@ import { Marker, MarkerContent } from "@/components/ui/marker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ComponentPlayground as Playground } from "./playgrounds/ComponentPlayground";
 import { ControlRow } from "./playgrounds/controls";
-
-// ── Token inventories (names only — values come from the live theme) ──
-const COLOR_TOKENS = [
-  "--bg", "--bg-elev", "--bg-elev-2", "--bg-hover", "--bg-active",
-  "--border", "--border-faint", "--border-strong",
-  "--text", "--text-dim", "--text-faint",
-  "--accent", "--accent-bright", "--accent-subtle", "--accent-wash", "--accent-ink",
-  "--ok", "--ok-wash", "--ok-ink",
-  "--warn", "--warn-wash", "--warn-ink",
-  "--err", "--err-wash", "--err-ink",
-];
-const SPACE_TOKENS = ["--space-1", "--space-2", "--space-3", "--space-4", "--space-5", "--space-6", "--space-8", "--space-12", "--space-16", "--space-24"];
-const RADIUS_TOKENS = ["--radius-sm", "--radius-md", "--radius-lg", "--radius-full"];
-const TYPE_TOKENS = ["--fs-11", "--fs-12", "--fs-13", "--fs-14", "--fs-16", "--fs-20"];
-const MOTION_TOKENS = ["--dur-fast", "--dur-base", "--dur-slow", "--ease-out", "--loop-spin"];
-
-function useToken(name: string): string {
-  const [v, setV] = useState("");
-  useEffect(() => {
-    setV(getComputedStyle(document.documentElement).getPropertyValue(name).trim());
-  }, [name]);
-  return v;
-}
-
-function TokenRow({ name }: { name: string }) {
-  const value = useToken(name);
-  if (!value) return null;
-  return (
-    <div className="flex items-center gap-3 py-1.5 border-b border-border/40 text-sm">
-      <span
-        className="size-6 shrink-0 rounded-md border border-border"
-        style={{ background: `var(${name})` }}
-      />
-      <code className="w-52 shrink-0 text-xs">{name}</code>
-      <code className="text-xs text-muted-foreground">{value}</code>
-    </div>
-  );
-}
-
-function ScalarRow({ name, preview }: { name: string; preview?: React.ReactNode }) {
-  const value = useToken(name);
-  if (!value) return null;
-  return (
-    <div className="flex items-center gap-3 py-1.5 border-b border-border/40 text-sm">
-      <code className="w-52 shrink-0 text-xs">{name}</code>
-      <code className="w-24 shrink-0 text-xs text-muted-foreground">{value}</code>
-      {preview}
-    </div>
-  );
-}
+import { Accessibility } from "./foundations/Accessibility";
+import { Icons } from "./foundations/Icons";
+import { Motion } from "./foundations/Motion";
+import { Naming } from "./foundations/Naming";
+import { Radius } from "./foundations/Radius";
+import { Spacing } from "./foundations/Spacing";
+import { Themes } from "./foundations/Themes";
+import { Typography } from "./foundations/Typography";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
 type SelectMode = "select" | "native" | "searchable" | "multiple";
@@ -175,86 +133,6 @@ function BadgePlayground() {
   return <Playground title="Badge" importLine={'import { Badge } from "@/components/ui/badge"'} controls={<><ControlRow label="Variant"><NativeSelect value={variant} onChange={(event) => setVariant(event.target.value as typeof variant)}>{["default","secondary","outline","destructive"].map((v)=><NativeSelectOption key={v} value={v}>{v}</NativeSelectOption>)}</NativeSelect></ControlRow><ControlRow label="Label"><Input className="h-7 w-28 text-xs" value={label} onChange={(event)=>setLabel(event.target.value)} /></ControlRow></>}><Badge variant={variant}>{label}</Badge></Playground>;
 }
 
-// ── Themes page helpers ──────────────────────────────────────────
-// Read BOTH theme blocks straight out of the loaded stylesheets, without
-// flipping the app theme: rules matching :root[data-theme="..."] carry the
-// custom properties for each theme.
-type ThemeTable = Record<string, Record<string, string>>;
-
-function readThemeTables(): ThemeTable {
-  const themes: ThemeTable = {};
-  const visit = (rules: CSSRuleList) => {
-    for (const r of Array.from(rules)) {
-      if (r instanceof CSSMediaRule || r instanceof CSSSupportsRule) {
-        visit(r.cssRules);
-        continue;
-      }
-      if (!(r instanceof CSSStyleRule)) continue;
-      const m = r.selectorText.match(/:root\[data-theme="([a-z-]+)"\]/);
-      if (!m) continue;
-      const bucket = (themes[m[1]] ??= {});
-      for (const prop of Array.from(r.style)) {
-        if (prop.startsWith("--")) bucket[prop] = r.style.getPropertyValue(prop).trim();
-      }
-    }
-  };
-  for (const sheet of Array.from(document.styleSheets)) {
-    try { visit(sheet.cssRules); } catch { /* cross-origin sheet */ }
-  }
-  return themes;
-}
-
-function ThemesPage() {
-  const [themes, setThemes] = useState<ThemeTable>({});
-  useEffect(() => { setThemes(readThemeTables()); }, []);
-  const names = Object.keys(themes);
-  if (names.length === 0) {
-    return <p className="text-sm text-muted-foreground">No theme blocks found in loaded stylesheets.</p>;
-  }
-  return (
-    <div className="space-y-6">
-      <div className="prose prose-sm dark:prose-invert max-w-none">
-        <p>
-          Themes are CSS custom-property blocks on <code>{'html[data-theme="…"]'}</code> in{" "}
-          <code>ui/src/design/tokens/colors.css</code>. The active theme is toggled from the top
-          bar and persisted to <code>localStorage</code>. Every component and plugin consumes
-          tokens only, so a new theme is one CSS block — no component changes.
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="py-2 pr-4 font-medium">token</th>
-              {names.map((n) => (
-                <th key={n} className="py-2 pr-4 font-medium">{n}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {COLOR_TOKENS.filter((t) => names.some((n) => themes[n][t])).map((t) => (
-              <tr key={t} className="border-b border-border/40">
-                <td className="py-1.5 pr-4"><code>{t}</code></td>
-                {names.map((n) => (
-                  <td key={n} className="py-1.5 pr-4">
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className="size-4 shrink-0 rounded border border-border"
-                        style={{ background: themes[n][t] ?? "transparent" }}
-                      />
-                      <code className="text-muted-foreground">{themes[n][t] ?? "—"}</code>
-                    </span>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function GuidelinesPage() {
   const [md, setMd] = useState<string>("Loading…");
   useEffect(() => {
@@ -294,96 +172,35 @@ const SECTIONS: Section[] = [
   },
   {
     slug: "naming", title: "Naming Conventions", group: "Foundations",
-    render: () => (
-      <div className="prose prose-sm dark:prose-invert max-w-none">
-        <p>Shared vocabulary for the shell. Use these names in code, docs, cards, and reviews — one word per concept.</p>
-        <div className="not-prose my-6 rounded-xl border border-border bg-muted/20 p-4" role="img" aria-label="Stellarc shell naming diagram">
-          <div className="mb-2 rounded-md border border-border bg-background px-3 py-2 text-center text-xs font-semibold">TopBar · global navigation and search</div>
-          <div className="grid min-h-56 grid-cols-[11rem_1fr] gap-2">
-            <div className="rounded-md border border-border bg-background p-3">
-              <div className="mb-3 text-center text-xs font-semibold">Sidebar</div>
-              {["NavItem", "NavItem · active", "NavItem"].map((label, i) => <div key={i} className={cn("mb-2 rounded px-2 py-1 text-[11px]", i === 1 ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>{label}</div>)}
-            </div>
-            <div className="rounded-md border border-border bg-background p-3">
-              <div className="mb-2 text-center text-xs font-semibold">Viewport</div>
-              <div className="mb-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Panel Header</div>
-              <div className="grid h-32 grid-cols-[1fr_9rem] gap-2">
-                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Panel Content</div>
-                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Right Drawer</div>
-              </div>
-              <div className="mt-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Bottom Drawer · hidden / full / floating</div>
-            </div>
-          </div>
-          <div className="mt-2 rounded border border-border bg-background p-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">View → Sidebar + Page → Viewport → Panel / Panel Grid → Content + Drawers</div>
-          <div className="mt-2 text-center text-[10px] text-muted-foreground">Single-panel View: Sessions · Panelled View: Projects · Drawers: left / bottom / right; hidden / full / floating</div>
-        </div>
-        <table>
-          <thead><tr><th>Term</th><th>What it is</th><th>Where</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Surface</strong></td><td>Top-level app area selected in the TopBar nav rail (Sessions, Vaults, Projects, Fleet, Settings, Docs). One route prefix each.</td><td><code>router.ts SurfaceName</code></td></tr>
-            <tr><td><strong>View</strong></td><td>A Surface&apos;s complete workspace: Sidebar + selected Page. Sessions is a single-panel View; Projects is a panelled View.</td><td><code>views/*View.tsx</code></td></tr>
-            <tr><td><strong>TopBar</strong></td><td>Global chrome: sidebar toggle, Surface navigation, search (⌘K), org/profile.</td><td><code>AppShell.tsx</code>, <code>.topbar</code></td></tr>
-            <tr><td><strong>StatusBar</strong></td><td>View-level bottom bar for connection, environment, route, and selected-resource status. Never Panel controls.</td><td><code>StatusBar.tsx</code></td></tr>
-            <tr><td><strong>Sidebar</strong></td><td>The View-owned left column containing NavItems. Resizable and collapsible.</td><td><code>.sidebar</code></td></tr>
-            <tr><td><strong>NavItem</strong></td><td>One row in a Sidebar: icon + label, hover/active states. Selects a Page.</td><td><code>.navitem</code></td></tr>
-            <tr><td><strong>Page</strong></td><td>The NavItem-selected route/content configuration inside a View; owns the Viewport.</td><td><code>SessionsPage</code> type</td></tr>
-            <tr><td><strong>Viewport</strong></td><td>The Page&apos;s available canvas. Contains one Panel or a grid of Panels.</td><td><code>.viewport</code></td></tr>
-            <tr><td><strong>Panel</strong></td><td>A flexible pane in the Viewport (single or grid-positioned). Owns a Panel Header, Content, and optional Drawers.</td><td>Dockview panels / single-panel layout</td></tr>
-            <tr><td><strong>Drawer</strong></td><td>Left, bottom, or right auxiliary region inside a Panel. Modes: hidden, full, or floating.</td><td>Former <code>.bp-*</code> / <code>.rs-*</code></td></tr>
-            <tr><td><strong>Cockpit</strong></td><td>The floating operator tool cluster mounted at app root; persists across every Surface.</td><td><code>cockpit/</code></td></tr>
-            <tr><td><strong>Popover / Dialog / Sheet</strong></td><td>Overlays, in escalating weight: anchored popover → modal dialog → edge-docked sheet.</td><td><code>components/ui</code></td></tr>
-          </tbody>
-        </table>
-      </div>
-    ),
+    render: () => <Naming />,
   },
   {
-    slug: "colors", title: "Colors", group: "Foundations",
-    render: () => (
-      <div>
-        <p className="text-sm text-muted-foreground mb-4">Live values from the active theme; see the Themes page for both blocks side by side.</p>
-        {COLOR_TOKENS.map((t) => <TokenRow key={t} name={t} />)}
-      </div>
-    ),
+    slug: "colors", title: "Themes & Colors", group: "Foundations",
+    render: () => <Themes />,
   },
   {
     slug: "typography", title: "Typography", group: "Foundations",
-    render: () => (
-      <div>
-        {TYPE_TOKENS.map((t) => (
-          <ScalarRow key={t} name={t} preview={<span style={{ fontSize: `var(${t})` }}>The quick brown fox</span>} />
-        ))}
-      </div>
-    ),
+    render: () => <Typography />,
   },
   {
     slug: "spacing", title: "Spacing", group: "Foundations",
-    render: () => (
-      <div>
-        {SPACE_TOKENS.map((t) => (
-          <ScalarRow key={t} name={t} preview={<span className="inline-block h-3 bg-primary/60" style={{ width: `var(${t})` }} />} />
-        ))}
-      </div>
-    ),
+    render: () => <Spacing />,
   },
   {
     slug: "radius", title: "Radius", group: "Foundations",
-    render: () => (
-      <div>
-        {RADIUS_TOKENS.map((t) => (
-          <ScalarRow key={t} name={t} preview={<span className="inline-block size-8 border border-border bg-muted" style={{ borderRadius: `var(${t})` }} />} />
-        ))}
-      </div>
-    ),
+    render: () => <Radius />,
   },
   {
     slug: "motion", title: "Motion", group: "Foundations",
-    render: () => (
-      <div>
-        <p className="text-sm text-muted-foreground mb-4">Interaction transitions cap at 150ms. Loops use the shared keyframes.</p>
-        {MOTION_TOKENS.map((t) => <ScalarRow key={t} name={t} />)}
-      </div>
-    ),
+    render: () => <Motion />,
+  },
+  {
+    slug: "icons", title: "Icons", group: "Foundations",
+    render: () => <Icons />,
+  },
+  {
+    slug: "accessibility", title: "Accessibility", group: "Foundations",
+    render: () => <Accessibility />,
   },
   {
     slug: "buttons", title: "Button", group: "Atoms",
@@ -742,7 +559,7 @@ export function DocsView() {
           {page === "themes" && (
             <>
               <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Themes</h1>
-              <ThemesPage />
+              <Themes />
             </>
           )}
         </main>

@@ -1,0 +1,2 @@
+const TOKENS = ["--space-1", "--space-2", "--space-3", "--space-4", "--space-5", "--space-6", "--space-8", "--space-12", "--space-16", "--space-24"];
+export function Spacing() { return <div className="space-y-2">{TOKENS.map(token => <div key={token} className="flex items-center gap-4"><code className="w-24 text-xs">{token}</code><span className="h-3 bg-primary/60" style={{width: `var(${token})`}} /></div>)}</div>; }

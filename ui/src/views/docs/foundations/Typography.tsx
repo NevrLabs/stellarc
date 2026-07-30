@@ -1,0 +1,2 @@
+const TOKENS = ["--fs-11", "--fs-12", "--fs-13", "--fs-14", "--fs-16", "--fs-20"];
+export function Typography() { return <div className="space-y-2">{TOKENS.map(token => <div key={token} className="flex items-baseline gap-4 border-b border-border/40 py-2"><code className="w-24 text-xs">{token}</code><span style={{fontSize: `var(${token})`}}>The quick brown fox wraps without clipping.</span></div>)}</div>; }
