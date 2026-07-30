@@ -735,7 +735,7 @@ function SessionChatLayout({
         <div className="vp-left">
           <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             style={{ padding: 0 }}
             onClick={() => void navigate({ to: "/sessions" })}
             title="Back"
@@ -763,7 +763,7 @@ function SessionChatLayout({
           )}
           <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             title="Toggle bottom panel"
             onClick={onToggleBp}
           >
@@ -771,7 +771,7 @@ function SessionChatLayout({
           </Button>
           <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             title="Toggle right panel"
             onClick={onToggleRs}
           >

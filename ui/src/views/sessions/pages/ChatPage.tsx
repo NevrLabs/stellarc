@@ -730,7 +730,8 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
                     <Button
                       key={o.optionId}
                       type="button"
-                      className={`btn${o.kind.startsWith("allow") ? " pri" : ""}`}
+                      variant={o.kind.startsWith("allow") ? "default" : "outline"}
+                      size="sm"
                       onClick={() => void handlePermission(o.optionId)}
                     >
                       {o.name}
@@ -738,7 +739,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
                   ))}
                   <Button
                     type="button"
-                    className="btn"
+                    variant="outline" size="sm"
                     onClick={() => void handlePermission(null)}
                   >
                     Cancel

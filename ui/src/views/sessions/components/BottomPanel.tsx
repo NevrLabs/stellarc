@@ -286,7 +286,7 @@ export function BottomPanel({
           ))}
         </div>
         <div className="bp-right">
-          <Button type="button" className="icobtn" title="Close panel" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon-sm" title="Close panel" onClick={onClose}>
             <Icon name="chevron-down" size={13} />
           </Button>
         </div>

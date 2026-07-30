@@ -274,7 +274,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["open", "destructive/non-destructive", "pending", "focus return"],
-    playgroundKey: "extended-overlays",
+    playgroundKey: "extended-molecules",
   },
   {
     slug: "breadcrumb",
@@ -384,7 +384,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["required", "invalid", "disabled", "horizontal", "help/error"],
-    playgroundKey: "structured-fields",
+    playgroundKey: "field-input-group",
   },
   {
     slug: "hover-card",
@@ -404,7 +404,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["prefix", "suffix", "action", "textarea", "focus/invalid"],
-    playgroundKey: "structured-fields",
+    playgroundKey: "field-input-group",
   },
   {
     slug: "item",
@@ -464,7 +464,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["side", "width", "modal", "scroll", "dismissibility"],
-    playgroundKey: "extended-overlays",
+    playgroundKey: "extended-molecules",
   },
   {
     slug: "tabs",
@@ -474,7 +474,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["orientation", "activation mode", "disabled tab", "overflow"],
-    playgroundKey: "tabs",
+    playgroundKey: "navigation",
   },
   {
     slug: "tooltip",
@@ -564,7 +564,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["query", "groups", "empty/loading", "disabled", "shortcuts", "modal"],
-    playgroundKey: "command-palette",
+    playgroundKey: "command",
   },
   {
     slug: "form",

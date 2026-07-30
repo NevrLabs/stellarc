@@ -45,7 +45,7 @@ export function CardDetailPanel({
         <span className={`gtag ${badgeClass}`}>{card.status}</span>
         <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={onClose}
           title="Close"
         >

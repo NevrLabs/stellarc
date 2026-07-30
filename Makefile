@@ -20,6 +20,7 @@ verify-rust:
 verify-ui:
 	cd ui && bun run typecheck
 	cd ui && bun run build
+	cd ui && bun run design-system:check
 	cd ui && bun run test:e2e
 
 ## verify-auth — pinned Better Auth migration, tests, and native executable.

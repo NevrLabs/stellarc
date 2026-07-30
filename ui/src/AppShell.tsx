@@ -123,7 +123,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
       <div className="tb-left">
         <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={toggleSidebar}
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
@@ -160,7 +160,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
         {/* Theme toggle */}
         <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={toggleTheme}
           title={theme === "obsidian" ? "Switch to light" : "Switch to dark"}
           aria-label="Toggle theme"
@@ -216,7 +216,7 @@ function CockpitToggle() {
   return (
     <Button
       type="button"
-      className={`icobtn ${open ? "on" : ""}`}
+      variant="ghost" size="icon-sm" aria-expanded={open}
       onClick={toggle}
       title="Operator cockpit (terminal)"
       aria-label="Toggle operator cockpit"

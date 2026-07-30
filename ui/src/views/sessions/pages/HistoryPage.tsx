@@ -157,7 +157,7 @@ export function HistoryPage() {
             {filtered.length > visible && (
               <Button
                 type="button"
-                className="btn hist-more"
+                variant="outline" size="sm" className="hist-more"
                 onClick={() => setVisible((v) => v + PAGE_SIZE)}
               >
                 Show more ({filtered.length - visible} remaining)

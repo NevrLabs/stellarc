@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "design-system:check": "bun scripts/design-system-check.ts && bun run test -- src/views/docs/design-system.check.test.ts src/views/docs/registry.test.ts src/views/docs/playgrounds",
     "preview": "vite preview",
     "setup": "bunx msw init public/ --save",
     "test:e2e": "bun run test:e2e:desktop && bun run test:e2e:mobile",

@@ -136,7 +136,7 @@ function FleetSidebar({
     <>
       <aside className="sidebar" style={{ width }}>
         <div className="sb-pad">
-          <Button type="button" className="newbtn" onClick={() => setAddOpen(true)}>
+          <Button type="button" variant="default" size="sm" onClick={() => setAddOpen(true)}>
             <Icon name="plus" size={14} />
             Add node
           </Button>
@@ -210,7 +210,7 @@ function NodeTreeItem({
         {agents.length > 0 && (
           <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             style={{ padding: 0, width: 16, height: 16 }}
             title={expanded ? "Collapse" : "Expand"}
             onClick={(e) => {
@@ -393,7 +393,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
         <div className="gv-head">
           <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             onClick={() => void navigate({ to: "/fleet" })}
             title="Back to fleet"
           >
@@ -473,7 +473,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
       <div className="gv-head">
         <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={() => void navigate({ to: "/fleet" })}
           title="Back to fleet"
         >
@@ -486,7 +486,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
         <div className="gv-actions">
           <Button
             type="button"
-            className="btn"
+            variant="outline" size="sm"
             title="Re-detect agents on this node"
             disabled={detecting}
             onClick={handleDetect}
@@ -496,7 +496,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
           </Button>
           <Button
             type="button"
-            className="btn"
+            variant="outline" size="sm"
             disabled={node.local || actionBusy || node.status === "draining"}
             title={
               node.local
@@ -509,7 +509,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
           </Button>
           <Button
             type="button"
-            className="btn"
+            variant="outline" size="sm"
             disabled={node.local || actionBusy}
             title={
               node.local
@@ -741,7 +741,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
           </div>
           <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             onClick={onClose}
             title="Close"
             aria-label="Close"
@@ -788,7 +788,7 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
                 </code>
                 <Button
                   type="button"
-                  className="icobtn"
+                  variant="ghost" size="icon-sm"
                   title="Copy command"
                   aria-label="Copy command"
                   onClick={copy}

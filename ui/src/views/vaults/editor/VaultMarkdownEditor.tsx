@@ -67,7 +67,7 @@ export function VaultMarkdownEditor(props: VaultMarkdownEditorProps) {
           <span className="vault-note-mode-label">{editorLabel}</span>
         </div>
         <div className="vault-note-action-group">
-          {props.onSave && <Button type="button" className="btn pri" aria-label="Save note" disabled={props.saving || !props.dirty} onClick={props.onSave}>{props.saving ? "Saving…" : "Save"}</Button>}
+          {props.onSave && <Button type="button" variant="default" size="sm" aria-label="Save note" disabled={props.saving || !props.dirty} onClick={props.onSave}>{props.saving ? "Saving…" : "Save"}</Button>}
           {props.onCancel && <Button type="button" className="vault-toolbar-button" aria-label="Cancel edits" disabled={props.saving || !props.dirty} onClick={() => { props.onCancel?.(); setEditorGeneration((generation) => generation + 1); }}>Cancel</Button>}
           {props.onDelete && <Button type="button" className="vault-toolbar-button danger" aria-label="Delete note" onClick={props.onDelete}>Delete</Button>}
           <Button type="button" className="vault-toolbar-button" aria-label="Note actions" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>⋯</Button>

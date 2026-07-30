@@ -199,12 +199,12 @@ export function SessionSidebar({
       <aside className="sidebar" style={{ width }}>
         <div className="sb-pad">
           <div className="session-sidebar-primary">
-            <Button type="button" className="newbtn" onClick={handleNewSession}>
+            <Button type="button" variant="default" size="sm" onClick={handleNewSession}>
               <Icon name="plus" size={14} />
               New session
               <span className="kbd" style={{ marginLeft: "auto" }}>⌘N</span>
             </Button>
-            <Button type="button" className="icobtn" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
               <Icon name="settings-2" size={13} />
             </Button>
           </div>
@@ -269,9 +269,9 @@ export function SessionSidebar({
                 <div style={{ margin: "4px 8px 8px", padding: 8, border: "1px solid var(--border-strong)", borderRadius: 6, background: "var(--elev)", fontSize: 11 }}>
                   <div style={{ marginBottom: 6 }}>{contextOffer.projectName} is not the primary project. Attach as context?</div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <Button type="button" className="btn" aria-label="Attach read-only" onClick={() => void handleAttachAsContext("read")}>read</Button>
-                    <Button type="button" className="btn" aria-label="Attach read-write" onClick={() => void handleAttachAsContext("write")}>write</Button>
-                    <Button type="button" className="btn" onClick={() => setContextOffer(null)}>dismiss</Button>
+                    <Button type="button" variant="outline" size="sm" aria-label="Attach read-only" onClick={() => void handleAttachAsContext("read")}>read</Button>
+                    <Button type="button" variant="outline" size="sm" aria-label="Attach read-write" onClick={() => void handleAttachAsContext("write")}>write</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setContextOffer(null)}>dismiss</Button>
                   </div>
                 </div>
               )}
