@@ -1,2 +1,3 @@
 const TOKENS = ["--space-1", "--space-2", "--space-3", "--space-4", "--space-5", "--space-6", "--space-8", "--space-12", "--space-16", "--space-24"];
-export function Spacing() { return <div className="space-y-2">{TOKENS.map(token => <div key={token} className="flex items-center gap-4"><code className="w-24 text-xs">{token}</code><span className="h-3 bg-primary/60" style={{width: `var(${token})`}} /></div>)}</div>; }
+const value = (token: string) => getComputedStyle(document.documentElement).getPropertyValue(token).trim() || "unset";
+export function Spacing() { return <div className="space-y-2">{TOKENS.map(token => <div key={token} data-testid={`spacing-${token}`} className="grid grid-cols-[6rem_3rem_1fr] items-center gap-3"><code className="text-xs">{token}</code><code className="text-xs text-muted-foreground">{value(token)}</code><span className="h-3 min-w-px bg-primary/60" style={{width: `var(${token}, 0)`}} /></div>)}</div>; }

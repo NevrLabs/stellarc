@@ -511,7 +511,7 @@ export function DocsView() {
   useEffect(() => {
     if (SECTION_SLUGS.has(urlTail)) {
       const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(urlTail)}`);
-      el?.scrollIntoView({ block: "start" });
+      if (el && scrollRef.current) scrollRef.current.scrollTop = (el as HTMLElement).offsetTop;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -521,7 +521,7 @@ export function DocsView() {
     // instant jump — smooth-scrolling a page this tall is painfully slow
     requestAnimationFrame(() => {
       const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(slug)}`);
-      el?.scrollIntoView({ block: "start" });
+      if (el && scrollRef.current) scrollRef.current.scrollTop = (el as HTMLElement).offsetTop;
     });
     window.history.replaceState(null, "", `/docs/${slug}`);
   };
@@ -533,8 +533,8 @@ export function DocsView() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <nav className="sidebar w-52 shrink-0 overflow-y-auto border-r border-border p-2" aria-label="Docs">
+    <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+      <nav className="docs-sidebar flex w-full shrink-0 overflow-x-auto border-b border-border p-1 sm:block sm:w-52 sm:overflow-y-auto sm:border-b-0 sm:border-r sm:p-2" aria-label="Docs">
         {PAGE_DEFS.map((p) => (
           <button
             key={p.slug}
@@ -547,8 +547,8 @@ export function DocsView() {
           </button>
         ))}
       </nav>
-      <div className="relative flex min-w-0 flex-1">
-        <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8 xl:pr-60">
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-3 pb-20 sm:p-8 sm:pb-20 xl:pr-60">
           {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} extended={extended} onExtendedChange={setExtended} />}
           {page === "guidelines" && (
             <>

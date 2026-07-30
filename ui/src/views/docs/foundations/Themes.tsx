@@ -7,13 +7,15 @@ export function readThemeTables(): ThemeTable {
   const themes: ThemeTable = {};
   const visit = (rules: CSSRuleList) => {
     for (const rule of Array.from(rules)) {
+      if (rule instanceof CSSImportRule) { try { if (rule.styleSheet) visit(rule.styleSheet.cssRules); } catch { /* cross-origin */ } continue; }
       if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule) { visit(rule.cssRules); continue; }
       if (!(rule instanceof CSSStyleRule)) continue;
-      const match = rule.selectorText.match(/:root(?:,|\[data-theme="([a-z-]+)"\])/);
-      if (!match) continue;
-      const name = match[1] ?? "obsidian";
-      const bucket = (themes[name] ??= {});
-      for (const prop of Array.from(rule.style)) if (prop.startsWith("--")) bucket[prop] = rule.style.getPropertyValue(prop).trim();
+      for (const selector of rule.selectorText.split(",")) {
+        const match = selector.trim().match(/^:root(?:\[data-theme=["']?([a-z-]+)["']?\])?$/);
+        if (!match) continue;
+        const bucket = (themes[match[1] ?? "obsidian"] ??= {});
+        for (const prop of Array.from(rule.style)) if (prop.startsWith("--")) bucket[prop] = rule.style.getPropertyValue(prop).trim();
+      }
     }
   };
   for (const sheet of Array.from(document.styleSheets)) try { visit(sheet.cssRules); } catch { /* cross-origin */ }
