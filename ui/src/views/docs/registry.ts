@@ -237,6 +237,16 @@ export const registry: readonly RegistryEntry[] = [
     playgroundKey: null,
   },
   {
+    slug: "table",
+    name: "Table",
+    tier: "molecule",
+    source: "base-nova",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["density", "sorting affordance", "selection", "empty/loading", "overflow"],
+    playgroundKey: "content-molecules",
+  },
+  {
     slug: "accordion",
     name: "Accordion",
     tier: "molecule",
@@ -605,16 +615,6 @@ export const registry: readonly RegistryEntry[] = [
     implementationChoice: "existing",
     configuration: ["collapsed/icon/mobile", "active item", "groups", "loading", "keyboard"],
     playgroundKey: null,
-  },
-  {
-    slug: "table",
-    name: "Table",
-    tier: "molecule",
-    source: "base-nova",
-    status: "covered",
-    implementationChoice: "registry",
-    configuration: ["density", "sorting affordance", "selection", "empty/loading", "overflow"],
-    playgroundKey: "content-molecules",
   },
   {
     slug: "message-scroller",
