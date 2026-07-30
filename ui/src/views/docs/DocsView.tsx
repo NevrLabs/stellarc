@@ -546,16 +546,18 @@ function FloatingTOC({ scrollRef, active, onJump, extended }: {
 }) {
   void scrollRef;
   const groups = (() => {
-    const order: string[] = [];
+    const order = ["Foundations", "Atoms", "Molecules", "Organisms", "Templates", "Pages"];
     const byGroup = new Map<string, Section[]>();
     for (const s of SECTIONS.filter((sec) => !sec.feature || extended)) {
-      if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
-      byGroup.get(s.group)!.push(s);
+      byGroup.set(s.group, [...(byGroup.get(s.group) ?? []), s]);
     }
-    return order.map((g) => ({ group: g, sections: byGroup.get(g)! }));
+    return order.flatMap((group) => {
+      const sections = byGroup.get(group);
+      return sections ? [{ group, sections }] : [];
+    });
   })();
   return (
-    <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-48 xl:block">
+    <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-56 xl:block">
       <div className="pointer-events-auto sticky top-6 mr-4 mt-6 max-h-[calc(100vh-9rem)] overflow-y-auto rounded-lg border border-border bg-background/85 p-3 backdrop-blur">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">On this page</p>
         <nav className="space-y-px">
@@ -568,7 +570,7 @@ function FloatingTOC({ scrollRef, active, onJump, extended }: {
                   href={`/docs/${s.slug}`}
                   onClick={(e) => { e.preventDefault(); onJump(s.slug); }}
                   className={cn(
-                    "block truncate border-l py-0.5 pl-2 text-[11px] transition-colors",
+                    "block border-l py-0.5 pl-2 text-[11px] leading-tight transition-colors",
                     s.slug === active
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -666,7 +668,7 @@ export function DocsView() {
         ))}
       </nav>
       <div className="relative flex min-w-0 flex-1">
-        <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8 xl:pr-52">
+        <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8 xl:pr-60">
           {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} extended={extended} onExtendedChange={setExtended} />}
           {page === "guidelines" && (
             <>
