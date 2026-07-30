@@ -103,13 +103,27 @@ function ScalarRow({ name, preview }: { name: string; preview?: React.ReactNode 
 function Demo({ title, importLine, children }: {
   title: string; importLine: string; children: React.ReactNode;
 }) {
+  const [disabled, setDisabled] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [width, setWidth] = useState(100);
   return (
-    <section className="mb-8">
-      <h3 className="text-base font-semibold mb-1">{title}</h3>
-      <code className="block text-xs text-muted-foreground mb-3">{importLine}</code>
-      <div className="rounded-lg border border-border p-6 flex flex-wrap items-center gap-3 bg-background">
-        {children}
+    <section className="mb-8 rounded-lg border border-border bg-background">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Component Playground</div>
+          <h3 className="text-base font-semibold">{title}</h3>
+          <code className="text-xs text-muted-foreground">{importLine}</code>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <label className="flex items-center gap-1.5"><Switch checked={disabled} onCheckedChange={setDisabled} />Disabled</label>
+          <label className="flex items-center gap-1.5"><Switch checked={compact} onCheckedChange={setCompact} />Compact</label>
+          <label className="flex items-center gap-1.5">Width <input aria-label={`${title} preview width`} type="range" min="50" max="100" value={width} onChange={(e) => setWidth(Number(e.target.value))} /></label>
+          <output className="w-8 text-right font-mono text-muted-foreground">{width}%</output>
+        </div>
       </div>
+      <fieldset disabled={disabled} className={cn("flex flex-wrap items-center gap-3", compact ? "p-3" : "p-6")} style={{ width: `${width}%` }}>
+        {children}
+      </fieldset>
     </section>
   );
 }
@@ -559,30 +573,18 @@ function DesignSystemPage({ scrollRef, active, extended, onExtendedChange }: {
   void active;
   void scrollRef;
   const visible = orderedSections(extended);
-  const [disabled, setDisabled] = useState(false);
-  const [compact, setCompact] = useState(false);
-  const [previewWidth, setPreviewWidth] = useState(100);
-  const [sampleText, setSampleText] = useState("Example");
   return (
     <>
-      <div className="mb-10 grid gap-4 rounded-lg border border-border bg-muted/20 p-4 lg:grid-cols-[1fr_auto]">
-        <div><div className="text-sm font-medium">Component controls</div><div className="text-xs text-muted-foreground">Live knobs for the catalog preview; modeled after ucollect-nexus /dev.</div></div>
-        <div className="flex flex-wrap items-center gap-4 text-xs">
-          <label className="flex items-center gap-2"><Switch checked={extended} onCheckedChange={onExtendedChange} />Extended</label>
-          <label className="flex items-center gap-2"><Switch checked={disabled} onCheckedChange={setDisabled} />Disabled</label>
-          <label className="flex items-center gap-2"><Switch checked={compact} onCheckedChange={setCompact} />Compact</label>
-          <label className="flex items-center gap-2">Width <input aria-label="Preview width" type="range" min="55" max="100" value={previewWidth} onChange={(e)=>setPreviewWidth(Number(e.target.value))} /></label>
-          <Input aria-label="Sample text" className="h-7 w-28 text-xs" value={sampleText} onChange={(e)=>setSampleText(e.target.value)} />
-        </div>
+      <div className="mb-10 flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4">
+        <div><div className="text-sm font-medium">Extended catalog</div><div className="text-xs text-muted-foreground">Show optional and experimental component playgrounds.</div></div>
+        <Switch checked={extended} onCheckedChange={onExtendedChange} aria-label="Show extended component catalog" />
       </div>
-      <fieldset disabled={disabled} className={cn(compact && "[&_section]:mb-4 [&_.p-6]:p-3")} style={{width:`${previewWidth}%`}} data-sample-text={sampleText}>
       {visible.map((sec) => (
         <section key={sec.slug} id={`docs-${sec.slug}`} className="mb-16 scroll-mt-4">
           <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">{sec.title}</h1>
           {sec.render()}
         </section>
       ))}
-      </fieldset>
     </>
   );
 }
