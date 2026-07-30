@@ -66,6 +66,7 @@ import { ChoiceAtomsPlayground, NativeSelectPlayground, RadioGroupPlayground, Sl
 import { AvatarPlayground, BadgePlayground as AtomBadgePlayground, KbdPlayground, LayoutAtomsPlayground } from "./playgrounds/atoms/IdentityLayoutPlaygrounds";
 import { ContentPlaygrounds, DisclosurePlaygrounds, NavigationPlaygrounds, SelectFamilyPlayground } from "./playgrounds/molecules/MoleculePlaygrounds";
 import { OverlayPlaygrounds } from "./playgrounds/molecules/OverlayPlaygrounds";
+import { CommandSelectorPlaygrounds, DataTablePlayground, StatusNotificationPlaygrounds } from "./playgrounds/organisms/OrganismPlaygrounds";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
 type SelectMode = "select" | "native" | "searchable" | "multiple";
@@ -258,12 +259,10 @@ const SECTIONS: Section[] = [
   },
   {
     slug: "command", title: "Command", group: "Organisms",
-    render: () => (
-      <Playground title="Command palette" importLine={'import { Command, ... } from "@/components/ui/command"'}>
-        <Command className="w-96 rounded-lg border"><CommandInput placeholder="Search actions…" /><CommandList><CommandEmpty>No results.</CommandEmpty><CommandGroup heading="Sessions"><CommandItem>New session<CommandShortcut>⌘N</CommandShortcut></CommandItem><CommandItem>Open history<CommandShortcut>⌘H</CommandShortcut></CommandItem></CommandGroup></CommandList></Command>
-      </Playground>
-    ),
+    render: () => <CommandSelectorPlaygrounds />,
   },
+  { slug: "data-table", title: "Data Table", group: "Organisms", render: () => <DataTablePlayground /> },
+  { slug: "status-notifications", title: "Status & Notifications", group: "Organisms", render: () => <StatusNotificationPlaygrounds /> },
   { slug: "layout-atoms", title: "Marker / Separator / Aspect Ratio", group: "Atoms", render: () => <LayoutAtomsPlayground /> },
   { slug: "kbd", title: "Keyboard Key", group: "Atoms", render: () => <KbdPlayground /> },
   {
@@ -297,14 +296,7 @@ const SECTIONS: Section[] = [
 
   {
     slug: "charts", title: "Charts", group: "Organisms",
-    render: () => (
-      <Playground title="TanStack Charts" importLine={'import { Chart } from "@tanstack/react-charts"'}>
-        <div className="w-full min-w-0">
-          <TanStackChartDemo />
-          <p className="mt-3 text-xs text-muted-foreground">Typed TanStack chart definition; keyboard focus and tooltip enabled; colors use design tokens.</p>
-        </div>
-      </Playground>
-    ),
+    render: () => <TanStackChartDemo />,
   },
 ];
 

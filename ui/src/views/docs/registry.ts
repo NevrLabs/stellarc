@@ -551,10 +551,10 @@ export const registry: readonly RegistryEntry[] = [
     name: "Chart",
     tier: "organism",
     source: "base-nova",
-    status: "native/third-party",
+    status: "covered",
     implementationChoice: "existing",
     configuration: ["series", "chart type", "legend", "tooltip", "empty/loading/error"],
-    playgroundKey: null,
+    playgroundKey: "charts",
   },
   {
     slug: "command",
