@@ -49,6 +49,8 @@ import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ComponentPlayground as Playground } from "./playgrounds/ComponentPlayground";
+import { ControlRow } from "./playgrounds/controls";
 
 // ── Token inventories (names only — values come from the live theme) ──
 const COLOR_TOKENS = [
@@ -97,41 +99,6 @@ function ScalarRow({ name, preview }: { name: string; preview?: React.ReactNode 
       <code className="w-24 shrink-0 text-xs text-muted-foreground">{value}</code>
       {preview}
     </div>
-  );
-}
-
-function ControlRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid min-h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border/50 py-1.5 last:border-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex items-center justify-end gap-2">{children}</div>
-    </div>
-  );
-}
-
-function Playground({ title, importLine, controls, children }: {
-  title: string;
-  importLine: string;
-  controls?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-6 w-full max-w-5xl overflow-hidden rounded-xl border border-border bg-background">
-      <header className="border-b border-border px-5 py-4">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Component Playground</div>
-        <h3 className="mt-0.5 text-base font-semibold">{title}</h3>
-        <code className="mt-1 block text-xs text-muted-foreground">{importLine}</code>
-      </header>
-      <div className={cn("grid", controls && "md:grid-cols-[minmax(0,1fr)_17rem]")}>
-        <div className="flex min-h-32 min-w-0 flex-wrap items-center gap-3 bg-muted/10 p-5">{children}</div>
-        {controls && (
-          <aside className="border-t border-border bg-muted/20 px-4 py-3 md:border-l md:border-t-0" aria-label={`${title} configuration`}>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Configuration</div>
-            {controls}
-          </aside>
-        )}
-      </div>
-    </section>
   );
 }
 
