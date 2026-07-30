@@ -1,7 +1,7 @@
 // ── /docs — design system reference ─────────────────────────────
-// Shadcn-style living docs: token swatches read from the LIVE CSS custom
-// properties (no duplicated values), plus one demo per ui/ component.
-// This page is the uniformization contract for plugin authors.
+// Sidebar = page select (Design System / Guidelines / Themes).
+// Design System is ONE scrollable page with Foundations + Components
+// sections; section links (indented under the page entry) jump instantly.
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -63,7 +63,7 @@ function useToken(name: string): string {
 
 function TokenRow({ name }: { name: string }) {
   const value = useToken(name);
-  if (!value) return null; // token absent in this theme — skip silently
+  if (!value) return null;
   return (
     <div className="flex items-center gap-3 py-1.5 border-b border-border/40 text-sm">
       <span
@@ -88,7 +88,6 @@ function ScalarRow({ name, preview }: { name: string; preview?: React.ReactNode 
   );
 }
 
-// ── Demo scaffolding ─────────────────────────────────────────────
 function Demo({ title, importLine, children }: {
   title: string; importLine: string; children: React.ReactNode;
 }) {
@@ -103,26 +102,119 @@ function Demo({ title, importLine, children }: {
   );
 }
 
-// ── Pages ────────────────────────────────────────────────────────
-type Page = { slug: string; title: string; group: string; render: () => React.ReactNode };
+// ── Themes page helpers ──────────────────────────────────────────
+// Read BOTH theme blocks straight out of the loaded stylesheets, without
+// flipping the app theme: rules matching :root[data-theme="..."] carry the
+// custom properties for each theme.
+type ThemeTable = Record<string, Record<string, string>>;
 
-const PAGES: Page[] = [
+function readThemeTables(): ThemeTable {
+  const themes: ThemeTable = {};
+  const visit = (rules: CSSRuleList) => {
+    for (const r of Array.from(rules)) {
+      if (r instanceof CSSMediaRule || r instanceof CSSSupportsRule) {
+        visit(r.cssRules);
+        continue;
+      }
+      if (!(r instanceof CSSStyleRule)) continue;
+      const m = r.selectorText.match(/:root\[data-theme="([a-z-]+)"\]/);
+      if (!m) continue;
+      const bucket = (themes[m[1]] ??= {});
+      for (const prop of Array.from(r.style)) {
+        if (prop.startsWith("--")) bucket[prop] = r.style.getPropertyValue(prop).trim();
+      }
+    }
+  };
+  for (const sheet of Array.from(document.styleSheets)) {
+    try { visit(sheet.cssRules); } catch { /* cross-origin sheet */ }
+  }
+  return themes;
+}
+
+function ThemesPage() {
+  const [themes, setThemes] = useState<ThemeTable>({});
+  useEffect(() => { setThemes(readThemeTables()); }, []);
+  const names = Object.keys(themes);
+  if (names.length === 0) {
+    return <p className="text-sm text-muted-foreground">No theme blocks found in loaded stylesheets.</p>;
+  }
+  return (
+    <div className="space-y-6">
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <p>
+          Themes are CSS custom-property blocks on <code>{'html[data-theme="…"]'}</code> in{" "}
+          <code>ui/src/design/tokens/colors.css</code>. The active theme is toggled from the top
+          bar and persisted to <code>localStorage</code>. Every component and plugin consumes
+          tokens only, so a new theme is one CSS block — no component changes.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-left">
+              <th className="py-2 pr-4 font-medium">token</th>
+              {names.map((n) => (
+                <th key={n} className="py-2 pr-4 font-medium">{n}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {COLOR_TOKENS.filter((t) => names.some((n) => themes[n][t])).map((t) => (
+              <tr key={t} className="border-b border-border/40">
+                <td className="py-1.5 pr-4"><code>{t}</code></td>
+                {names.map((n) => (
+                  <td key={n} className="py-1.5 pr-4">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="size-4 shrink-0 rounded border border-border"
+                        style={{ background: themes[n][t] ?? "transparent" }}
+                      />
+                      <code className="text-muted-foreground">{themes[n][t] ?? "—"}</code>
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function GuidelinesPage() {
+  const [md, setMd] = useState<string>("Loading…");
+  useEffect(() => {
+    import("../../../../docs/design/DESIGN_SYSTEM.md?raw")
+      .then((m) => setMd(m.default))
+      .catch(() => setMd("Failed to load DESIGN_SYSTEM.md"));
+  }, []);
+  return (
+    <div className="prose prose-sm dark:prose-invert max-w-none">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>
+    </div>
+  );
+}
+
+// ── Design System sections (one scrollable page) ─────────────────
+type Section = { slug: string; title: string; group: string; render: () => React.ReactNode };
+
+const SECTIONS: Section[] = [
   {
     slug: "overview", title: "Overview", group: "Foundations",
     render: () => (
       <div className="prose prose-sm dark:prose-invert max-w-none">
-        <h2>Stellarc Design System</h2>
         <p>
-          Every Stellarc surface — core UI and plugins alike — builds from the same three layers:
+          Every Stellarc surface — core UI and plugins alike — builds from three layers:
         </p>
         <ol>
           <li><strong>Tokens</strong> (<code>ui/src/design/tokens/*.css</code>) — colors, type, spacing, radius, motion. Both themes. Never hardcode a hex.</li>
           <li><strong>Primitives</strong> (<code>ui/src/components/ui/*</code>) — base-ui behavior + cva variants + Tailwind styling. Import these; do not re-implement buttons.</li>
-          <li><strong>Patterns</strong> — composition rules in the Guidelines page (row highlight ladder, resizable sidebars, tab semantics).</li>
+          <li><strong>Patterns</strong> — composition rules in Guidelines (row highlight ladder, resizable sidebars, tab semantics).</li>
         </ol>
         <p>
-          Plugin rule: a plugin ships <em>no palette of its own</em>. It consumes tokens and primitives from this page.
-          A visual need not covered here is a design-system change first, a plugin change second.
+          Plugin rule: a plugin ships <em>no palette of its own</em>. A visual need not covered
+          here is a design-system change first, a plugin change second.
         </p>
       </div>
     ),
@@ -131,7 +223,7 @@ const PAGES: Page[] = [
     slug: "colors", title: "Colors", group: "Foundations",
     render: () => (
       <div>
-        <p className="text-sm text-muted-foreground mb-4">Live values from the active theme. Toggle the theme in the top bar to see the other block.</p>
+        <p className="text-sm text-muted-foreground mb-4">Live values from the active theme; see the Themes page for both blocks side by side.</p>
         {COLOR_TOKENS.map((t) => <TokenRow key={t} name={t} />)}
       </div>
     ),
@@ -334,116 +426,165 @@ const PAGES: Page[] = [
       <div className="text-sm space-y-3 max-w-prose">
         <p><Badge variant="outline">Not yet shipped</Badge></p>
         <p>
-          No chart library is installed. When the first data-viz feature lands, charts adopt the same
-          contract as every component here: series colors, grid lines, and axis text come from tokens
-          (<code>--accent</code>, <code>--border-faint</code>, <code>--text-dim</code>), never a library default palette.
+          No chart library is installed. When the first data-viz feature lands, charts adopt the
+          same contract as every component here: series colors, grid lines, and axis text come
+          from tokens (<code>--accent</code>, <code>--border-faint</code>, <code>--text-dim</code>),
+          never a library default palette.
         </p>
       </div>
     ),
   },
-  {
-    slug: "guidelines", title: "Guidelines (full spec)", group: "Patterns",
-    render: () => <GuidelinesPage />,
-  },
 ];
 
-function GuidelinesPage() {
-  const [md, setMd] = useState<string>("Loading…");
-  useEffect(() => {
-    // dynamic so router/shell tests never transform the raw file
-    import("../../../../docs/design/DESIGN_SYSTEM.md?raw")
-      .then((m) => setMd(m.default))
-      .catch(() => setMd("Failed to load DESIGN_SYSTEM.md"));
-  }, []);
+function DesignSystemPage({ scrollRef, active }: {
+  scrollRef: React.RefObject<HTMLElement | null>;
+  active: string;
+}) {
+  void active;
+  void scrollRef;
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>
-    </div>
+    <>
+      {SECTIONS.map((sec) => (
+        <section key={sec.slug} id={`docs-${sec.slug}`} className="mb-16 scroll-mt-4">
+          <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">{sec.title}</h1>
+          {sec.render()}
+        </section>
+      ))}
+    </>
   );
 }
 
-// ── View ─────────────────────────────────────────────────────────
-// Single scrollable page (ucollect-nexus dev-docs pattern): all sections
-// stacked, left TOC jumps via scrollIntoView, IntersectionObserver tracks
-// the active section for highlight.
+// ── Pages (sidebar = page select) ────────────────────────────────
+const PAGE_DEFS = [
+  { slug: "design-system", title: "Design System" },
+  { slug: "guidelines", title: "Guidelines" },
+  { slug: "themes", title: "Themes" },
+] as const;
+type PageSlug = (typeof PAGE_DEFS)[number]["slug"];
+
+const SECTION_SLUGS = new Set(SECTIONS.map((s) => s.slug));
+
 export function DocsView() {
   const scrollRef = useRef<HTMLElement | null>(null);
-  const [active, setActive] = useState<string>(PAGES[0].slug);
+  const urlTail = window.location.pathname.split("/docs/")[1] ?? "";
+  const initialPage: PageSlug =
+    urlTail === "guidelines" ? "guidelines" : urlTail === "themes" ? "themes" : "design-system";
+  const [page, setPage] = useState<PageSlug>(initialPage);
+  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].slug);
 
-  const groups = useMemo(() => {
-    const order: string[] = [];
-    const byGroup = new Map<string, Page[]>();
-    for (const p of PAGES) {
-      if (!byGroup.has(p.group)) { byGroup.set(p.group, []); order.push(p.group); }
-      byGroup.get(p.group)!.push(p);
-    }
-    return order.map((g) => ({ group: g, pages: byGroup.get(g)! }));
-  }, []);
-
+  // Track active section while scrolling the design-system page.
   useEffect(() => {
+    if (page !== "design-system") return;
     const rootEl = scrollRef.current;
     if (!rootEl) return;
     const obs = new IntersectionObserver(
       (entries) => {
-        // topmost visible section wins
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id.replace(/^docs-/, ""));
+        if (visible[0]) setActiveSection(visible[0].target.id.replace(/^docs-/, ""));
       },
       { root: rootEl, rootMargin: "0px 0px -70% 0px" },
     );
-    for (const pg of PAGES) {
-      const el = rootEl.querySelector(`#docs-${CSS.escape(pg.slug)}`);
+    for (const sec of SECTIONS) {
+      const el = rootEl.querySelector(`#docs-${CSS.escape(sec.slug)}`);
       if (el) obs.observe(el);
     }
     return () => obs.disconnect();
-  }, []);
+  }, [page]);
 
-  // deep link: /docs/<slug> scrolls to that section on mount
+  // Deep link: /docs/<section-slug> lands on that section of the design-system page.
   useEffect(() => {
-    const slug = window.location.pathname.split("/docs/")[1];
-    if (!slug) return;
-    const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(slug)}`);
-    el?.scrollIntoView({ block: "start" });
+    if (SECTION_SLUGS.has(urlTail)) {
+      const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(urlTail)}`);
+      el?.scrollIntoView({ block: "start" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const jump = (slug: string) => {
-    const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(slug)}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const jumpToSection = (slug: string) => {
+    if (page !== "design-system") setPage("design-system");
+    // instant jump — smooth-scrolling a page this tall is painfully slow
+    requestAnimationFrame(() => {
+      const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(slug)}`);
+      el?.scrollIntoView({ block: "start" });
+    });
     window.history.replaceState(null, "", `/docs/${slug}`);
   };
+
+  const selectPage = (slug: PageSlug) => {
+    setPage(slug);
+    scrollRef.current?.scrollTo({ top: 0 });
+    window.history.replaceState(null, "", slug === "design-system" ? "/docs" : `/docs/${slug}`);
+  };
+
+  const sectionGroups = useMemo(() => {
+    const order: string[] = [];
+    const byGroup = new Map<string, Section[]>();
+    for (const s of SECTIONS) {
+      if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
+      byGroup.get(s.group)!.push(s);
+    }
+    return order.map((g) => ({ group: g, sections: byGroup.get(g)! }));
+  }, []);
 
   return (
     <div className="flex min-h-0 flex-1">
       <nav className="w-56 shrink-0 overflow-y-auto border-r border-border p-3" aria-label="Docs">
-        {groups.map(({ group, pages }) => (
-          <div key={group} className="mb-4">
-            <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</div>
-            {pages.map((p) => (
-              <button
-                key={p.slug}
-                type="button"
-                onClick={() => jump(p.slug)}
-                className={cn(
-                  "block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted",
-                  p.slug === active && "bg-muted font-medium",
-                )}
-                aria-current={p.slug === active ? "location" : undefined}
-              >
-                {p.title}
-              </button>
-            ))}
+        {PAGE_DEFS.map((p) => (
+          <div key={p.slug} className="mb-1">
+            <button
+              type="button"
+              onClick={() => selectPage(p.slug)}
+              className={cn(
+                "block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted",
+                page === p.slug && "bg-muted font-medium",
+              )}
+              aria-current={page === p.slug ? "page" : undefined}
+            >
+              {p.title}
+            </button>
+            {/* In-page TOC, only under the active Design System entry */}
+            {p.slug === "design-system" && page === "design-system" && (
+              <div className="mt-1 mb-3">
+                {sectionGroups.map(({ group, sections }) => (
+                  <div key={group} className="mb-2">
+                    <div className="px-4 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</div>
+                    {sections.map((s) => (
+                      <button
+                        key={s.slug}
+                        type="button"
+                        onClick={() => jumpToSection(s.slug)}
+                        className={cn(
+                          "block w-full rounded-md px-4 py-0.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground",
+                          s.slug === activeSection && "text-foreground font-medium",
+                        )}
+                        aria-current={s.slug === activeSection ? "location" : undefined}
+                      >
+                        {s.title}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </nav>
-      <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto scroll-smooth p-8">
-        {PAGES.map((pg) => (
-          <section key={pg.slug} id={`docs-${pg.slug}`} className="mb-16 scroll-mt-4">
-            <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">{pg.title}</h1>
-            {pg.render()}
-          </section>
-        ))}
+      <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8">
+        {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} />}
+        {page === "guidelines" && (
+          <>
+            <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Guidelines</h1>
+            <GuidelinesPage />
+          </>
+        )}
+        {page === "themes" && (
+          <>
+            <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Themes</h1>
+            <ThemesPage />
+          </>
+        )}
       </main>
     </div>
   );
