@@ -44,6 +44,11 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { TanStackChartDemo } from "./TanStackChartDemo";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandShortcut } from "@/components/ui/command";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { Marker, MarkerContent } from "@/components/ui/marker";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ── Token inventories (names only — values come from the live theme) ──
 const COLOR_TOKENS = [
@@ -223,6 +228,51 @@ const SECTIONS: Section[] = [
           Plugin rule: a plugin ships <em>no palette of its own</em>. A visual need not covered
           here is a design-system change first, a plugin change second.
         </p>
+      </div>
+    ),
+  },
+  {
+    slug: "naming", title: "Naming Conventions", group: "Foundations",
+    render: () => (
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <p>Shared vocabulary for the shell. Use these names in code, docs, cards, and reviews — one word per concept.</p>
+        <div className="not-prose my-6 rounded-xl border border-border bg-muted/20 p-4" role="img" aria-label="Stellarc shell naming diagram">
+          <div className="mb-2 rounded-md border border-border bg-background px-3 py-2 text-center text-xs font-semibold">TopBar · global navigation and search</div>
+          <div className="grid min-h-56 grid-cols-[11rem_1fr] gap-2">
+            <div className="rounded-md border border-border bg-background p-3">
+              <div className="mb-3 text-center text-xs font-semibold">Sidebar</div>
+              {["NavItem", "NavItem · active", "NavItem"].map((label, i) => <div key={i} className={cn("mb-2 rounded px-2 py-1 text-[11px]", i === 1 ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>{label}</div>)}
+            </div>
+            <div className="rounded-md border border-border bg-background p-3">
+              <div className="mb-2 text-center text-xs font-semibold">Viewport</div>
+              <div className="mb-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Panel Header</div>
+              <div className="grid h-32 grid-cols-[1fr_9rem] gap-2">
+                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Panel Content</div>
+                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Right Drawer</div>
+              </div>
+              <div className="mt-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Bottom Drawer · hidden / full / floating</div>
+            </div>
+          </div>
+          <div className="mt-2 rounded border border-border bg-background p-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">View → Sidebar + Page → Viewport → Panel / Panel Grid → Content + Drawers</div>
+          <div className="mt-2 text-center text-[10px] text-muted-foreground">Single-panel View: Sessions · Panelled View: Projects · Drawers: left / bottom / right; hidden / full / floating</div>
+        </div>
+        <table>
+          <thead><tr><th>Term</th><th>What it is</th><th>Where</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Surface</strong></td><td>Top-level app area selected in the TopBar nav rail (Sessions, Vaults, Projects, Fleet, Settings, Docs). One route prefix each.</td><td><code>router.ts SurfaceName</code></td></tr>
+            <tr><td><strong>View</strong></td><td>A Surface&apos;s complete workspace: Sidebar + selected Page. Sessions is a single-panel View; Projects is a panelled View.</td><td><code>views/*View.tsx</code></td></tr>
+            <tr><td><strong>TopBar</strong></td><td>Global chrome: sidebar toggle, Surface navigation, search (⌘K), org/profile.</td><td><code>AppShell.tsx</code>, <code>.topbar</code></td></tr>
+            <tr><td><strong>StatusBar</strong></td><td>View-level bottom bar for connection, environment, route, and selected-resource status. Never Panel controls.</td><td><code>StatusBar.tsx</code></td></tr>
+            <tr><td><strong>Sidebar</strong></td><td>The View-owned left column containing NavItems. Resizable and collapsible.</td><td><code>.sidebar</code></td></tr>
+            <tr><td><strong>NavItem</strong></td><td>One row in a Sidebar: icon + label, hover/active states. Selects a Page.</td><td><code>.navitem</code></td></tr>
+            <tr><td><strong>Page</strong></td><td>The NavItem-selected route/content configuration inside a View; owns the Viewport.</td><td><code>SessionsPage</code> type</td></tr>
+            <tr><td><strong>Viewport</strong></td><td>The Page&apos;s available canvas. Contains one Panel or a grid of Panels.</td><td><code>.viewport</code></td></tr>
+            <tr><td><strong>Panel</strong></td><td>A flexible pane in the Viewport (single or grid-positioned). Owns a Panel Header, Content, and optional Drawers.</td><td>Dockview panels / single-panel layout</td></tr>
+            <tr><td><strong>Drawer</strong></td><td>Left, bottom, or right auxiliary region inside a Panel. Modes: hidden, full, or floating.</td><td>Former <code>.bp-*</code> / <code>.rs-*</code></td></tr>
+            <tr><td><strong>Cockpit</strong></td><td>The floating operator tool cluster mounted at app root; persists across every Surface.</td><td><code>cockpit/</code></td></tr>
+            <tr><td><strong>Popover / Dialog / Sheet</strong></td><td>Overlays, in escalating weight: anchored popover → modal dialog → edge-docked sheet.</td><td><code>components/ui</code></td></tr>
+          </tbody>
+        </table>
       </div>
     ),
   },
@@ -428,6 +478,30 @@ const SECTIONS: Section[] = [
     ),
   },
   {
+    slug: "field-input-group", title: "Field / Input Group", group: "Molecules",
+    render: () => (
+      <Demo title="Structured fields" importLine={'import { Field, InputGroup } from "@/components/ui/*"'}>
+        <FieldGroup className="w-80"><Field><FieldLabel htmlFor="agent-filter">Agent filter</FieldLabel><InputGroup><InputGroupAddon><InputGroupText>agent:</InputGroupText></InputGroupAddon><InputGroupInput id="agent-filter" placeholder="default" /></InputGroup><FieldDescription>Prefix and input remain one accessible field.</FieldDescription></Field></FieldGroup>
+      </Demo>
+    ),
+  },
+  {
+    slug: "command", title: "Command", group: "Organisms",
+    render: () => (
+      <Demo title="Command palette" importLine={'import { Command, ... } from "@/components/ui/command"'}>
+        <Command className="w-96 rounded-lg border"><CommandInput placeholder="Search actions…" /><CommandList><CommandEmpty>No results.</CommandEmpty><CommandGroup heading="Sessions"><CommandItem>New session<CommandShortcut>⌘N</CommandShortcut></CommandItem><CommandItem>Open history<CommandShortcut>⌘H</CommandShortcut></CommandItem></CommandGroup></CommandList></Command>
+      </Demo>
+    ),
+  },
+  {
+    slug: "marker-scroll", title: "Marker / Scroll Area", group: "Atoms",
+    render: () => (
+      <Demo title="Markers and constrained content" importLine={'import { Marker, ScrollArea } from "@/components/ui/*"'}>
+        <Marker><MarkerContent>DEV</MarkerContent></Marker><ScrollArea className="h-24 w-56 rounded border p-3"><div className="space-y-2 text-xs">{Array.from({length:8},(_,i)=><div key={i}>Event #{i+1}</div>)}</div></ScrollArea>
+      </Demo>
+    ),
+  },
+  {
     slug: "extended-atoms", title: "Extended atoms", group: "Atoms", feature: "extended",
     render: () => (
       <Demo title="Button groups, toggles, native select" importLine={'import { ButtonGroup, Toggle, NativeSelect } from "@/components/ui/*"'}>
@@ -455,51 +529,7 @@ const SECTIONS: Section[] = [
     slug: "page-examples", title: "Page examples", group: "Pages",
     render: () => <div className="grid gap-3 sm:grid-cols-3">{["Sessions / Chat", "Vaults / Editor", "Fleet / Nodes"].map((x) => <Card key={x}><CardHeader><CardTitle className="text-sm">{x}</CardTitle><CardDescription>A route-level page assembled from a View template.</CardDescription></CardHeader></Card>)}</div>,
   },
-  {
-    slug: "naming", title: "Naming Conventions", group: "Templates",
-    render: () => (
-      <div className="prose prose-sm dark:prose-invert max-w-none">
-        <p>Shared vocabulary for the shell. Use these names in code, docs, cards, and reviews — one word per concept.</p>
-        <div className="not-prose my-6 rounded-xl border border-border bg-muted/20 p-4" role="img" aria-label="Stellarc shell naming diagram">
-          <div className="mb-2 rounded-md border border-border bg-background px-3 py-2 text-center text-xs font-semibold">TopBar · global navigation and search</div>
-          <div className="grid min-h-56 grid-cols-[11rem_1fr] gap-2">
-            <div className="rounded-md border border-border bg-background p-3">
-              <div className="mb-3 text-center text-xs font-semibold">Sidebar</div>
-              {["NavItem", "NavItem · active", "NavItem"].map((label, i) => <div key={i} className={cn("mb-2 rounded px-2 py-1 text-[11px]", i === 1 ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>{label}</div>)}
-            </div>
-            <div className="rounded-md border border-border bg-background p-3">
-              <div className="mb-2 text-center text-xs font-semibold">Viewport</div>
-              <div className="mb-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Panel Header</div>
-              <div className="grid h-32 grid-cols-[1fr_9rem] gap-2">
-                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Panel Content</div>
-                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Right Drawer</div>
-              </div>
-              <div className="mt-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Bottom Drawer · hidden / full / floating</div>
-            </div>
-          </div>
-          <div className="mt-2 rounded border border-border bg-background p-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">View → Sidebar + Page → Viewport → Panel / Panel Grid → Content + Drawers</div>
-          <div className="mt-2 text-center text-[10px] text-muted-foreground">Single-panel View: Sessions · Panelled View: Projects · Drawers: left / bottom / right; hidden / full / floating</div>
-        </div>
-        <table>
-          <thead><tr><th>Term</th><th>What it is</th><th>Where</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Surface</strong></td><td>Top-level app area selected in the TopBar nav rail (Sessions, Vaults, Projects, Fleet, Settings, Docs). One route prefix each.</td><td><code>router.ts SurfaceName</code></td></tr>
-            <tr><td><strong>View</strong></td><td>A Surface&apos;s complete workspace: Sidebar + selected Page. Sessions is a single-panel View; Projects is a panelled View.</td><td><code>views/*View.tsx</code></td></tr>
-            <tr><td><strong>TopBar</strong></td><td>Global chrome: sidebar toggle, Surface navigation, search (⌘K), org/profile.</td><td><code>AppShell.tsx</code>, <code>.topbar</code></td></tr>
-            <tr><td><strong>StatusBar</strong></td><td>View-level bottom bar for connection, environment, route, and selected-resource status. Never Panel controls.</td><td><code>StatusBar.tsx</code></td></tr>
-            <tr><td><strong>Sidebar</strong></td><td>The View-owned left column containing NavItems. Resizable and collapsible.</td><td><code>.sidebar</code></td></tr>
-            <tr><td><strong>NavItem</strong></td><td>One row in a Sidebar: icon + label, hover/active states. Selects a Page.</td><td><code>.navitem</code></td></tr>
-            <tr><td><strong>Page</strong></td><td>The NavItem-selected route/content configuration inside a View; owns the Viewport.</td><td><code>SessionsPage</code> type</td></tr>
-            <tr><td><strong>Viewport</strong></td><td>The Page&apos;s available canvas. Contains one Panel or a grid of Panels.</td><td><code>.viewport</code></td></tr>
-            <tr><td><strong>Panel</strong></td><td>A flexible pane in the Viewport (single or grid-positioned). Owns a Panel Header, Content, and optional Drawers.</td><td>Dockview panels / single-panel layout</td></tr>
-            <tr><td><strong>Drawer</strong></td><td>Left, bottom, or right auxiliary region inside a Panel. Modes: hidden, full, or floating.</td><td>Former <code>.bp-*</code> / <code>.rs-*</code></td></tr>
-            <tr><td><strong>Cockpit</strong></td><td>The floating operator tool cluster mounted at app root; persists across every Surface.</td><td><code>cockpit/</code></td></tr>
-            <tr><td><strong>Popover / Dialog / Sheet</strong></td><td>Overlays, in escalating weight: anchored popover → modal dialog → edge-docked sheet.</td><td><code>components/ui</code></td></tr>
-          </tbody>
-        </table>
-      </div>
-    ),
-  },
+
   {
     slug: "charts", title: "Charts", group: "Organisms",
     render: () => (
@@ -513,6 +543,13 @@ const SECTIONS: Section[] = [
   },
 ];
 
+const SECTION_GROUP_ORDER = ["Foundations", "Atoms", "Molecules", "Organisms", "Templates", "Pages"] as const;
+function orderedSections(extended: boolean) {
+  return SECTION_GROUP_ORDER.flatMap((group) =>
+    SECTIONS.filter((section) => section.group === group && (!section.feature || extended)),
+  );
+}
+
 function DesignSystemPage({ scrollRef, active, extended, onExtendedChange }: {
   scrollRef: React.RefObject<HTMLElement | null>;
   active: string;
@@ -521,19 +558,31 @@ function DesignSystemPage({ scrollRef, active, extended, onExtendedChange }: {
 }) {
   void active;
   void scrollRef;
-  const visible = SECTIONS.filter((sec) => !sec.feature || extended);
+  const visible = orderedSections(extended);
+  const [disabled, setDisabled] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(100);
+  const [sampleText, setSampleText] = useState("Example");
   return (
     <>
-      <div className="mb-10 flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4">
-        <div><div className="text-sm font-medium">Extended component catalog</div><div className="text-xs text-muted-foreground">Show optional primitives and experimental compositions.</div></div>
-        <Switch checked={extended} onCheckedChange={onExtendedChange} aria-label="Show extended component catalog" />
+      <div className="mb-10 grid gap-4 rounded-lg border border-border bg-muted/20 p-4 lg:grid-cols-[1fr_auto]">
+        <div><div className="text-sm font-medium">Component controls</div><div className="text-xs text-muted-foreground">Live knobs for the catalog preview; modeled after ucollect-nexus /dev.</div></div>
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          <label className="flex items-center gap-2"><Switch checked={extended} onCheckedChange={onExtendedChange} />Extended</label>
+          <label className="flex items-center gap-2"><Switch checked={disabled} onCheckedChange={setDisabled} />Disabled</label>
+          <label className="flex items-center gap-2"><Switch checked={compact} onCheckedChange={setCompact} />Compact</label>
+          <label className="flex items-center gap-2">Width <input aria-label="Preview width" type="range" min="55" max="100" value={previewWidth} onChange={(e)=>setPreviewWidth(Number(e.target.value))} /></label>
+          <Input aria-label="Sample text" className="h-7 w-28 text-xs" value={sampleText} onChange={(e)=>setSampleText(e.target.value)} />
+        </div>
       </div>
+      <fieldset disabled={disabled} className={cn(compact && "[&_section]:mb-4 [&_.p-6]:p-3")} style={{width:`${previewWidth}%`}} data-sample-text={sampleText}>
       {visible.map((sec) => (
         <section key={sec.slug} id={`docs-${sec.slug}`} className="mb-16 scroll-mt-4">
           <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">{sec.title}</h1>
           {sec.render()}
         </section>
       ))}
+      </fieldset>
     </>
   );
 }
@@ -548,17 +597,10 @@ function FloatingTOC({ scrollRef, active, onJump, extended }: {
   extended: boolean;
 }) {
   void scrollRef;
-  const groups = (() => {
-    const order = ["Foundations", "Atoms", "Molecules", "Organisms", "Templates", "Pages"];
-    const byGroup = new Map<string, Section[]>();
-    for (const s of SECTIONS.filter((sec) => !sec.feature || extended)) {
-      byGroup.set(s.group, [...(byGroup.get(s.group) ?? []), s]);
-    }
-    return order.flatMap((group) => {
-      const sections = byGroup.get(group);
-      return sections ? [{ group, sections }] : [];
-    });
-  })();
+  const groups = SECTION_GROUP_ORDER.map((group) => ({
+    group,
+    sections: orderedSections(extended).filter((section) => section.group === group),
+  })).filter(({ sections }) => sections.length > 0);
   return (
     <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-56 xl:block">
       <div className="pointer-events-auto sticky top-6 mr-4 mt-6 max-h-[calc(100vh-9rem)] overflow-y-auto rounded-lg border border-border bg-background/85 p-3 backdrop-blur">
@@ -623,12 +665,12 @@ export function DocsView() {
       },
       { root: rootEl, rootMargin: "0px 0px -70% 0px" },
     );
-    for (const sec of SECTIONS) {
+    for (const sec of orderedSections(extended)) {
       const el = rootEl.querySelector(`#docs-${CSS.escape(sec.slug)}`);
       if (el) obs.observe(el);
     }
     return () => obs.disconnect();
-  }, [page]);
+  }, [page, extended]);
 
   // Deep link: /docs/<section-slug> lands on that section of the design-system page.
   useEffect(() => {
