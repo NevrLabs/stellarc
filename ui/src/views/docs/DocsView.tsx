@@ -2,7 +2,7 @@
 // Sidebar = page select (Design System / Guidelines / Themes).
 // Design System is ONE scrollable page with Foundations + Components
 // sections; section links (indented under the page entry) jump instantly.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -421,6 +421,29 @@ const SECTIONS: Section[] = [
     ),
   },
   {
+    slug: "naming", title: "Naming Conventions", group: "Patterns",
+    render: () => (
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <p>Shared vocabulary for the shell. Use these names in code, docs, cards, and reviews — one word per concept.</p>
+        <table>
+          <thead><tr><th>Term</th><th>What it is</th><th>Where</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Surface</strong></td><td>Top-level app area selected in the TopBar nav rail (Sessions, Vaults, Projects, Fleet, Settings, Docs). One route prefix each.</td><td><code>router.ts SurfaceName</code></td></tr>
+            <tr><td><strong>View</strong></td><td>The React component owning a surface&apos;s whole area below the TopBar — its Sidebar + Viewport split included.</td><td><code>views/*View.tsx</code></td></tr>
+            <tr><td><strong>TopBar</strong></td><td>Global chrome: sidebar toggle, nav rail, search (⌘K), org/profile.</td><td><code>AppShell.tsx</code>, <code>.topbar</code></td></tr>
+            <tr><td><strong>Sidebar</strong></td><td>The View-owned left column (session list, vault tree, docs nav). Resizable, collapsible.</td><td><code>.sidebar</code>, <code>ResizableSidebar</code></td></tr>
+            <tr><td><strong>NavItem</strong></td><td>One row in a Sidebar: icon + label, hover/active states. Selection is highlight intensity — never left-edge bars.</td><td><code>.navitem</code></td></tr>
+            <tr><td><strong>Viewport</strong></td><td>The main content area right of the Sidebar. Owns its own header row.</td><td><code>.viewport</code>, <code>.vp-head</code>/<code>.vp-body</code></td></tr>
+            <tr><td><strong>Panel</strong></td><td>A secondary collapsible region inside a Viewport: bottom panel (terminal/logs), right panel (session inspector).</td><td><code>.bp-*</code>, <code>.rs-*</code></td></tr>
+            <tr><td><strong>Page</strong></td><td>A NavItem-selected screen inside a View that swaps the Viewport content (Agents, Usage, History).</td><td><code>SessionsPage</code> type</td></tr>
+            <tr><td><strong>Cockpit</strong></td><td>The floating operator tool cluster mounted at app root; persists across every Surface.</td><td><code>cockpit/</code></td></tr>
+            <tr><td><strong>Popover / Dialog / Sheet</strong></td><td>Overlays, in escalating weight: anchored popover → modal dialog → edge-docked sheet.</td><td><code>components/ui</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    ),
+  },
+  {
     slug: "charts", title: "Charts", group: "Components",
     render: () => (
       <div className="text-sm space-y-3 max-w-prose">
@@ -451,6 +474,55 @@ function DesignSystemPage({ scrollRef, active }: {
         </section>
       ))}
     </>
+  );
+}
+
+
+// Floating in-viewport TOC (ucollect-nexus /dev pattern): fixed card at the
+// right edge of the Viewport, tracks the active section, instant jumps.
+function FloatingTOC({ scrollRef, active, onJump }: {
+  scrollRef: React.RefObject<HTMLElement | null>;
+  active: string;
+  onJump: (slug: string) => void;
+}) {
+  void scrollRef;
+  const groups = (() => {
+    const order: string[] = [];
+    const byGroup = new Map<string, Section[]>();
+    for (const s of SECTIONS) {
+      if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
+      byGroup.get(s.group)!.push(s);
+    }
+    return order.map((g) => ({ group: g, sections: byGroup.get(g)! }));
+  })();
+  return (
+    <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-48 xl:block">
+      <div className="pointer-events-auto sticky top-6 mr-4 mt-6 max-h-[calc(100vh-9rem)] overflow-y-auto rounded-lg border border-border bg-background/85 p-3 backdrop-blur">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">On this page</p>
+        <nav className="space-y-px">
+          {groups.map(({ group, sections }) => (
+            <div key={group}>
+              <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:mt-0">{group}</p>
+              {sections.map((s) => (
+                <a
+                  key={s.slug}
+                  href={`/docs/${s.slug}`}
+                  onClick={(e) => { e.preventDefault(); onJump(s.slug); }}
+                  className={cn(
+                    "block truncate border-l py-0.5 pl-2 text-[11px] transition-colors",
+                    s.slug === active
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {s.title}
+                </a>
+              ))}
+            </div>
+          ))}
+        </nav>
+      </div>
+    </div>
   );
 }
 
@@ -518,74 +590,41 @@ export function DocsView() {
     window.history.replaceState(null, "", slug === "design-system" ? "/docs" : `/docs/${slug}`);
   };
 
-  const sectionGroups = useMemo(() => {
-    const order: string[] = [];
-    const byGroup = new Map<string, Section[]>();
-    for (const s of SECTIONS) {
-      if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
-      byGroup.get(s.group)!.push(s);
-    }
-    return order.map((g) => ({ group: g, sections: byGroup.get(g)! }));
-  }, []);
-
   return (
     <div className="flex min-h-0 flex-1">
-      <nav className="w-56 shrink-0 overflow-y-auto border-r border-border p-3" aria-label="Docs">
+      <nav className="sidebar w-52 shrink-0 overflow-y-auto border-r border-border p-2" aria-label="Docs">
         {PAGE_DEFS.map((p) => (
-          <div key={p.slug} className="mb-1">
-            <button
-              type="button"
-              onClick={() => selectPage(p.slug)}
-              className={cn(
-                "block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted",
-                page === p.slug && "bg-muted font-medium",
-              )}
-              aria-current={page === p.slug ? "page" : undefined}
-            >
-              {p.title}
-            </button>
-            {/* In-page TOC, only under the active Design System entry */}
-            {p.slug === "design-system" && page === "design-system" && (
-              <div className="mt-1 mb-3">
-                {sectionGroups.map(({ group, sections }) => (
-                  <div key={group} className="mb-2">
-                    <div className="px-4 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</div>
-                    {sections.map((s) => (
-                      <button
-                        key={s.slug}
-                        type="button"
-                        onClick={() => jumpToSection(s.slug)}
-                        className={cn(
-                          "block w-full rounded-md px-4 py-0.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground",
-                          s.slug === activeSection && "text-foreground font-medium",
-                        )}
-                        aria-current={s.slug === activeSection ? "location" : undefined}
-                      >
-                        {s.title}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <button
+            key={p.slug}
+            type="button"
+            onClick={() => selectPage(p.slug)}
+            className={`navitem${page === p.slug ? " on" : ""}`}
+            aria-current={page === p.slug ? "page" : undefined}
+          >
+            {p.title}
+          </button>
         ))}
       </nav>
-      <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8">
-        {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} />}
-        {page === "guidelines" && (
-          <>
-            <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Guidelines</h1>
-            <GuidelinesPage />
-          </>
+      <div className="relative flex min-w-0 flex-1">
+        <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8 xl:pr-52">
+          {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} />}
+          {page === "guidelines" && (
+            <>
+              <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Guidelines</h1>
+              <GuidelinesPage />
+            </>
+          )}
+          {page === "themes" && (
+            <>
+              <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Themes</h1>
+              <ThemesPage />
+            </>
+          )}
+        </main>
+        {page === "design-system" && (
+          <FloatingTOC scrollRef={scrollRef} active={activeSection} onJump={jumpToSection} />
         )}
-        {page === "themes" && (
-          <>
-            <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Themes</h1>
-            <ThemesPage />
-          </>
-        )}
-      </main>
+      </div>
     </div>
   );
 }
