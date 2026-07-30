@@ -100,32 +100,112 @@ function ScalarRow({ name, preview }: { name: string; preview?: React.ReactNode 
   );
 }
 
-function Demo({ title, importLine, children }: {
-  title: string; importLine: string; children: React.ReactNode;
-}) {
-  const [disabled, setDisabled] = useState(false);
-  const [compact, setCompact] = useState(false);
-  const [width, setWidth] = useState(100);
+function ControlRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <section className="mb-8 rounded-lg border border-border bg-background">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Component Playground</div>
-          <h3 className="text-base font-semibold">{title}</h3>
-          <code className="text-xs text-muted-foreground">{importLine}</code>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <label className="flex items-center gap-1.5"><Switch checked={disabled} onCheckedChange={setDisabled} />Disabled</label>
-          <label className="flex items-center gap-1.5"><Switch checked={compact} onCheckedChange={setCompact} />Compact</label>
-          <label className="flex items-center gap-1.5">Width <input aria-label={`${title} preview width`} type="range" min="50" max="100" value={width} onChange={(e) => setWidth(Number(e.target.value))} /></label>
-          <output className="w-8 text-right font-mono text-muted-foreground">{width}%</output>
-        </div>
+    <div className="grid min-h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border/50 py-1.5 last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="flex items-center justify-end gap-2">{children}</div>
+    </div>
+  );
+}
+
+function Playground({ title, importLine, controls, children }: {
+  title: string;
+  importLine: string;
+  controls?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-6 w-full max-w-5xl overflow-hidden rounded-xl border border-border bg-background">
+      <header className="border-b border-border px-5 py-4">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Component Playground</div>
+        <h3 className="mt-0.5 text-base font-semibold">{title}</h3>
+        <code className="mt-1 block text-xs text-muted-foreground">{importLine}</code>
+      </header>
+      <div className={cn("grid", controls && "md:grid-cols-[minmax(0,1fr)_17rem]")}>
+        <div className="flex min-h-32 min-w-0 flex-wrap items-center gap-3 bg-muted/10 p-5">{children}</div>
+        {controls && (
+          <aside className="border-t border-border bg-muted/20 px-4 py-3 md:border-l md:border-t-0" aria-label={`${title} configuration`}>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Configuration</div>
+            {controls}
+          </aside>
+        )}
       </div>
-      <fieldset disabled={disabled} className={cn("flex flex-wrap items-center gap-3", compact ? "p-3" : "p-6")} style={{ width: `${width}%` }}>
-        {children}
-      </fieldset>
     </section>
   );
+}
+
+const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
+type SelectMode = "select" | "native" | "searchable" | "multiple";
+
+function SelectPlayground() {
+  const [mode, setMode] = useState<SelectMode>("select");
+  const [disabled, setDisabled] = useState(false);
+  const [scrolling, setScrolling] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<string[]>(["Hermes"]);
+  const options = scrolling ? SELECT_OPTIONS : SELECT_OPTIONS.slice(0, 3);
+  const filtered = options.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
+
+  const preview = mode === "native" ? (
+    <NativeSelect disabled={disabled} defaultValue="Hermes" className="w-52">
+      {options.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}
+    </NativeSelect>
+  ) : mode === "searchable" ? (
+    <Command className="w-72 rounded-lg border" aria-disabled={disabled}>
+      <CommandInput placeholder="Search agents…" value={query} onValueChange={setQuery} disabled={disabled} />
+      <CommandList className={cn(!scrolling && "max-h-32")}>
+        <CommandEmpty>No agents found.</CommandEmpty>
+        <CommandGroup>{filtered.map((option) => <CommandItem key={option} disabled={disabled} onSelect={() => setSelected([option])}>{option}{selected.includes(option) && <CommandShortcut>Selected</CommandShortcut>}</CommandItem>)}</CommandGroup>
+      </CommandList>
+    </Command>
+  ) : mode === "multiple" ? (
+    <div className="w-72 space-y-3">
+      <div className="flex min-h-8 flex-wrap gap-1 rounded-lg border border-input p-1.5">
+        {selected.length ? selected.map((option) => <Badge key={option} variant="secondary">{option}</Badge>) : <span className="text-sm text-muted-foreground">Select agents…</span>}
+      </div>
+      <ScrollArea className={cn("rounded-lg border", scrolling ? "h-40" : "h-28")}>
+        <div className="p-1">{options.map((option) => <Button key={option} type="button" variant="ghost" size="sm" disabled={disabled} className="w-full justify-start" onClick={() => setSelected((current) => current.includes(option) ? current.filter((item) => item !== option) : [...current, option])}><Checkbox checked={selected.includes(option)} />{option}</Button>)}</div>
+      </ScrollArea>
+    </div>
+  ) : (
+    <Select defaultValue="Hermes" disabled={disabled}>
+      <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+      <SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+    </Select>
+  );
+
+  return (
+    <Playground title="Select" importLine={'import { Select } from "@/components/ui/select"'} controls={<>
+      <ControlRow label="Type"><NativeSelect value={mode} onChange={(event) => setMode(event.target.value as SelectMode)}><NativeSelectOption value="select">Select</NativeSelectOption><NativeSelectOption value="native">Native</NativeSelectOption><NativeSelectOption value="searchable">Searchable</NativeSelectOption><NativeSelectOption value="multiple">Multiple</NativeSelectOption></NativeSelect></ControlRow>
+      <ControlRow label="Disabled"><Switch checked={disabled} onCheckedChange={setDisabled} /></ControlRow>
+      <ControlRow label="Scrolling"><Switch checked={scrolling} onCheckedChange={setScrolling} /></ControlRow>
+      {(mode === "searchable" || mode === "multiple") && <ControlRow label="Selection"><span className="max-w-36 truncate text-xs font-mono">{selected.join(", ") || "none"}</span></ControlRow>}
+    </>}>
+      {preview}
+    </Playground>
+  );
+}
+
+function ButtonPlayground({ kind }: { kind: "variants" | "sizes" }) {
+  const [disabled, setDisabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [label, setLabel] = useState(kind === "variants" ? "Action" : "Button");
+  return (
+    <Playground title={kind === "variants" ? "Variants" : "Sizes"} importLine={'import { Button } from "@/components/ui/button"'} controls={<>
+      <ControlRow label="Disabled"><Switch checked={disabled} onCheckedChange={setDisabled} /></ControlRow>
+      <ControlRow label="Loading"><Switch checked={loading} onCheckedChange={setLoading} /></ControlRow>
+      <ControlRow label="Label"><Input className="h-7 w-28 text-xs" value={label} onChange={(event) => setLabel(event.target.value)} /></ControlRow>
+    </>}>
+      {kind === "variants" ? (["default", "secondary", "outline", "ghost", "destructive", "link"] as const).map((variant) => <Button key={variant} variant={variant} disabled={disabled}>{loading && variant === "default" ? <Spinner /> : label || variant}</Button>) : (["xs", "sm", "default", "lg"] as const).map((size) => <Button key={size} variant="outline" size={size} disabled={disabled}>{loading && size === "default" ? <Spinner /> : label}</Button>)}
+    </Playground>
+  );
+}
+
+function BadgePlayground() {
+  const [variant, setVariant] = useState<"default" | "secondary" | "outline" | "destructive">("default");
+  const [label, setLabel] = useState("Status");
+  return <Playground title="Badge" importLine={'import { Badge } from "@/components/ui/badge"'} controls={<><ControlRow label="Variant"><NativeSelect value={variant} onChange={(event) => setVariant(event.target.value as typeof variant)}>{["default","secondary","outline","destructive"].map((v)=><NativeSelectOption key={v} value={v}>{v}</NativeSelectOption>)}</NativeSelect></ControlRow><ControlRow label="Label"><Input className="h-7 w-28 text-xs" value={label} onChange={(event)=>setLabel(event.target.value)} /></ControlRow></>}><Badge variant={variant}>{label}</Badge></Playground>;
 }
 
 // ── Themes page helpers ──────────────────────────────────────────
@@ -341,39 +421,19 @@ const SECTIONS: Section[] = [
   {
     slug: "buttons", title: "Button", group: "Atoms",
     render: () => (
-      <>
-        <Demo title="Variants" importLine={'import { Button } from "@/components/ui/button"'}>
-          <Button variant="default">Default</Button>
-          <Button variant="secondary">Secondary</Button>
-          <Button variant="outline">Outline</Button>
-          <Button variant="ghost">Ghost</Button>
-          <Button variant="destructive">Destructive</Button>
-          <Button variant="link">Link</Button>
-        </Demo>
-        <Demo title="Sizes" importLine={'import { Button } from "@/components/ui/button"'}>
-          <Button variant="outline" size="xs">xs</Button>
-          <Button variant="outline" size="sm">sm</Button>
-          <Button variant="outline" size="default">default</Button>
-          <Button variant="outline" size="lg">lg</Button>
-        </Demo>
-      </>
+      <><ButtonPlayground kind="variants" /><ButtonPlayground kind="sizes" /></>
     ),
   },
   {
     slug: "badge", title: "Badge", group: "Atoms",
     render: () => (
-      <Demo title="Badge" importLine={'import { Badge } from "@/components/ui/badge"'}>
-        <Badge>Default</Badge>
-        <Badge variant="secondary">Secondary</Badge>
-        <Badge variant="outline">Outline</Badge>
-        <Badge variant="destructive">Destructive</Badge>
-      </Demo>
+      <BadgePlayground />
     ),
   },
   {
     slug: "card", title: "Card", group: "Molecules",
     render: () => (
-      <Demo title="Card" importLine={'import { Card, CardHeader, ... } from "@/components/ui/card"'}>
+      <Playground title="Card" importLine={'import { Card, CardHeader, ... } from "@/components/ui/card"'}>
         <Card className="w-72">
           <CardHeader>
             <CardTitle>Node fxcompute-01</CardTitle>
@@ -382,49 +442,38 @@ const SECTIONS: Section[] = [
           <CardContent className="text-sm">Last heartbeat 12s ago.</CardContent>
           <CardFooter><Button size="sm" variant="outline">Inspect</Button></CardFooter>
         </Card>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "inputs", title: "Input / Textarea", group: "Atoms",
     render: () => (
-      <Demo title="Text fields" importLine={'import { Input } from "@/components/ui/input"'}>
+      <Playground title="Text fields" importLine={'import { Input } from "@/components/ui/input"'}>
         <div className="grid gap-3 w-64">
           <Label htmlFor="d-in">Session name</Label>
           <Input id="d-in" placeholder="e.g. auth refactor" />
           <Textarea placeholder="Notes…" rows={3} />
         </div>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "select", title: "Select", group: "Molecules",
-    render: () => (
-      <Demo title="Select" importLine={'import { Select, ... } from "@/components/ui/select"'}>
-        <Select defaultValue="hermes">
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="hermes">Hermes</SelectItem>
-            <SelectItem value="claude-code">Claude Code</SelectItem>
-            <SelectItem value="codex">Codex</SelectItem>
-          </SelectContent>
-        </Select>
-      </Demo>
-    ),
+    render: () => <SelectPlayground />,
   },
   {
     slug: "toggles", title: "Checkbox / Switch", group: "Atoms",
     render: () => (
-      <Demo title="Toggles" importLine={'import { Checkbox } from "@/components/ui/checkbox"'}>
+      <Playground title="Toggles" importLine={'import { Checkbox } from "@/components/ui/checkbox"'}>
         <label className="flex items-center gap-2 text-sm"><Checkbox defaultChecked /> Auto-archive</label>
         <label className="flex items-center gap-2 text-sm"><Switch defaultChecked /> Live updates</label>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "tabs", title: "Tabs", group: "Molecules",
     render: () => (
-      <Demo title="Tabs" importLine={'import { Tabs, TabsList, ... } from "@/components/ui/tabs"'}>
+      <Playground title="Tabs" importLine={'import { Tabs, TabsList, ... } from "@/components/ui/tabs"'}>
         <Tabs defaultValue="a" className="w-80">
           <TabsList>
             <TabsTrigger value="a">Output</TabsTrigger>
@@ -435,13 +484,13 @@ const SECTIONS: Section[] = [
           <TabsContent value="b" className="text-sm p-2">Event log.</TabsContent>
           <TabsContent value="c" className="text-sm p-2">Touched files.</TabsContent>
         </Tabs>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "overlays", title: "Dialog / Popover / Dropdown / Tooltip", group: "Molecules",
     render: () => (
-      <Demo title="Overlays" importLine={'import { Dialog, ... } from "@/components/ui/dialog"'}>
+      <Playground title="Overlays" importLine={'import { Dialog, ... } from "@/components/ui/dialog"'}>
         <Dialog>
           <DialogTrigger render={<Button variant="outline">Dialog</Button>} />
           <DialogContent>
@@ -475,64 +524,64 @@ const SECTIONS: Section[] = [
             <TooltipContent>Keyboard: ⌘K</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "feedback", title: "Progress / Spinner / Skeleton", group: "Atoms",
     render: () => (
-      <Demo title="Feedback" importLine={'import { Progress } from "@/components/ui/progress"'}>
+      <Playground title="Feedback" importLine={'import { Progress } from "@/components/ui/progress"'}>
         <Progress value={64} className="w-48" />
         <Spinner />
         <Skeleton className="h-8 w-32" />
         <Avatar><AvatarFallback>ST</AvatarFallback></Avatar>
         <Separator orientation="vertical" className="h-8" />
         <Badge variant="outline">64%</Badge>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "field-input-group", title: "Field / Input Group", group: "Molecules",
     render: () => (
-      <Demo title="Structured fields" importLine={'import { Field, InputGroup } from "@/components/ui/*"'}>
+      <Playground title="Structured fields" importLine={'import { Field, InputGroup } from "@/components/ui/*"'}>
         <FieldGroup className="w-80"><Field><FieldLabel htmlFor="agent-filter">Agent filter</FieldLabel><InputGroup><InputGroupAddon><InputGroupText>agent:</InputGroupText></InputGroupAddon><InputGroupInput id="agent-filter" placeholder="default" /></InputGroup><FieldDescription>Prefix and input remain one accessible field.</FieldDescription></Field></FieldGroup>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "command", title: "Command", group: "Organisms",
     render: () => (
-      <Demo title="Command palette" importLine={'import { Command, ... } from "@/components/ui/command"'}>
+      <Playground title="Command palette" importLine={'import { Command, ... } from "@/components/ui/command"'}>
         <Command className="w-96 rounded-lg border"><CommandInput placeholder="Search actions…" /><CommandList><CommandEmpty>No results.</CommandEmpty><CommandGroup heading="Sessions"><CommandItem>New session<CommandShortcut>⌘N</CommandShortcut></CommandItem><CommandItem>Open history<CommandShortcut>⌘H</CommandShortcut></CommandItem></CommandGroup></CommandList></Command>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "marker-scroll", title: "Marker / Scroll Area", group: "Atoms",
     render: () => (
-      <Demo title="Markers and constrained content" importLine={'import { Marker, ScrollArea } from "@/components/ui/*"'}>
+      <Playground title="Markers and constrained content" importLine={'import { Marker, ScrollArea } from "@/components/ui/*"'}>
         <Marker><MarkerContent>DEV</MarkerContent></Marker><ScrollArea className="h-24 w-56 rounded border p-3"><div className="space-y-2 text-xs">{Array.from({length:8},(_,i)=><div key={i}>Event #{i+1}</div>)}</div></ScrollArea>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "extended-atoms", title: "Extended atoms", group: "Atoms", feature: "extended",
     render: () => (
-      <Demo title="Button groups, toggles, native select" importLine={'import { ButtonGroup, Toggle, NativeSelect } from "@/components/ui/*"'}>
+      <Playground title="Button groups, toggles, native select" importLine={'import { ButtonGroup, Toggle, NativeSelect } from "@/components/ui/*"'}>
         <ButtonGroup><Button variant="outline">Back</Button><Button variant="outline">Forward</Button></ButtonGroup>
         <Toggle aria-label="Toggle bold">Bold</Toggle>
         <ToggleGroup defaultValue={["grid"]}><ToggleGroupItem value="list">List</ToggleGroupItem><ToggleGroupItem value="grid">Grid</ToggleGroupItem></ToggleGroup>
         <NativeSelect defaultValue="auto"><NativeSelectOption value="auto">Auto</NativeSelectOption><NativeSelectOption value="fast">Fast</NativeSelectOption></NativeSelect>
-      </Demo>
+      </Playground>
     ),
   },
   {
     slug: "extended-molecules", title: "Extended overlays", group: "Molecules", feature: "extended",
     render: () => (
-      <Demo title="Sheet and alert dialog" importLine={'import { Sheet, AlertDialog } from "@/components/ui/*"'}>
+      <Playground title="Sheet and alert dialog" importLine={'import { Sheet, AlertDialog } from "@/components/ui/*"'}>
         <Sheet><SheetTrigger render={<Button variant="outline">Open sheet</Button>} /><SheetContent><SheetHeader><SheetTitle>Session inspector</SheetTitle><SheetDescription>Edge-docked detail panel.</SheetDescription></SheetHeader></SheetContent></Sheet>
         <AlertDialog><AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} /><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete session?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-      </Demo>
+      </Playground>
     ),
   },
   {
@@ -547,12 +596,12 @@ const SECTIONS: Section[] = [
   {
     slug: "charts", title: "Charts", group: "Organisms",
     render: () => (
-      <Demo title="TanStack Charts" importLine={'import { Chart } from "@tanstack/react-charts"'}>
+      <Playground title="TanStack Charts" importLine={'import { Chart } from "@tanstack/react-charts"'}>
         <div className="w-full min-w-0">
           <TanStackChartDemo />
           <p className="mt-3 text-xs text-muted-foreground">Typed TanStack chart definition; keyboard focus and tooltip enabled; colors use design tokens.</p>
         </div>
-      </Demo>
+      </Playground>
     ),
   },
 ];
