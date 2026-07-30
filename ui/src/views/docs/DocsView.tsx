@@ -67,6 +67,7 @@ import { AvatarPlayground, BadgePlayground as AtomBadgePlayground, KbdPlayground
 import { ContentPlaygrounds, DisclosurePlaygrounds, NavigationPlaygrounds, SelectFamilyPlayground } from "./playgrounds/molecules/MoleculePlaygrounds";
 import { OverlayPlaygrounds } from "./playgrounds/molecules/OverlayPlaygrounds";
 import { CommandSelectorPlaygrounds, DataTablePlayground, StatusNotificationPlaygrounds } from "./playgrounds/organisms/OrganismPlaygrounds";
+import { PageStatesPlayground, ViewTemplatePlayground } from "./playgrounds/templates/TemplatesPlaygrounds";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
 type SelectMode = "select" | "native" | "searchable" | "multiple";
@@ -285,14 +286,8 @@ const SECTIONS: Section[] = [
       </Playground>
     ),
   },
-  {
-    slug: "session-template", title: "Session workspace", group: "Templates",
-    render: () => <div className="rounded-lg border border-border p-4 text-sm"><strong>Template:</strong> Sidebar session navigation + Viewport header + transcript Page + optional right/bottom Panels. Templates compose organisms; they own layout, not data fetching.</div>,
-  },
-  {
-    slug: "page-examples", title: "Page examples", group: "Pages",
-    render: () => <div className="grid gap-3 sm:grid-cols-3">{["Sessions / Chat", "Vaults / Editor", "Fleet / Nodes"].map((x) => <Card key={x}><CardHeader><CardTitle className="text-sm">{x}</CardTitle><CardDescription>A route-level page assembled from a View template.</CardDescription></CardHeader></Card>)}</div>,
-  },
+  { slug: "session-template", title: "Panel and drawer templates", group: "Templates", render: () => <ViewTemplatePlayground /> },
+  { slug: "page-examples", title: "Page states", group: "Pages", render: () => <PageStatesPlayground /> },
 
   {
     slug: "charts", title: "Charts", group: "Organisms",
