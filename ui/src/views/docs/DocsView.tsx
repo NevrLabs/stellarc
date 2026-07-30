@@ -2,8 +2,7 @@
 // Shadcn-style living docs: token swatches read from the LIVE CSS custom
 // properties (no duplicated values), plus one demo per ui/ component.
 // This page is the uniformization contract for plugin authors.
-import { useEffect, useMemo, useState } from "react";
-import { useRouterState, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -364,11 +363,13 @@ function GuidelinesPage() {
 }
 
 // ── View ─────────────────────────────────────────────────────────
+// Single scrollable page (ucollect-nexus dev-docs pattern): all sections
+// stacked, left TOC jumps via scrollIntoView, IntersectionObserver tracks
+// the active section for highlight.
 export function DocsView() {
-  const { location } = useRouterState();
-  const navigate = useNavigate();
-  const slug = location.pathname.split("/docs/")[1] || "overview";
-  const page = useMemo(() => PAGES.find((p) => p.slug === slug) ?? PAGES[0], [slug]);
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const [active, setActive] = useState<string>(PAGES[0].slug);
+
   const groups = useMemo(() => {
     const order: string[] = [];
     const byGroup = new Map<string, Page[]>();
@@ -378,6 +379,40 @@ export function DocsView() {
     }
     return order.map((g) => ({ group: g, pages: byGroup.get(g)! }));
   }, []);
+
+  useEffect(() => {
+    const rootEl = scrollRef.current;
+    if (!rootEl) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        // topmost visible section wins
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActive(visible[0].target.id.replace(/^docs-/, ""));
+      },
+      { root: rootEl, rootMargin: "0px 0px -70% 0px" },
+    );
+    for (const pg of PAGES) {
+      const el = rootEl.querySelector(`#docs-${CSS.escape(pg.slug)}`);
+      if (el) obs.observe(el);
+    }
+    return () => obs.disconnect();
+  }, []);
+
+  // deep link: /docs/<slug> scrolls to that section on mount
+  useEffect(() => {
+    const slug = window.location.pathname.split("/docs/")[1];
+    if (!slug) return;
+    const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(slug)}`);
+    el?.scrollIntoView({ block: "start" });
+  }, []);
+
+  const jump = (slug: string) => {
+    const el = scrollRef.current?.querySelector(`#docs-${CSS.escape(slug)}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `/docs/${slug}`);
+  };
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -389,12 +424,12 @@ export function DocsView() {
               <button
                 key={p.slug}
                 type="button"
-                onClick={() => void navigate({ to: `/docs/${p.slug}` })}
+                onClick={() => jump(p.slug)}
                 className={cn(
                   "block w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted",
-                  p.slug === page.slug && "bg-muted font-medium",
+                  p.slug === active && "bg-muted font-medium",
                 )}
-                aria-current={p.slug === page.slug ? "page" : undefined}
+                aria-current={p.slug === active ? "location" : undefined}
               >
                 {p.title}
               </button>
@@ -402,9 +437,13 @@ export function DocsView() {
           </div>
         ))}
       </nav>
-      <main className="min-w-0 flex-1 overflow-y-auto p-8">
-        <h1 className="mb-6 text-xl font-semibold">{page.title}</h1>
-        {page.render()}
+      <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto scroll-smooth p-8">
+        {PAGES.map((pg) => (
+          <section key={pg.slug} id={`docs-${pg.slug}`} className="mb-16 scroll-mt-4">
+            <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">{pg.title}</h1>
+            {pg.render()}
+          </section>
+        ))}
       </main>
     </div>
   );
