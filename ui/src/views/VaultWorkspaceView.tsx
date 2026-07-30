@@ -190,7 +190,7 @@ export function VaultWorkspaceView() {
             })}
           />
         ) : (
-          <div className="empty-state"><div className="empty-state-title">Create your first vault</div><div className="empty-state-msg">Connect a GitHub repository to begin.</div><Button type="button" className="btn primary" onClick={() => setCreateVaultOpen(true)}>Create vault</Button></div>
+          <div className="empty-state"><div className="empty-state-title">Create your first vault</div><div className="empty-state-msg">Connect a GitHub repository to begin.</div><Button type="button" variant="default" size="sm" onClick={() => setCreateVaultOpen(true)}>Create vault</Button></div>
         )}
       </div>
       {createVaultOpen && <CreateVaultDialog busy={busy} error={mutationError} onClose={() => setCreateVaultOpen(false)} onCreate={handleCreateVault} />}

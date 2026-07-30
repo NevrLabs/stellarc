@@ -245,7 +245,7 @@ function VaultPanel({ params }: IDockviewPanelProps<VaultPanelParams>) {
       <div className="vault-content"><div className="empty-state" role="alert">
         <div className="empty-state-title">This note could not be displayed</div>
         <div className="empty-state-msg">{error.message}</div>
-        <Button type="button" className="btn" onClick={retry}>Retry note</Button>
+        <Button type="button" variant="outline" size="sm" onClick={retry}>Retry note</Button>
       </div></div>
     )}>
       <NotePage

@@ -18,7 +18,7 @@ function DialogShell({ title, icon, children, onClose }: DialogShellProps) {
       <div className="ol-dialog vault-dialog" onClick={(event) => event.stopPropagation()}>
         <div className="ol-dialog-head">
           <div className="vault-dialog-title"><Icon name={icon} size={18} /><span>{title}</span></div>
-          <Button type="button" className="ibtn" aria-label="Close" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
             <Icon name="x" size={14} />
           </Button>
         </div>
@@ -68,8 +68,8 @@ export function CreateVaultDialog({
           {error && <div className="vault-form-error" role="alert">{error}</div>}
         </div>
         <div className="ol-dialog-foot">
-          <Button type="button" className="btn" onClick={onClose}>Cancel</Button>
-          <Button type="submit" className="btn primary" disabled={busy || !name.trim() || !repository.trim() || !branch.trim()}>{busy ? "Creating…" : "Create vault"}</Button>
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="default" size="sm" disabled={busy || !name.trim() || !repository.trim() || !branch.trim()}>{busy ? "Creating…" : "Create vault"}</Button>
         </div>
       </form>
     </DialogShell>
@@ -113,17 +113,17 @@ export function NewNoteDialog({
           <div className="vault-folder-picker">
             <div className="vault-folder-picker-head"><span>Destination</span><code>{preview}</code></div>
             <div className="vault-folder-tree" role="tree" aria-label="Destination folder">
-              <Button type="button" role="treeitem" aria-pressed={destination === ""} className="vault-folder-option" onClick={() => setDestination("")}><Icon name="book" size={13} />Vault root</Button>
+              <Button type="button" role="treeitem" aria-pressed={destination === ""} variant="ghost" size="sm" className="vault-folder-option w-full justify-start" onClick={() => setDestination("")}><Icon name="book" size={13} />Vault root</Button>
               {folders.map((entry) => (
-                <Button key={entry.path} type="button" role="treeitem" aria-pressed={destination === entry.path} className="vault-folder-option" style={{ paddingLeft: 10 + entry.depth * 14 }} onClick={() => setDestination(entry.path)}><Icon name="folder" size={13} />{entry.title}</Button>
+                <Button key={entry.path} type="button" role="treeitem" aria-pressed={destination === entry.path} variant="ghost" size="sm" className="vault-folder-option w-full justify-start" style={{ paddingLeft: 10 + entry.depth * 14 }} onClick={() => setDestination(entry.path)}><Icon name="folder" size={13} />{entry.title}</Button>
               ))}
             </div>
           </div>
           {error && <div className="vault-form-error" role="alert">{error}</div>}
         </div>
         <div className="ol-dialog-foot">
-          <Button type="button" className="btn" onClick={onClose}>Cancel</Button>
-          <Button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Create note"}</Button>
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="default" size="sm" disabled={busy}>{busy ? "Saving…" : "Create note"}</Button>
         </div>
       </form>
     </DialogShell>
