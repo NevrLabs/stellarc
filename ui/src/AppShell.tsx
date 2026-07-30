@@ -32,6 +32,7 @@ import { ProjectsView } from "./views/ProjectsView";
 import FleetView from "./views/FleetView";
 import { DocsView } from "./views/docs/DocsView";
 import { SettingsView } from "./views/SettingsView";
+import { StatusBar } from "./components/StatusBar";
 
 // ── Helpers ────────────────────────────────────────
 
@@ -98,6 +99,7 @@ export function AppShell() {
           </div>
         ) : null}
       </div>
+      <StatusBar />
       {/* Operator cockpit (ADR 0021): floating, persists across every surface
           because it is mounted here at the app root, outside the body switch. */}
       <Cockpit />

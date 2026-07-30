@@ -72,6 +72,10 @@
 
 /* ── App shell ───────────────────────────────────── */
 .app { display: flex; flex-direction: column; height: 100vh; }
+.statusbar { height: 22px; flex-shrink: 0; display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-4); border-top: var(--border-w) solid var(--border); background: var(--chrome); color: var(--text-faint); font-size: var(--fs-10); }
+.statusbar-item { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
+.statusbar-separator { width: 1px; height: 10px; background: var(--border); }
+.statusbar-spacer { flex: 1; }
 
 /* ── TopBar ──────────────────────────────────────── */
 .topbar { height: var(--topbar-h); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-6); background: var(--chrome); }

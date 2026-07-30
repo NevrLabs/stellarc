@@ -469,27 +469,30 @@ const SECTIONS: Section[] = [
             </div>
             <div className="rounded-md border border-border bg-background p-3">
               <div className="mb-2 text-center text-xs font-semibold">Viewport</div>
-              <div className="mb-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">View header</div>
+              <div className="mb-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Panel Header</div>
               <div className="grid h-32 grid-cols-[1fr_9rem] gap-2">
-                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Page content</div>
-                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Right Panel</div>
+                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Panel Content</div>
+                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Right Drawer</div>
               </div>
-              <div className="mt-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Bottom Panel</div>
+              <div className="mt-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Bottom Drawer · hidden / full / floating</div>
             </div>
           </div>
-          <div className="mt-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">View = Sidebar + Viewport · Surface selects the View</div>
+          <div className="mt-2 rounded border border-border bg-background p-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">View → Sidebar + Page → Viewport → Panel / Panel Grid → Content + Drawers</div>
+          <div className="mt-2 text-center text-[10px] text-muted-foreground">Single-panel View: Sessions · Panelled View: Projects · Drawers: left / bottom / right; hidden / full / floating</div>
         </div>
         <table>
           <thead><tr><th>Term</th><th>What it is</th><th>Where</th></tr></thead>
           <tbody>
             <tr><td><strong>Surface</strong></td><td>Top-level app area selected in the TopBar nav rail (Sessions, Vaults, Projects, Fleet, Settings, Docs). One route prefix each.</td><td><code>router.ts SurfaceName</code></td></tr>
-            <tr><td><strong>View</strong></td><td>The React component owning a surface&apos;s whole area below the TopBar — its Sidebar + Viewport split included.</td><td><code>views/*View.tsx</code></td></tr>
-            <tr><td><strong>TopBar</strong></td><td>Global chrome: sidebar toggle, nav rail, search (⌘K), org/profile.</td><td><code>AppShell.tsx</code>, <code>.topbar</code></td></tr>
-            <tr><td><strong>Sidebar</strong></td><td>The View-owned left column (session list, vault tree, docs nav). Resizable, collapsible.</td><td><code>.sidebar</code>, <code>ResizableSidebar</code></td></tr>
-            <tr><td><strong>NavItem</strong></td><td>One row in a Sidebar: icon + label, hover/active states. Selection is highlight intensity — never left-edge bars.</td><td><code>.navitem</code></td></tr>
-            <tr><td><strong>Viewport</strong></td><td>The main content area right of the Sidebar. Owns its own header row.</td><td><code>.viewport</code>, <code>.vp-head</code>/<code>.vp-body</code></td></tr>
-            <tr><td><strong>Panel</strong></td><td>A secondary collapsible region inside a Viewport: bottom panel (terminal/logs), right panel (session inspector).</td><td><code>.bp-*</code>, <code>.rs-*</code></td></tr>
-            <tr><td><strong>Page</strong></td><td>A NavItem-selected screen inside a View that swaps the Viewport content (Agents, Usage, History).</td><td><code>SessionsPage</code> type</td></tr>
+            <tr><td><strong>View</strong></td><td>A Surface&apos;s complete workspace: Sidebar + selected Page. Sessions is a single-panel View; Projects is a panelled View.</td><td><code>views/*View.tsx</code></td></tr>
+            <tr><td><strong>TopBar</strong></td><td>Global chrome: sidebar toggle, Surface navigation, search (⌘K), org/profile.</td><td><code>AppShell.tsx</code>, <code>.topbar</code></td></tr>
+            <tr><td><strong>StatusBar</strong></td><td>View-level bottom bar for connection, environment, route, and selected-resource status. Never Panel controls.</td><td><code>StatusBar.tsx</code></td></tr>
+            <tr><td><strong>Sidebar</strong></td><td>The View-owned left column containing NavItems. Resizable and collapsible.</td><td><code>.sidebar</code></td></tr>
+            <tr><td><strong>NavItem</strong></td><td>One row in a Sidebar: icon + label, hover/active states. Selects a Page.</td><td><code>.navitem</code></td></tr>
+            <tr><td><strong>Page</strong></td><td>The NavItem-selected route/content configuration inside a View; owns the Viewport.</td><td><code>SessionsPage</code> type</td></tr>
+            <tr><td><strong>Viewport</strong></td><td>The Page&apos;s available canvas. Contains one Panel or a grid of Panels.</td><td><code>.viewport</code></td></tr>
+            <tr><td><strong>Panel</strong></td><td>A flexible pane in the Viewport (single or grid-positioned). Owns a Panel Header, Content, and optional Drawers.</td><td>Dockview panels / single-panel layout</td></tr>
+            <tr><td><strong>Drawer</strong></td><td>Left, bottom, or right auxiliary region inside a Panel. Modes: hidden, full, or floating.</td><td>Former <code>.bp-*</code> / <code>.rs-*</code></td></tr>
             <tr><td><strong>Cockpit</strong></td><td>The floating operator tool cluster mounted at app root; persists across every Surface.</td><td><code>cockpit/</code></td></tr>
             <tr><td><strong>Popover / Dialog / Sheet</strong></td><td>Overlays, in escalating weight: anchored popover → modal dialog → edge-docked sheet.</td><td><code>components/ui</code></td></tr>
           </tbody>
