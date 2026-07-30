@@ -15,6 +15,8 @@
         "@fontsource-variable/geist": "^5.3.0",
         "@milkdown/crepe": "^7.21.2",
         "@milkdown/kit": "^7.21.2",
+        "@tanstack/charts": "0.0.0",
+        "@tanstack/react-charts": "0.0.0",
         "@tanstack/react-query": "^5.101.2",
         "@tanstack/react-router": "^1.170.17",
         "@tanstack/react-virtual": "^3.10.0",
@@ -24,6 +26,8 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
+        "d3-array": "^3.2.4",
+        "d3-scale": "^4.0.2",
         "date-fns": "^3.6.0",
         "dockview-react": "^7.0.2",
         "lucide-react": "^1.27.0",
@@ -50,6 +54,8 @@
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.3.2",
         "@testing-library/user-event": "^14.6.1",
+        "@types/d3-array": "^3.2.2",
+        "@types/d3-scale": "^4.0.9",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
         "@types/react-syntax-highlighter": "^15.5.13",
@@ -563,11 +569,15 @@
 
     "@tailwindcss/vite": ["@tailwindcss/vite@4.3.3", "", { "dependencies": { "@tailwindcss/node": "4.3.3", "@tailwindcss/oxide": "4.3.3", "tailwindcss": "4.3.3" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7 || ^8" } }, "sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw=="],
 
+    "@tanstack/charts": ["@tanstack/charts@0.0.0", "", { "dependencies": { "@types/d3-geo": "^3.1.0", "@types/d3-shape": "^3.1.8", "d3-array": "3.2.4", "d3-geo": "3.1.1", "d3-scale": "4.0.2", "d3-shape": "3.2.0" } }, "sha512-hDsCx2AmYd4P/Bygqdkxxk2MERmGludXxHrLZv3YRh3aVuq18+y7rFgDCpqOz5YHMyoWz0Umzf1XQIoSzE2jkQ=="],
+
     "@tanstack/history": ["@tanstack/history@1.162.0", "", {}, ""],
 
     "@tanstack/query-core": ["@tanstack/query-core@5.101.2", "", {}, ""],
 
     "@tanstack/query-devtools": ["@tanstack/query-devtools@5.101.4", "", {}, "sha512-z5IPHnDX3aUWeTWlRKLyooBQekaCAw4xRpZqPQ390RiWTDBcTynjpPT221BArw0u2+pnQMdGvPQI9YNNubBcmA=="],
+
+    "@tanstack/react-charts": ["@tanstack/react-charts@0.0.0", "", { "dependencies": { "@tanstack/charts": "0.0.0" }, "peerDependencies": { "react": "^19.0.0" } }, "sha512-Ng56AOsMnE84uBH5woOmqqAQIQF4sZv3N0peh53QjFj5+teLDgPTKUPpt1WtcGjab5UhzTzl4835Jl0kaMcJZg=="],
 
     "@tanstack/react-query": ["@tanstack/react-query@5.101.2", "", { "dependencies": { "@tanstack/query-core": "5.101.2" }, "peerDependencies": { "react": "^18 || ^19" } }, ""],
 
@@ -617,6 +627,18 @@
 
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, ""],
 
+    "@types/d3-array": ["@types/d3-array@3.2.2", "", {}, "sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw=="],
+
+    "@types/d3-geo": ["@types/d3-geo@3.1.0", "", { "dependencies": { "@types/geojson": "*" } }, "sha512-856sckF0oP/diXtS4jNsiQw/UuK5fQG8l/a9VVLeSouf1/PPbBE1i1W852zVwKwYCBkFJJB7nCFTbk6UMEXBOQ=="],
+
+    "@types/d3-path": ["@types/d3-path@3.1.1", "", {}, "sha512-VMZBYyQvbGmWyWVea0EHs/BwLgxc+MKi1zLDCONksozI4YJMcTt8ZEuIR4Sb1MMTE8MMW49v0IwI5+b7RmfWlg=="],
+
+    "@types/d3-scale": ["@types/d3-scale@4.0.9", "", { "dependencies": { "@types/d3-time": "*" } }, "sha512-dLmtwB8zkAeO/juAMfnV+sItKjlsw2lKdZVVy6LRr0cBmegxSABiLEpGVmSJJ8O08i4+sGR6qQtb6WtuwJdvVw=="],
+
+    "@types/d3-shape": ["@types/d3-shape@3.1.8", "", { "dependencies": { "@types/d3-path": "*" } }, "sha512-lae0iWfcDeR7qt7rA88BNiqdvPS5pFVPpo5OfjElwNaT2yyekbM0C9vK+yqBqEmHr6lDkRnYNoTBYlAgJa7a4w=="],
+
+    "@types/d3-time": ["@types/d3-time@3.0.4", "", {}, "sha512-yuzZug1nkAAaBlBBikKZTgzCeA+k1uy4ZFwWANOfKw5z5LRhV0gNA7gNkKm7HoK+HRN0wX3EkxGk0fpbWhmB7g=="],
+
     "@types/debug": ["@types/debug@4.1.13", "", { "dependencies": { "@types/ms": "*" } }, ""],
 
     "@types/deep-eql": ["@types/deep-eql@4.0.2", "", {}, ""],
@@ -624,6 +646,8 @@
     "@types/estree": ["@types/estree@1.0.9", "", {}, ""],
 
     "@types/estree-jsx": ["@types/estree-jsx@1.0.5", "", { "dependencies": { "@types/estree": "*" } }, ""],
+
+    "@types/geojson": ["@types/geojson@7946.0.16", "", {}, "sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg=="],
 
     "@types/hast": ["@types/hast@3.0.5", "", { "dependencies": { "@types/unist": "*" } }, ""],
 
@@ -845,9 +869,13 @@
 
     "d3-format": ["d3-format@3.1.2", "", {}, ""],
 
+    "d3-geo": ["d3-geo@3.1.1", "", { "dependencies": { "d3-array": "2.5.0 - 3" } }, "sha512-637ln3gXKXOwhalDzinUgY83KzNWZRKbYubaG+fGVuc/dxO64RRljtCTnf5ecMyE1RIdtqpkVcq0IbtU2S8j2Q=="],
+
     "d3-interpolate": ["d3-interpolate@3.0.1", "", { "dependencies": { "d3-color": "1 - 3" } }, ""],
 
     "d3-octree": ["d3-octree@1.1.0", "", {}, ""],
+
+    "d3-path": ["d3-path@3.1.0", "", {}, "sha512-p3KP5HCf/bvjBSSKuXid6Zqijx7wIfNW+J/maPs+iwR35at5JCbLUT0LzF1cnjbCHWhqzQTIN2Jpe8pRebIEFQ=="],
 
     "d3-quadtree": ["d3-quadtree@3.0.1", "", {}, ""],
 
@@ -856,6 +884,8 @@
     "d3-scale-chromatic": ["d3-scale-chromatic@3.1.0", "", { "dependencies": { "d3-color": "1 - 3", "d3-interpolate": "1 - 3" } }, ""],
 
     "d3-selection": ["d3-selection@3.0.0", "", {}, ""],
+
+    "d3-shape": ["d3-shape@3.2.0", "", { "dependencies": { "d3-path": "^3.1.0" } }, "sha512-SaLBuwGm3MOViRq2ABk3eLoxwZELpH6zhl3FbAoJ7Vm1gofKx6El1Ib5z23NUEhF9AsGl7y+dzLe5Cw2AArGTA=="],
 
     "d3-time": ["d3-time@3.1.0", "", { "dependencies": { "d3-array": "2 - 3" } }, ""],
 

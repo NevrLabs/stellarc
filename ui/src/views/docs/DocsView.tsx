@@ -37,6 +37,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Toggle } from "@/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { TanStackChartDemo } from "./TanStackChartDemo";
 
 // ── Token inventories (names only — values come from the live theme) ──
 const COLOR_TOKENS = [
@@ -197,7 +204,7 @@ function GuidelinesPage() {
 }
 
 // ── Design System sections (one scrollable page) ─────────────────
-type Section = { slug: string; title: string; group: string; render: () => React.ReactNode };
+type Section = { slug: string; title: string; group: string; feature?: "extended"; render: () => React.ReactNode };
 
 const SECTIONS: Section[] = [
   {
@@ -268,7 +275,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "buttons", title: "Button", group: "Components",
+    slug: "buttons", title: "Button", group: "Atoms",
     render: () => (
       <>
         <Demo title="Variants" importLine={'import { Button } from "@/components/ui/button"'}>
@@ -289,7 +296,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "badge", title: "Badge", group: "Components",
+    slug: "badge", title: "Badge", group: "Atoms",
     render: () => (
       <Demo title="Badge" importLine={'import { Badge } from "@/components/ui/badge"'}>
         <Badge>Default</Badge>
@@ -300,7 +307,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "card", title: "Card", group: "Components",
+    slug: "card", title: "Card", group: "Molecules",
     render: () => (
       <Demo title="Card" importLine={'import { Card, CardHeader, ... } from "@/components/ui/card"'}>
         <Card className="w-72">
@@ -315,7 +322,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "inputs", title: "Input / Textarea", group: "Components",
+    slug: "inputs", title: "Input / Textarea", group: "Atoms",
     render: () => (
       <Demo title="Text fields" importLine={'import { Input } from "@/components/ui/input"'}>
         <div className="grid gap-3 w-64">
@@ -327,7 +334,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "select", title: "Select", group: "Components",
+    slug: "select", title: "Select", group: "Molecules",
     render: () => (
       <Demo title="Select" importLine={'import { Select, ... } from "@/components/ui/select"'}>
         <Select defaultValue="hermes">
@@ -342,7 +349,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "toggles", title: "Checkbox / Switch", group: "Components",
+    slug: "toggles", title: "Checkbox / Switch", group: "Atoms",
     render: () => (
       <Demo title="Toggles" importLine={'import { Checkbox } from "@/components/ui/checkbox"'}>
         <label className="flex items-center gap-2 text-sm"><Checkbox defaultChecked /> Auto-archive</label>
@@ -351,7 +358,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "tabs", title: "Tabs", group: "Components",
+    slug: "tabs", title: "Tabs", group: "Molecules",
     render: () => (
       <Demo title="Tabs" importLine={'import { Tabs, TabsList, ... } from "@/components/ui/tabs"'}>
         <Tabs defaultValue="a" className="w-80">
@@ -368,7 +375,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "overlays", title: "Dialog / Popover / Dropdown / Tooltip", group: "Components",
+    slug: "overlays", title: "Dialog / Popover / Dropdown / Tooltip", group: "Molecules",
     render: () => (
       <Demo title="Overlays" importLine={'import { Dialog, ... } from "@/components/ui/dialog"'}>
         <Dialog>
@@ -408,7 +415,7 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "feedback", title: "Progress / Spinner / Skeleton", group: "Components",
+    slug: "feedback", title: "Progress / Spinner / Skeleton", group: "Atoms",
     render: () => (
       <Demo title="Feedback" importLine={'import { Progress } from "@/components/ui/progress"'}>
         <Progress value={64} className="w-48" />
@@ -421,10 +428,57 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "naming", title: "Naming Conventions", group: "Patterns",
+    slug: "extended-atoms", title: "Extended atoms", group: "Atoms", feature: "extended",
+    render: () => (
+      <Demo title="Button groups, toggles, native select" importLine={'import { ButtonGroup, Toggle, NativeSelect } from "@/components/ui/*"'}>
+        <ButtonGroup><Button variant="outline">Back</Button><Button variant="outline">Forward</Button></ButtonGroup>
+        <Toggle aria-label="Toggle bold">Bold</Toggle>
+        <ToggleGroup defaultValue={["grid"]}><ToggleGroupItem value="list">List</ToggleGroupItem><ToggleGroupItem value="grid">Grid</ToggleGroupItem></ToggleGroup>
+        <NativeSelect defaultValue="auto"><NativeSelectOption value="auto">Auto</NativeSelectOption><NativeSelectOption value="fast">Fast</NativeSelectOption></NativeSelect>
+      </Demo>
+    ),
+  },
+  {
+    slug: "extended-molecules", title: "Extended overlays", group: "Molecules", feature: "extended",
+    render: () => (
+      <Demo title="Sheet and alert dialog" importLine={'import { Sheet, AlertDialog } from "@/components/ui/*"'}>
+        <Sheet><SheetTrigger render={<Button variant="outline">Open sheet</Button>} /><SheetContent><SheetHeader><SheetTitle>Session inspector</SheetTitle><SheetDescription>Edge-docked detail panel.</SheetDescription></SheetHeader></SheetContent></Sheet>
+        <AlertDialog><AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} /><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete session?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      </Demo>
+    ),
+  },
+  {
+    slug: "session-template", title: "Session workspace", group: "Templates",
+    render: () => <div className="rounded-lg border border-border p-4 text-sm"><strong>Template:</strong> Sidebar session navigation + Viewport header + transcript Page + optional right/bottom Panels. Templates compose organisms; they own layout, not data fetching.</div>,
+  },
+  {
+    slug: "page-examples", title: "Page examples", group: "Pages",
+    render: () => <div className="grid gap-3 sm:grid-cols-3">{["Sessions / Chat", "Vaults / Editor", "Fleet / Nodes"].map((x) => <Card key={x}><CardHeader><CardTitle className="text-sm">{x}</CardTitle><CardDescription>A route-level page assembled from a View template.</CardDescription></CardHeader></Card>)}</div>,
+  },
+  {
+    slug: "naming", title: "Naming Conventions", group: "Templates",
     render: () => (
       <div className="prose prose-sm dark:prose-invert max-w-none">
         <p>Shared vocabulary for the shell. Use these names in code, docs, cards, and reviews — one word per concept.</p>
+        <div className="not-prose my-6 rounded-xl border border-border bg-muted/20 p-4" role="img" aria-label="Stellarc shell naming diagram">
+          <div className="mb-2 rounded-md border border-border bg-background px-3 py-2 text-center text-xs font-semibold">TopBar · global navigation and search</div>
+          <div className="grid min-h-56 grid-cols-[11rem_1fr] gap-2">
+            <div className="rounded-md border border-border bg-background p-3">
+              <div className="mb-3 text-center text-xs font-semibold">Sidebar</div>
+              {["NavItem", "NavItem · active", "NavItem"].map((label, i) => <div key={i} className={cn("mb-2 rounded px-2 py-1 text-[11px]", i === 1 ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>{label}</div>)}
+            </div>
+            <div className="rounded-md border border-border bg-background p-3">
+              <div className="mb-2 text-center text-xs font-semibold">Viewport</div>
+              <div className="mb-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">View header</div>
+              <div className="grid h-32 grid-cols-[1fr_9rem] gap-2">
+                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Page content</div>
+                <div className="flex items-center justify-center rounded border border-dashed border-border text-[11px] text-muted-foreground">Right Panel</div>
+              </div>
+              <div className="mt-2 rounded border border-dashed border-border p-2 text-center text-[11px] text-muted-foreground">Bottom Panel</div>
+            </div>
+          </div>
+          <div className="mt-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">View = Sidebar + Viewport · Surface selects the View</div>
+        </div>
         <table>
           <thead><tr><th>Term</th><th>What it is</th><th>Where</th></tr></thead>
           <tbody>
@@ -444,30 +498,34 @@ const SECTIONS: Section[] = [
     ),
   },
   {
-    slug: "charts", title: "Charts", group: "Components",
+    slug: "charts", title: "Charts", group: "Organisms",
     render: () => (
-      <div className="text-sm space-y-3 max-w-prose">
-        <p><Badge variant="outline">Not yet shipped</Badge></p>
-        <p>
-          No chart library is installed. When the first data-viz feature lands, charts adopt the
-          same contract as every component here: series colors, grid lines, and axis text come
-          from tokens (<code>--accent</code>, <code>--border-faint</code>, <code>--text-dim</code>),
-          never a library default palette.
-        </p>
-      </div>
+      <Demo title="TanStack Charts" importLine={'import { Chart } from "@tanstack/react-charts"'}>
+        <div className="w-full min-w-0">
+          <TanStackChartDemo />
+          <p className="mt-3 text-xs text-muted-foreground">Typed TanStack chart definition; keyboard focus and tooltip enabled; colors use design tokens.</p>
+        </div>
+      </Demo>
     ),
   },
 ];
 
-function DesignSystemPage({ scrollRef, active }: {
+function DesignSystemPage({ scrollRef, active, extended, onExtendedChange }: {
   scrollRef: React.RefObject<HTMLElement | null>;
   active: string;
+  extended: boolean;
+  onExtendedChange: (value: boolean) => void;
 }) {
   void active;
   void scrollRef;
+  const visible = SECTIONS.filter((sec) => !sec.feature || extended);
   return (
     <>
-      {SECTIONS.map((sec) => (
+      <div className="mb-10 flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4">
+        <div><div className="text-sm font-medium">Extended component catalog</div><div className="text-xs text-muted-foreground">Show optional primitives and experimental compositions.</div></div>
+        <Switch checked={extended} onCheckedChange={onExtendedChange} aria-label="Show extended component catalog" />
+      </div>
+      {visible.map((sec) => (
         <section key={sec.slug} id={`docs-${sec.slug}`} className="mb-16 scroll-mt-4">
           <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">{sec.title}</h1>
           {sec.render()}
@@ -480,16 +538,17 @@ function DesignSystemPage({ scrollRef, active }: {
 
 // Floating in-viewport TOC (ucollect-nexus /dev pattern): fixed card at the
 // right edge of the Viewport, tracks the active section, instant jumps.
-function FloatingTOC({ scrollRef, active, onJump }: {
+function FloatingTOC({ scrollRef, active, onJump, extended }: {
   scrollRef: React.RefObject<HTMLElement | null>;
   active: string;
   onJump: (slug: string) => void;
+  extended: boolean;
 }) {
   void scrollRef;
   const groups = (() => {
     const order: string[] = [];
     const byGroup = new Map<string, Section[]>();
-    for (const s of SECTIONS) {
+    for (const s of SECTIONS.filter((sec) => !sec.feature || extended)) {
       if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
       byGroup.get(s.group)!.push(s);
     }
@@ -543,6 +602,7 @@ export function DocsView() {
     urlTail === "guidelines" ? "guidelines" : urlTail === "themes" ? "themes" : "design-system";
   const [page, setPage] = useState<PageSlug>(initialPage);
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].slug);
+  const [extended, setExtended] = useState(false);
 
   // Track active section while scrolling the design-system page.
   useEffect(() => {
@@ -607,7 +667,7 @@ export function DocsView() {
       </nav>
       <div className="relative flex min-w-0 flex-1">
         <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-8 xl:pr-52">
-          {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} />}
+          {page === "design-system" && <DesignSystemPage scrollRef={scrollRef} active={activeSection} extended={extended} onExtendedChange={setExtended} />}
           {page === "guidelines" && (
             <>
               <h1 className="mb-6 text-xl font-semibold border-b border-border pb-2">Guidelines</h1>
@@ -622,7 +682,7 @@ export function DocsView() {
           )}
         </main>
         {page === "design-system" && (
-          <FloatingTOC scrollRef={scrollRef} active={activeSection} onJump={jumpToSection} />
+          <FloatingTOC scrollRef={scrollRef} active={activeSection} onJump={jumpToSection} extended={extended} />
         )}
       </div>
     </div>
