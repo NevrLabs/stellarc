@@ -64,6 +64,8 @@ import { SpinnerPlayground } from "./playgrounds/atoms/SpinnerPlayground";
 import { SkeletonPlayground } from "./playgrounds/atoms/SkeletonPlayground";
 import { ChoiceAtomsPlayground, NativeSelectPlayground, RadioGroupPlayground, SliderPlayground, TextFieldsPlayground } from "./playgrounds/atoms/FormAtomsPlaygrounds";
 import { AvatarPlayground, BadgePlayground as AtomBadgePlayground, KbdPlayground, LayoutAtomsPlayground } from "./playgrounds/atoms/IdentityLayoutPlaygrounds";
+import { ContentPlaygrounds, DisclosurePlaygrounds, NavigationPlaygrounds, SelectFamilyPlayground } from "./playgrounds/molecules/MoleculePlaygrounds";
+import { OverlayPlaygrounds } from "./playgrounds/molecules/OverlayPlaygrounds";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
 type SelectMode = "select" | "native" | "searchable" | "multiple";
@@ -236,66 +238,13 @@ const SECTIONS: Section[] = [
   { slug: "slider", title: "Slider", group: "Atoms", render: () => <SliderPlayground /> },
   {
     slug: "select", title: "Select", group: "Molecules",
-    render: () => <SelectPlayground />,
+    render: () => <SelectFamilyPlayground />,
   },
   { slug: "toggles", title: "Checkbox / Switch / Toggle", group: "Atoms", render: () => <ChoiceAtomsPlayground /> },
-  {
-    slug: "tabs", title: "Tabs", group: "Molecules",
-    render: () => (
-      <Playground title="Tabs" importLine={'import { Tabs, TabsList, ... } from "@/components/ui/tabs"'}>
-        <Tabs defaultValue="a" className="w-80">
-          <TabsList>
-            <TabsTrigger value="a">Output</TabsTrigger>
-            <TabsTrigger value="b">Events</TabsTrigger>
-            <TabsTrigger value="c">Files</TabsTrigger>
-          </TabsList>
-          <TabsContent value="a" className="text-sm p-2">Run output stream.</TabsContent>
-          <TabsContent value="b" className="text-sm p-2">Event log.</TabsContent>
-          <TabsContent value="c" className="text-sm p-2">Touched files.</TabsContent>
-        </Tabs>
-      </Playground>
-    ),
-  },
-  {
-    slug: "overlays", title: "Dialog / Popover / Dropdown / Tooltip", group: "Molecules",
-    render: () => (
-      <Playground title="Overlays" importLine={'import { Dialog, ... } from "@/components/ui/dialog"'}>
-        <Dialog>
-          <DialogTrigger render={<Button variant="outline">Dialog</Button>} />
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Archive session?</DialogTitle>
-              <DialogDescription>The session stays searchable in History.</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <DialogClose render={<Button variant="ghost">Cancel</Button>} />
-              <DialogClose render={<Button>Archive</Button>} />
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        <Popover>
-          <PopoverTrigger render={<Button variant="outline">Popover</Button>} />
-          <PopoverContent className="text-sm w-56">Anchored content.</PopoverContent>
-        </Popover>
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="outline">Menu</Button>} />
-          <DropdownMenuContent>
-            <DropdownMenuLabel>Session</DropdownMenuLabel>
-            <DropdownMenuItem>Rename</DropdownMenuItem>
-            <DropdownMenuItem>Duplicate</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger render={<Button variant="outline">Tooltip</Button>} />
-            <TooltipContent>Keyboard: ⌘K</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </Playground>
-    ),
-  },
+  { slug: "disclosure", title: "Accordion / Collapsible", group: "Molecules", render: () => <DisclosurePlaygrounds /> },
+  { slug: "navigation", title: "Tabs / Breadcrumb / Pagination", group: "Molecules", render: () => <NavigationPlaygrounds /> },
+  { slug: "overlays", title: "Overlay family", group: "Molecules", render: () => <OverlayPlaygrounds /> },
+  { slug: "content-molecules", title: "Alert / Empty / Table / Scroll Area", group: "Molecules", render: () => <ContentPlaygrounds /> },
   { slug: "progress", title: "Progress", group: "Atoms", render: () => <ProgressPlayground /> },
   { slug: "spinner", title: "Spinner", group: "Atoms", render: () => <SpinnerPlayground /> },
   { slug: "skeleton", title: "Skeleton", group: "Atoms", render: () => <SkeletonPlayground /> },
