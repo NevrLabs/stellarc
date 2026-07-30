@@ -47,6 +47,7 @@ pub fn router() -> Router<AppState> {
             get(list_subsessions).post(create_subsession),
         )
         .route("/api/sessions/{id}/complete", post(complete_session))
+        .route("/api/sessions/{id}/diagnostics", get(session_diagnostics))
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -357,6 +358,71 @@ pub(crate) async fn get_session(
         _ => (StatusCode::NOT_FOUND, "session not found").into_response(),
     }
 }
+
+/// GET /api/sessions/{id}/diagnostics — full runtime status for one session,
+/// assembled from state Axis already holds (dev-tooling surface; no new
+/// bookkeeping). Reports the session row, derived liveness, the bound node's
+/// registry entry, whether that node's orbit connection is currently open,
+/// and whether the bridge holds a live runtime / in-flight turn / pending
+/// permission for the session.
+pub(crate) async fn session_diagnostics(
+    State(state): State<AppState>,
+    scope: Option<axum::extract::Extension<OrgScope>>,
+    Path(id): Path<String>,
+) -> Response {
+    let views = state.views.read().await;
+    let Some(row) = views.sessions.get(&id) else {
+        return (StatusCode::NOT_FOUND, "session not found").into_response();
+    };
+    if let Some(scope) = scope.as_ref() {
+        if row.org_id != scope.0.organization_id {
+            return (StatusCode::NOT_FOUND, "session not found").into_response();
+        }
+    }
+    let dto = SessionDto::from_row(row);
+    drop(views);
+
+    let in_flight = state.bridge.in_flight_set().await;
+    let awaiting = state.bridge.awaiting_input_set().await;
+    let managed = dto.source == "acp" || dto.source == "stellarc";
+    let liveness = crate::server::dto::compute_liveness(
+        dto.last_activity,
+        now_epoch(),
+        in_flight.contains(&dto.id),
+        managed,
+        awaiting.contains(&dto.id),
+    );
+    let runtime_held = state.bridge.get_runtime(&dto.id).await.is_some();
+
+    let (node_info, orbit_connected) = match dto.node.as_deref() {
+        Some(node_id) => {
+            let info = state.nodes.get(node_id).await;
+            let connected = state.orbit_conns.get(node_id).await.is_some();
+            (info, connected)
+        }
+        None => (None, false),
+    };
+
+    Json(json!({
+        "sessionId": dto.id,
+        "hermesId": dto.hermes_id,
+        "source": dto.source,
+        "managed": managed,
+        "agent": dto.agent,
+        "model": dto.model,
+        "node": dto.node,
+        "liveness": liveness,
+        "inFlight": in_flight.contains(&dto.id),
+        "awaitingInput": awaiting.contains(&dto.id),
+        "runtimeHeld": runtime_held,
+        "orbitConnected": orbit_connected,
+        "lastActivity": dto.last_activity,
+        "messageCount": dto.message_count,
+        "nodeInfo": node_info,
+    }))
+    .into_response()
+}
+
 
 /// Extract the timestamp from a MessageAppended event (for DTO building).
 pub(crate) fn event_timestamp(event: &crate::event::Event) -> f64 {

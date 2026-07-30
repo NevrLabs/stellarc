@@ -58,6 +58,7 @@ import { SessionSidebar } from "./sessions/components/SessionSidebar";
 import { RightPanel, type RsTab } from "./sessions/components/RightPanel";
 import { BottomPanel, type BpTab } from "./sessions/components/BottomPanel";
 import { ChatPage } from "./sessions/pages/ChatPage";
+import { SessionStatusPopover } from "./sessions/components/SessionStatusPopover";
 import { AgentsPage } from "./sessions/pages/AgentsPage";
 import { UsagePage } from "./sessions/pages/UsagePage";
 import { HistoryPage } from "./sessions/pages/HistoryPage";
@@ -750,6 +751,7 @@ function SessionChatLayout({
           )}
         </div>
         <div className="vp-right">
+          <SessionStatusPopover sessionId={sessionId} liveness={session?.liveness} />
           {session?.liveness === "active" && (
             <div className="live chat-live-badge">
               <span className="dot" />

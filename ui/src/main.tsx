@@ -8,6 +8,24 @@ import { ThemeProvider } from "./theme";
 import { AuthGate, useAxisAuth } from "./auth";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { lazy, Suspense } from "react";
+
+// Dev-only debugging surfaces: TanStack Router + Query devtools. Lazy so
+// production bundles tree-shake them out entirely.
+const RouterDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-router-devtools").then((m) => ({
+        default: m.TanStackRouterDevtools,
+      })),
+    )
+  : null;
+const QueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-query-devtools").then((m) => ({
+        default: m.ReactQueryDevtools,
+      })),
+    )
+  : null;
 // Design system: tokens (colors, type, spacing, radius, motion, fonts) + base
 // resets + .ol-* component classes. Imported before index.css so the app-shell
 // aliases in index.css can reference the design-system tokens.
@@ -39,7 +57,21 @@ function Root() {
 function AuthenticatedApp() {
   const { organization } = useAxisAuth();
   useLiveSync(organization.id);
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      {RouterDevtools && (
+        <Suspense>
+          <RouterDevtools router={router} position="bottom-right" />
+        </Suspense>
+      )}
+      {QueryDevtools && (
+        <Suspense>
+          <QueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+        </Suspense>
+      )}
+    </>
+  );
 }
 
 // Bootstrap: start MSW mock worker (dev/e2e only) before React mounts.
