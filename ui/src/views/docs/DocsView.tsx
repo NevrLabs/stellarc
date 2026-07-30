@@ -59,6 +59,11 @@ import { Radius } from "./foundations/Radius";
 import { Spacing } from "./foundations/Spacing";
 import { Themes } from "./foundations/Themes";
 import { Typography } from "./foundations/Typography";
+import { ProgressPlayground } from "./playgrounds/atoms/ProgressPlayground";
+import { SpinnerPlayground } from "./playgrounds/atoms/SpinnerPlayground";
+import { SkeletonPlayground } from "./playgrounds/atoms/SkeletonPlayground";
+import { ChoiceAtomsPlayground, NativeSelectPlayground, RadioGroupPlayground, SliderPlayground, TextFieldsPlayground } from "./playgrounds/atoms/FormAtomsPlaygrounds";
+import { AvatarPlayground, BadgePlayground as AtomBadgePlayground, KbdPlayground, LayoutAtomsPlayground } from "./playgrounds/atoms/IdentityLayoutPlaygrounds";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
 type SelectMode = "select" | "native" | "searchable" | "multiple";
@@ -208,12 +213,8 @@ const SECTIONS: Section[] = [
       <><ButtonPlayground kind="variants" /><ButtonPlayground kind="sizes" /></>
     ),
   },
-  {
-    slug: "badge", title: "Badge", group: "Atoms",
-    render: () => (
-      <BadgePlayground />
-    ),
-  },
+  { slug: "badge", title: "Badge", group: "Atoms", render: () => <AtomBadgePlayground /> },
+  { slug: "avatar", title: "Avatar", group: "Atoms", render: () => <AvatarPlayground /> },
   {
     slug: "card", title: "Card", group: "Molecules",
     render: () => (
@@ -229,31 +230,15 @@ const SECTIONS: Section[] = [
       </Playground>
     ),
   },
-  {
-    slug: "inputs", title: "Input / Textarea", group: "Atoms",
-    render: () => (
-      <Playground title="Text fields" importLine={'import { Input } from "@/components/ui/input"'}>
-        <div className="grid gap-3 w-64">
-          <Label htmlFor="d-in">Session name</Label>
-          <Input id="d-in" placeholder="e.g. auth refactor" />
-          <Textarea placeholder="Notes…" rows={3} />
-        </div>
-      </Playground>
-    ),
-  },
+  { slug: "inputs", title: "Input / Textarea / Label", group: "Atoms", render: () => <TextFieldsPlayground /> },
+  { slug: "native-select", title: "Native Select", group: "Atoms", render: () => <NativeSelectPlayground /> },
+  { slug: "radio-group", title: "Radio Group", group: "Atoms", render: () => <RadioGroupPlayground /> },
+  { slug: "slider", title: "Slider", group: "Atoms", render: () => <SliderPlayground /> },
   {
     slug: "select", title: "Select", group: "Molecules",
     render: () => <SelectPlayground />,
   },
-  {
-    slug: "toggles", title: "Checkbox / Switch", group: "Atoms",
-    render: () => (
-      <Playground title="Toggles" importLine={'import { Checkbox } from "@/components/ui/checkbox"'}>
-        <label className="flex items-center gap-2 text-sm"><Checkbox defaultChecked /> Auto-archive</label>
-        <label className="flex items-center gap-2 text-sm"><Switch defaultChecked /> Live updates</label>
-      </Playground>
-    ),
-  },
+  { slug: "toggles", title: "Checkbox / Switch / Toggle", group: "Atoms", render: () => <ChoiceAtomsPlayground /> },
   {
     slug: "tabs", title: "Tabs", group: "Molecules",
     render: () => (
@@ -311,19 +296,9 @@ const SECTIONS: Section[] = [
       </Playground>
     ),
   },
-  {
-    slug: "feedback", title: "Progress / Spinner / Skeleton", group: "Atoms",
-    render: () => (
-      <Playground title="Feedback" importLine={'import { Progress } from "@/components/ui/progress"'}>
-        <Progress value={64} className="w-48" />
-        <Spinner />
-        <Skeleton className="h-8 w-32" />
-        <Avatar><AvatarFallback>ST</AvatarFallback></Avatar>
-        <Separator orientation="vertical" className="h-8" />
-        <Badge variant="outline">64%</Badge>
-      </Playground>
-    ),
-  },
+  { slug: "progress", title: "Progress", group: "Atoms", render: () => <ProgressPlayground /> },
+  { slug: "spinner", title: "Spinner", group: "Atoms", render: () => <SpinnerPlayground /> },
+  { slug: "skeleton", title: "Skeleton", group: "Atoms", render: () => <SkeletonPlayground /> },
   {
     slug: "field-input-group", title: "Field / Input Group", group: "Molecules",
     render: () => (
@@ -340,14 +315,8 @@ const SECTIONS: Section[] = [
       </Playground>
     ),
   },
-  {
-    slug: "marker-scroll", title: "Marker / Scroll Area", group: "Atoms",
-    render: () => (
-      <Playground title="Markers and constrained content" importLine={'import { Marker, ScrollArea } from "@/components/ui/*"'}>
-        <Marker><MarkerContent>DEV</MarkerContent></Marker><ScrollArea className="h-24 w-56 rounded border p-3"><div className="space-y-2 text-xs">{Array.from({length:8},(_,i)=><div key={i}>Event #{i+1}</div>)}</div></ScrollArea>
-      </Playground>
-    ),
-  },
+  { slug: "layout-atoms", title: "Marker / Separator / Aspect Ratio", group: "Atoms", render: () => <LayoutAtomsPlayground /> },
+  { slug: "kbd", title: "Keyboard Key", group: "Atoms", render: () => <KbdPlayground /> },
   {
     slug: "extended-atoms", title: "Extended atoms", group: "Atoms", feature: "extended",
     render: () => (
