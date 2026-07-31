@@ -8,6 +8,7 @@ import { ThemeProvider } from "./theme";
 import { AuthGate, useAxisAuth } from "./auth";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ReconnectOverlay } from "./ReconnectOverlay";
 import { lazy, Suspense } from "react";
 
 // Dev-only debugging surfaces: TanStack Router + Query devtools. Lazy so
@@ -95,7 +96,7 @@ async function bootstrap() {
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
           <ThemeProvider>
-            <TooltipProvider><Root /></TooltipProvider>
+            <TooltipProvider><Root /><ReconnectOverlay /></TooltipProvider>
           </ThemeProvider>
         </ErrorBoundary>
       </QueryClientProvider>
