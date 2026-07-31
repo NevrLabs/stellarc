@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
  * hosts — the node model already carries `transport`; a `kind` field
  * (orbit | sandbox | remote) is the natural next extension.
  */
-import React, { useState, useCallback } from "react";
+import React, { memo, useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../components/Icon";
@@ -70,7 +70,7 @@ function slotPct(used: number, total: number): number {
 
 // ── Main View ──────────────────────────────────────
 
-export default function FleetView({ nodeId }: { nodeId: string | null }) {
+const FleetView = memo(function FleetView({ nodeId }: { nodeId: string | null }) {
   const { sidebarCollapsed } = useUIStore();
   const sidebar = useResizable({
     axis: "x",
@@ -95,7 +95,7 @@ export default function FleetView({ nodeId }: { nodeId: string | null }) {
       </div>
     </>
   );
-}
+});
 
 // ── Sidebar ────────────────────────────────────────
 
@@ -808,3 +808,6 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+
+export default FleetView;

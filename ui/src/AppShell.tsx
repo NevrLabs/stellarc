@@ -16,7 +16,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 // provides its own secondary sidebar slot (session list, vault tree, etc.).
 // Surfaces whose card hasn't merged render a .ol-* placeholder pane.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
 import { useUIStore } from "./store";
@@ -70,12 +70,13 @@ export function AppShell() {
   // Deferred mount: active view renders immediately, rest mount after idle.
   const [mounted, setMounted] = useState<Set<string>>(() => new Set([surface]));
 
+  const preMounted = useRef(false);
   useEffect(() => {
-    setMounted((prev) => {
-      if (prev.has(surface)) return prev;
-      return new Set(prev).add(surface);
-    });
-    // Pre-mount remaining views after the active view has painted.
+    // Add active surface immediately if not yet mounted.
+    setMounted((prev) => prev.has(surface) ? prev : new Set(prev).add(surface));
+    // Pre-mount all views once, after idle.
+    if (preMounted.current) return;
+    preMounted.current = true;
     const ric = (cb: () => void) =>
       "requestIdleCallback" in window
         ? (window as any).requestIdleCallback(cb, { timeout: 2000 })

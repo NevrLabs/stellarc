@@ -29,7 +29,7 @@ const TABS: { surface: SurfaceName; label: string; icon: IconName; path: string 
   { surface: "settings", label: "Settings", icon: "gear", path: "/settings" },
 ];
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const ALL_SURFACES = ["sessions", "vaults", "projects", "fleet", "docs", "settings"] as const;
 
@@ -38,8 +38,11 @@ export function MobileAppShell() {
   const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
 
   const [mounted, setMounted] = useState<Set<string>>(() => new Set([surface]));
+  const preMounted = useRef(false);
   useEffect(() => {
     setMounted((prev) => prev.has(surface) ? prev : new Set(prev).add(surface));
+    if (preMounted.current) return;
+    preMounted.current = true;
     const ric = (cb: () => void) =>
       "requestIdleCallback" in window
         ? (window as any).requestIdleCallback(cb, { timeout: 2000 })

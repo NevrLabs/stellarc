@@ -2,7 +2,7 @@
 // Sidebar = page select (Design System / Guidelines / Themes).
 // Design System is ONE scrollable page with Foundations + Components
 // sections; section links (indented under the page entry) jump instantly.
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -384,7 +384,7 @@ type PageSlug = (typeof PAGE_DEFS)[number]["slug"];
 
 const SECTION_SLUGS = new Set(SECTIONS.map((s) => s.slug));
 
-export function DocsView() {
+export const DocsView = memo(function DocsView() {
   const scrollRef = useRef<HTMLElement | null>(null);
   const urlTail = window.location.pathname.split("/docs/")[1] ?? "";
   const initialPage: PageSlug =
@@ -476,4 +476,4 @@ export function DocsView() {
       </div>
     </div>
   );
-}
+});

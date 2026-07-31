@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { memo } from "react";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 // Settings → Organization management (ADR 0022, better-auth pattern).
@@ -27,7 +28,7 @@ import {
   type OrgInvitation,
 } from "../api";
 
-export function SettingsView() {
+const SettingsView = memo(function SettingsView() {
   return (
     <div className="shell-placeholder">
       <div className="gv-head">
@@ -40,7 +41,9 @@ export function SettingsView() {
       </div>
     </div>
   );
-}
+});
+
+export { SettingsView };
 
 function OrganizationSettings() {
   const [members, setMembers] = useState<OrgMember[]>([]);

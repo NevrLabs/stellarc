@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
  *   └──────────────────────────────────────────────────────────────┘
  */
 
-import React, { useState, useMemo } from "react";
+import React, { memo, useState, useMemo } from "react";
 import { useResizable } from "../hooks/useResizable";
 import { useUIStore } from "../store";
 import { useCards } from "../hooks/queries";
@@ -54,7 +54,7 @@ function uniqueAssignees(cards: Card[]): string[] {
   return Array.from(set).sort();
 }
 
-export function ProjectsView() {
+export const ProjectsView = memo(function ProjectsView() {
   const { sidebarCollapsed } = useUIStore();
   const sidebar = useResizable({
     axis: "x", min: 220, max: 360, initial: 260,
@@ -162,4 +162,4 @@ export function ProjectsView() {
       </div>
     </>
   );
-}
+});

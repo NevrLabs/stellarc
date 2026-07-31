@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
  *   └──────────────────────────────────────────────────────────────┘
  */
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -101,7 +101,7 @@ interface SessionPanelParams {
   sessionId: string;
 }
 
-export function SessionsView({
+export const SessionsView = memo(function SessionsView({
   sessionId,
   projectId,
   page,
@@ -572,7 +572,7 @@ export function SessionsView({
       </div>
     </>
   );
-}
+});
 
 /** Remove groups restored without any panel — they render as dead watermark
  * panes. A layout can carry them when it was serialized mid-teardown by an

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { memo } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,7 @@ import {
 
 const EMPTY_NOTES: NoteTreeEntry[] = [];
 
-export function VaultWorkspaceView() {
+export const VaultWorkspaceView = memo(function VaultWorkspaceView() {
   const { location } = useRouterState();
   const { sidebarCollapsed } = useUIStore();
   const navigate = useNavigate();
@@ -199,7 +200,7 @@ export function VaultWorkspaceView() {
       <DeleteNoteDialog path={deleteEntry?.path ?? null} busy={busy} error={mutationError} onClose={() => setDeleteEntry(null)} onDelete={handleDelete} />
     </>
   );
-}
+});
 
 function targetFromRoute(page: "note" | "tables" | "graph", path: string | null, notes: NoteTreeEntry[]): WorkspaceTab | null {
   if (page === "graph") return graphTab;
