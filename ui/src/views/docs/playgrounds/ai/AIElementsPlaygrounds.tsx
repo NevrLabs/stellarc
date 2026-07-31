@@ -51,10 +51,10 @@ export function ToolPlayground() {
       </>}>
       <div className="w-80">
         <Tool>
-          <ToolHeader type="function-call-web-search" state={state} title={name} />
+          <ToolHeader type={"function-call-web-search" as any} state={state} title={name} />
           <ToolContent>
             <ToolInput input={sampleInput} />
-            <ToolOutput output={state === "output-available" ? sampleOutput : null} errorText={state === "output-error" ? "Rate limit exceeded" : null} />
+            <ToolOutput output={state === "output-available" ? sampleOutput : undefined} errorText={state === "output-error" ? "Rate limit exceeded" : undefined} />
           </ToolContent>
         </Tool>
       </div>
@@ -97,7 +97,7 @@ export function CodeBlockPlayground() {
         <ControlRow label="Line numbers"><Switch checked={lineNumbers} onCheckedChange={setLineNumbers} /></ControlRow>
       </>}>
       <div className="w-96">
-        <CodeBlock code={sampleCode} language={language} showLineNumbers={lineNumbers}>
+        <CodeBlock code={sampleCode} language={language as any} showLineNumbers={lineNumbers}>
           <CodeBlockHeader><span className="font-mono">example.{language}</span><CodeBlockCopyButton /></CodeBlockHeader>
         </CodeBlock>
       </div>
@@ -117,7 +117,7 @@ export function AIImagePlayground() {
         <ControlRow label="Alt text"><Input aria-label="Alt text" className="h-7 w-32 text-xs" value={alt} onChange={(e) => setAlt(e.target.value)} /></ControlRow>
       </>}>
       <div className="w-48">
-        {state === "loaded" && <AIImage base64={sampleBase64} mediaType="image/png" alt={alt} />}
+        {state === "loaded" && <AIImage {...{ base64: sampleBase64, mediaType: "image/png", alt } as any} />}
         {state === "loading" && <div className="flex aspect-video items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground">Generating…</div>}
         {state === "error" && <div className="flex aspect-video items-center justify-center rounded-md border border-destructive/50 bg-destructive/10 text-xs text-destructive">Failed to generate</div>}
       </div>
@@ -141,7 +141,7 @@ export function SourcesPlayground() {
         <ControlRow label="Expanded"><Switch checked={open} onCheckedChange={setOpen} /></ControlRow>
       </>}>
       <div className="w-80">
-        <Sources open={open} onOpenChange={setOpen}>
+        <Sources>
           <SourcesTrigger count={count} />
           <SourcesContent>{sampleSources.map((s) => <Source key={s.href} href={s.href} title={s.title} />)}</SourcesContent>
         </Sources>
@@ -170,8 +170,8 @@ export function AttachmentsPlayground() {
   const [variant, setVariant] = useState<"grid" | "inline" | "list">("inline");
   const [items, setItems] = useState<AttachmentData[]>([
     { id: "1", type: "file", mediaType: "image/png", filename: "screenshot.png", url: "data:image/png;base64,iVBORw0KGgo=" },
-    { id: "2", type: "file", mediaType: "application/pdf", filename: "report.pdf" },
-    { id: "3", type: "file", mediaType: "text/plain", filename: "notes.md" },
+    { id: "2", type: "file", mediaType: "application/pdf", filename: "report.pdf", url: "" },
+    { id: "3", type: "file", mediaType: "text/plain", filename: "notes.md", url: "" },
   ]);
   const remove = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
   return (
