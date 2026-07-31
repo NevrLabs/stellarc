@@ -1,5 +1,5 @@
 import { createRouter, createRootRoute, createRoute } from "@tanstack/react-router";
-import { AppShell } from "./AppShell";
+import { AppShellRouter } from "./AppShellRouter";
 
 // ── Route tree ─────────────────────────────────────
 // URL is the single source of truth for:
@@ -25,7 +25,7 @@ import { AppShell } from "./AppShell";
 // or share as a link.
 
 const rootRoute = createRootRoute({
-  component: AppShell,
+  component: AppShellRouter,
 });
 
 const indexRoute = createRoute({

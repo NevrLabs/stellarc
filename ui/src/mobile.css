@@ -1,0 +1,57 @@
+/* Mobile shell — bottom-tab navigation + full-screen views */
+
+@layer components {
+  .app-mobile {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .mobile-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-tabbar {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    height: 56px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elev);
+    padding-bottom: env(safe-area-inset-bottom);
+    flex-shrink: 0;
+  }
+
+  .mobile-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px 0;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-tab:active {
+    color: var(--text);
+  }
+
+  .mobile-tab-active {
+    color: var(--accent);
+  }
+
+  .mobile-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+  }
+}

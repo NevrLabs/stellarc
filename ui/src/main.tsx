@@ -31,6 +31,7 @@ const QueryDevtools = import.meta.env.DEV
 // aliases in index.css can reference the design-system tokens.
 import "./design/styles.css";
 import "./index.css";
+import "./mobile.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
