@@ -7,7 +7,7 @@ import { ProjectsView } from "./views/ProjectsView";
 import FleetView from "./views/FleetView";
 import { DocsView } from "./views/docs/DocsView";
 import { SettingsView } from "./views/SettingsView";
-import { useState } from "react";
+
 import { useNavigate } from "@tanstack/react-router";
 
 /**
