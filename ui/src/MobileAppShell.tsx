@@ -1,17 +1,12 @@
 import { useRouterState } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
 import { parseRoute, type SurfaceName } from "./router";
-import { lazy, Suspense } from "react";
-const SessionsView = lazy(() => import("./views/SessionsView").then(m => ({ default: m.SessionsView })));
-const VaultWorkspaceView = lazy(() => import("./views/VaultWorkspaceView").then(m => ({ default: m.VaultWorkspaceView })));
-const ProjectsView = lazy(() => import("./views/ProjectsView").then(m => ({ default: m.ProjectsView })));
-const FleetView = lazy(() => import("./views/FleetView").then(m => ({ default: m.default })));
-const DocsView = lazy(() => import("./views/docs/DocsView").then(m => ({ default: m.DocsView })));
-const SettingsView = lazy(() => import("./views/SettingsView").then(m => ({ default: m.SettingsView })));
-
-const ViewSuspense = ({ children }: { children: React.ReactNode }) => (
-  <Suspense fallback={<div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-dim)" }}><span style={{ fontSize: 13 }}>Loading…</span></div>}>{children}</Suspense>
-);
+import { SessionsView } from "./views/SessionsView";
+import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
+import { ProjectsView } from "./views/ProjectsView";
+import FleetView from "./views/FleetView";
+import { DocsView } from "./views/docs/DocsView";
+import { SettingsView } from "./views/SettingsView";
 
 import { useNavigate } from "@tanstack/react-router";
 
@@ -41,14 +36,24 @@ export function MobileAppShell() {
   return (
     <div className="app app-mobile">
       <div className="mobile-content">
-        {surface === "sessions" && (
-          <ViewSuspense><SessionsView sessionId={sessionId} projectId={projectId} page={page} /></ViewSuspense>
-        )}
-        {surface === "vaults" && <ViewSuspense><VaultWorkspaceView /></ViewSuspense>}
-        {surface === "projects" && <ViewSuspense><ProjectsView /></ViewSuspense>}
-        {surface === "fleet" && <ViewSuspense><FleetView nodeId={nodeId} /></ViewSuspense>}
-        {surface === "docs" && <ViewSuspense><DocsView /></ViewSuspense>}
-        {surface === "settings" && <ViewSuspense><SettingsView /></ViewSuspense>}
+        <div className={surface === "sessions" ? "" : "view-hidden"}>
+          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
+        </div>
+        <div className={surface === "vaults" ? "" : "view-hidden"}>
+          <VaultWorkspaceView />
+        </div>
+        <div className={surface === "projects" ? "" : "view-hidden"}>
+          <ProjectsView />
+        </div>
+        <div className={surface === "fleet" ? "" : "view-hidden"}>
+          <FleetView nodeId={nodeId} />
+        </div>
+        <div className={surface === "docs" ? "" : "view-hidden"}>
+          <DocsView />
+        </div>
+        <div className={surface === "settings" ? "" : "view-hidden"}>
+          <SettingsView />
+        </div>
       </div>
       <MobileTabBar activeSurface={surface} />
     </div>

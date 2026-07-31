@@ -8,6 +8,13 @@ import { AuthGate } from "./auth";
 import { router } from "./router";
 import { RouterProvider } from "@tanstack/react-router";
 
+// Mock heavy views to avoid loading real component trees in shell test
+vi.mock("./views/docs/DocsView", () => ({ DocsView: () => null }));
+vi.mock("./views/VaultWorkspaceView", () => ({ VaultWorkspaceView: () => null }));
+vi.mock("./views/SessionsView", () => ({ SessionsView: () => null }));
+vi.mock("./views/FleetView", () => ({ default: () => null }));
+
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,

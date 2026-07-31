@@ -26,17 +26,12 @@ import { SearchPill, CommandPalette } from "./CommandPalette";
 import { parseRoute, type SurfaceName } from "./router";
 import { useTheme } from "./theme";
 import { useAxisAuth } from "./auth";
-import { lazy, Suspense } from "react";
-const SessionsView = lazy(() => import("./views/SessionsView").then(m => ({ default: m.SessionsView })));
-const VaultWorkspaceView = lazy(() => import("./views/VaultWorkspaceView").then(m => ({ default: m.VaultWorkspaceView })));
-const ProjectsView = lazy(() => import("./views/ProjectsView").then(m => ({ default: m.ProjectsView })));
-const FleetView = lazy(() => import("./views/FleetView").then(m => ({ default: m.default })));
-const DocsView = lazy(() => import("./views/docs/DocsView").then(m => ({ default: m.DocsView })));
-const SettingsView = lazy(() => import("./views/SettingsView").then(m => ({ default: m.SettingsView })));
-
-const ViewSuspense = ({ children }: { children: React.ReactNode }) => (
-  <Suspense fallback={<div className="viewport" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}><span style={{ fontSize: 13 }}>Loading…</span></div>}>{children}</Suspense>
-);
+import { SessionsView } from "./views/SessionsView";
+import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
+import { ProjectsView } from "./views/ProjectsView";
+import FleetView from "./views/FleetView";
+import { DocsView } from "./views/docs/DocsView";
+import { SettingsView } from "./views/SettingsView";
 import { StatusBar } from "./components/StatusBar";
 
 // ── Helpers ────────────────────────────────────────
@@ -74,35 +69,33 @@ export function AppShell() {
     <div className="app">
       <TopBar activeSurface={surface} />
       <div className="body">
-        {/* Sessions View owns its own sidebar + viewport layout */}
-        {surface === "sessions" && (
-          <ViewSuspense><SessionsView sessionId={sessionId} projectId={projectId} page={page} /></ViewSuspense>
-        )}
-
-        {/* Vaults View owns its own sidebar + viewport layout */}
-        {surface === "vaults" && (
-          <ViewSuspense><VaultWorkspaceView /></ViewSuspense>
-        )}
-
-        {surface === "projects" && <ViewSuspense><ProjectsView /></ViewSuspense>}
-
-        {surface === "fleet" && <ViewSuspense><FleetView nodeId={nodeId} /></ViewSuspense>}
-
-        {surface === "docs" && <ViewSuspense><DocsView /></ViewSuspense>}
-
-        {/* Other surfaces keep the shell-level sidebar + viewport split */}
-        {!sidebarCollapsed && surface === "settings" && (
-          <SecondarySidebar width={sidebarWidth}>
-            <PlaceholderSidebar surface={surface} />
-          </SecondarySidebar>
-        )}
-
-        {/* Viewport for shell-managed surfaces (projects, settings) */}
-        {surface === "settings" ? (
+        {/* Keep all views mounted; toggle visibility for instant switching.
+            Trades RAM for zero re-mount latency on tab change. */}
+        <div className={surface === "sessions" ? "" : "view-hidden"}>
+          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
+        </div>
+        <div className={surface === "vaults" ? "" : "view-hidden"}>
+          <VaultWorkspaceView />
+        </div>
+        <div className={surface === "projects" ? "" : "view-hidden"}>
+          <ProjectsView />
+        </div>
+        <div className={surface === "fleet" ? "" : "view-hidden"}>
+          <FleetView nodeId={nodeId} />
+        </div>
+        <div className={surface === "docs" ? "" : "view-hidden"}>
+          <DocsView />
+        </div>
+        <div className={surface === "settings" ? "" : "view-hidden"}>
+          {!sidebarCollapsed && (
+            <SecondarySidebar width={sidebarWidth}>
+              <PlaceholderSidebar surface={surface} />
+            </SecondarySidebar>
+          )}
           <div className="viewport">
-            <ViewSuspense><SettingsView /></ViewSuspense>
+            <SettingsView />
           </div>
-        ) : null}
+        </div>
       </div>
       <StatusBar />
       {/* Operator cockpit (ADR 0021): floating, persists across every surface

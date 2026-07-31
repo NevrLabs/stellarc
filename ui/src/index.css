@@ -1590,3 +1590,7 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
   max-width: 80%;
   align-self: flex-end;
 }
+
+
+/* Keep-mounted view visibility toggle */
+.view-hidden { display: none !important; }
