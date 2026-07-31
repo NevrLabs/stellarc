@@ -18,4 +18,13 @@ describe("docs registry", () => {
   it("documents configuration for every entry", () => {
     expect(registry.every(({ configuration }) => configuration.length > 0)).toBe(true);
   });
+
+  it("covers the remaining documented playgrounds", () => {
+    const slugs = [
+      "direction", "input-otp", "toast", "attachment", "bubble", "message", "calendar",
+      "carousel", "menubar", "resizable", "message-scroller", "item", "form",
+      "navigation-menu", "sidebar",
+    ];
+    expect(slugs.every((slug) => registry.some((entry) => entry.slug === slug && entry.status === "covered" && entry.playgroundKey === "remaining-components"))).toBe(true);
+  });
 });

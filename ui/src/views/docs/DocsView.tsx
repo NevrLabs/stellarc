@@ -67,6 +67,7 @@ import { AvatarPlayground, BadgePlayground as AtomBadgePlayground, KbdPlayground
 import { ContentPlaygrounds, DisclosurePlaygrounds, NavigationPlaygrounds, SelectFamilyPlayground } from "./playgrounds/molecules/MoleculePlaygrounds";
 import { OverlayPlaygrounds } from "./playgrounds/molecules/OverlayPlaygrounds";
 import { CommandSelectorPlaygrounds, DataTablePlayground, StatusNotificationPlaygrounds } from "./playgrounds/organisms/OrganismPlaygrounds";
+import { RemainingComponentsPlayground } from "./playgrounds/organisms/RemainingComponentsPlayground";
 import { PageStatesPlayground, ViewTemplatePlayground } from "./playgrounds/templates/TemplatesPlaygrounds";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
@@ -264,6 +265,7 @@ const SECTIONS: Section[] = [
   },
   { slug: "data-table", title: "Data Table", group: "Organisms", render: () => <DataTablePlayground /> },
   { slug: "status-notifications", title: "Status & Notifications", group: "Organisms", render: () => <StatusNotificationPlaygrounds /> },
+  { slug: "remaining-components", title: "Remaining components", group: "Organisms", render: () => <RemainingComponentsPlayground /> },
   { slug: "layout-atoms", title: "Marker / Separator / Aspect Ratio", group: "Atoms", render: () => <LayoutAtomsPlayground /> },
   { slug: "kbd", title: "Keyboard Key", group: "Atoms", render: () => <KbdPlayground /> },
   {
