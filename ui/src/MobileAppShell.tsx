@@ -29,31 +29,57 @@ const TABS: { surface: SurfaceName; label: string; icon: IconName; path: string 
   { surface: "settings", label: "Settings", icon: "gear", path: "/settings" },
 ];
 
+import { useState, useEffect } from "react";
+
+const ALL_SURFACES = ["sessions", "vaults", "projects", "fleet", "docs", "settings"] as const;
+
 export function MobileAppShell() {
   const { location } = useRouterState();
   const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
 
+  const [mounted, setMounted] = useState<Set<string>>(() => new Set([surface]));
+  useEffect(() => {
+    setMounted((prev) => prev.has(surface) ? prev : new Set(prev).add(surface));
+    const ric = (cb: () => void) =>
+      "requestIdleCallback" in window
+        ? (window as any).requestIdleCallback(cb, { timeout: 2000 })
+        : setTimeout(cb, 800);
+    ric(() => setMounted(new Set(ALL_SURFACES)));
+  }, [surface]);
+
   return (
     <div className="app app-mobile">
       <div className="mobile-content">
-        <div className={surface === "sessions" ? "" : "view-hidden"}>
-          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
-        </div>
-        <div className={surface === "vaults" ? "" : "view-hidden"}>
-          <VaultWorkspaceView />
-        </div>
-        <div className={surface === "projects" ? "" : "view-hidden"}>
-          <ProjectsView />
-        </div>
-        <div className={surface === "fleet" ? "" : "view-hidden"}>
-          <FleetView nodeId={nodeId} />
-        </div>
-        <div className={surface === "docs" ? "" : "view-hidden"}>
-          <DocsView />
-        </div>
-        <div className={surface === "settings" ? "" : "view-hidden"}>
-          <SettingsView />
-        </div>
+        {mounted.has("sessions") && (
+          <div className={surface === "sessions" ? "view-slot" : "view-hidden"}>
+            <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
+          </div>
+        )}
+        {mounted.has("vaults") && (
+          <div className={surface === "vaults" ? "view-slot" : "view-hidden"}>
+            <VaultWorkspaceView />
+          </div>
+        )}
+        {mounted.has("projects") && (
+          <div className={surface === "projects" ? "view-slot" : "view-hidden"}>
+            <ProjectsView />
+          </div>
+        )}
+        {mounted.has("fleet") && (
+          <div className={surface === "fleet" ? "view-slot" : "view-hidden"}>
+            <FleetView nodeId={nodeId} />
+          </div>
+        )}
+        {mounted.has("docs") && (
+          <div className={surface === "docs" ? "view-slot" : "view-hidden"}>
+            <DocsView />
+          </div>
+        )}
+        {mounted.has("settings") && (
+          <div className={surface === "settings" ? "view-slot" : "view-hidden"}>
+            <SettingsView />
+          </div>
+        )}
       </div>
       <MobileTabBar activeSurface={surface} />
     </div>

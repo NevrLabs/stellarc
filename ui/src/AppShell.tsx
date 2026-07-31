@@ -16,7 +16,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 // provides its own secondary sidebar slot (session list, vault tree, etc.).
 // Surfaces whose card hasn't merged render a .ol-* placeholder pane.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
 import { useUIStore } from "./store";
@@ -60,42 +60,72 @@ const SURFACES: {
 
 // ── Main shell ─────────────────────────────────────
 
+const ALL_SURFACES = ["sessions", "vaults", "projects", "fleet", "docs", "settings"] as const;
+
 export function AppShell() {
   const { location } = useRouterState();
   const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
   const { sidebarCollapsed, sidebarWidth } = useUIStore();
 
+  // Deferred mount: active view renders immediately, rest mount after idle.
+  const [mounted, setMounted] = useState<Set<string>>(() => new Set([surface]));
+
+  useEffect(() => {
+    setMounted((prev) => {
+      if (prev.has(surface)) return prev;
+      return new Set(prev).add(surface);
+    });
+    // Pre-mount remaining views after the active view has painted.
+    const ric = (cb: () => void) =>
+      "requestIdleCallback" in window
+        ? (window as any).requestIdleCallback(cb, { timeout: 2000 })
+        : setTimeout(cb, 800);
+    ric(() => setMounted(new Set(ALL_SURFACES)));
+  }, [surface]);
+
   return (
     <div className="app">
       <TopBar activeSurface={surface} />
       <div className="body">
-        {/* Keep all views mounted; toggle visibility for instant switching.
-            Trades RAM for zero re-mount latency on tab change. */}
-        <div className={surface === "sessions" ? "" : "view-hidden"}>
-          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
-        </div>
-        <div className={surface === "vaults" ? "" : "view-hidden"}>
-          <VaultWorkspaceView />
-        </div>
-        <div className={surface === "projects" ? "" : "view-hidden"}>
-          <ProjectsView />
-        </div>
-        <div className={surface === "fleet" ? "" : "view-hidden"}>
-          <FleetView nodeId={nodeId} />
-        </div>
-        <div className={surface === "docs" ? "" : "view-hidden"}>
-          <DocsView />
-        </div>
-        <div className={surface === "settings" ? "" : "view-hidden"}>
-          {!sidebarCollapsed && (
-            <SecondarySidebar width={sidebarWidth}>
-              <PlaceholderSidebar surface={surface} />
-            </SecondarySidebar>
-          )}
-          <div className="viewport">
-            <SettingsView />
+        {/* Deferred mount: render active view immediately, pre-mount others
+            after idle so subsequent switches are instant CSS toggles. */}
+        {mounted.has("sessions") && (
+          <div className={surface === "sessions" ? "view-slot" : "view-hidden"}>
+            <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
           </div>
-        </div>
+        )}
+        {mounted.has("vaults") && (
+          <div className={surface === "vaults" ? "view-slot" : "view-hidden"}>
+            <VaultWorkspaceView />
+          </div>
+        )}
+        {mounted.has("projects") && (
+          <div className={surface === "projects" ? "view-slot" : "view-hidden"}>
+            <ProjectsView />
+          </div>
+        )}
+        {mounted.has("fleet") && (
+          <div className={surface === "fleet" ? "view-slot" : "view-hidden"}>
+            <FleetView nodeId={nodeId} />
+          </div>
+        )}
+        {mounted.has("docs") && (
+          <div className={surface === "docs" ? "view-slot" : "view-hidden"}>
+            <DocsView />
+          </div>
+        )}
+        {mounted.has("settings") && (
+          <div className={surface === "settings" ? "view-slot" : "view-hidden"}>
+            {!sidebarCollapsed && (
+              <SecondarySidebar width={sidebarWidth}>
+                <PlaceholderSidebar surface={surface} />
+              </SecondarySidebar>
+            )}
+            <div className="viewport">
+              <SettingsView />
+            </div>
+          </div>
+        )}
       </div>
       <StatusBar />
       {/* Operator cockpit (ADR 0021): floating, persists across every surface
