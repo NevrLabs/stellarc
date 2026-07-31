@@ -26,12 +26,17 @@ import { SearchPill, CommandPalette } from "./CommandPalette";
 import { parseRoute, type SurfaceName } from "./router";
 import { useTheme } from "./theme";
 import { useAxisAuth } from "./auth";
-import { SessionsView } from "./views/SessionsView";
-import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
-import { ProjectsView } from "./views/ProjectsView";
-import FleetView from "./views/FleetView";
-import { DocsView } from "./views/docs/DocsView";
-import { SettingsView } from "./views/SettingsView";
+import { lazy, Suspense } from "react";
+const SessionsView = lazy(() => import("./views/SessionsView").then(m => ({ default: m.SessionsView })));
+const VaultWorkspaceView = lazy(() => import("./views/VaultWorkspaceView").then(m => ({ default: m.VaultWorkspaceView })));
+const ProjectsView = lazy(() => import("./views/ProjectsView").then(m => ({ default: m.ProjectsView })));
+const FleetView = lazy(() => import("./views/FleetView").then(m => ({ default: m.default })));
+const DocsView = lazy(() => import("./views/docs/DocsView").then(m => ({ default: m.DocsView })));
+const SettingsView = lazy(() => import("./views/SettingsView").then(m => ({ default: m.SettingsView })));
+
+const ViewSuspense = ({ children }: { children: React.ReactNode }) => (
+  <Suspense fallback={<div className="viewport" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}><span style={{ fontSize: 13 }}>Loading…</span></div>}>{children}</Suspense>
+);
 import { StatusBar } from "./components/StatusBar";
 
 // ── Helpers ────────────────────────────────────────
@@ -71,19 +76,19 @@ export function AppShell() {
       <div className="body">
         {/* Sessions View owns its own sidebar + viewport layout */}
         {surface === "sessions" && (
-          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
+          <ViewSuspense><SessionsView sessionId={sessionId} projectId={projectId} page={page} /></ViewSuspense>
         )}
 
         {/* Vaults View owns its own sidebar + viewport layout */}
         {surface === "vaults" && (
-          <VaultWorkspaceView />
+          <ViewSuspense><VaultWorkspaceView /></ViewSuspense>
         )}
 
-        {surface === "projects" && <ProjectsView />}
+        {surface === "projects" && <ViewSuspense><ProjectsView /></ViewSuspense>}
 
-        {surface === "fleet" && <FleetView nodeId={nodeId} />}
+        {surface === "fleet" && <ViewSuspense><FleetView nodeId={nodeId} /></ViewSuspense>}
 
-        {surface === "docs" && <DocsView />}
+        {surface === "docs" && <ViewSuspense><DocsView /></ViewSuspense>}
 
         {/* Other surfaces keep the shell-level sidebar + viewport split */}
         {!sidebarCollapsed && surface === "settings" && (
@@ -95,7 +100,7 @@ export function AppShell() {
         {/* Viewport for shell-managed surfaces (projects, settings) */}
         {surface === "settings" ? (
           <div className="viewport">
-            <SettingsView />
+            <ViewSuspense><SettingsView /></ViewSuspense>
           </div>
         ) : null}
       </div>
