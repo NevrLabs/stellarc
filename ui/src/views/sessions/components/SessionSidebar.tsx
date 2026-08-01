@@ -73,10 +73,17 @@ export function SessionSidebar({
     if (isPhoneViewport()) toggleSidebar();
   }, [toggleSidebar]);
 
+  // Search/filter state
+  const [search, setSearch] = useState("");
+  const searchLower = search.toLowerCase().trim();
+
   // RECENT: all managed non-archived, newest first. Cap at a reasonable number.
   const recent = useMemo(
-    () => filterSessions([...sessions].sort((a, b) => b.lastActivity - a.lastActivity)).slice(0, 5),
-    [sessions],
+    () => [...sessions]
+      .filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower))
+      .sort((a, b) => b.lastActivity - a.lastActivity)
+      .slice(0, 5),
+    [sessions, searchLower],
   );
 
   // PROJECTS tree: group sessions by projectId, build subsession nesting.
@@ -113,13 +120,6 @@ export function SessionSidebar({
   );
 
   const { prefs, toggle, hideProject, showProject } = useSidebarPrefs();
-
-  // Search/filter state
-  const [search, setSearch] = useState("");
-  const searchLower = search.toLowerCase().trim();
-  const filterSessions = (list: Session[]) => searchLower
-    ? list.filter(s => (s.title || "Untitled").toLowerCase().includes(searchLower))
-    : list;
 
 
   const handleNewSession = useCallback(() => {
@@ -293,18 +293,18 @@ export function SessionSidebar({
                 </div>
               )}
               {/* no-project pseudo-row */}
-              {filterSessions(noProject).length > 0 && (
+              {noProject.filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)).length > 0 && (
                 <ProjectRow
                   project={null}
-                  liveCount={countLive(filterSessions(noProject))}
-                  sessionCount={filterSessions(noProject).length}
+                  liveCount={countLive(noProject.filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)))}
+                  sessionCount={noProject.filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)).length}
                   isActive={!activeProjectId}
                   onNavigate={() => void navigate({ to: "/sessions/history", search: { project: "none" } })}
                 />
               )}
 
               {visibleProjects.map((project) => {
-                const projectSessions = filterSessions((byProject.get(project.id) ?? [])).sort(
+                const projectSessions = (byProject.get(project.id) ?? []).filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)).sort(
                   (a, b) => b.lastActivity - a.lastActivity,
                 );
                 const liveCount = countLive(projectSessions);
