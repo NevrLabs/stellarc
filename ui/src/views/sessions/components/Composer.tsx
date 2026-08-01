@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Icon } from "../../../components/Icon";
 import { BrandIcon, agentBrand } from "../../../components/BrandIcons";
-import { useAgentCatalog } from "../../../hooks/queries";
+import { useAgentCatalog, useModels } from "../../../hooks/queries";
 import type { ModelEntry } from "../../../types";
 
 const THINKING_KEY = "stellarc-thinking";
@@ -105,18 +105,19 @@ export function Composer({
   // The main in-process node reports as "local"; show it as "stellarc".
   const nodeLabel = !sessionNode || sessionNode === "local" ? "stellarc" : sessionNode;
 
-  // Models come from the agent itself (populated by discovery). Grouped by
-  // provider so the selector shows provider → model sections.
+  // Models: prefer agent-scoped, fall back to global catalog.
+  const { data: globalModels } = useModels();
   const agentModels = lockedAgent?.models ?? [];
+  const allModels = agentModels.length > 0 ? agentModels : (globalModels?.models ?? []);
   const modelsByProvider = useMemo(() => {
     const map = new Map<string, ModelEntry[]>();
-    for (const m of agentModels) {
-      const key = m.provider || "—";
+    for (const m of allModels) {
+      const key = m.provider ?? "—";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(m);
     }
     return map;
-  }, [agentModels]);
+  }, [allModels]);
 
   const [modelOpen, setModelOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
