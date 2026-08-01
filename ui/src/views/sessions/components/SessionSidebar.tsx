@@ -75,7 +75,7 @@ export function SessionSidebar({
 
   // RECENT: all managed non-archived, newest first. Cap at a reasonable number.
   const recent = useMemo(
-    () => [...sessions].sort((a, b) => b.lastActivity - a.lastActivity).slice(0, 5),
+    () => filterSessions([...sessions].sort((a, b) => b.lastActivity - a.lastActivity)).slice(0, 5),
     [sessions],
   );
 
@@ -113,6 +113,13 @@ export function SessionSidebar({
   );
 
   const { prefs, toggle, hideProject, showProject } = useSidebarPrefs();
+
+  // Search/filter state
+  const [search, setSearch] = useState("");
+  const searchLower = search.toLowerCase().trim();
+  const filterSessions = (list: Session[]) => searchLower
+    ? list.filter(s => (s.title || "Untitled").toLowerCase().includes(searchLower))
+    : list;
 
 
   const handleNewSession = useCallback(() => {
@@ -222,6 +229,16 @@ export function SessionSidebar({
           <NavItem label="History" icon="clock" path="/sessions/history" />
           <NavItem label="Usage" icon="activity" path="/sessions/usage" />
         </div>
+        <div className="sb-pad sb-search-wrap">
+          <Input
+            type="text"
+            placeholder="Search sessions…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="sb-search-input"
+            aria-label="Search sessions"
+          />
+        </div>
         <div className="sb-scroll sb-scroll-v4">
           {projectActionError && (
             <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>
@@ -276,18 +293,18 @@ export function SessionSidebar({
                 </div>
               )}
               {/* no-project pseudo-row */}
-              {noProject.length > 0 && (
+              {filterSessions(noProject).length > 0 && (
                 <ProjectRow
                   project={null}
-                  liveCount={countLive(noProject)}
-                  sessionCount={noProject.length}
+                  liveCount={countLive(filterSessions(noProject))}
+                  sessionCount={filterSessions(noProject).length}
                   isActive={!activeProjectId}
                   onNavigate={() => void navigate({ to: "/sessions/history", search: { project: "none" } })}
                 />
               )}
 
               {visibleProjects.map((project) => {
-                const projectSessions = (byProject.get(project.id) ?? []).sort(
+                const projectSessions = filterSessions((byProject.get(project.id) ?? [])).sort(
                   (a, b) => b.lastActivity - a.lastActivity,
                 );
                 const liveCount = countLive(projectSessions);
@@ -613,15 +630,15 @@ function SessionRow({
           <span className="hc-row"><span className="hc-k">subs</span><span className="hc-v">{subsessionCount}</span></span>
         )}
       </span>
-      {showIcon && (
-        <span className="srow-icon">
-          {isRunning ? (
-            <span className="srow-spinner" />
-          ) : (
-            <span className="srow-dot needs-input" title="Waiting for your input" />
-          )}
-        </span>
-      )}
+      <span className="srow-icon">
+        {isRunning ? (
+          <span className="srow-spinner" title="Running" />
+        ) : needsInput ? (
+          <span className="srow-dot needs-input" title="Waiting for your input" />
+        ) : (
+          <span className="srow-dot idle" title="Idle" />
+        )}
+      </span>
       <span className="srow-copy">
         <span className="srow-title">{title}</span>
         {sublineParts.length > 0 && <span className="srow-meta">{sublineParts.join(" · ")}</span>}
