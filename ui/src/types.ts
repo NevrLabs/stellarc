@@ -118,16 +118,13 @@ export interface ModelInfo {
   /** Model id, e.g. "claude-opus-4-8", "gpt-5.4". */
   id: string;
   /** Provider the model was seen under, e.g. "anthropic", "openai-codex". */
-  provider: string | null;
-}
-
-/** A selectable model in an agent's catalog, with its provider. */
-export interface ModelEntry {
   provider: string;
-  id: string;
-  /** True if this is the agent's default model. */
+  /** Human-friendly display name derived from the id. */
+  displayName?: string;
+  /** True if this is the default model for the agent. */
   default?: boolean;
 }
+
 
 /** A drivable agent with its configured provider + model/version. */
 export interface AgentInfo {
@@ -136,7 +133,7 @@ export interface AgentInfo {
   provider: string | null;
   model: string | null;
   /** All selectable models this agent can run, grouped by provider. */
-  models?: ModelEntry[];
+  models?: ModelInfo[];
   kind: "hermes" | "claude-code" | "codex";
   /** CLI harness auth readiness: true = credentials found, false = needs login, undefined = n/a (hermes profiles). */
   ready?: boolean;

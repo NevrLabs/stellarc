@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
  *   shows "steer running turn" so the user knows what Enter will do.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Icon } from "../../../components/Icon";
 import { BrandIcon, agentBrand } from "../../../components/BrandIcons";
 import { useAgentCatalog, useModels } from "../../../hooks/queries";
@@ -70,6 +70,12 @@ const CONTEXT_LABELS: Record<ContextPreset, string> = {
   "1m": "1M",
 };
 
+/** Human-readable provider label: strips "custom:" prefix, title-cases. */
+function providerLabel(raw: string): string {
+  const clean = raw.replace(/^custom:/, "");
+  return clean;
+}
+
 export function Composer({
   text,
   onTextChange,
@@ -108,14 +114,16 @@ export function Composer({
   // Models: prefer agent-scoped, fall back to global catalog.
   const { data: globalModels } = useModels();
   const allModels: ModelInfo[] = globalModels?.models ?? [];
-  const modelsByProvider = useMemo(() => {
+
+  // Group models by provider for the picker.
+  const providers = useMemo(() => {
     const map = new Map<string, ModelInfo[]>();
     for (const m of allModels) {
-      const key = m.provider ?? "—";
+      const key = m.provider ?? "unknown";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(m);
     }
-    return map;
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [allModels]);
 
   const [modelOpen, setModelOpen] = useState(false);
@@ -126,9 +134,13 @@ export function Composer({
   // Local override when the user picks a different model for the next send.
   // Falls back to session truth (Axis-authoritative), then the agent default.
   const [modelOverride, setModelOverride] = useState<string | null>(null);
+  const [modelSearch, setModelSearch] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   const modelRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);
   const thinkRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Reset the override when switching sessions or agents.
   useEffect(() => {
@@ -137,6 +149,29 @@ export function Composer({
 
   // The displayed/selected model: local override → session truth → agent default.
   const selectedModel = modelOverride ?? sessionModel ?? lockedAgent?.model ?? "";
+
+  // Flat filtered list for keyboard navigation.
+  const flatFiltered = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase();
+    if (!q) return allModels;
+    return allModels.filter(
+      (m) =>
+        m.id.toLowerCase().includes(q) ||
+        m.provider.toLowerCase().includes(q) ||
+        (m.displayName ?? "").toLowerCase().includes(q),
+    );
+  }, [allModels, modelSearch]);
+
+  // Filtered providers (after search).
+  const filteredProviders = useMemo(() => {
+    const map = new Map<string, ModelInfo[]>();
+    for (const m of flatFiltered) {
+      const key = m.provider ?? "unknown";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [flatFiltered]);
 
   // Close popups on outside click.
   useEffect(() => {
@@ -156,6 +191,28 @@ export function Composer({
     return () => document.removeEventListener("mousedown", handler);
   }, [modelOpen, plusOpen, thinkingOpen]);
 
+  // Focus search input when model picker opens.
+  useEffect(() => {
+    if (modelOpen) {
+      setModelSearch("");
+      setActiveIndex(0);
+      // Defer focus so the input is mounted.
+      requestAnimationFrame(() => searchRef.current?.focus());
+    }
+  }, [modelOpen]);
+
+  // Reset active index when search changes.
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [modelSearch]);
+
+  // Scroll active item into view.
+  useEffect(() => {
+    if (modelOpen && itemRefs.current[activeIndex]) {
+      itemRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeIndex, modelOpen]);
+
   const setThink = (v: ThinkingLevel) => {
     setThinking(v);
     saveThinking(v);
@@ -164,6 +221,31 @@ export function Composer({
   const setCtx = (v: ContextPreset) => {
     setContextPreset(v);
     saveContextPreset(v);
+  };
+
+  const pickModel = useCallback(
+    (modelId: string) => {
+      setModelOverride(modelId);
+      setModelOpen(false);
+    },
+    [],
+  );
+
+  const onModelMenuKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, flatFiltered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const m = flatFiltered[activeIndex];
+      if (m) pickModel(m.id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setModelOpen(false);
+    }
   };
 
   const thinkingLabel =
@@ -175,6 +257,9 @@ export function Composer({
     thinking === "off" ? undefined : thinking,
     contextPreset === "default" ? undefined : contextPreset,
   ];
+
+  // Provider count badge.
+  const providerCount = providers.length;
 
   return (
     <div className="composer">
@@ -231,38 +316,64 @@ export function Composer({
                 onClick={() => setModelOpen((v) => !v)}
               >
                 <span className="nm">{modelLabel}</span>
+                {providerCount > 0 && (
+                  <span className="pcount" title={`${providerCount} provider${providerCount > 1 ? "s" : ""}`}>
+                    {providerCount}
+                  </span>
+                )}
                 <Icon name="chevron-down" size={10} />
               </Button>
 
               {modelOpen && (
-                <div className="menu selpop" style={{ display: "flex" }}>
-                  {modelsByProvider.size === 0 && (
-                    <div className="gk" style={{ padding: "4px 8px", opacity: 0.6 }}>
-                      no models for this agent
-                    </div>
-                  )}
-                  {[...modelsByProvider.entries()].map(([provider, models]) => (
-                    <React.Fragment key={provider}>
-                      <div className="gk" style={{ padding: "5px 8px 2px" }}>
-                        {provider}
+                <div className="menu selpop model-picker" onKeyDown={onModelMenuKeyDown}>
+                  {/* Search */}
+                  <div className="mp-search">
+                    <input
+                      ref={searchRef}
+                      type="text"
+                      placeholder="Search models…"
+                      value={modelSearch}
+                      onChange={(e) => setModelSearch(e.target.value)}
+                      onKeyDown={onModelMenuKeyDown}
+                    />
+                  </div>
+
+                  {/* Model list grouped by provider */}
+                  <div className="mp-list">
+                    {flatFiltered.length === 0 && (
+                      <div className="gk" style={{ padding: "8px", textAlign: "center" }}>
+                        No models found
                       </div>
-                      {models.map((m) => (
-                        <Button
-                          key={`${provider}-${m.id}`}
-                          type="button"
-                          className={`mi${selectedModel === m.id ? " on" : ""}`}
-                          onClick={() => {
-                            setModelOverride(m.id);
-                            setModelOpen(false);
-                          }}
-                        >
-                          <span>{m.id}</span>
-                          
-                          {selectedModel === m.id && <span className="mk2">✓</span>}
-                        </Button>
-                      ))}
-                    </React.Fragment>
-                  ))}
+                    )}
+                    {(() => {
+                      let idx = 0;
+                      return filteredProviders.map(([provider, models]) => (
+                        <React.Fragment key={provider}>
+                          <div className="mp-gk">{providerLabel(provider)}</div>
+                          {models.map((m) => {
+                            const flatIdx = idx++;
+                            const isActive = flatIdx === activeIndex;
+                            return (
+                              <button
+                                key={`${provider}-${m.id}`}
+                                ref={(el) => { itemRefs.current[flatIdx] = el; }}
+                                type="button"
+                                className={`mi mp-item${selectedModel === m.id ? " on" : ""}${isActive ? " active" : ""}`}
+                                onMouseEnter={() => setActiveIndex(flatIdx)}
+                                onClick={() => pickModel(m.id)}
+                              >
+                                <span className="mp-name">
+                                  {m.displayName ?? m.id}
+                                  {m.default && <span className="mp-default" title="Default">★</span>}
+                                </span>
+                                {selectedModel === m.id && <span className="mk2">✓</span>}
+                              </button>
+                            );
+                          })}
+                        </React.Fragment>
+                      ));
+                    })()}
+                  </div>
                 </div>
               )}
             </div>

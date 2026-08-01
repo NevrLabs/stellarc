@@ -366,11 +366,14 @@ export const PROJECTS = [
 // ── Models ─────────────────────────────────────────────
 
 export const MODELS_LIST: ModelInfo[] = [
-  { id: "claude-opus-4-8", provider: "anthropic" },
-  { id: "claude-sonnet-4-6", provider: "anthropic" },
-  { id: "gpt-5.4", provider: "openai-codex" },
-  { id: "gpt-5.5", provider: "openai-codex" },
-  { id: "glm-5.2", provider: "zai" },
+  { id: "claude-opus-4-8", provider: "anthropic", displayName: "Claude Opus 4.8" },
+  { id: "claude-sonnet-4-6", provider: "anthropic", displayName: "Claude Sonnet 4.6" },
+  { id: "claude-fable-5", provider: "anthropic", displayName: "Claude Fable 5" },
+  { id: "gpt-5.4", provider: "openai-codex", displayName: "GPT 5.4" },
+  { id: "gpt-5.5", provider: "openai-codex", displayName: "GPT 5.5" },
+  { id: "gpt-5.5-codex", provider: "openai-codex", displayName: "GPT 5.5 Codex" },
+  { id: "glm-5.2", provider: "zai", displayName: "GLM 5.2" },
+  { id: "cc/claude-opus-5", provider: "9router", displayName: "Claude Opus 5" },
 ];
 
 export const AGENTS_LIST: AgentInfo[] = [

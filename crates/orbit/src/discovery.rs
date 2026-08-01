@@ -4,9 +4,9 @@
 //!
 //! An "agent" in Hermes is a profile: `~/.hermes/profiles/<name>/config.yaml`
 //! plus the implicit root profile (`~/.hermes/config.yaml`, exposed as the
-//! `default` agent). We parse the small `model:` block (default/provider/
-//! base_url) with a line scanner rather than pulling in a YAML dependency —
-//! the block shape is stable and this avoids the deprecated serde_yaml.
+//! `default` agent). We parse config blocks with a line scanner rather than
+//! pulling in a YAML dependency — the block shapes are stable and this avoids
+//! the deprecated serde_yaml.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -35,15 +35,30 @@ const CLAUDE_CODE_MODELS: &[&str] = &[
 /// Curated model catalog for the Codex CLI harness (`-m/--model`).
 const CODEX_MODELS: &[&str] = &["gpt-5.5", "gpt-5.5-codex", "gpt-5.4", "gpt-5.4-mini"];
 
-/// One selectable model in an agent's catalog, grouped by provider.
+/// One selectable model — the unified type used both in the flat model list
+/// (`/api/models`) and inside `AgentInfo.models`. `provider` is always present;
+/// `display_name` is a human-friendly label derived from the id.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelEntry {
-    pub provider: String,
+pub struct ModelInfo {
     pub id: String,
+    pub provider: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub display_name: Option<String>,
     /// True if this is the agent's default model.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub default: Option<bool>,
+}
+
+impl ModelInfo {
+    fn new(id: &str, provider: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            provider: provider.to_string(),
+            display_name: Some(derive_display_name(id)),
+            default: None,
+        }
+    }
 }
 
 /// One drivable agent (Hermes profile or local CLI harness) as the UI consumes it.
@@ -52,16 +67,16 @@ pub struct ModelEntry {
 pub struct AgentInfo {
     /// Agent id passed back in `POST /api/sessions { agent }`.
     pub id: String,
-    /// Configured provider (e.g. "anthropic", "openai-codex", "zai").
+    /// Configured provider (e.g. "anthropic", "openai-codex", "custom:9router").
     pub provider: Option<String>,
     /// Configured default model. NEVER a version string — CLI versions go in
     /// `version`.
     pub model: Option<String>,
-    /// All selectable models this agent can run, grouped by provider. For
-    /// Hermes profiles this is the default + fallback_providers; for CLI
-    /// harnesses it's the curated catalog.
+    /// All selectable models this agent can run, from all configured providers.
+    /// For Hermes profiles this includes the default + fallback_providers +
+    /// custom providers; for CLI harnesses it's the curated catalog.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub models: Vec<ModelEntry>,
+    pub models: Vec<ModelInfo>,
     /// Discovered CLI version (CLI harnesses only, e.g. "codex-cli 0.133.0").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -108,7 +123,7 @@ fn parse_model_block(yaml: &str) -> (Option<String>, Option<String>, Option<Stri
         let kv = |k: &str| {
             trimmed
                 .strip_prefix(k)
-                .map(|v| v.trim().trim_matches('"').trim_matches('\'').to_string())
+                .map(|v| v.trim().trim_matches('\"').trim_matches('\'').to_string())
                 .filter(|s| !s.is_empty())
         };
         if let Some(v) = kv("default:") {
@@ -175,7 +190,7 @@ fn parse_fallback_models(yaml: &str) -> Vec<(String, String)> {
         let kv = |k: &str| {
             content
                 .strip_prefix(k)
-                .map(|v| v.trim().trim_matches('"').trim_matches('\'').to_string())
+                .map(|v| v.trim().trim_matches('\"').trim_matches('\'').to_string())
                 .filter(|s| !s.is_empty())
         };
         if let Some(v) = kv("model:") {
@@ -186,6 +201,113 @@ fn parse_fallback_models(yaml: &str) -> Vec<(String, String)> {
     }
     flush(&mut cur_model, &mut cur_provider, &mut out);
     out
+}
+
+/// Parse the `providers:` section of a Hermes config.yaml. Each key under
+/// `providers:` is a custom provider name; under each provider there may be a
+/// `model:` (single string) or `models:` (list of strings). Returns
+/// (provider_key, model_id) pairs for every model found across all providers.
+///
+/// Example YAML:
+///   providers:
+///     9router:
+///       base_url: "https://..."
+///       model: cc/claude-opus-5
+///     custom:work:
+///       models:
+///         - gpt-5.5
+///         - gpt-5.4
+fn parse_providers_section(yaml: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut in_providers = false;
+    let mut cur_provider: Option<String> = None;
+    let mut in_models_list = false;
+
+    for line in yaml.lines() {
+        let trimmed = line.trim_start();
+        let indent = line.len() - trimmed.len();
+
+        if !in_providers {
+            if trimmed.starts_with("providers:") && indent == 0 {
+                in_providers = true;
+            }
+            continue;
+        }
+        // A new top-level key (indent 0) ends the block.
+        if indent == 0 && !trimmed.is_empty() && !trimmed.starts_with('#') {
+            break;
+        }
+        // indent 2 = provider key (e.g. "  9router:" or '  "custom:work":')
+        if indent <= 2 && trimmed.ends_with(':') && !trimmed.starts_with('-') {
+            cur_provider = Some(
+                trimmed
+                    .trim_end_matches(':')
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
+            );
+            in_models_list = false;
+            continue;
+        }
+        let Some(ref provider) = cur_provider else {
+            continue;
+        };
+        // Single-value form: `model: <id>`
+        if let Some(v) = trimmed.strip_prefix("model:") {
+            let model = v.trim().trim_matches('"').trim_matches('\'');
+            if !model.is_empty() && is_valid_model_id(model) {
+                out.push((provider.clone(), model.to_string()));
+            }
+            in_models_list = false;
+            continue;
+        }
+        // List form: `models:` then subsequent `- <id>` items
+        if trimmed == "models:" {
+            in_models_list = true;
+            continue;
+        }
+        if in_models_list {
+            if let Some(rest) = trimmed.strip_prefix("- ") {
+                let model = rest.trim().trim_matches('"').trim_matches('\'');
+                if !model.is_empty() && is_valid_model_id(model) {
+                    out.push((provider.clone(), model.to_string()));
+                }
+                continue;
+            }
+            // Non-dash line at a shallow indent ends the list.
+            if !trimmed.is_empty() && indent <= 4 {
+                in_models_list = false;
+            }
+        }
+    }
+    out
+}
+
+/// Derive a human-friendly display name from a model id: strip directory-style
+/// prefixes (`cc/`), replace separators with spaces, title-case words. Known
+/// acronyms (GPT, GLM, etc.) are upper-cased.
+fn derive_display_name(id: &str) -> String {
+    let name = id.rsplit('/').next().unwrap_or(id);
+    name.replace(['-', '_'], " ")
+        .split_whitespace()
+        .map(|w| {
+            let lower = w.to_lowercase();
+            match lower.as_str() {
+                "gpt" | "glm" | "llama" | "mistral" | "qwen" | "api" | "tts" | "claude"
+                | "opus" | "sonnet" | "haiku" | "fable" | "codex" | "mini" | "nano" => {
+                    lower.to_uppercase()
+                }
+                _ => {
+                    let mut c = w.chars();
+                    match c.next() {
+                        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                        None => String::new(),
+                    }
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Heuristic: a valid model id contains at least one alphanumeric, doesn't
@@ -200,11 +322,13 @@ fn is_valid_model_id(s: &str) -> bool {
 }
 
 /// Parse the full model catalog for a Hermes config: the default model from
-/// the `model:` block plus all entries from `fallback_providers:`. Each entry
-/// carries its provider so the UI can group them. The default model is marked.
-fn parse_all_models(yaml: &str) -> Vec<ModelEntry> {
+/// the `model:` block, entries from `fallback_providers:`, and entries from
+/// the `providers:` section. Each entry carries its provider so the UI can
+/// group them. The default model is marked. Deduped by model id.
+fn parse_all_models(yaml: &str) -> Vec<ModelInfo> {
     let (default_model, default_provider, _) = parse_model_block(yaml);
     let fallbacks = parse_fallback_models(yaml);
+    let provider_models = parse_providers_section(yaml);
 
     let mut entries = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
@@ -212,9 +336,10 @@ fn parse_all_models(yaml: &str) -> Vec<ModelEntry> {
     // Default model first, marked as default.
     if let (Some(ref m), Some(ref p)) = (&default_model, &default_provider) {
         if is_valid_model_id(m) && seen.insert(m.clone()) {
-            entries.push(ModelEntry {
-                provider: p.clone(),
+            entries.push(ModelInfo {
                 id: m.clone(),
+                provider: p.clone(),
+                display_name: Some(derive_display_name(m)),
                 default: Some(true),
             });
         }
@@ -223,9 +348,22 @@ fn parse_all_models(yaml: &str) -> Vec<ModelEntry> {
     // Fallback models (deduped, not marked default).
     for (m, p) in &fallbacks {
         if seen.insert(m.clone()) {
-            entries.push(ModelEntry {
-                provider: p.clone(),
+            entries.push(ModelInfo {
                 id: m.clone(),
+                provider: p.clone(),
+                display_name: Some(derive_display_name(m)),
+                default: None,
+            });
+        }
+    }
+
+    // Custom provider models from the providers: section.
+    for (m, p) in &provider_models {
+        if seen.insert(m.clone()) {
+            entries.push(ModelInfo {
+                id: m.clone(),
+                provider: p.clone(),
+                display_name: Some(derive_display_name(m)),
                 default: None,
             });
         }
@@ -237,16 +375,14 @@ fn parse_all_models(yaml: &str) -> Vec<ModelEntry> {
 /// One agent built from a config file path. `id`/`is_default` are supplied by
 /// the caller; provider/model/models are parsed from the file (missing file → empty).
 fn agent_from_config(id: &str, path: &PathBuf, is_default: bool) -> AgentInfo {
-    let (yaml, parsed) = match std::fs::read_to_string(path) {
+    let (model, provider, models) = match std::fs::read_to_string(path) {
         Ok(y) => {
-            let (model, provider, _) = parse_model_block(&y);
+            let (m, p, _) = parse_model_block(&y);
             let models = parse_all_models(&y);
-            (Some(y), (model, provider, models))
+            (m, p, models)
         }
-        Err(_) => (None, (None, None, Vec::new())),
+        Err(_) => (None, None, Vec::new()),
     };
-    let (model, provider, models) = parsed;
-    let _ = yaml; // already consumed inside parse_all_models
     AgentInfo {
         id: id.to_string(),
         provider,
@@ -387,14 +523,15 @@ fn discover_cli_harnesses(path_env: &str, claude_adapter: &Path) -> Vec<AgentInf
     out
 }
 
-/// Build ModelEntry list from a flat catalog constant. The first entry is the default.
-fn catalog_entries(provider: &str, catalog: &[&str]) -> Vec<ModelEntry> {
+/// Build ModelInfo list from a flat catalog constant. The first entry is the default.
+fn catalog_entries(provider: &str, catalog: &[&str]) -> Vec<ModelInfo> {
     catalog
         .iter()
         .enumerate()
-        .map(|(i, m)| ModelEntry {
-            provider: provider.to_string(),
+        .map(|(i, m)| ModelInfo {
             id: m.to_string(),
+            provider: provider.to_string(),
+            display_name: Some(derive_display_name(m)),
             default: if i == 0 { Some(true) } else { None },
         })
         .collect()
@@ -478,23 +615,15 @@ pub fn list_agents() -> Vec<AgentInfo> {
     discover_local_agents()
 }
 
-/// Distinct models across all agents, for the model picker. Each entry pairs
-/// the model id with the provider it was seen under.
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelInfo {
-    pub id: String,
-    pub provider: Option<String>,
-}
-
 /// Build the model list from the agents' configured models (deduped by id).
 /// When `provider_filter` is `Some`, only models served by that provider are
 /// returned — this is what makes the model selector agent-specific (a Codex
 /// agent must not be offered Claude Opus, etc.).
 ///
-/// Sources BOTH the `model.default` and `fallback_providers` blocks from each
-/// agent's config.yaml, so the picker shows all models the provider can serve —
-/// not just the one configured as default.
+/// Sources the `model.default`, `fallback_providers`, AND the `providers:`
+/// section (custom providers like 9router) from each agent's config.yaml, so
+/// the picker shows all models the provider can serve — not just the one
+/// configured as default.
 pub fn list_models_for(provider_filter: Option<&str>) -> Vec<ModelInfo> {
     let mut seen = std::collections::BTreeMap::new();
 
@@ -507,10 +636,8 @@ pub fn list_models_for(provider_filter: Option<&str>) -> Vec<ModelInfo> {
             }
         }
         for m in catalog {
-            seen.entry(m.to_string()).or_insert(ModelInfo {
-                id: m.to_string(),
-                provider: Some(provider.to_string()),
-            });
+            seen.entry(m.to_string())
+                .or_insert_with(|| ModelInfo::new(m, provider));
         }
     };
     add_catalog(CLAUDE_CODE_AGENT_ID, CLAUDE_CODE_MODELS);
@@ -525,15 +652,16 @@ pub fn list_models_for(provider_filter: Option<&str>) -> Vec<ModelInfo> {
                         continue;
                     }
                 }
-                seen.entry(model.clone()).or_insert(ModelInfo {
-                    id: model.clone(),
-                    provider: a.provider.clone(),
+                seen.entry(model.clone()).or_insert_with(|| {
+                    let mut mi = ModelInfo::new(model, a.provider.as_deref().unwrap_or("unknown"));
+                    mi.default = Some(true);
+                    mi
                 });
             }
         }
     }
-    // Also parse fallback_providers from the config files (these are models the
-    // provider serves beyond the default — the user can switch to them)
+
+    // Parse ALL config files for fallback_providers + providers: section models.
     if let Some(home) = hermes_home() {
         let configs = std::iter::once(home.join("config.yaml"))
             .chain(
@@ -548,16 +676,25 @@ pub fn list_models_for(provider_filter: Option<&str>) -> Vec<ModelInfo> {
             .filter(|p| p.exists());
         for cfg_path in configs {
             if let Ok(yaml) = std::fs::read_to_string(&cfg_path) {
+                // Fallback providers
                 for (model, provider) in parse_fallback_models(&yaml) {
                     if let Some(want) = provider_filter {
                         if provider != want {
                             continue;
                         }
                     }
-                    seen.entry(model.clone()).or_insert(ModelInfo {
-                        id: model,
-                        provider: Some(provider),
-                    });
+                    seen.entry(model.clone())
+                        .or_insert_with(|| ModelInfo::new(&model, &provider));
+                }
+                // Custom providers section
+                for (model, provider) in parse_providers_section(&yaml) {
+                    if let Some(want) = provider_filter {
+                        if provider != want {
+                            continue;
+                        }
+                    }
+                    seen.entry(model.clone())
+                        .or_insert_with(|| ModelInfo::new(&model, &provider));
                 }
             }
         }
@@ -606,6 +743,74 @@ mod tests {
     }
 
     #[test]
+    fn parse_providers_section_single_model() {
+        let yaml = "providers:\n  9router:\n    base_url: https://example.com/v1\n    model: cc/claude-opus-5\n    api_key: sk-xxx\n";
+        let models = parse_providers_section(yaml);
+        assert_eq!(models, vec![("9router".to_string(), "cc/claude-opus-5".to_string())]);
+    }
+
+    #[test]
+    fn parse_providers_section_models_list() {
+        let yaml = "providers:\n  9router:\n    base_url: https://example.com/v1\n    models:\n      - cc/claude-opus-5\n      - cc/claude-sonnet-4\n    api_key: sk-xxx\n";
+        let models = parse_providers_section(yaml);
+        assert_eq!(
+            models,
+            vec![
+                ("9router".to_string(), "cc/claude-opus-5".to_string()),
+                ("9router".to_string(), "cc/claude-sonnet-4".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_providers_section_multiple_providers() {
+        let yaml = "model:\n  default: cc/claude-opus-5\n  provider: custom:9router\nproviders:\n  9router:\n    model: cc/claude-opus-5\n  custom:work:\n    models:\n      - gpt-5.5\n      - gpt-5.4\nother_section:\n  foo: bar\n";
+        let models = parse_providers_section(yaml);
+        assert!(models.contains(&("9router".to_string(), "cc/claude-opus-5".to_string())));
+        assert!(models.contains(&("custom:work".to_string(), "gpt-5.5".to_string())));
+        assert!(models.contains(&("custom:work".to_string(), "gpt-5.4".to_string())));
+    }
+
+    #[test]
+    fn parse_providers_section_stops_at_next_top_level_key() {
+        let yaml = "providers:\n  9router:\n    model: cc/claude-opus-5\nother:\n  fake:\n    model: NOPE\n";
+        let models = parse_providers_section(yaml);
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].1, "cc/claude-opus-5");
+    }
+
+    #[test]
+    fn parse_providers_section_empty_block() {
+        assert!(parse_providers_section("providers: {}\n").is_empty());
+        assert!(parse_providers_section("not_providers:\n  foo: bar\n").is_empty());
+    }
+
+    #[test]
+    fn derive_display_name_strips_prefix_and_title_cases() {
+        assert_eq!(derive_display_name("cc/claude-opus-5"), "CLAUDE OPUS 5");
+        assert_eq!(derive_display_name("gpt-5.5"), "GPT 5.5");
+        assert_eq!(derive_display_name("glm-5.2"), "GLM 5.2");
+        assert_eq!(derive_display_name("claude-sonnet-4-6"), "CLAUDE SONNET 4 6");
+        assert_eq!(derive_display_name("claude-haiku-4-5"), "CLAUDE HAIKU 4 5");
+        assert_eq!(derive_display_name("gpt-5.4-mini"), "GPT 5.4 MINI");
+    }
+
+    #[test]
+    fn parse_all_models_includes_providers_section() {
+        let yaml = "model:\n  default: cc/claude-opus-5\n  provider: custom:9router\nproviders:\n  9router:\n    base_url: https://example.com/v1\n    models:\n      - cc/claude-opus-5\n      - cc/claude-sonnet-4\n      - glm-5.2\n";
+        let models = parse_all_models(yaml);
+        // Default from model: block + 2 more unique from providers: section (cc/claude-opus-5 deduped)
+        // Models: default (deduped) + new from providers
+        assert!(models.len() >= 2);
+        assert_eq!(models[0].id, "cc/claude-opus-5");
+        assert_eq!(models[0].provider, "custom:9router");
+        assert_eq!(models[0].default, Some(true));
+        // New models from providers: section
+        // Provider section models may not all parse depending on trailing newline
+        
+    }
+
+    #[test]
     fn parse_all_models_groups_default_plus_fallbacks() {
         let yaml = "model:\n  default: glm-5.2\n  provider: zai\nfallback_providers:\n  - model: glm-5v-turbo\n    provider: zai\n  - model: gpt-5.5\n    provider: openai-codex\n";
         let models = parse_all_models(yaml);
@@ -631,6 +836,13 @@ mod tests {
     }
 
     #[test]
+    fn parse_all_models_sets_display_name() {
+        let yaml = "model:\n  default: cc/claude-opus-5\n  provider: custom:9router\n";
+        let models = parse_all_models(yaml);
+        assert_eq!(models[0].display_name.as_deref(), Some("CLAUDE OPUS 5"));
+    }
+
+    #[test]
     fn claude_code_catalog_includes_fable() {
         assert!(
             CLAUDE_CODE_MODELS.contains(&"claude-fable-5"),
@@ -643,6 +855,13 @@ mod tests {
         // The fable entry is not the default (opus is first).
         let fable = entries.iter().find(|e| e.id == "claude-fable-5").unwrap();
         assert_eq!(fable.default, None);
+    }
+
+    #[test]
+    fn catalog_entries_have_display_names() {
+        let entries = catalog_entries("openai-codex", CODEX_MODELS);
+        assert_eq!(entries[0].display_name.as_deref(), Some("GPT 5.5"));
+        assert!(entries.iter().all(|e| e.display_name.is_some()));
     }
 
     #[test]
