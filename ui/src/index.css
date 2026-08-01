@@ -1591,15 +1591,13 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
   align-self: flex-end;
 }
 
-
 /* Keep-mounted view visibility toggle */
 .view-hidden {
-  content-visibility: hidden;
-  contain: strict;
+  visibility: hidden;
   position: absolute;
-  width: 0; height: 0;
-  overflow: hidden;
+  inset: 0;
   pointer-events: none;
+  opacity: 0;
 }
 .view-slot {
   position: relative;
@@ -1609,8 +1607,7 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
   contain: layout style;
 }
 
-
 /* GPU compositor hints */
-.view-slot { will-change: transform; }
-.topbar, .mobile-tabbar { will-change: transform; }
+.view-slot {  }
+.topbar, .mobile-tabbar {  }
 .sidebar, .viewport { contain: layout paint style; }

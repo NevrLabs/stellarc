@@ -17,7 +17,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 // Surfaces whose card hasn't merged render a .ol-* placeholder pane.
 
 import { useState, useEffect, useRef } from "react";
-import { useRouterState, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
 import { useUIStore } from "./store";
 import { useCockpit } from "./cockpit/store";
@@ -63,9 +63,10 @@ const SURFACES: {
 const ALL_SURFACES = ["sessions", "vaults", "projects", "fleet", "docs", "settings"] as const;
 
 export function AppShell() {
-  const { location } = useRouterState();
+  const location = useLocation();
   const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
-  const { sidebarCollapsed, sidebarWidth } = useUIStore();
+  const sidebarCollapsed = useUIStore(s => s.sidebarCollapsed);
+  const sidebarWidth = useUIStore(s => s.sidebarWidth);
 
   // Deferred mount: active view renders immediately, rest mount after idle.
   const [mounted, setMounted] = useState<Set<string>>(() => new Set([surface]));
