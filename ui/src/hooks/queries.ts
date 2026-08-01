@@ -60,8 +60,8 @@ export function useSessions(params?: {
         limit: params?.limit,
         node: params?.node,
       }),
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
     enabled: params?.enabled ?? true,
   });
 }
@@ -102,7 +102,7 @@ export function useMessages(sessionId: string | null) {
     queryKey: sessionId && sessionId !== "new" ? qk.messages(sessionId) : ["messages", "none"],
     queryFn: () => fetchMessages(sessionId!, { limit: 100 }),
     enabled: !!sessionId && sessionId !== "new",
-    staleTime: 0, // WS notifies; refetch on (re)subscribe reconstructs truth
+    staleTime: 15_000, // WS notifies; generous stale to avoid refetch storms
   });
 }
 
@@ -116,8 +116,8 @@ export function useAgentCatalog(enabled = true) {
   return useQuery({
     queryKey: qk.agentCatalog(),
     queryFn: fetchAgentCatalog,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
     enabled,
   });
 }
@@ -155,8 +155,8 @@ export function useNodes() {
   return useQuery({
     queryKey: ["nodes"],
     queryFn: fetchNodes,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 }
 
@@ -174,8 +174,8 @@ export function useHealth() {
   return useQuery({
     queryKey: qk.health(),
     queryFn: healthCheck,
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 
