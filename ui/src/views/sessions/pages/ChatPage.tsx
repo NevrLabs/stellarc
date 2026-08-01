@@ -19,8 +19,6 @@ import { Button } from "@/components/ui/button";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import { Icon } from "../../../components/Icon";
 import { useSession, useMessages, qk } from "../../../hooks/queries";
@@ -37,6 +35,7 @@ import type { Message, ServerFrame, ToolCall } from "../../../types";
 import { MessageBubble } from "../components/MessageBubble";
 import { ToolCard } from "../components/ToolCard";
 import { DiffCard } from "../components/DiffCard";
+import { MarkdownText } from "../components/MarkdownText";
 import { isDiffResult } from "../helpers";
 import { Composer } from "../components/Composer";
 import { QueuePanel, type QueuedMsg } from "../components/QueuePanel";
@@ -117,6 +116,10 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     options: Array<{ optionId: string; name: string; kind: string }>;
   } | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  // ── Smart auto-scroll: follow new content unless the user scrolled up ──
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
+  isAtBottomRef.current = isAtBottom;
   // The model/thinking used for the last send — reused when the queue drains.
   const lastSendOpts = useRef<{ model?: string; thinking?: string }>({});
 
@@ -147,6 +150,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     setText("");
     setQueue(loadQueue(sessionId));
     setTypers(new Map());
+    setIsAtBottom(true);
   }, [sessionId]);
 
   // Persist queue on every change.
@@ -245,15 +249,18 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
   // (server truth), with the optimistic user bubble (messageId -1) always last.
   // This is what prevents the reported reorder: a durable assistant row (higher
   // message_id) can never sort above a newer, not-yet-committed user message.
-  const messages = (
-    optimisticMsg && !hasServerEcho ? [...serverMessages, optimisticMsg] : serverMessages
-  )
-    .slice()
-    .sort((a, b) => {
-      const ai = a.messageId < 0 ? Number.MAX_SAFE_INTEGER : a.messageId;
-      const bi = b.messageId < 0 ? Number.MAX_SAFE_INTEGER : b.messageId;
-      return ai - bi;
-    });
+  const messages = useMemo(
+    () =>
+      (optimisticMsg && !hasServerEcho ? [...serverMessages, optimisticMsg] : serverMessages)
+        .slice()
+        .sort((a, b) => {
+          const ai = a.messageId < 0 ? Number.MAX_SAFE_INTEGER : a.messageId;
+          const bi = b.messageId < 0 ? Number.MAX_SAFE_INTEGER : b.messageId;
+          return ai - bi;
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [serverMessages, optimisticMsg, hasServerEcho],
+  );
 
   // Clear the optimistic copy as soon as the server echo lands.
   useEffect(() => {
@@ -497,30 +504,62 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     [sessionId],
   );
 
-  // ── Auto-scroll ──────────────────────────────────────────────────
+  // ── Smart auto-scroll ─────────────────────────────────────────────
+  // Follow new content only when the user is already at the bottom. When they
+  // scroll up, stop auto-scrolling and show a jump-to-bottom button. This is
+  // the ChatGPT/Slack pattern — lets users read history while new messages stream.
+
+  // Track user scroll position.
   useEffect(() => {
-    const transcript = transcriptRef.current;
-    if (!transcript) return;
-    const alignTranscript = () => {
-      const userRows = transcript.querySelectorAll<HTMLElement>(".msg-row-user");
-      const latestUser = userRows.item(userRows.length - 1);
-      if (transcript.clientHeight < 300) {
-        if (!latestUser) {
-          transcript.scrollTop = 0;
+    const el = transcriptRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setIsAtBottom(dist < 80);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new content arrives AND user is at the bottom.
+  // ResizeObserver handles both new messages and streaming text growth.
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    const scrollToBottom = () => {
+      if (isAtBottomRef.current) {
+        // For short transcripts (mobile split-view), align to latest user msg
+        // rather than absolute bottom to avoid clipping the composer.
+        if (el.clientHeight < 300) {
+          const userRows = el.querySelectorAll<HTMLElement>(".msg-row-user");
+          const latestUser = userRows.item(userRows.length - 1);
+          if (!latestUser) {
+            el.scrollTop = 0;
+            return;
+          }
+          const top = latestUser.getBoundingClientRect().top;
+          const elTop = el.getBoundingClientRect().top;
+          el.scrollTop += top - elTop;
           return;
         }
-        const transcriptTop = transcript.getBoundingClientRect().top;
-        const rowTop = latestUser.getBoundingClientRect().top;
-        transcript.scrollTop += rowTop - transcriptTop;
-        return;
+        el.scrollTop = el.scrollHeight;
       }
-      transcript.scrollTop = transcript.scrollHeight;
     };
-    alignTranscript();
-    const observer = new ResizeObserver(alignTranscript);
-    observer.observe(transcript);
+    scrollToBottom();
+    const observer = new ResizeObserver(scrollToBottom);
+    observer.observe(el);
+    // Also observe the inner content for size changes (images loading, etc.)
+    const inner = el.firstElementChild;
+    if (inner) observer.observe(inner);
     return () => observer.disconnect();
   }, [messages.length, streamParts, agentStatus]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    setIsAtBottom(true);
+  }, []);
 
   // ── Composer send: idle → send now; running → enqueue ─────────────
   const handleSend = useCallback(
@@ -649,7 +688,18 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
   return (
     <>
       {/* Transcript — Page content only (no chatcol wrapper; the View provides it) */}
-      <div className="transcript" ref={transcriptRef}>
+      <div className="transcript transcript-smart" ref={transcriptRef}>
+          {!isAtBottom && (
+            <button
+              className="scroll-bottom-btn"
+              onClick={scrollToBottom}
+              aria-label="Scroll to latest"
+              title="Jump to latest"
+            >
+              <Icon name="arrow-down" size={16} />
+              {streamParts.length > 0 && <span className="sb-pulse" />}
+            </button>
+          )}
           <div className="tcol">
             {isLoading && (
               <div className="msg-empty">Loading messages…</div>
@@ -688,9 +738,9 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
                     );
                   }
                   return (
-                    <ReactMarkdown key={`t-${i}`} remarkPlugins={[remarkGfm]}>
+                    <MarkdownText key={`t-${i}`} isStreaming={agentStatus === "streaming"}>
                       {part.text}
-                    </ReactMarkdown>
+                    </MarkdownText>
                   );
                 })}
               </div>
