@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Icon } from "../../../components/Icon";
 import { useSession, useMessages, qk } from "../../../hooks/queries";
@@ -120,8 +121,8 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   isAtBottomRef.current = isAtBottom;
-  // The model/thinking used for the last send — reused when the queue drains.
-  const lastSendOpts = useRef<{ model?: string; thinking?: string }>({});
+  // The model/thinking/context used for the last send — reused when the queue drains.
+  const lastSendOpts = useRef<{ model?: string; thinking?: string; contextPreset?: string }>({});
 
   // ── S8: session-scoped WS subscription + typing presence ────────────
   // Who is typing in THIS session right now (sessionId, who) → expiresAt.
@@ -262,6 +263,19 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     [serverMessages, optimisticMsg, hasServerEcho],
   );
 
+  // ── Virtualized message list ──────────────────────────────────────
+  // Uses @tanstack/react-virtual for windowing. Each message is measured
+  // dynamically (no fixed height assumption) so streaming markdown, code
+  // blocks, tool cards, etc. all size correctly. Below a threshold the
+  // overhead isn't worth it — but the virtualizer handles small lists fine.
+  const innerRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => transcriptRef.current,
+    estimateSize: () => 200,
+    overscan: 8,
+  });
+
   // Clear the optimistic copy as soon as the server echo lands.
   useEffect(() => {
     if (hasServerEcho) {
@@ -310,10 +324,10 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
 
   // ── Send (used by composer AND queue auto-drain) ──────────────────
   const doSend = useCallback(
-    async (content: string, model?: string, thinking?: string) => {
+    async (content: string, model?: string, thinking?: string, contextPreset?: string) => {
       setSending(true);
       setAgentStatus("thinking");
-      lastSendOpts.current = { model, thinking };
+      lastSendOpts.current = { model, thinking, contextPreset };
 
       const now = Math.floor(Date.now() / 1000);
       setOptimisticMsg({
@@ -330,7 +344,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
       });
 
       try {
-        await sendMessage(sessionId, content, model, thinking);
+        await sendMessage(sessionId, content, model, thinking, contextPreset);
       } catch {
         setSending(false);
         setAgentStatus("idle");
@@ -436,8 +450,8 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
         if (q.length > 0) {
           const [head, ...rest] = q;
           setQueue(rest);
-          const { model, thinking } = lastSendOpts.current;
-          void doSendRef.current(head.text, model, thinking).catch(() => {
+          const { model, thinking, contextPreset } = lastSendOpts.current;
+          void doSendRef.current(head.text, model, thinking, contextPreset).catch(() => {
             // restore on failure so the message isn't lost
             setQueue((cur) => [head, ...cur]);
           });
@@ -563,7 +577,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
 
   // ── Composer send: idle → send now; running → enqueue ─────────────
   const handleSend = useCallback(
-    async (model?: string, thinking?: string) => {
+    async (model?: string, thinking?: string, contextPreset?: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       if (sending) {
@@ -577,7 +591,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
       }
       setText("");
       try {
-        await doSend(trimmed, model, thinking);
+        await doSend(trimmed, model, thinking, contextPreset);
       } catch {
         setText(trimmed); // restore on error
       }
@@ -629,9 +643,9 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
         if (msg === "not_running") {
           // No turn in flight — send as a normal prompt instead. The queue
           // auto-drain will handle any remaining items after this one finishes.
-          const { model, thinking } = lastSendOpts.current;
+          const { model, thinking, contextPreset } = lastSendOpts.current;
           try {
-            await doSendRef.current(item.text, model, thinking);
+            await doSendRef.current(item.text, model, thinking, contextPreset);
           } catch {
             setQueue((cur) => [item, ...cur]);
           }
@@ -709,13 +723,43 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
                 No messages yet. Send a message below.
               </div>
             )}
-            {messages.map((m) => (
-              <MessageBubble
-                key={`${sessionId}-${m.messageId}`}
-                msg={m}
-                steerPending={pendingSteers.has(m.messageId)}
-              />
-            ))}
+            {/* Virtualized message list — only visible + overscan rows are in
+                the DOM. Streaming/thinking indicators render after, outside
+                the virtualizer (always visible at the bottom). */}
+            {messages.length > 0 && (
+              <div
+                ref={innerRef}
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const m = messages[virtualItem.index];
+                  return (
+                    <div
+                      key={`${sessionId}-${m.messageId}`}
+                      className="vrow"
+                      data-index={virtualItem.index}
+                      ref={virtualizer.measureElement}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                    >
+                      <MessageBubble
+                        msg={m}
+                        steerPending={pendingSteers.has(m.messageId)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {/* Streaming assistant reply — interleaved text, tool calls, reasoning */}
             {streamParts.length > 0 && (
               <div className="msg-ai">

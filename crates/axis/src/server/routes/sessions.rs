@@ -82,6 +82,11 @@ pub(crate) struct PostMessageBody {
     /// prompt. Absent/None = leave the session's current setting alone.
     #[serde(default)]
     thinking: Option<String>,
+    /// Context window preset ("default" | "256k" | "1m"). Accepted and logged
+    /// for now; the Orbit bridge mapping is NOT implemented yet.
+    #[serde(default)]
+    #[serde(rename = "contextPreset")]
+    context_preset: Option<String>,
 }
 
 /// Body for `POST /api/sessions` — optional agent/node binding at creation. All
@@ -1069,6 +1074,12 @@ pub(crate) async fn post_message(
         .clone()
         .filter(|t| matches!(t.as_str(), "low" | "medium" | "high"));
     let prompt_model = body.model.clone();
+    // Context preset: accepted from the client, logged here. The Orbit bridge
+    // mapping is not implemented yet — this is the seam.
+    let prompt_context_preset = body.context_preset.clone();
+    if let Some(ref ctx) = prompt_context_preset {
+        tracing::info!(session = %id, context_preset = %ctx, "context preset requested");
+    }
     let assistant_seed_id = next_id + 1;
     let log_deltas = deltas.clone();
     let log_session_id = session_id.clone();

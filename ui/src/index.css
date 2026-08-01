@@ -211,6 +211,9 @@
 }
 @keyframes sb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 .tcol { width: 100%; max-width: var(--measure); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-12); }
+/* Virtualized message list — each row is absolutely positioned, so the gap
+   from .tcol doesn't apply between them. Use padding-bottom on each vrow. */
+.vrow { padding-bottom: var(--space-12); }
 .msg-row { display: flex; flex-direction: column; width: 100%; }
 .msg-row-user { align-items: flex-end; }
 .msg-row-ai { align-items: flex-start; }

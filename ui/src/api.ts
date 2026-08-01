@@ -409,11 +409,13 @@ export async function sendMessage(
   sessionId: string,
   text: string,
   model?: string,
-  thinking?: string
+  thinking?: string,
+  contextPreset?: string
 ): Promise<void> {
   const body: Record<string, unknown> = { text };
   if (model) body.model = model;
   if (thinking) body.thinking = thinking;
+  if (contextPreset) body.contextPreset = contextPreset;
   const res = await fetch(`${BASE}/api/sessions/${sessionId}/messages`, {
     method: "POST",
     headers: jsonHeaders(),
