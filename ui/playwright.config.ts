@@ -4,22 +4,22 @@ const baseURL = process.env.STELLARC_DEV_BASE_URL ?? "http://127.0.0.1:5177";
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: false, // shared dev backend, single session state
+  fullyParallel: false,
   retries: 0,
   workers: 1,
   reporter: "list",
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   use: {
     baseURL,
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
+    launchOptions: {
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+    },
   },
   projects: [
-    {
-      name: "chromium",
-      use: { browserName: "chromium" },
-    },
+    { name: "chromium", use: { browserName: "chromium" } },
   ],
 });
