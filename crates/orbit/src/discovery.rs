@@ -358,7 +358,7 @@ fn parse_all_models(yaml: &str) -> Vec<ModelInfo> {
     }
 
     // Custom provider models from the providers: section.
-    for (m, p) in &provider_models {
+    for (p, m) in &provider_models {
         if seen.insert(m.clone()) {
             entries.push(ModelInfo {
                 id: m.clone(),
@@ -687,7 +687,7 @@ pub fn list_models_for(provider_filter: Option<&str>) -> Vec<ModelInfo> {
                         .or_insert_with(|| ModelInfo::new(&model, &provider));
                 }
                 // Custom providers section
-                for (model, provider) in parse_providers_section(&yaml) {
+                for (provider, model) in parse_providers_section(&yaml) {
                     if let Some(want) = provider_filter {
                         if provider != want {
                             continue;
