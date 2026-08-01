@@ -21,7 +21,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Icon } from "../../../components/Icon";
 import { BrandIcon, agentBrand } from "../../../components/BrandIcons";
 import { useAgentCatalog, useModels } from "../../../hooks/queries";
-import type { ModelEntry } from "../../../types";
+import type { ModelInfo } from "../../../types";
 
 const THINKING_KEY = "stellarc-thinking";
 const CONTEXT_KEY = "stellarc-context-preset";
@@ -107,10 +107,9 @@ export function Composer({
 
   // Models: prefer agent-scoped, fall back to global catalog.
   const { data: globalModels } = useModels();
-  const agentModels = lockedAgent?.models ?? [];
-  const allModels = agentModels.length > 0 ? agentModels : (globalModels?.models ?? []);
+  const allModels: ModelInfo[] = globalModels?.models ?? [];
   const modelsByProvider = useMemo(() => {
-    const map = new Map<string, ModelEntry[]>();
+    const map = new Map<string, ModelInfo[]>();
     for (const m of allModels) {
       const key = m.provider ?? "—";
       if (!map.has(key)) map.set(key, []);
@@ -258,7 +257,7 @@ export function Composer({
                           }}
                         >
                           <span>{m.id}</span>
-                          {m.default && <span className="mk2" style={{ opacity: 0.4, fontSize: 9 }}>★</span>}
+                          
                           {selectedModel === m.id && <span className="mk2">✓</span>}
                         </Button>
                       ))}
