@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { ContentPlaygrounds, DisclosurePlaygrounds, SelectFamilyPlayground } from "./MoleculePlaygrounds";
+import { ContentPlaygrounds, DisclosurePlaygrounds, SelectFamilyPlayground, TabsPlayground, BreadcrumbPlayground, PaginationPlayground } from "./MoleculePlaygrounds";
 
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 Element.prototype.scrollIntoView = () => {};
@@ -33,5 +33,27 @@ describe("molecule playgrounds", () => {
     render(<ContentPlaygrounds />);
     expect(screen.getByTestId("table-overflow")).toHaveClass("overflow-x-auto");
     expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("tabs render correctly", async () => {
+    const { container } = render(<TabsPlayground />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist).toBeInTheDocument();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.length).toBeGreaterThan(0);
+  });
+
+  it("breadcrumb renders trail", () => {
+    render(<BreadcrumbPlayground />);
+    expect(screen.getByText("fxcompute-01")).toBeInTheDocument();
+    expect(screen.getByText("Fleet")).toBeInTheDocument();
+  });
+
+  it("pagination navigates pages", async () => {
+    const user = userEvent.setup();
+    render(<PaginationPlayground />);
+    expect(screen.getByText("Page 2 of 5")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Page 3 of 5")).toBeInTheDocument();
   });
 });

@@ -64,10 +64,11 @@ import { SpinnerPlayground } from "./playgrounds/atoms/SpinnerPlayground";
 import { SkeletonPlayground } from "./playgrounds/atoms/SkeletonPlayground";
 import { ChoiceAtomsPlayground, NativeSelectPlayground, RadioGroupPlayground, SliderPlayground, TextFieldsPlayground } from "./playgrounds/atoms/FormAtomsPlaygrounds";
 import { AvatarPlayground, BadgePlayground as AtomBadgePlayground, KbdPlayground, LayoutAtomsPlayground } from "./playgrounds/atoms/IdentityLayoutPlaygrounds";
-import { ContentPlaygrounds, DisclosurePlaygrounds, NavigationPlaygrounds, SelectFamilyPlayground } from "./playgrounds/molecules/MoleculePlaygrounds";
+import { ContentPlaygrounds, DisclosurePlaygrounds, SelectFamilyPlayground, TabsPlayground, BreadcrumbPlayground, PaginationPlayground } from "./playgrounds/molecules/MoleculePlaygrounds";
 import { OverlayPlaygrounds } from "./playgrounds/molecules/OverlayPlaygrounds";
 import { CommandSelectorPlaygrounds, DataTablePlayground, StatusNotificationPlaygrounds } from "./playgrounds/organisms/OrganismPlaygrounds";
-import { RemainingComponentsPlayground } from "./playgrounds/organisms/RemainingComponentsPlayground";
+import { DirectionPlayground, InputOTPPlayground, ToastPlayground, AttachmentPlayground, BubblePlayground, MessagePlayground, CalendarPlayground, CarouselPlayground, MenubarPlayground, ResizablePlayground, MessageScrollerPlayground, ItemPlayground, FormPlayground, NavigationMenuPlayground, SidebarPlayground } from "./playgrounds/organisms/RemainingComponentsPlayground";
+import { ReasoningPlayground, ToolPlayground, TaskPlayground, CodeBlockPlayground, AIImagePlayground, SourcesPlayground, ActionsPlayground, AttachmentsPlayground } from "./playgrounds/ai/AIElementsPlaygrounds";
 import { PageStatesPlayground, ViewTemplatePlayground } from "./playgrounds/templates/TemplatesPlaygrounds";
 
 const SELECT_OPTIONS = ["Hermes", "Claude Code", "Codex", "Gemini", "OpenCode", "Aider", "Goose", "Amp"];
@@ -116,7 +117,7 @@ function SelectPlayground() {
       <ControlRow label="Disabled"><Switch checked={disabled} onCheckedChange={setDisabled} /></ControlRow>
       <ControlRow label="Scrolling"><Switch checked={scrolling} onCheckedChange={setScrolling} /></ControlRow>
       {(mode === "searchable" || mode === "multiple") && <ControlRow label="Selection"><span className="max-w-36 truncate text-xs font-mono">{selected.join(", ") || "none"}</span></ControlRow>}
-    </>}>
+    </>} >
       {preview}
     </Playground>
   );
@@ -245,7 +246,9 @@ const SECTIONS: Section[] = [
   },
   { slug: "toggles", title: "Checkbox / Switch / Toggle", group: "Atoms", render: () => <ChoiceAtomsPlayground /> },
   { slug: "disclosure", title: "Accordion / Collapsible", group: "Molecules", render: () => <DisclosurePlaygrounds /> },
-  { slug: "navigation", title: "Tabs / Breadcrumb / Pagination", group: "Molecules", render: () => <NavigationPlaygrounds /> },
+  { slug: "tabs", title: "Tabs", group: "Molecules", render: () => <TabsPlayground /> },
+  { slug: "breadcrumb", title: "Breadcrumb", group: "Molecules", render: () => <BreadcrumbPlayground /> },
+  { slug: "pagination", title: "Pagination", group: "Molecules", render: () => <PaginationPlayground /> },
   { slug: "overlays", title: "Overlay family", group: "Molecules", render: () => <OverlayPlaygrounds /> },
   { slug: "content-molecules", title: "Alert / Empty / Table / Scroll Area", group: "Molecules", render: () => <ContentPlaygrounds /> },
   { slug: "progress", title: "Progress", group: "Atoms", render: () => <ProgressPlayground /> },
@@ -265,7 +268,23 @@ const SECTIONS: Section[] = [
   },
   { slug: "data-table", title: "Data Table", group: "Organisms", render: () => <DataTablePlayground /> },
   { slug: "status-notifications", title: "Status & Notifications", group: "Organisms", render: () => <StatusNotificationPlaygrounds /> },
-  { slug: "remaining-components", title: "Remaining components", group: "Organisms", render: () => <RemainingComponentsPlayground /> },
+  { slug: "charts", title: "Charts", group: "Organisms", render: () => <TanStackChartDemo /> },
+  // ── Individual component sections (were bundled in "Remaining") ──
+  { slug: "direction", title: "Direction", group: "Foundations", render: () => <DirectionPlayground /> },
+  { slug: "input-otp", title: "Input OTP", group: "Atoms", render: () => <InputOTPPlayground /> },
+  { slug: "toast", title: "Toast", group: "Molecules", render: () => <ToastPlayground /> },
+  { slug: "attachment", title: "Attachment", group: "Molecules", render: () => <AttachmentPlayground /> },
+  { slug: "bubble", title: "Bubble", group: "Molecules", render: () => <BubblePlayground /> },
+  { slug: "message", title: "Message", group: "Molecules", render: () => <MessagePlayground /> },
+  { slug: "calendar", title: "Calendar", group: "Organisms", render: () => <CalendarPlayground /> },
+  { slug: "carousel", title: "Carousel", group: "Organisms", render: () => <CarouselPlayground /> },
+  { slug: "menubar", title: "Menubar", group: "Organisms", render: () => <MenubarPlayground /> },
+  { slug: "resizable", title: "Resizable", group: "Organisms", render: () => <ResizablePlayground /> },
+  { slug: "sidebar", title: "Sidebar", group: "Organisms", render: () => <SidebarPlayground /> },
+  { slug: "message-scroller", title: "Message Scroller", group: "Organisms", render: () => <MessageScrollerPlayground /> },
+  { slug: "item", title: "Item", group: "Molecules", render: () => <ItemPlayground /> },
+  { slug: "form", title: "Form", group: "Organisms", render: () => <FormPlayground /> },
+  { slug: "navigation-menu", title: "Navigation Menu", group: "Organisms", render: () => <NavigationMenuPlayground /> },
   { slug: "layout-atoms", title: "Marker / Separator / Aspect Ratio", group: "Atoms", render: () => <LayoutAtomsPlayground /> },
   { slug: "kbd", title: "Keyboard Key", group: "Atoms", render: () => <KbdPlayground /> },
   {
@@ -288,16 +307,21 @@ const SECTIONS: Section[] = [
       </Playground>
     ),
   },
+  // ── AI Elements ──────────────────────────────────────────────────
+  { slug: "ai-reasoning", title: "AI Reasoning", group: "AI Elements", render: () => <ReasoningPlayground /> },
+  { slug: "ai-tool", title: "AI Tool", group: "AI Elements", render: () => <ToolPlayground /> },
+  { slug: "ai-task", title: "AI Task", group: "AI Elements", render: () => <TaskPlayground /> },
+  { slug: "ai-code-block", title: "AI Code Block", group: "AI Elements", render: () => <CodeBlockPlayground /> },
+  { slug: "ai-image", title: "AI Image", group: "AI Elements", render: () => <AIImagePlayground /> },
+  { slug: "ai-sources", title: "AI Sources", group: "AI Elements", render: () => <SourcesPlayground /> },
+  { slug: "ai-actions", title: "AI Actions", group: "AI Elements", render: () => <ActionsPlayground /> },
+  { slug: "ai-attachments", title: "AI Attachments", group: "AI Elements", render: () => <AttachmentsPlayground /> },
+  // ── Templates ──
   { slug: "session-template", title: "Panel and drawer templates", group: "Templates", render: () => <ViewTemplatePlayground /> },
   { slug: "page-examples", title: "Page states", group: "Pages", render: () => <PageStatesPlayground /> },
-
-  {
-    slug: "charts", title: "Charts", group: "Organisms",
-    render: () => <TanStackChartDemo />,
-  },
 ];
 
-const SECTION_GROUP_ORDER = ["Foundations", "Atoms", "Molecules", "Organisms", "Templates", "Pages"] as const;
+const SECTION_GROUP_ORDER = ["Foundations", "Atoms", "Molecules", "Organisms", "AI Elements", "Templates", "Pages"] as const;
 function orderedSections(extended: boolean) {
   return SECTION_GROUP_ORDER.flatMap((group) =>
     SECTIONS.filter((section) => section.group === group && (!section.feature || extended)),

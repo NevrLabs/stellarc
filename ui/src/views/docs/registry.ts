@@ -8,7 +8,7 @@ export interface RegistryEntry {
   slug: string;
   name: string;
   tier: RegistryTier;
-  source: "base-nova";
+  source: "base-nova" | "ai-elements";
   status: RegistryStatus;
   implementationChoice: ImplementationChoice;
   configuration: readonly string[];
@@ -24,7 +24,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["LTR/RTL", "nested override"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "direction",
   },
   {
     slug: "aspect-ratio",
@@ -234,7 +234,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["length", "pattern", "disabled", "invalid", "paste"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "input-otp",
   },
   {
     slug: "table",
@@ -284,7 +284,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["current page", "collapse", "custom separator"],
-    playgroundKey: "navigation",
+    playgroundKey: "breadcrumb",
   },
   {
     slug: "button-group",
@@ -414,7 +414,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["size", "media/icon", "selected", "disabled", "actions"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "item",
   },
   {
     slug: "pagination",
@@ -424,7 +424,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["first/last", "current", "disabled", "compact", "unknown total"],
-    playgroundKey: "navigation",
+    playgroundKey: "pagination",
   },
   {
     slug: "popover",
@@ -474,7 +474,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "registry",
     configuration: ["orientation", "activation mode", "disabled tab", "overflow"],
-    playgroundKey: "navigation",
+    playgroundKey: "tabs",
   },
   {
     slug: "tooltip",
@@ -494,7 +494,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["tone", "duration", "action", "promise/loading", "pause/dismiss"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "toast",
   },
   {
     slug: "attachment",
@@ -504,7 +504,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["file type", "progress", "failed", "removable", "compact"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "attachment",
   },
   {
     slug: "bubble",
@@ -514,7 +514,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["role", "alignment", "status", "actions", "long content"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "bubble",
   },
   {
     slug: "message",
@@ -524,7 +524,87 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["user/assistant/tool", "streaming", "error", "actions"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "message",
+  },
+  {
+    slug: "ai-reasoning",
+    name: "AI Reasoning",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["streaming", "expanded", "collapsible"],
+    playgroundKey: "ai-reasoning",
+  },
+  {
+    slug: "ai-tool",
+    name: "AI Tool",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["state", "type", "input", "output", "error"],
+    playgroundKey: "ai-tool",
+  },
+  {
+    slug: "ai-task",
+    name: "AI Task",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["label", "expanded", "items", "files"],
+    playgroundKey: "ai-task",
+  },
+  {
+    slug: "ai-code-block",
+    name: "AI Code Block",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["language", "line numbers", "copy", "header"],
+    playgroundKey: "ai-code-block",
+  },
+  {
+    slug: "ai-image",
+    name: "AI Image",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["loaded", "loading", "error", "alt"],
+    playgroundKey: "ai-image",
+  },
+  {
+    slug: "ai-sources",
+    name: "AI Sources",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["count", "expanded", "links"],
+    playgroundKey: "ai-sources",
+  },
+  {
+    slug: "ai-actions",
+    name: "AI Actions",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["copy", "retry", "share", "tooltip"],
+    playgroundKey: "ai-actions",
+  },
+  {
+    slug: "ai-attachments",
+    name: "AI Attachments",
+    tier: "molecule",
+    source: "ai-elements",
+    status: "covered",
+    implementationChoice: "registry",
+    configuration: ["grid", "inline", "list", "preview", "remove"],
+    playgroundKey: "ai-attachments",
   },
   {
     slug: "calendar",
@@ -534,7 +614,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["single/range/multiple", "disabled dates", "locale", "month/year"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "calendar",
   },
   {
     slug: "carousel",
@@ -544,7 +624,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["orientation", "loop", "autoplay off/on", "controls", "slide count"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "carousel",
   },
   {
     slug: "chart",
@@ -574,7 +654,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["valid/invalid", "submit pending", "server errors", "reset"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "form",
   },
   {
     slug: "menubar",
@@ -584,7 +664,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["menus", "submenu", "checkbox/radio", "shortcuts", "disabled"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "menubar",
   },
   {
     slug: "navigation-menu",
@@ -594,7 +674,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["active item", "viewport", "nested links", "mobile fallback"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "navigation-menu",
   },
   {
     slug: "resizable",
@@ -604,7 +684,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["orientation", "min/max", "collapse", "keyboard resize", "persistence"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "resizable",
   },
   {
     slug: "sidebar",
@@ -614,7 +694,7 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["collapsed/icon/mobile", "active item", "groups", "loading", "keyboard"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "sidebar",
   },
   {
     slug: "message-scroller",
@@ -624,6 +704,6 @@ export const registry: readonly RegistryEntry[] = [
     status: "covered",
     implementationChoice: "native",
     configuration: ["follow output", "paused", "jump-to-bottom", "streaming"],
-    playgroundKey: "remaining-components",
+    playgroundKey: "message-scroller",
   },
 ];

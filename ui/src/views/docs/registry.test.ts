@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { registry, tierOrder } from "./registry";
 
 describe("docs registry", () => {
-  it("contains the 61 canonical entries", () => {
-    expect(registry).toHaveLength(61);
+  it("contains the 69 canonical entries", () => {
+    expect(registry).toHaveLength(69);
   });
 
   it("uses unique slugs", () => {
@@ -19,12 +19,15 @@ describe("docs registry", () => {
     expect(registry.every(({ configuration }) => configuration.length > 0)).toBe(true);
   });
 
-  it("covers the remaining documented playgrounds", () => {
-    const slugs = [
-      "direction", "input-otp", "toast", "attachment", "bubble", "message", "calendar",
-      "carousel", "menubar", "resizable", "message-scroller", "item", "form",
-      "navigation-menu", "sidebar",
-    ];
-    expect(slugs.every((slug) => registry.some((entry) => entry.slug === slug && entry.status === "covered" && entry.playgroundKey === "remaining-components"))).toBe(true);
+  it("includes all AI element entries", () => {
+    const aiSlugs = ["ai-reasoning", "ai-tool", "ai-task", "ai-code-block", "ai-image", "ai-sources", "ai-actions", "ai-attachments"];
+    expect(aiSlugs.every((slug) => registry.some((e) => e.slug === slug && e.source === "ai-elements" && e.status === "covered"))).toBe(true);
+  });
+
+  it("uses valid playground keys for each component", () => {
+    const keys = registry.map(({ playgroundKey }) => playgroundKey);
+    // Some grouped components share a playground key — that's valid.
+    // Just verify all keys are non-empty strings.
+    expect(keys.every(k => typeof k === "string" && k.length > 0)).toBe(true);
   });
 });

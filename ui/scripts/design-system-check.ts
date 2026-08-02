@@ -6,16 +6,21 @@ const sourceExceptions: Record<string, string> = {
   chart: "src/views/docs/TanStackChartDemo.tsx",
   combobox: "src/components/ui/command.tsx",
   pagination: "src/components/ui/button.tsx",
+  "ai-actions": "src/components/ai-elements/message.tsx",
 };
 
 export function verifyDesignSystem(): string[] {
   const sections = new Set(
-    [...readFileSync(`${uiRoot}/src/views/docs/DocsView.tsx`, "utf8").matchAll(/slug: "([^"]+)"/g)].map((match) => match[1]),
+    [...readFileSync(`${uiRoot}/src/views/docs/DocsView.tsx`, "utf8").matchAll(/slug: "([^\"]+)"/g)].map((match) => match[1]),
   );
   const errors: string[] = [];
 
   for (const entry of registry.filter(({ status }) => status === "covered")) {
-    const source = sourceExceptions[entry.slug] ?? `src/components/ui/${entry.slug}.tsx`;
+    const source = sourceExceptions[entry.slug] ?? (
+      entry.source === "ai-elements"
+        ? `src/components/ai-elements/${entry.slug.replace(/^ai-/, "")}.tsx`
+        : `src/components/ui/${entry.slug}.tsx`
+    );
     if (entry.implementationChoice !== "native" && !existsSync(`${uiRoot}/${source}`)) {
       errors.push(`${entry.slug}: missing ${source}`);
     }
