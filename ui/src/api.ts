@@ -41,6 +41,7 @@ import type {
   ProjectsResponse,
   ContextProjectRef,
 } from "./types";
+import { axisHttp, setAxisOrganization } from "./axis-http";
 // A production Web UI is permanently bound to the Axis that served it. The
 // configurable base exists only for Vite development; production REST and WS
 // URLs always derive from window.location.origin.
@@ -51,6 +52,7 @@ let organizationId: string | null = null;
 export function setApiOrganization(id: string | null): void {
   if (organizationId === id) return;
   organizationId = id;
+  setAxisOrganization(id);
   closeWs();
 }
 
@@ -74,14 +76,7 @@ function organizationPath(path: string): string {
 }
 
 async function fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
-  let scoped = input;
-  if (typeof input === "string") {
-    const path = BASE && input.startsWith(BASE) ? input.slice(BASE.length) : input;
-    if (path.startsWith("/api/")) {
-      scoped = `${BASE}${organizationPath(path)}`;
-    }
-  }
-  return browserFetch(scoped, { ...init, credentials: "include" });
+  return axisHttp.fetch(typeof input === "string" ? input : input.toString(), init, init.signal ?? undefined);
 }
 
 export { fetch as apiFetch };

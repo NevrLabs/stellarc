@@ -57,6 +57,7 @@
     "d3-scale": "^4.0.2",
     "date-fns": "^3.6.0",
     "dockview-react": "^7.0.2",
+    "effect": "^3.22.1",
     "lucide-react": "^1.27.0",
     "motion": "^12.43.0",
     "msw": "^2.3.1",

@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { closeWs, setApiOrganization } from "./api";
+import { axisHttp } from "./axis-http";
 
 // Production identity requests are permanently bound to the Axis origin that
 // served the UI. A separate API base exists only for Vite development.
@@ -32,7 +33,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function axisFetch(path: string, init?: RequestInit): Promise<Response> {
-  return window.fetch(`${BASE}${path}`, { ...init, credentials: "include" });
+  return axisHttp.fetch(`${BASE}${path}`, init);
 }
 
 export function useAxisAuth(): AuthContextValue {
