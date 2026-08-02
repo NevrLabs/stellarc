@@ -30,7 +30,11 @@ export const VaultWorkspaceView = memo(function VaultWorkspaceView() {
   const routeNote = new URLSearchParams(location.search).get("note");
   const { data: vaultsData } = useVaults();
   const vaults = vaultsData?.vaults ?? [];
-  const activeVaultId = route.vaultId ?? vaults[0]?.id ?? null;
+  // Only auto-select first vault when vaults surface is active.
+  // When mounted-but-hidden (e.g. user is on /sessions), route.vaultId is
+  // null and we must NOT fall back to vaults[0] — that would trigger
+  // vault WebSocket connections and navigate away from the current page.
+  const activeVaultId = route.surface === "vaults" ? (route.vaultId ?? vaults[0]?.id ?? null) : route.vaultId;
   const { data: notesData } = useVaultNotes(activeVaultId);
   const notes = notesData?.notes ?? EMPTY_NOTES;
   const [createVaultOpen, setCreateVaultOpen] = useState(false);
