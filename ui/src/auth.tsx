@@ -2,7 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { closeWs, setApiOrganization } from "./api";
+import { setApiOrganization } from "./api";
+import { closeAxisEvents } from "./axis-events";
 import { axisHttp } from "./axis-http";
 
 // Production identity requests are permanently bound to the Axis origin that
@@ -96,7 +97,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   async function logout(): Promise<void> {
     await axisFetch("/api/auth/logout", { method: "POST" });
-    closeWs();
+    closeAxisEvents();
     setApiOrganization(null);
     queryClient.clear();
     setUser(null);

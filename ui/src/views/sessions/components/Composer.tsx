@@ -209,7 +209,7 @@ export function Composer({
   // Scroll active item into view.
   useEffect(() => {
     if (modelOpen && itemRefs.current[activeIndex]) {
-      itemRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
+      itemRefs.current[activeIndex]?.scrollIntoView?.({ block: "nearest" });
     }
   }, [activeIndex, modelOpen]);
 

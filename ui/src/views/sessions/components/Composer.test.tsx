@@ -4,6 +4,16 @@ import { render, screen, fireEvent } from "@testing-library/react";
 // Mock the per-node catalog with duplicate agent IDs to prove node-scoped sync.
 // profile + a claude-code harness). This tests the grouped selector rendering.
 vi.mock("../../../hooks/queries", () => ({
+  useModels: () => ({ data: { models: [
+    { provider: "zai", id: "glm-5.2", displayName: "GLM 5.2", default: true },
+    { provider: "zai", id: "glm-5v-turbo", displayName: "GLM 5V Turbo" },
+    { provider: "openai-codex", id: "gpt-5.5", displayName: "GPT 5.5" },
+    { provider: "claude-code", id: "claude-opus-4-8", displayName: "Claude Opus 4.8" },
+    { provider: "claude-code", id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6" },
+    { provider: "claude-code", id: "claude-fable-5", displayName: "Claude Fable 5" },
+    { provider: "claude-code", id: "claude-haiku-4-5", displayName: "Claude Haiku 4.5" },
+    { provider: "remote-provider", id: "remote-model", displayName: "Remote Model" },
+  ] } }),
   useAgentCatalog: () => ({
     data: {
       nodes: [{ nodeId: "local", agents: [
@@ -74,65 +84,49 @@ function renderComposer(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Composer model selector", () => {
-  it("exposes one stable semantic trigger for model and thinking choices", () => {
-    renderComposer();
+  const modelTrigger = () => screen.getByRole("button", { name: "Model" });
 
-    const trigger = screen.getByRole("button", { name: "Model and thinking" });
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(trigger);
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("thinking")).toBeInTheDocument();
+  it("exposes separate model and thinking/context controls", () => {
+    renderComposer();
+    expect(modelTrigger()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "Thinking and context" })).toBeInTheDocument();
+    fireEvent.click(modelTrigger());
+    expect(modelTrigger()).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByPlaceholderText("Search models…")).toBeInTheDocument();
   });
 
-  it("uses the provider and models from the session's node", () => {
+  it("uses models from the global provider catalog", () => {
     renderComposer({ sessionNode: "remote" });
-    fireEvent.click(screen.getByTitle("Model & thinking"));
+    fireEvent.click(modelTrigger());
     expect(screen.getByText("remote-provider")).toBeInTheDocument();
-    expect(screen.queryByText("zai")).not.toBeInTheDocument();
+    expect(screen.getByText("Remote Model")).toBeInTheDocument();
   });
 
   it("groups models by provider with headers", () => {
     renderComposer();
-
-    // Open the model dropdown.
-    fireEvent.click(screen.getByTitle("Model & thinking"));
-
-    // Provider headers present.
+    fireEvent.click(modelTrigger());
     expect(screen.getByText("zai")).toBeInTheDocument();
     expect(screen.getByText("openai-codex")).toBeInTheDocument();
-
-    // Models under their providers (getAllByText because the pill also shows
-    // the default model name — verify at least one in the menu).
-    expect(screen.getAllByText("glm-5v-turbo").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("gpt-5.5").length).toBeGreaterThan(0);
+    expect(screen.getByText("GLM 5V Turbo")).toBeInTheDocument();
+    expect(screen.getByText("GPT 5.5")).toBeInTheDocument();
   });
 
   it("dispatches the selected model on send", () => {
-    const { onSend } = renderComposer();
-
-    // Open and pick a non-default model.
-    fireEvent.click(screen.getByTitle("Model & thinking"));
-    fireEvent.click(screen.getByText("glm-5v-turbo"));
-
-    // The pill should now show the overridden model.
-    expect(screen.getByTitle("Model & thinking")).toHaveTextContent("glm-5v-turbo");
+    renderComposer();
+    fireEvent.click(modelTrigger());
+    fireEvent.click(screen.getByText("GLM 5V Turbo"));
+    expect(modelTrigger()).toHaveTextContent("glm-5v-turbo");
   });
 
-  it("syncs the pill to session truth (Axis model) over local default", () => {
+  it("syncs the pill to session truth over the local default", () => {
     renderComposer({ sessionModel: "glm-5.2" });
-
-    // Pill shows the session's actual model, not "auto".
-    expect(screen.getByTitle("Model & thinking")).toHaveTextContent("glm-5.2");
+    expect(modelTrigger()).toHaveTextContent("glm-5.2");
   });
 
   it("shows claude-fable-5 for the claude-code agent", () => {
     renderComposer({ sessionAgent: "claude-code", sessionModel: "claude-opus-4-8" });
-
-    fireEvent.click(screen.getByTitle("Model & thinking"));
-
-    // The fable model is present in the claude-code catalog.
-    expect(screen.getByText("claude-fable-5")).toBeInTheDocument();
-    // Provider header for claude-code.
+    fireEvent.click(modelTrigger());
+    expect(screen.getByText("Claude Fable 5")).toBeInTheDocument();
     expect(screen.getAllByText("claude-code").length).toBeGreaterThan(0);
   });
 });

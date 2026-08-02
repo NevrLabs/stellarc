@@ -27,12 +27,11 @@ import {
   sendMessage,
   cancelSession,
   steerSession,
-  onFrame,
   respondPermission,
-  sendFrame,
   getDisplayName,
 } from "../../../api";
 import type { Message, ServerFrame, ToolCall } from "../../../types";
+import { onAxisFrame, sendAxisFrame, subscribeAxisSession } from "../../../axis-events";
 import { MessageBubble } from "../components/MessageBubble";
 import { ToolCard } from "../components/ToolCard";
 import { DiffCard } from "../components/DiffCard";
@@ -165,7 +164,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
   // unsubscribe on unmount / session switch. (Backward compatible: the
   // server still delivers session-list-level frames regardless.)
   useEffect(() => {
-    sendFrame({ kind: "subscribe", sessionIds: [sessionId] });
+    const unsubscribeSession = subscribeAxisSession(sessionId);
     // ADR 0020 v2 §4.2 — deliver-on-(re)subscribe. Navigating away drops this
     // session's frames (should_deliver); on return we force a refetch of the
     // durable transcript so a turn completed while we were gone is reconstructed
@@ -176,16 +175,16 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     // completed turn would otherwise never appear until manual navigation
     // away and back. Resubscribe (the new socket has no subscription state)
     // and refetch the durable transcript + session liveness.
-    const unsub = onFrame((frame: ServerFrame) => {
+    const unsub = onAxisFrame((frame: ServerFrame) => {
       if (frame.kind === "ws.reconnected") {
-        sendFrame({ kind: "subscribe", sessionIds: [sessionId] });
+        const unsubscribeSession = subscribeAxisSession(sessionId);
         void qc.invalidateQueries({ queryKey: qk.messages(sessionId) });
         void qc.invalidateQueries({ queryKey: qk.session(sessionId) });
       }
     });
     return () => {
       unsub();
-      sendFrame({ kind: "unsubscribe", sessionIds: [sessionId] });
+      unsubscribeSession();
     };
   }, [sessionId, qc]);
 
@@ -364,7 +363,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
 
   // ── WS streaming + status ─────────────────────────────────────────
   useEffect(() => {
-    const unsub = onFrame((frame: ServerFrame) => {
+    const unsub = onAxisFrame((frame: ServerFrame) => {
       // Narrow by kind first — not all ServerFrame variants have sessionId.
       if (
         (frame.kind === "message.delta" ||
@@ -681,7 +680,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
       // no gap). Only sent when there's actual text.
       if (e.target.value.trim()) {
         if (!typingDebounceRef.current) {
-          sendFrame({ kind: "typing", sessionId });
+          void sendAxisFrame({ kind: "typing", sessionId }).catch(() => undefined);
           typingDebounceRef.current = setTimeout(() => {
             typingDebounceRef.current = null;
           }, 3000);

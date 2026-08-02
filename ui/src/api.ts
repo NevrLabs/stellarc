@@ -53,7 +53,6 @@ export function setApiOrganization(id: string | null): void {
   if (organizationId === id) return;
   organizationId = id;
   setAxisOrganization(id);
-  closeWs();
 }
 
 function organizationPath(path: string): string {
@@ -124,7 +123,8 @@ async function postJson<TResponse, TBody = unknown>(
 // ── REST ───────────────────────────────────────────────
 
 export async function fetchSessions(
-  params?: SessionListParams
+  params?: SessionListParams,
+  signal?: AbortSignal,
 ): Promise<SessionListResponse> {
   const q = new URLSearchParams();
   if (params?.source) q.set("source", params.source);
@@ -138,24 +138,24 @@ export async function fetchSessions(
   if (params?.cursor) q.set("cursor", params.cursor);
   if (params?.limit) q.set("limit", String(params.limit));
 
-  const res = await fetch(`${BASE}/api/sessions?${q}`, { headers: authHeaders() });
+  const res = await fetch(`${BASE}/api/sessions?${q}`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`sessions ${res.status}`);
   return res.json() as Promise<SessionListResponse>;
 }
 
-export async function fetchSession(id: string): Promise<Session> {
-  const res = await fetch(`${BASE}/api/sessions/${id}`, { headers: authHeaders() });
+export async function fetchSession(id: string, signal?: AbortSignal): Promise<Session> {
+  const res = await fetch(`${BASE}/api/sessions/${id}`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`session ${res.status}`);
   return res.json() as Promise<Session>;
 }
 
-export async function fetchProjects(): Promise<ProjectsResponse> {
-  const res = await fetch(`${BASE}/api/projects`, { headers: authHeaders() });
+export async function fetchProjects(signal?: AbortSignal): Promise<ProjectsResponse> {
+  const res = await fetch(`${BASE}/api/projects`, { headers: authHeaders(), signal });
   return expectJson(res, "projects");
 }
 
-export async function fetchProject(id: string): Promise<Project> {
-  const res = await fetch(`${BASE}/api/projects/${encodeURIComponent(id)}`, { headers: authHeaders() });
+export async function fetchProject(id: string, signal?: AbortSignal): Promise<Project> {
+  const res = await fetch(`${BASE}/api/projects/${encodeURIComponent(id)}`, { headers: authHeaders(), signal });
   return expectJson(res, "project");
 }
 
@@ -224,7 +224,8 @@ async function safeError(res: Response): Promise<string> {
 
 export async function fetchMessages(
   sessionId: string,
-  params?: MessagesParams
+  params?: MessagesParams,
+  signal?: AbortSignal,
 ): Promise<MessagesResponse> {
   const q = new URLSearchParams();
   if (params?.cursor) q.set("cursor", params.cursor);
@@ -232,7 +233,7 @@ export async function fetchMessages(
 
   const res = await fetch(
     `${BASE}/api/sessions/${sessionId}/messages?${q}`,
-    { headers: authHeaders() }
+    { headers: authHeaders(), signal }
   );
   if (!res.ok) throw new Error(`messages ${res.status}`);
   return res.json() as Promise<MessagesResponse>;
@@ -251,25 +252,25 @@ export async function searchSessions(
   return res.json() as Promise<SearchResponse>;
 }
 
-export async function fetchModels(agentId?: string | null): Promise<ModelsResponse> {
+export async function fetchModels(agentId?: string | null, signal?: AbortSignal): Promise<ModelsResponse> {
   // Agent-scoped list (only models that agent's provider serves) when an id is
   // given; otherwise the full deduped list.
   const path = agentId
     ? `/api/agents/${encodeURIComponent(agentId)}/models`
     : `/api/models`;
-  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`models ${res.status}`);
   return res.json() as Promise<ModelsResponse>;
 }
 
-export async function fetchAgents(): Promise<AgentsResponse> {
-  const res = await fetch(`${BASE}/api/agents`, { headers: authHeaders() });
+export async function fetchAgents(signal?: AbortSignal): Promise<AgentsResponse> {
+  const res = await fetch(`${BASE}/api/agents`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`agents ${res.status}`);
   return res.json() as Promise<AgentsResponse>;
 }
 
-export async function fetchAgentCatalog(): Promise<AgentsCatalogResponse> {
-  const res = await fetch(`${BASE}/api/agents/catalog`, { headers: authHeaders() });
+export async function fetchAgentCatalog(signal?: AbortSignal): Promise<AgentsCatalogResponse> {
+  const res = await fetch(`${BASE}/api/agents/catalog`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`agent catalog ${res.status}`);
   return res.json() as Promise<AgentsCatalogResponse>;
 }
@@ -285,8 +286,8 @@ export async function refreshNodeAgents(nodeId: string): Promise<AgentsResponse>
   return res.json() as Promise<AgentsResponse>;
 }
 
-export async function fetchNodes(): Promise<NodesResponse> {
-  const res = await fetch(`${BASE}/api/nodes`, { headers: authHeaders() });
+export async function fetchNodes(signal?: AbortSignal): Promise<NodesResponse> {
+  const res = await fetch(`${BASE}/api/nodes`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`nodes ${res.status}`);
   return res.json() as Promise<NodesResponse>;
 }
@@ -325,8 +326,8 @@ export async function removeNode(nodeId: string): Promise<void> {
   }
 }
 
-export async function healthCheck(): Promise<HealthResponse> {
-  const res = await fetch(`${BASE}/api/health`, { headers: authHeaders() });
+export async function healthCheck(signal?: AbortSignal): Promise<HealthResponse> {
+  const res = await fetch(`${BASE}/api/health`, { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`health ${res.status}`);
   return res.json() as Promise<HealthResponse>;
 }
@@ -334,12 +335,12 @@ export async function healthCheck(): Promise<HealthResponse> {
 export async function fetchCards(params?: {
   boardId?: string;
   status?: string;
-}): Promise<CardListResponse> {
+}, signal?: AbortSignal): Promise<CardListResponse> {
   const q = new URLSearchParams();
   if (params?.boardId) q.set("boardId", params.boardId);
   if (params?.status) q.set("status", params.status);
   const suffix = q.size > 0 ? `?${q}` : "";
-  const res = await fetch(`${BASE}/api/cards${suffix}`, { headers: authHeaders() });
+  const res = await fetch(`${BASE}/api/cards${suffix}`, { headers: authHeaders(), signal });
   return expectJson<CardListResponse>(res, "cards");
 }
 
@@ -491,8 +492,8 @@ export async function reassignCard(id: string, body: ReassignCardBody): Promise<
 
 // ── Vaults (ADR 0004 — markdown knowledge base) ──────
 
-export async function fetchVaults(): Promise<VaultsResponse> {
-  const res = await fetch(`${BASE}/api/vaults`, { headers: authHeaders() });
+export async function fetchVaults(signal?: AbortSignal): Promise<VaultsResponse> {
+  const res = await fetch(`${BASE}/api/vaults`, { headers: authHeaders(), signal });
   return expectJson(res, "vaults");
 }
 
@@ -506,18 +507,22 @@ export async function createVault(body: CreateVaultBody): Promise<VaultSummary> 
 
 export async function fetchVaultNotes(
   vaultId: string,
+  signal?: AbortSignal,
 ): Promise<NotesTreeResponse> {
   const res = await fetch(`${BASE}/api/vaults/${vaultId}/notes`, {
     headers: authHeaders(),
+    signal,
   });
   return expectJson(res, "vault notes");
 }
 
 export async function fetchVaultDocuments(
   vaultId: string,
+  signal?: AbortSignal,
 ): Promise<VaultDocumentsResponse> {
   const res = await fetch(`${BASE}/api/vaults/${vaultId}/documents`, {
     headers: authHeaders(),
+    signal,
   });
   return expectJson(res, "vault documents");
 }
@@ -525,10 +530,12 @@ export async function fetchVaultDocuments(
 export async function fetchVaultNote(
   vaultId: string,
   path: string,
+  signal?: AbortSignal,
 ): Promise<NoteDocument> {
   const q = new URLSearchParams({ path });
   const res = await fetch(`${BASE}/api/vaults/${vaultId}/note?${q}`, {
     headers: authHeaders(),
+    signal,
   });
   return expectJson(res, "vault note");
 }
@@ -557,39 +564,6 @@ export async function deleteVaultNote(
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`delete vault note failed (${res.status})`);
-}
-
-// ── WebSocket (singleton, safe for mock mode) ──────────
-
-type FrameListener = (frame: ServerFrame) => void;
-
-let ws: WebSocket | null = null;
-let connecting = false;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectDelay = 1000;
-// Whether a WS connection has ever been established this page-load. Used to
-// distinguish first connect (no frames could have been missed) from a
-// RE-connect (frames broadcast during the outage were dropped by the server's
-// fire-and-forget stream — consumers must refetch durable truth).
-let everConnected = false;
-const listeners = new Set<FrameListener>();
-
-function getWsUrl(): string {
-  // BASE is empty in dev (API calls go through the vite proxy). When empty,
-  // build the WS URL from the current page origin so the /ws request rides the
-  // same proxy. `new URL("")` throws, which previously killed connectWs()
-  // silently — so never feed an empty string to URL().
-  const origin = BASE || window.location.origin;
-  const u = new URL(origin);
-  const proto = u.protocol === "https:" ? "wss" : "ws";
-  // S8: send a stable display name for typing attribution. Falls back to
-  // anon-<N> server-side when absent.
-  const name = getDisplayName();
-  const params = new URLSearchParams();
-  if (organizationId) params.set("organization", organizationId);
-  if (name) params.set("name", name);
-  const qs = params.toString();
-  return `${proto}://${u.host}/ws${qs ? `?${qs}` : ""}`;
 }
 
 /** A stable display name for this browser (used for typing attribution, S8). */
@@ -742,88 +716,6 @@ export async function createUser(username: string, password: string): Promise<{ 
   });
   if (!r.ok) throw new Error((await r.text()) || `create user ${r.status}`);
   return r.json();
-}
-
-export function connectWs(): void {
-  if (ws || connecting) return;
-
-  // In mock mode the MockWebSocket is installed on window.WebSocket, so
-  // `new WebSocket()` creates a mock instance that speaks ServerFrame. We
-  // still need to connect so frames flow through onFrame listeners.
-  connecting = true;
-  try {
-    ws = new WebSocket(getWsUrl());
-
-    ws.onopen = () => {
-      connecting = false;
-      reconnectDelay = 1000;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-      // A fresh socket after a drop means every frame broadcast during the
-      // outage is lost forever (the stream has no replay). Tell consumers so
-      // they can refetch durable truth (ChatPage resubscribes + invalidates
-      // its transcript; useLiveSync invalidates the session list).
-      if (everConnected) {
-        const frame: ServerFrame = { kind: "ws.reconnected" };
-        for (const fn of listeners) fn(frame);
-      }
-      everConnected = true;
-    };
-
-    ws.onmessage = (e) => {
-      try {
-        const frame = JSON.parse(e.data) as ServerFrame;
-        for (const fn of listeners) fn(frame);
-      } catch {
-        // ignore malformed frames
-      }
-    };
-
-    ws.onerror = () => {
-      connecting = false;
-    };
-
-    ws.onclose = () => {
-      connecting = false;
-      ws = null;
-      // In mock mode the MockWebSocket is a singleton-like stand-in; don't
-      // reconnect (the mock never closes during normal operation).
-      const useMocks = import.meta.env.VITE_USE_MOCKS !== "false";
-      if (!useMocks && !reconnectTimer) {
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          connectWs();
-        }, reconnectDelay);
-        reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
-      }
-    };
-  } catch {
-    connecting = false;
-    ws = null;
-  }
-}
-
-export function closeWs(): void {
-  if (reconnectTimer) clearTimeout(reconnectTimer);
-  reconnectTimer = null;
-  reconnectDelay = 1000;
-  if (ws) {
-    ws.onclose = null;
-    ws.close();
-    ws = null;
-  }
-  connecting = false;
-}
-
-export function onFrame(fn: FrameListener): () => void {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
-
-export function sendFrame(frame: ClientFrame): void {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(frame));
-  }
 }
 
 // ── Setup & Registry (ADR 0006) ──────────────────────

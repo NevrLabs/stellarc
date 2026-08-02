@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../../components/Icon";
 import { useMessages } from "../../../hooks/queries";
-import { onFrame } from "../../../api";
+import { onAxisFrame } from "../../../axis-events";
 import type { Message, ServerFrame, ToolCall } from "../../../types";
 import { fmtDateTime } from "../helpers";
 
@@ -199,7 +199,7 @@ export function BottomPanel({
   }, [sessionId]);
 
   useEffect(() => {
-    const unsub = onFrame((frame: ServerFrame) => {
+    const unsub = onAxisFrame((frame: ServerFrame) => {
       // Only capture frames relevant to this session, or global frames when
       // no session is selected.
       const sid = sessionId;
@@ -449,7 +449,7 @@ function OutputTab({ sessionId }: { sessionId: string | null }) {
   // Listen for message.appended frames carrying tool calls for this session.
   useEffect(() => {
     if (!sessionId) return;
-    const unsub = onFrame((frame: ServerFrame) => {
+    const unsub = onAxisFrame((frame: ServerFrame) => {
       if (frame.kind !== "message.appended") return;
       if (frame.sessionId !== sessionId) return;
       const msg = frame.message;
