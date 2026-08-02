@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
  *   [ textarea …………………………………………………………………… ]
  *   [ (+) model  |  thinking · context · send ]
  *
- * LEFT group: (+) attachments | provider/model selector
- * RIGHT group: thinking level | context preset | send/stop
+ * LEFT: (+) attachments
+ * RIGHT: model/provider selector | thinking level | context preset | send/stop
  *
  * Two modes:
  * - IDLE (no turn running): textarea = prompt, send button sends the message.
@@ -303,8 +303,11 @@ export function Composer({
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Model/provider selector (LEFT group) */}
+          {/* RIGHT: model + thinking + context + send/stop */}
+          <div className="comp-r">
+            {/* Model/provider selector */}
             <div className="selwrap" ref={modelRef} style={{ position: "relative" }}>
               <Button
                 type="button"
@@ -325,7 +328,7 @@ export function Composer({
               </Button>
 
               {modelOpen && (
-                <div className="menu selpop model-picker" onKeyDown={onModelMenuKeyDown}>
+                <div className="menu selpop model-picker" style={{ display: "flex" }} onKeyDown={onModelMenuKeyDown}>
                   {/* Search */}
                   <div className="mp-search">
                     <input
@@ -377,10 +380,7 @@ export function Composer({
                 </div>
               )}
             </div>
-          </div>
 
-          {/* RIGHT: thinking + context + send/stop */}
-          <div className="comp-r">
             {/* Thinking + context combo dropdown */}
             <div className="selwrap" ref={thinkRef} style={{ position: "relative" }}>
               <Button

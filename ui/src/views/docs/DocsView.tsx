@@ -440,7 +440,7 @@ export const DocsView = memo(function DocsView() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col sm:flex-row" style={{ background: "var(--bg)" }}>
       <nav className="docs-sidebar flex w-full shrink-0 overflow-x-auto border-b border-border p-1 sm:block sm:w-52 sm:overflow-y-auto sm:border-b-0 sm:border-r sm:p-2" aria-label="Docs">
         {PAGE_DEFS.map((p) => (
           <button
