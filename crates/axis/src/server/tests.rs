@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::event::Event;
-use crate::server::dto::SessionDto;
 use axum::body::Body;
 use axum::http::Request;
 use tower::ServiceExt; // oneshot

@@ -1374,8 +1374,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "manual gate: requires jj binary; validates each write snapshots the jj working-copy commit"]
-    #[test]
     fn rejects_stale_expected_cid() {
         let dir = tempfile::tempdir().unwrap();
         let store = VaultStore::with_jj_mode(dir.path(), JjMode::Disabled);
@@ -1414,6 +1412,8 @@ mod tests {
         );
     }
 
+    #[test]
+    #[ignore = "manual gate: requires jj binary; validates each write snapshots the jj working-copy commit"]
     fn jj_snapshot_lands_for_write() {
         let tmp = tempfile::tempdir().unwrap();
         let store = VaultStore::with_jj_mode(tmp.path().join("default"), JjMode::Required);
