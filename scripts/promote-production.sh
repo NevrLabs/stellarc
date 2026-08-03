@@ -29,7 +29,7 @@ cargo nextest run --workspace
 (
   cd ui
   bun install --frozen-lockfile
-  bun test --run
+  bun run test
   bun run build
 )
 cargo build --release -p stellarc-axis -p stellarc-orbit
