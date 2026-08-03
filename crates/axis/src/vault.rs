@@ -295,7 +295,9 @@ impl VaultStore {
 
         if let Some(expected) = write.expected_cid.as_deref() {
             let current = self.read_note(vault_id, path)?.cid;
-            if current.as_deref() != Some(expected) { bail!("note changed since this draft was based; merge required"); }
+            if current.as_deref() != Some(expected) {
+                bail!("note changed since this draft was based; merge required");
+            }
         }
 
         if write.create_only && (old_full.exists() || new_full.exists()) {
@@ -1163,7 +1165,7 @@ mod tests {
                             markdown: Some(format!("# Writer {index}\n")),
                             new_path: None,
                             create_only: true,
-                    expected_cid: None,
+                            expected_cid: None,
                         },
                     )
                 })
@@ -1305,7 +1307,7 @@ mod tests {
                         markdown: Some(markdown.into()),
                         new_path: None,
                         create_only: false,
-                    expected_cid: None,
+                        expected_cid: None,
                     },
                 )
                 .unwrap();
@@ -1377,11 +1379,39 @@ mod tests {
     fn rejects_stale_expected_cid() {
         let dir = tempfile::tempdir().unwrap();
         let store = VaultStore::with_jj_mode(dir.path(), JjMode::Disabled);
-        let vault = store.create_vault("test", VaultBackend::github("nevrlabs/test-notes", "main").unwrap()).unwrap();
-        let first = store.write_note(&vault.id, "note.md", WriteNote { markdown: Some("# one".into()), new_path: None, create_only: false, expected_cid: None }).unwrap();
-        let stale = store.write_note(&vault.id, "note.md", WriteNote { markdown: Some("# two".into()), new_path: None, create_only: false, expected_cid: Some("stale".into()) });
+        let vault = store
+            .create_vault(
+                "test",
+                VaultBackend::github("nevrlabs/test-notes", "main").unwrap(),
+            )
+            .unwrap();
+        let first = store
+            .write_note(
+                &vault.id,
+                "note.md",
+                WriteNote {
+                    markdown: Some("# one".into()),
+                    new_path: None,
+                    create_only: false,
+                    expected_cid: None,
+                },
+            )
+            .unwrap();
+        let stale = store.write_note(
+            &vault.id,
+            "note.md",
+            WriteNote {
+                markdown: Some("# two".into()),
+                new_path: None,
+                create_only: false,
+                expected_cid: Some("stale".into()),
+            },
+        );
         assert!(stale.unwrap_err().to_string().contains("merge required"));
-        assert_eq!(store.read_note(&vault.id, "note.md").unwrap().cid, first.cid);
+        assert_eq!(
+            store.read_note(&vault.id, "note.md").unwrap().cid,
+            first.cid
+        );
     }
 
     fn jj_snapshot_lands_for_write() {

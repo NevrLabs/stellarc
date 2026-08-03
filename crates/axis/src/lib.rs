@@ -17,9 +17,9 @@ pub mod import;
 pub mod irc;
 pub mod jobs;
 pub mod log;
-mod migrations;
 #[cfg(feature = "postgres")]
 pub mod log_pg;
+mod migrations;
 pub mod node;
 pub mod package;
 pub mod projects;

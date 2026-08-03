@@ -428,7 +428,6 @@ pub(crate) async fn session_diagnostics(
     .into_response()
 }
 
-
 /// Extract the timestamp from a MessageAppended event (for DTO building).
 pub(crate) fn event_timestamp(event: &crate::event::Event) -> f64 {
     match event {

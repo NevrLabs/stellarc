@@ -746,7 +746,10 @@ mod tests {
     fn parse_providers_section_single_model() {
         let yaml = "providers:\n  9router:\n    base_url: https://example.com/v1\n    model: cc/claude-opus-5\n    api_key: sk-xxx\n";
         let models = parse_providers_section(yaml);
-        assert_eq!(models, vec![("9router".to_string(), "cc/claude-opus-5".to_string())]);
+        assert_eq!(
+            models,
+            vec![("9router".to_string(), "cc/claude-opus-5".to_string())]
+        );
     }
 
     #[test]
@@ -790,7 +793,10 @@ mod tests {
         assert_eq!(derive_display_name("cc/claude-opus-5"), "CLAUDE OPUS 5");
         assert_eq!(derive_display_name("gpt-5.5"), "GPT 5.5");
         assert_eq!(derive_display_name("glm-5.2"), "GLM 5.2");
-        assert_eq!(derive_display_name("claude-sonnet-4-6"), "CLAUDE SONNET 4 6");
+        assert_eq!(
+            derive_display_name("claude-sonnet-4-6"),
+            "CLAUDE SONNET 4 6"
+        );
         assert_eq!(derive_display_name("claude-haiku-4-5"), "CLAUDE HAIKU 4 5");
         assert_eq!(derive_display_name("gpt-5.4-mini"), "GPT 5.4 MINI");
     }
@@ -807,7 +813,6 @@ mod tests {
         assert_eq!(models[0].default, Some(true));
         // New models from providers: section
         // Provider section models may not all parse depending on trailing newline
-        
     }
 
     #[test]
