@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 // Mock the per-node catalog with duplicate agent IDs to prove node-scoped sync.
 // profile + a claude-code harness). This tests the grouped selector rendering.
@@ -86,27 +86,42 @@ function renderComposer(overrides: Record<string, unknown> = {}) {
 describe("Composer model selector", () => {
   const modelTrigger = () => screen.getByRole("button", { name: "Model" });
 
-  it("exposes separate model and thinking/context controls", () => {
+  it("exposes separate model, thinking, and context controls", () => {
     renderComposer();
     expect(modelTrigger()).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("button", { name: "Thinking and context" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thinking level" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Context window" })).toBeInTheDocument();
     fireEvent.click(modelTrigger());
     expect(modelTrigger()).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByPlaceholderText("Search models…")).toBeInTheDocument();
   });
 
+  it("persists independent thinking and context selections", () => {
+    renderComposer();
+    fireEvent.click(screen.getByRole("button", { name: "Thinking level" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /High/ }));
+    expect(screen.getByRole("button", { name: "Thinking level" })).toHaveTextContent("High");
+    expect(localStorage.getItem("stellarc-thinking")).toBe("high");
+
+    fireEvent.click(screen.getByRole("button", { name: "Context window" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /256K/ }));
+    expect(screen.getByRole("button", { name: "Context window" })).toHaveTextContent("256K");
+    expect(localStorage.getItem("stellarc-context-preset")).toBe("256k");
+  });
+
   it("uses models from the global provider catalog", () => {
     renderComposer({ sessionNode: "remote" });
     fireEvent.click(modelTrigger());
-    expect(screen.getByText("remote-provider")).toBeInTheDocument();
+    expect(within(screen.getByPlaceholderText("Search models…").closest(".model-picker")!).getByText("remote-provider")).toBeInTheDocument();
     expect(screen.getByText("Remote Model")).toBeInTheDocument();
   });
 
   it("groups models by provider with headers", () => {
     renderComposer();
     fireEvent.click(modelTrigger());
-    expect(screen.getByText("zai")).toBeInTheDocument();
-    expect(screen.getByText("openai-codex")).toBeInTheDocument();
+    const picker = within(screen.getByPlaceholderText("Search models…").closest(".model-picker")!);
+    expect(picker.getByText("zai")).toBeInTheDocument();
+    expect(picker.getByText("openai-codex")).toBeInTheDocument();
     expect(screen.getByText("GLM 5V Turbo")).toBeInTheDocument();
     expect(screen.getByText("GPT 5.5")).toBeInTheDocument();
   });

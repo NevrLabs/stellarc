@@ -70,6 +70,19 @@ const CONTEXT_LABELS: Record<ContextPreset, string> = {
   "1m": "1M",
 };
 
+const THINKING_DESCRIPTIONS: Record<ThinkingLevel, string> = {
+  off: "Answer directly without extended reasoning",
+  low: "Quick reasoning for straightforward tasks",
+  medium: "Balanced reasoning for most work",
+  high: "Deep reasoning for complex problems",
+};
+
+const CONTEXT_DESCRIPTIONS: Record<ContextPreset, string> = {
+  default: "Use the model's standard context window",
+  "256k": "Keep up to 256K tokens in context",
+  "1m": "Keep up to 1M tokens in context",
+};
+
 /** Human-readable provider label: strips "custom:" prefix, title-cases. */
 function providerLabel(raw: string): string {
   const clean = raw.replace(/^custom:/, "");
@@ -129,6 +142,7 @@ export function Composer({
   const [modelOpen, setModelOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [thinkingOpen, setThinkingOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
   const [thinking, setThinking] = useState<ThinkingLevel>(loadThinking);
   const [contextPreset, setContextPreset] = useState<ContextPreset>(loadContextPreset);
   // Local override when the user picks a different model for the next send.
@@ -139,6 +153,7 @@ export function Composer({
   const modelRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);
   const thinkRef = useRef<HTMLDivElement>(null);
+  const contextRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -175,7 +190,7 @@ export function Composer({
 
   // Close popups on outside click.
   useEffect(() => {
-    if (!modelOpen && !plusOpen && !thinkingOpen) return;
+    if (!modelOpen && !plusOpen && !thinkingOpen && !contextOpen) return;
     const handler = (e: MouseEvent) => {
       if (modelOpen && modelRef.current && !modelRef.current.contains(e.target as Node)) {
         setModelOpen(false);
@@ -186,10 +201,13 @@ export function Composer({
       if (thinkingOpen && thinkRef.current && !thinkRef.current.contains(e.target as Node)) {
         setThinkingOpen(false);
       }
+      if (contextOpen && contextRef.current && !contextRef.current.contains(e.target as Node)) {
+        setContextOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [modelOpen, plusOpen, thinkingOpen]);
+  }, [modelOpen, plusOpen, thinkingOpen, contextOpen]);
 
   // Focus search input when model picker opens.
   useEffect(() => {
@@ -251,6 +269,8 @@ export function Composer({
   const thinkingLabel =
     thinking === "off" ? "Off" : thinking.charAt(0).toUpperCase() + thinking.slice(1);
   const modelLabel = selectedModel || lockedAgent?.model || "auto";
+  const selectedModelInfo = allModels.find((model) => model.id === selectedModel);
+  const selectedProvider = selectedModelInfo?.provider ?? lockedAgent?.provider ?? "auto";
 
   const sendArgs = (): [string | undefined, string | undefined, string | undefined] => [
     selectedModel || undefined,
@@ -276,7 +296,7 @@ export function Composer({
         <div className="comp-bar">
           {/* LEFT: + menu + model/provider selector */}
           <div className="comp-l">
-            <div className="selwrap" ref={plusRef} style={{ position: "relative" }}>
+            <div className="selwrap" ref={plusRef}>
               <Button
                 type="button"
                 className="plusbtn"
@@ -287,7 +307,7 @@ export function Composer({
                 <Icon name="plus" size={16} />
               </Button>
               {plusOpen && (
-                <div className="menu pluspop" style={{ display: "flex" }}>
+                <div className="menu pluspop">
                   <Button type="button" className="mi" onClick={() => setPlusOpen(false)}>
                     <Icon name="paperclip" size={13} />
                     <span>Attach file</span>
@@ -308,17 +328,17 @@ export function Composer({
           {/* RIGHT: model + thinking + context + send/stop */}
           <div className="comp-r">
             {/* Model/provider selector */}
-            <div className="selwrap" ref={modelRef} style={{ position: "relative" }}>
+            <div className="selwrap" ref={modelRef}>
               <Button
                 type="button"
-                className="modelpill"
+                className="modelpill composer-model-trigger"
                 title="Select model"
                 aria-label="Model"
                 aria-haspopup="menu"
                 aria-expanded={modelOpen}
                 onClick={() => setModelOpen((v) => !v)}
               >
-                <span className="nm">{modelLabel}</span>
+                <span className="model-identity"><span className="model-provider">{providerLabel(selectedProvider)}</span><span className="nm">{modelLabel}</span></span>
                 {providerCount > 0 && (
                   <span className="pcount" title={`${providerCount} provider${providerCount > 1 ? "s" : ""}`}>
                     {providerCount}
@@ -328,7 +348,7 @@ export function Composer({
               </Button>
 
               {modelOpen && (
-                <div className="menu selpop model-picker" style={{ display: "flex" }} onKeyDown={onModelMenuKeyDown}>
+                <div className="menu selpop model-picker" onKeyDown={onModelMenuKeyDown}>
                   {/* Search */}
                   <div className="mp-search">
                     <input
@@ -344,7 +364,7 @@ export function Composer({
                   {/* Model list grouped by provider */}
                   <div className="mp-list">
                     {flatFiltered.length === 0 && (
-                      <div className="gk" style={{ padding: "8px", textAlign: "center" }}>
+                      <div className="model-empty">
                         No models found
                       </div>
                     )}
@@ -381,52 +401,67 @@ export function Composer({
               )}
             </div>
 
-            {/* Thinking + context combo dropdown */}
-            <div className="selwrap" ref={thinkRef} style={{ position: "relative" }}>
+            {/* Independent thinking and context pickers. */}
+            <div className="selwrap" ref={thinkRef}>
               <Button
                 type="button"
-                className="modelpill"
-                title="Thinking level & context"
-                aria-label="Thinking and context"
+                className="composer-control"
+                title="Thinking level"
+                aria-label="Thinking level"
                 aria-haspopup="menu"
                 aria-expanded={thinkingOpen}
                 onClick={() => setThinkingOpen((v) => !v)}
               >
-                {thinking !== "off" && <span className="nm">{thinkingLabel}</span>}
-                <span className="nm">{CONTEXT_LABELS[contextPreset]}</span>
-                <Icon name="chevron-down" size={10} />
+                <Icon name="brain" size={14} />
+                <span>{thinkingLabel}</span>
               </Button>
 
               {thinkingOpen && (
-                <div className="menu selpop" style={{ display: "flex" }}>
-                  <div className="gk" style={{ padding: "5px 8px 2px" }}>thinking</div>
+                <div className="menu selpop option-picker" role="menu" aria-label="Thinking levels">
+                  <div className="picker-heading">Thinking level</div>
                   {(["off", "low", "medium", "high"] as ThinkingLevel[]).map((lvl) => (
                     <Button
                       key={lvl}
                       type="button"
-                      className={`mi${thinking === lvl ? " on" : ""}`}
-                      onClick={() => {
-                        setThink(lvl);
-                      }}
+                      role="menuitemradio"
+                      aria-checked={thinking === lvl}
+                      className={`mi option-row${thinking === lvl ? " on" : ""}`}
+                      onClick={() => { setThink(lvl); setThinkingOpen(false); }}
                     >
-                      <span>{lvl === "off" ? "Off" : lvl.charAt(0).toUpperCase() + lvl.slice(1)}</span>
+                      <span className="option-copy"><strong>{lvl === "off" ? "Off" : lvl.charAt(0).toUpperCase() + lvl.slice(1)}</strong><small>{THINKING_DESCRIPTIONS[lvl]}</small></span>
                       {thinking === lvl && <span className="mk2">✓</span>}
                     </Button>
                   ))}
+                </div>
+              )}
+            </div>
 
-                  <div className="cp-div" />
-
-                  <div className="gk" style={{ padding: "5px 8px 2px" }}>context</div>
+            <div className="selwrap" ref={contextRef}>
+              <Button
+                type="button"
+                className="composer-control"
+                title="Context window"
+                aria-label="Context window"
+                aria-haspopup="menu"
+                aria-expanded={contextOpen}
+                onClick={() => setContextOpen((v) => !v)}
+              >
+                <Icon name="list" size={14} />
+                <span>{CONTEXT_LABELS[contextPreset]}</span>
+              </Button>
+              {contextOpen && (
+                <div className="menu selpop option-picker" role="menu" aria-label="Context presets">
+                  <div className="picker-heading">Context window</div>
                   {(["default", "256k", "1m"] as ContextPreset[]).map((preset) => (
                     <Button
                       key={preset}
                       type="button"
-                      className={`mi${contextPreset === preset ? " on" : ""}`}
-                      onClick={() => {
-                        setCtx(preset);
-                      }}
+                      role="menuitemradio"
+                      aria-checked={contextPreset === preset}
+                      className={`mi option-row${contextPreset === preset ? " on" : ""}`}
+                      onClick={() => { setCtx(preset); setContextOpen(false); }}
                     >
-                      <span>{CONTEXT_LABELS[preset]}</span>
+                      <span className="option-copy"><strong>{CONTEXT_LABELS[preset]}</strong><small>{CONTEXT_DESCRIPTIONS[preset]}</small></span>
                       {contextPreset === preset && <span className="mk2">✓</span>}
                     </Button>
                   ))}

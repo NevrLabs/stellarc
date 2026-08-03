@@ -1636,3 +1636,79 @@ div[data-view="sessions"].view.on { display: flex; flex: 1; min-height: 0; }
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--faint); opacity: 0.4;
 }
+
+/* ── Sessions composer: assistant-ui-inspired surface ─────────── */
+.composer { padding-bottom: var(--space-4); }
+.composer .comp-box {
+  padding: 14px 14px 10px;
+  gap: 14px;
+  background: color-mix(in srgb, var(--elev) 96%, var(--text) 4%);
+  border-color: color-mix(in srgb, var(--border-strong) 82%, transparent);
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 10px 30px rgb(0 0 0 / 10%);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.composer .comp-box:focus-within {
+  border-color: color-mix(in srgb, var(--silver) 45%, var(--border-strong));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 12px 36px rgb(0 0 0 / 13%), 0 0 0 3px color-mix(in srgb, var(--silver) 10%, transparent);
+}
+.composer .comp-box textarea { min-height: 64px; padding: 2px 4px; font-size: var(--fs-14); line-height: 1.55; }
+.composer .comp-bar { gap: var(--space-3); }
+.composer .comp-r { min-width: 0; gap: 4px; }
+.composer .selwrap { position: relative; }
+.composer .plusbtn, .composer .composer-control, .composer .send { min-width: 36px; height: 36px; border-radius: 10px; }
+.composer .plusbtn { width: 36px; color: var(--dim); }
+.composer .composer-control {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 44px; padding: 0 9px; background: transparent; color: var(--dim);
+  border: 1px solid transparent; font-family: var(--font-sans); font-size: var(--fs-11-5); font-weight: var(--fw-medium);
+}
+.composer .modelpill.composer-model-trigger {
+  height: 36px; max-width: 230px; gap: 8px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid transparent; color: var(--text);
+}
+.composer .model-identity { display: flex; min-width: 0; align-items: baseline; gap: 6px; }
+.composer .model-provider { flex-shrink: 0; font-size: var(--fs-10); color: var(--faint); }
+.composer .composer-model-trigger .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-sans); font-size: var(--fs-11-5); color: var(--text); }
+.composer .pcount { display: none; }
+.composer .composer-control:hover, .composer .composer-model-trigger:hover, .composer .plusbtn:hover { background: var(--hover); color: var(--text); }
+.composer .composer-control:active, .composer .composer-model-trigger:active, .composer .plusbtn:active, .composer .send:active { transform: scale(.97); }
+.composer .composer-control:focus-visible, .composer .composer-model-trigger:focus-visible, .composer .plusbtn:focus-visible, .composer .send:focus-visible { outline: 2px solid var(--silver); outline-offset: 2px; }
+.composer .send { width: 36px; border-radius: 50%; }
+.composer .menu { display: flex; bottom: calc(100% + 9px); padding: 6px; border-radius: 14px; background: var(--chrome); box-shadow: 0 14px 40px rgb(0 0 0 / 22%); transform-origin: bottom right; animation: composer-pop-in 150ms cubic-bezier(.23,1,.32,1); }
+.composer .pluspop { transform-origin: bottom left; }
+.composer .selpop { width: 300px; }
+.composer .picker-heading { padding: 7px 9px 6px; color: var(--faint); font-size: var(--fs-10); font-weight: var(--fw-semibold); letter-spacing: .06em; text-transform: uppercase; }
+.composer .option-row { min-height: 54px; align-items: center; padding: 8px 10px; }
+.composer .option-row.on { background: var(--hover); }
+.composer .option-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.composer .option-copy strong { color: var(--text); font-size: var(--fs-12); font-weight: var(--fw-medium); }
+.composer .option-copy small { color: var(--faint); font-size: var(--fs-10-5); line-height: 1.35; }
+.composer .option-row .mk2 { visibility: visible; font-family: var(--font-sans); font-size: var(--fs-12); }
+.composer .model-picker { width: min(380px, calc(100vw - 32px)); padding: 0; overflow: hidden; }
+.composer .mp-search { padding: 10px; border-bottom: 1px solid var(--border); }
+.composer .mp-search input { width: 100%; height: 36px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); outline: none; font: inherit; }
+.composer .mp-search input:focus { border-color: var(--silver); box-shadow: 0 0 0 3px color-mix(in srgb, var(--silver) 12%, transparent); }
+.composer .mp-list { max-height: 320px; overflow-y: auto; padding: 5px; }
+.composer .mp-gk { padding: 9px 9px 5px; color: var(--faint); font-size: var(--fs-10); font-weight: var(--fw-semibold); letter-spacing: .06em; text-transform: uppercase; }
+.composer .mp-item { min-height: 38px; padding: 8px 10px; }
+.composer .mp-item.active, .mp-item.on { background: var(--hover); }
+.composer .model-empty { padding: 24px 12px; text-align: center; color: var(--faint); font-size: var(--fs-12); }
+.composer .comp-meta { padding-top: 7px; padding-left: 6px; font-family: var(--font-sans); font-size: var(--fs-10); }
+@keyframes composer-pop-in { from { opacity: 0; transform: translateY(4px) scale(.97); } }
+@media (max-width: 640px) {
+  .composer { padding: 8px 10px 10px; }
+  .composer .comp-box { padding: 12px 10px 9px; border-radius: 16px; }
+  .composer .comp-box textarea { min-height: 72px; }
+  .composer .comp-r { gap: 1px; }
+  .composer .composer-model-trigger { max-width: 122px !important; padding-inline: 8px !important; }
+  .composer .model-provider, .composer .composer-control svg { display: none; }
+  .composer .composer-control { min-width: 36px; padding-inline: 7px; }
+  .composer .selpop { position: fixed; right: 10px; bottom: 68px; left: 10px; width: auto; max-height: min(420px, 60vh); transform-origin: bottom center; }
+  .composer .model-picker { width: auto; }
+  .composer .comp-meta { overflow: hidden; white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer .menu { animation: none; }
+  .composer .comp-box, .composer .composer-control, .composer .composer-model-trigger, .composer .plusbtn, .composer .send { transition-duration: 0ms; }
+}
