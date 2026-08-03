@@ -40,7 +40,7 @@ pub struct RuntimeEntry {
 
 /// The result of forking a source agent session into a fresh runtime: the
 /// started runtime and the agent session id it captured.
-
+///
 /// Active agent runtimes keyed by Stellarc session id, plus the factory that
 /// spawns them (ensure/send/stop per-session mechanics).
 pub struct RuntimeTable {
