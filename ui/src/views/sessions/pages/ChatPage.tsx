@@ -19,7 +19,13 @@ import { Button } from "@/components/ui/button";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  AssistantRuntimeProvider,
+  MessagePrimitive,
+  ThreadPrimitive,
+  useAuiState,
+  useExternalStoreRuntime,
+} from "@assistant-ui/react";
 
 import { Icon } from "../../../components/Icon";
 import { useSession, useMessages, qk } from "../../../hooks/queries";
@@ -40,6 +46,7 @@ import { isDiffResult } from "../helpers";
 import { Composer } from "../components/Composer";
 import { QueuePanel, type QueuedMsg } from "../components/QueuePanel";
 import { DraftSession } from "../components/DraftSession";
+import { buildRuntimeMessages, toAssistantMessage, type StellarcRuntimeMessage } from "../assistantRuntime";
 
 type AgentStatus = "idle" | "thinking" | "streaming" | "done";
 
@@ -261,19 +268,6 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [serverMessages, optimisticMsg, hasServerEcho],
   );
-
-  // ── Virtualized message list ──────────────────────────────────────
-  // Uses @tanstack/react-virtual for windowing. Each message is measured
-  // dynamically (no fixed height assumption) so streaming markdown, code
-  // blocks, tool cards, etc. all size correctly. Below a threshold the
-  // overhead isn't worth it — but the virtualizer handles small lists fine.
-  const innerRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
-    count: messages.length,
-    getScrollElement: () => transcriptRef.current,
-    estimateSize: () => 200,
-    overscan: 8,
-  });
 
   // Clear the optimistic copy as soon as the server echo lands.
   useEffect(() => {
@@ -697,22 +691,46 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
     [sessionId],
   );
 
+  const runtimeMessages = useMemo(
+    () => buildRuntimeMessages(messages, sessionId, streamParts),
+    [messages, sessionId, streamParts],
+  );
+  const runtime = useExternalStoreRuntime<StellarcRuntimeMessage>({
+    messages: runtimeMessages,
+    isRunning: sending,
+    convertMessage: toAssistantMessage,
+    // Stellarc's controlled composer owns sends; this only satisfies the read-mostly runtime contract.
+    onNew: async () => {},
+    onCancel: handleStop,
+  });
+
+  const RuntimeMessage = () => {
+    const original = useAuiState((s) =>
+      s.message.metadata.custom?.stellarcMessage as StellarcRuntimeMessage | undefined,
+    );
+    return original ? (
+      <MessagePrimitive.Root asChild>
+        <div>
+          <MessageBubble msg={original} steerPending={pendingSteers.has(original.messageId)} />
+        </div>
+      </MessagePrimitive.Root>
+    ) : null;
+  };
 
   return (
     <>
       {/* Transcript — Page content only (no chatcol wrapper; the View provides it) */}
-      <div className="transcript transcript-smart" ref={transcriptRef}>
-          {!isAtBottom && (
-            <button
-              className="scroll-bottom-btn"
-              onClick={scrollToBottom}
-              aria-label="Scroll to latest"
-              title="Jump to latest"
-            >
-              <Icon name="arrow-down" size={16} />
-              {streamParts.length > 0 && <span className="sb-pulse" />}
-            </button>
-          )}
+      <AssistantRuntimeProvider runtime={runtime}>
+        <ThreadPrimitive.Root asChild>
+          <ThreadPrimitive.Viewport className="transcript transcript-smart" ref={transcriptRef}>
+          <ThreadPrimitive.ScrollToBottom
+            className="scroll-bottom-btn"
+            aria-label="Scroll to latest"
+            title="Jump to latest"
+          >
+            <Icon name="arrow-down" size={16} />
+            {streamParts.length > 0 && <span className="sb-pulse" />}
+          </ThreadPrimitive.ScrollToBottom>
           <div className="tcol">
             {isLoading && (
               <div className="msg-empty">Loading messages…</div>
@@ -722,72 +740,7 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
                 No messages yet. Send a message below.
               </div>
             )}
-            {/* Virtualized message list — only visible + overscan rows are in
-                the DOM. Streaming/thinking indicators render after, outside
-                the virtualizer (always visible at the bottom). */}
-            {messages.length > 0 && (
-              <div
-                ref={innerRef}
-                style={{
-                  height: `${virtualizer.getTotalSize()}px`,
-                  width: "100%",
-                  position: "relative",
-                }}
-              >
-                {virtualizer.getVirtualItems().map((virtualItem) => {
-                  const m = messages[virtualItem.index];
-                  return (
-                    <div
-                      key={`${sessionId}-${m.messageId}`}
-                      className="vrow"
-                      data-index={virtualItem.index}
-                      ref={virtualizer.measureElement}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        transform: `translateY(${virtualItem.start}px)`,
-                      }}
-                    >
-                      <MessageBubble
-                        msg={m}
-                        steerPending={pendingSteers.has(m.messageId)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {/* Streaming assistant reply — interleaved text, tool calls, reasoning */}
-            {streamParts.length > 0 && (
-              <div className="msg-ai">
-                {streamParts.map((part, i) => {
-                  if (part.type === "toolCall") {
-                    return isDiffResult(part.toolCall) ? (
-                      <DiffCard key={`tc-${i}`} tc={part.toolCall} />
-                    ) : (
-                      <ToolCard key={`tc-${i}`} tc={part.toolCall} idx={i} expanded={false} onToggle={() => {}} />
-                    );
-                  }
-                  if (part.type === "reasoning") {
-                    return (
-                      <div key={`r-${i}`} className="reasoning-block stream-reasoning">
-                        <span className="reasoning-toggle gk" style={{ fontSize: 10 }}>
-                          thinking
-                        </span>
-                        <div className="reasoning-body">{part.text}</div>
-                      </div>
-                    );
-                  }
-                  return (
-                    <MarkdownText key={`t-${i}`} isStreaming={agentStatus === "streaming"}>
-                      {part.text}
-                    </MarkdownText>
-                  );
-                })}
-              </div>
-            )}
+            <ThreadPrimitive.Messages components={{ Message: RuntimeMessage }} />
             {/* Thinking indicator — agent is working, no text streamed yet.
                 Rotating hints/tips in place of a static "thinking…" label. */}
             {showThinking && (
@@ -841,7 +794,9 @@ function ActiveChatPage({ sessionId }: { sessionId: string }) {
               </div>
             )}
           </div>
-        </div>
+        </ThreadPrimitive.Viewport>
+        </ThreadPrimitive.Root>
+      </AssistantRuntimeProvider>
       {isObserved ? (
         <div className="composer">
           <div className="obsbanner">
