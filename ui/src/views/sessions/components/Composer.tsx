@@ -113,9 +113,15 @@ export function Composer({
 
   // Models: prefer agent-scoped, fall back to global catalog.
   const { data: globalModels } = useModels();
+  const catalogModels = globalModels?.models ?? [];
   const allModels: ModelInfo[] = lockedAgent?.models?.length
-    ? lockedAgent.models
-    : (globalModels?.models ?? []);
+    ? lockedAgent.models.map((model) => ({
+        ...catalogModels.find(
+          (candidate) => candidate.provider === model.provider && candidate.id === model.id,
+        ),
+        ...model,
+      }))
+    : catalogModels;
 
   // Group models by provider for the picker.
   const providers = useMemo(() => {

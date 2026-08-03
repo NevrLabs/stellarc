@@ -99,7 +99,7 @@ describe("Composer model selector", () => {
     renderComposer({ sessionNode: "remote" });
     fireEvent.click(modelTrigger());
     expect(screen.getByText("remote-provider")).toBeInTheDocument();
-    expect(screen.getByText("remote-model")).toBeInTheDocument();
+    expect(screen.getByText("Remote Model")).toBeInTheDocument();
     expect(screen.queryByText("zai")).not.toBeInTheDocument();
   });
 
