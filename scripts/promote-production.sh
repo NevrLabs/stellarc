@@ -5,6 +5,7 @@ repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 exec 9>/tmp/stellarc-production-promotion.lock
 flock -n 9 || { echo "another Stellarc promotion is running" >&2; exit 1; }
+trap 'sccache --stop-server >/dev/null 2>&1 || true' EXIT
 
 fail() { echo "promotion refused: $*" >&2; exit 1; }
 [[ $(hostname) == fxcompute-01 ]] || fail "run this on fxcompute-01"
