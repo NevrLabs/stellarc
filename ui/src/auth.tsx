@@ -1,6 +1,10 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { closeWs, setApiOrganization } from "./api";
+import { setApiOrganization } from "./api";
+import { closeAxisEvents } from "./axis-events";
+import { axisHttp } from "./axis-http";
 
 // Production identity requests are permanently bound to the Axis origin that
 // served the UI. A separate API base exists only for Vite development.
@@ -30,7 +34,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function axisFetch(path: string, init?: RequestInit): Promise<Response> {
-  return window.fetch(`${BASE}${path}`, { ...init, credentials: "include" });
+  return axisHttp.fetch(`${BASE}${path}`, init);
 }
 
 export function useAxisAuth(): AuthContextValue {
@@ -93,7 +97,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   async function logout(): Promise<void> {
     await axisFetch("/api/auth/logout", { method: "POST" });
-    closeWs();
+    closeAxisEvents();
     setApiOrganization(null);
     queryClient.clear();
     setUser(null);
@@ -220,26 +224,26 @@ function RegisterPanel({ error, onRegister }: {
     }}>
       <label className="auth-field">
         <span className="ol-field-label">Username</span>
-        <input className="ol-input" autoFocus autoComplete="username" required
+        <Input className="ol-input" autoFocus autoComplete="username" required
           aria-invalid={shown ? true : undefined} aria-describedby={shown ? errorId : undefined}
           value={username} onChange={(event) => setUsername(event.target.value)} />
       </label>
       <label className="auth-field">
         <span className="ol-field-label">Password</span>
-        <input className="ol-input" type="password" autoComplete="new-password" required minLength={8}
+        <Input className="ol-input" type="password" autoComplete="new-password" required minLength={8}
           aria-invalid={shown ? true : undefined} aria-describedby={shown ? errorId : undefined}
           value={password} onChange={(event) => setPassword(event.target.value)} />
       </label>
       <label className="auth-field">
         <span className="ol-field-label">Confirm password</span>
-        <input className="ol-input" type="password" autoComplete="new-password" required minLength={8}
+        <Input className="ol-input" type="password" autoComplete="new-password" required minLength={8}
           aria-invalid={shown ? true : undefined} aria-describedby={shown ? errorId : undefined}
           value={confirm} onChange={(event) => setConfirm(event.target.value)} />
       </label>
       {shown && <p className="auth-error" role="alert" id={errorId}>{shown}</p>}
-      <button type="submit" className="ol-btn ol-btn-primary ol-btn-block auth-submit" disabled={submitting}>
+      <Button type="submit" className="ol-btn ol-btn-primary ol-btn-block auth-submit" disabled={submitting}>
         {submitting ? "Creating account…" : "Create account"}
-      </button>
+      </Button>
     </form>
   </AuthShell>;
 }
@@ -257,20 +261,20 @@ function LoginPanel({ error, onLogin }: { error: string; onLogin(username: strin
     }}>
       <label className="auth-field">
         <span className="ol-field-label">Username</span>
-        <input className="ol-input" autoFocus autoComplete="username" required
+        <Input className="ol-input" autoFocus autoComplete="username" required
           aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
           value={username} onChange={(event) => setUsername(event.target.value)} />
       </label>
       <label className="auth-field">
         <span className="ol-field-label">Password</span>
-        <input className="ol-input" type="password" autoComplete="current-password" required
+        <Input className="ol-input" type="password" autoComplete="current-password" required
           aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
           value={password} onChange={(event) => setPassword(event.target.value)} />
       </label>
       {error && <p className="auth-error" role="alert" id={errorId}>{error}</p>}
-      <button type="submit" className="ol-btn ol-btn-primary ol-btn-block auth-submit" disabled={submitting}>
+      <Button type="submit" className="ol-btn ol-btn-primary ol-btn-block auth-submit" disabled={submitting}>
         {submitting ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   </AuthShell>;
 }

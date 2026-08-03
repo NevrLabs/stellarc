@@ -83,6 +83,21 @@ export const NODES: NodeInfo[] = [
     transport: "iroh",
     irohNodeId: "93141ef93390a387aec148672f7ae44a9ee4c02a0f23f82c0bb80fcc2e499321",
   },
+  {
+    // Evicted Orbit that never reported a hostname: its nodeId IS its raw iroh
+    // key. Proves the Fleet handles a long id without overflowing at 1280px and
+    // that role/name shortening reads off live topology, not a curated label.
+    nodeId: "f79c02440bdf488b08b91e52796db23218109ba5f73954ec192d96be791fb021",
+    hostname: "f79c02440bdf488b08b91e52796db23218109ba5f73954ec192d96be791fb021",
+    status: "offline",
+    slotsUsed: 0,
+    slotsTotal: 0,
+    version: "",
+    local: false,
+    lastHeartbeatAgoSecs: 9717,
+    transport: "iroh",
+    irohNodeId: "f79c02440bdf488b08b91e52796db23218109ba5f73954ec192d96be791fb021",
+  },
 ];
 
 const TITLES = [
@@ -343,7 +358,7 @@ export const SESSIONS: Session[] = Array.from({ length: 32 }, (_, i) => {
 
 // ── Projects (ADR 0028 — context-project mock data) ────
 export const PROJECTS = [
-  { id: "proj-alpha", name: "Alpha Engine", vaults: [], repos: [], boards: [], layout: null, createdAt: 1 },
+  { id: "proj-alpha", name: "Alpha Engine", vaults: ["engineering"], repos: ["olympus"], boards: [], layout: null, createdAt: 1 },
   { id: "proj-beta", name: "Beta Board", vaults: [], repos: [], boards: [], layout: null, createdAt: 2 },
   { id: "proj-gamma", name: "Gamma Gateway", vaults: [], repos: [], boards: [], layout: null, createdAt: 3 },
 ];
@@ -351,11 +366,14 @@ export const PROJECTS = [
 // ── Models ─────────────────────────────────────────────
 
 export const MODELS_LIST: ModelInfo[] = [
-  { id: "claude-opus-4-8", provider: "anthropic" },
-  { id: "claude-sonnet-4-6", provider: "anthropic" },
-  { id: "gpt-5.4", provider: "openai-codex" },
-  { id: "gpt-5.5", provider: "openai-codex" },
-  { id: "glm-5.2", provider: "zai" },
+  { id: "claude-opus-4-8", provider: "anthropic", displayName: "Claude Opus 4.8" },
+  { id: "claude-sonnet-4-6", provider: "anthropic", displayName: "Claude Sonnet 4.6" },
+  { id: "claude-fable-5", provider: "anthropic", displayName: "Claude Fable 5" },
+  { id: "gpt-5.4", provider: "openai-codex", displayName: "GPT 5.4" },
+  { id: "gpt-5.5", provider: "openai-codex", displayName: "GPT 5.5" },
+  { id: "gpt-5.5-codex", provider: "openai-codex", displayName: "GPT 5.5 Codex" },
+  { id: "glm-5.2", provider: "zai", displayName: "GLM 5.2" },
+  { id: "cc/claude-opus-5", provider: "9router", displayName: "Claude Opus 5" },
 ];
 
 export const AGENTS_LIST: AgentInfo[] = [

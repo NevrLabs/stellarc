@@ -16,8 +16,8 @@ use super::{AgentCommand, AgentEvent, AgentRuntime};
 use crate::adapter::AgentKind;
 
 pub use super::client::{
-    build_initialize_request, build_session_fork_request, build_session_new_request,
-    build_session_resume_request, parse_resumable_capability,
+    build_initialize_request, build_session_new_request, build_session_resume_request,
+    parse_resumable_capability,
 };
 pub use stellarc_proto::{AcpFraming, ModelSetStyle};
 
@@ -293,32 +293,6 @@ impl AgentRuntime for HermesAgentRuntime {
             "ACP startup timed out after 2 attempts with fresh processes\n{}",
             failures.join("\n")
         )
-    }
-
-    async fn fork_session(&self, session_id: &str) -> Result<()> {
-        let handshake = async {
-            let client = self.spawn_client().await?;
-            client.initialize().await?;
-            client
-                .session_fork(session_id, &self.config.cwd, &self.config.mcp_servers)
-                .await
-        };
-        match tokio::time::timeout(
-            Duration::from_secs(self.config.start_timeout_secs),
-            handshake,
-        )
-        .await
-        {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err(error)) => Err(self.fail_start(error).await),
-            Err(_) => {
-                let error = anyhow::anyhow!(
-                    "timed out after {}s waiting for ACP initialize/session/fork response",
-                    self.config.start_timeout_secs
-                );
-                Err(self.fail_start(error).await)
-            }
-        }
     }
 
     async fn send(&self, command: AgentCommand) -> Result<()> {

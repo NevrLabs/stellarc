@@ -721,12 +721,6 @@ impl AgentRuntime for RemoteRuntime {
         Ok(())
     }
 
-    async fn fork_session(&self, _session_id: &str) -> Result<()> {
-        // Fork over UDS is a future enhancement (S5 drain/handover). For now,
-        // remote sessions don't support fork.
-        anyhow::bail!("fork_session not supported for remote runtimes");
-    }
-
     async fn send(&self, cmd: AgentCommand) -> Result<()> {
         let frame = match cmd {
             AgentCommand::Prompt { text, model } => AxisFrame::Prompt {

@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 /**
  * QueuePanel — stacked queue cards floating above the composer (zcode-style).
  *
@@ -89,7 +91,7 @@ export function QueuePanel({
             ⋮⋮
           </span>
           {editingId === m.id ? (
-            <textarea
+            <Textarea
               className="qc-edit"
               rows={1}
               value={editText}
@@ -110,7 +112,7 @@ export function QueuePanel({
             </span>
           )}
           <div className="qc-actions">
-            <button
+            <Button
               type="button"
               className="qc-steer"
               title="Send now as a steer into the running turn"
@@ -118,8 +120,8 @@ export function QueuePanel({
             >
               <Icon name="arrow-up" size={11} />
               <span>Steer</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className="qc-btn"
               title="Edit"
@@ -127,8 +129,8 @@ export function QueuePanel({
               onClick={() => startEdit(m)}
             >
               <Icon name="pencil" size={12} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className="qc-btn"
               title="Delete"
@@ -136,7 +138,7 @@ export function QueuePanel({
               onClick={() => onDelete(m.id)}
             >
               <Icon name="trash" size={12} />
-            </button>
+            </Button>
           </div>
         </div>
       ))}

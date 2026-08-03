@@ -54,6 +54,8 @@ fn test_state() -> (AppState, tempfile::TempDir) {
         token: Arc::new("testtoken".to_string()),
         capability_signer: Arc::new(crate::server::capability::CapabilitySigner::for_tests()),
         auth_store: Arc::new(crate::auth_store::AuthStore::open_in_memory().unwrap()),
+        auth_mode: crate::auth_mode::AuthMode::Authenticated,
+        auth_sidecar_socket: None,
         allow_installation_token: true,
         session_cookie_secure: true,
         import_state: ImportState::done(),
@@ -1194,6 +1196,8 @@ async fn sort_by_message_count_orders_descending() {
         token: Arc::new("testtoken".to_string()),
         capability_signer: Arc::new(crate::server::capability::CapabilitySigner::for_tests()),
         auth_store: Arc::new(crate::auth_store::AuthStore::open_in_memory().unwrap()),
+        auth_mode: crate::auth_mode::AuthMode::Authenticated,
+        auth_sidecar_socket: None,
         allow_installation_token: true,
         session_cookie_secure: true,
         import_state: ImportState::done(),
@@ -1430,91 +1434,6 @@ async fn post_message_to_unknown_session_is_404() {
 }
 
 #[tokio::test]
-async fn post_fork_observed_session_returns_managed_fork_and_leaves_source() {
-    let (mut state, _d) = test_state();
-    state.bridge = Arc::new(BridgeManager::with_factory(
-        state.log.clone(),
-        test_support::mock_factory(),
-    ));
-    for event in [
-        Event::ProjectCreated {
-            project_id: "primary".into(),
-            name: "Primary".into(),
-            created_at: 102.0,
-        },
-        Event::ProjectCreated {
-            project_id: "context".into(),
-            name: "Context".into(),
-            created_at: 103.0,
-        },
-        Event::SessionProjectAttached {
-            session_id: "s1".into(),
-            project_id: "primary".into(),
-            attached_at: 104.0,
-        },
-        Event::SessionContextProjectAttached {
-            session_id: "s1".into(),
-            project_id: "context".into(),
-            mode: "read".into(),
-            attached_by: "operator".into(),
-            attached_at: 105.0,
-        },
-    ] {
-        state.log.append(&event).unwrap();
-        state.views.write().await.apply(&event);
-    }
-    let app = build_router(state.clone());
-
-    let source_before = {
-        let views = state.views.read().await;
-        SessionDto::from_row(views.sessions.get("s1").unwrap())
-    };
-
-    let res = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/api/sessions/s1/fork")
-                .header("authorization", "Bearer testtoken")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"forkType":"sub"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-
-    assert_eq!(v["session"]["source"], "stellarc");
-    assert_eq!(v["session"]["managed"], true);
-    assert_eq!(v["session"]["forkedFrom"], "s1");
-    assert_eq!(v["session"]["forkType"], "sub");
-    assert_eq!(v["session"]["projectId"], "primary");
-    assert_eq!(v["session"]["contextProjects"], serde_json::json!([]));
-    let child_id = v["session"]["id"].as_str().unwrap();
-    assert_ne!(child_id, "s1");
-    let child = state
-        .views
-        .read()
-        .await
-        .sessions
-        .get(child_id)
-        .cloned()
-        .unwrap();
-    assert_eq!(child.project_id.as_deref(), Some("primary"));
-    assert!(child.context_projects.is_empty());
-
-    let source_after = {
-        let views = state.views.read().await;
-        SessionDto::from_row(views.sessions.get("s1").unwrap())
-    };
-    assert_eq!(source_after, source_before);
-}
-
-#[tokio::test]
 async fn search_finds_indexed_message() {
     let (state, _d) = test_state();
     let app = build_router(state);
@@ -1640,6 +1559,25 @@ async fn post_sessions_with_agent_binds_it_at_creation() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["agent"], "coding-agent");
     assert_eq!(v["node"], "local");
+}
+
+#[tokio::test]
+async fn post_sessions_rejects_unadvertised_agent_without_node() {
+    let (state, _d) = test_state();
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/sessions")
+                .header("authorization", "Bearer testtoken")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"agent":"nonexistent"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CONFLICT);
 }
 
 #[tokio::test]
@@ -2687,7 +2625,6 @@ async fn route_contract_all_expected_routes_exist() {
         ("GET", "/api/sessions/s1", &[200]),
         ("GET", "/api/sessions/nonexistent", &[404]),
         ("PATCH", "/api/sessions/s1", &[200]),
-        ("POST", "/api/sessions/s1/fork", &[200, 409]),
         ("POST", "/api/sessions/s1/cancel", &[200, 409]),
         ("GET", "/api/sessions/s1/messages", &[200]),
         ("GET", "/api/search", &[200]),
@@ -3170,4 +3107,89 @@ id = "store.x"
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["error"], "unsupported_yet");
+}
+
+#[test]
+fn auth_mode_requires_an_explicit_first_run_choice() {
+    use crate::auth_mode::{AuthMode, AuthModeStore};
+    let dir = tempfile::tempdir().unwrap();
+    let store = AuthModeStore::new(dir.path().join("auth-mode"));
+    assert_eq!(store.load().unwrap(), AuthMode::Unconfigured);
+    assert_eq!(
+        store.choose(AuthMode::SingleUser).unwrap(),
+        AuthMode::SingleUser
+    );
+    assert_eq!(store.load().unwrap(), AuthMode::SingleUser);
+    assert!(store.choose(AuthMode::Authenticated).is_err());
+}
+
+#[test]
+fn auth_mode_fails_closed_on_unknown_value() {
+    use crate::auth_mode::AuthModeStore;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("auth-mode");
+    std::fs::write(
+        &path,
+        "disabled
+",
+    )
+    .unwrap();
+    assert!(AuthModeStore::new(path).load().is_err());
+}
+
+#[tokio::test]
+async fn unconfigured_auth_mode_blocks_protected_routes() {
+    let (mut state, _d) = test_state();
+    state.auth_mode = crate::auth_mode::AuthMode::Unconfigured;
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/sessions")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn single_user_auth_mode_exposes_local_owner_without_login() {
+    let (mut state, _d) = test_state();
+    state.auth_mode = crate::auth_mode::AuthMode::SingleUser;
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/auth/session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(value["user"]["username"], "local-owner");
+}
+
+#[tokio::test]
+async fn single_user_mode_preserves_installation_token_operator() {
+    let (mut state, _d) = test_state();
+    state.auth_mode = crate::auth_mode::AuthMode::SingleUser;
+    let app = build_router(state);
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/sessions")
+                .header("authorization", "Bearer testtoken")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 }

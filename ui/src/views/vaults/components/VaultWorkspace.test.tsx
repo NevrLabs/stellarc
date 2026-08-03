@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { VaultWorkspace } from "./VaultWorkspace";
@@ -75,7 +77,7 @@ vi.mock("dockview-react", () => ({
 vi.mock("../pages/GraphPage", () => ({ GraphPage: () => <div>Graph</div> }));
 vi.mock("../pages/NotePage", () => ({
   NotePage: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
-    <button type="button" onClick={() => onDirtyChange(true)}>Dirty note</button>
+    <Button type="button" onClick={() => onDirtyChange(true)}>Dirty note</Button>
   ),
 }));
 vi.mock("../pages/VaultTablePage", () => ({ VaultTablePage: () => <div>Table</div> }));
@@ -120,3 +122,9 @@ describe("VaultWorkspace", () => {
     expect(panels).toHaveLength(1);
   });
 });
+
+
+describe("restored panel callbacks",()=>{it("guards callbacks until Dockview rehydrates parameters",()=>{const source=readFileSync(new URL("src/views/vaults/components/VaultWorkspace.tsx",`file://${process.cwd()}/`),"utf8");expect(source).toContain("onDirtyChange?.(tab.id, dirty)");});});
+
+
+describe("restored panel callbacks",()=>{it("guards callbacks until Dockview rehydrates parameters",()=>{const source=readFileSync(new URL("src/views/vaults/components/VaultWorkspace.tsx",`file://${process.cwd()}/`),"utf8");expect(source).toContain("onDirtyChange?.(tab.id, dirty)");});});

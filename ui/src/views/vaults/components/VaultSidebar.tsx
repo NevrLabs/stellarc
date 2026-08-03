@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Icon } from "../../../components/Icon";
 import type { NoteTreeEntry, VaultSummary } from "../../../types";
@@ -78,47 +79,47 @@ export function VaultSidebar({
     <aside className="sidebar on vault-sidebar" ref={rootRef}>
       <div className="vault-sidebar-body">
         <div className="vault-selector-wrap">
-          <button type="button" className="vault-selector" aria-haspopup="menu" aria-expanded={vaultOpen} onClick={() => setVaultOpen((value) => !value)}>
+          <Button type="button" className="vault-selector" aria-haspopup="menu" aria-expanded={vaultOpen} onClick={() => setVaultOpen((value) => !value)}>
             <Icon name="book" size={15} />
             <span><small>Vault</small><strong>{activeVault?.name ?? "Select a vault"}</strong></span>
             <Icon name="chevron-down" size={12} />
-          </button>
+          </Button>
           {vaultOpen && (
             <div className="menu vault-popup" role="menu">
               {vaults.map((vault) => (
-                <button key={vault.id} type="button" className={`mi ${vault.id === activeVaultId ? "on" : ""}`} role="menuitem" onClick={() => { setVaultOpen(false); onSelectVault(vault.id); }}>
+                <Button key={vault.id} type="button" className={`mi ${vault.id === activeVaultId ? "on" : ""}`} role="menuitem" onClick={() => { setVaultOpen(false); onSelectVault(vault.id); }}>
                   <Icon name="book" size={13} /><span>{vault.name}</span><span className="vault-menu-count">{vault.noteCount}</span>
-                </button>
+                </Button>
               ))}
               <div className="vault-menu-divider" />
-              <button type="button" className="mi" role="menuitem" onClick={() => { setVaultOpen(false); onCreateVault(); }}>
+              <Button type="button" className="mi" role="menuitem" onClick={() => { setVaultOpen(false); onCreateVault(); }}>
                 <Icon name="plus" size={13} /><span>Create vault…</span>
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
         <div className="vault-create-segment">
-          <button type="button" className="vault-create-main" disabled={!activeVaultId} onClick={() => onCreateNote()}><Icon name="plus" size={14} /><span>New Note</span></button>
-          <button type="button" className="vault-create-more" aria-label="Other new item types" aria-haspopup="menu" aria-expanded={createOpen} disabled={!activeVaultId} onClick={() => setCreateOpen((value) => !value)}><Icon name="chevron-down" size={12} /></button>
+          <Button type="button" className="vault-create-main" disabled={!activeVaultId} onClick={() => onCreateNote()}><Icon name="plus" size={14} /><span>New Note</span></Button>
+          <Button type="button" className="vault-create-more" aria-label="Other new item types" aria-haspopup="menu" aria-expanded={createOpen} disabled={!activeVaultId} onClick={() => setCreateOpen((value) => !value)}><Icon name="chevron-down" size={12} /></Button>
           {createOpen && (
             <div className="menu vault-create-popup" role="menu">
-              <button type="button" className="mi" role="menuitem" onClick={() => { setCreateOpen(false); onCreateNote(); }}><Icon name="file" size={13} />Note</button>
+              <Button type="button" className="mi" role="menuitem" onClick={() => { setCreateOpen(false); onCreateNote(); }}><Icon name="file" size={13} />Note</Button>
               {[
                 ["Database", "layout-grid"],
                 ["Excalidraw", "pencil"],
                 ["draw.io", "workflow"],
                 ["Table", "list"],
               ].map(([label, icon]) => (
-                <button key={label} type="button" className="mi" role="menuitem" disabled title="Planned item type"><Icon name={icon as "layout-grid"} size={13} />{label}<span className="vault-menu-soon">soon</span></button>
+                <Button key={label} type="button" className="mi" role="menuitem" disabled title="Planned item type"><Icon name={icon as "layout-grid"} size={13} />{label}<span className="vault-menu-soon">soon</span></Button>
               ))}
             </div>
           )}
         </div>
 
         <nav className="vault-primary-nav" aria-label="Vault views">
-          <button type="button" className="navitem" onClick={onOpenGraph}><Icon name="workflow" size={14} /><span>Graph View</span></button>
-          <button type="button" className="navitem" onClick={onOpenTable}><Icon name="layout-grid" size={14} /><span>Table View</span></button>
+          <Button type="button" className="navitem" onClick={onOpenGraph}><Icon name="workflow" size={14} /><span>Graph View</span></Button>
+          <Button type="button" className="navitem" onClick={onOpenTable}><Icon name="layout-grid" size={14} /><span>Table View</span></Button>
         </nav>
 
         <div className="vault-files-head"><span>Files</span><span>{activeVault?.noteCount ?? notes.length}</span></div>
@@ -141,20 +142,20 @@ export function VaultSidebar({
       {entryMenu && (
         <div className="menu vault-context-menu" role="menu" aria-label="File actions" style={{ left: entryMenu.x, top: entryMenu.y, bottom: "auto", maxHeight: entryMenu.maxHeight, overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
           {entryMenu.entry.kind === "note" ? (
-            <button type="button" className="mi" role="menuitem" onClick={() => { onOpenNote(entryMenu.entry.path, entryMenu.entry.title); setEntryMenu(null); }}><Icon name="file" size={13} />Open</button>
+            <Button type="button" className="mi" role="menuitem" onClick={() => { onOpenNote(entryMenu.entry.path, entryMenu.entry.title); setEntryMenu(null); }}><Icon name="file" size={13} />Open</Button>
           ) : (
-            <button type="button" className="mi" role="menuitem" onClick={() => { onCreateNote(entryMenu.entry.path); setEntryMenu(null); }}><Icon name="plus" size={13} />New note here</button>
+            <Button type="button" className="mi" role="menuitem" onClick={() => { onCreateNote(entryMenu.entry.path); setEntryMenu(null); }}><Icon name="plus" size={13} />New note here</Button>
           )}
-          {entryMenu.entry.kind === "note" && <button type="button" className="mi" role="menuitem" onClick={() => { onRenameNote(entryMenu.entry); setEntryMenu(null); }}><Icon name="pencil" size={13} />Rename</button>}
-          <button type="button" className="mi" role="menuitem" onClick={() => { setDetails(entryMenu.entry); setEntryMenu(null); }}><Icon name="settings-2" size={13} />Details</button>
-          {entryMenu.entry.kind === "note" && <button type="button" className="mi danger" role="menuitem" onClick={() => { onDeleteNote(entryMenu.entry); setEntryMenu(null); }}><Icon name="trash" size={13} />Delete</button>}
+          {entryMenu.entry.kind === "note" && <Button type="button" className="mi" role="menuitem" onClick={() => { onRenameNote(entryMenu.entry); setEntryMenu(null); }}><Icon name="pencil" size={13} />Rename</Button>}
+          <Button type="button" className="mi" role="menuitem" onClick={() => { setDetails(entryMenu.entry); setEntryMenu(null); }}><Icon name="settings-2" size={13} />Details</Button>
+          {entryMenu.entry.kind === "note" && <Button type="button" className="mi danger" role="menuitem" onClick={() => { onDeleteNote(entryMenu.entry); setEntryMenu(null); }}><Icon name="trash" size={13} />Delete</Button>}
         </div>
       )}
 
       {details && (
         <div className="ol-overlay" role="dialog" aria-modal="true" aria-label="File details" onClick={() => setDetails(null)}>
           <div className="ol-dialog vault-details" onClick={(event) => event.stopPropagation()}>
-            <div className="ol-dialog-head"><div className="ol-dialog-title">Details</div><button type="button" className="ibtn" aria-label="Close" onClick={() => setDetails(null)}><Icon name="x" size={14} /></button></div>
+            <div className="ol-dialog-head"><div className="ol-dialog-title">Details</div><Button type="button" className="ibtn" aria-label="Close" onClick={() => setDetails(null)}><Icon name="x" size={14} /></Button></div>
             <div className="ol-dialog-body"><dl><dt>Type</dt><dd>{details.kind}</dd><dt>Path</dt><dd className="mono">{details.path}</dd><dt>Title</dt><dd>{details.title}</dd><dt>Modified</dt><dd>{new Date(details.updatedAt * 1000).toLocaleString()}</dd></dl></div>
           </div>
         </div>
@@ -200,12 +201,12 @@ function FileTreeEntry({
         }}
         onContextMenu={(event) => onOpenMenu(event, entry)}
       >
-        <button type="button" className="vault-file-open" onClick={() => folder ? onToggleFolder(entry) : onOpenNote(entry.path, entry.title)}>
+        <Button type="button" className="vault-file-open" onClick={() => folder ? onToggleFolder(entry) : onOpenNote(entry.path, entry.title)}>
           {folder && <Icon name={isExpanded ? "chevron-down" : "chevron-right"} size={11} />}
           <Icon name={folder ? "folder" : "file"} size={13} />
           <span>{folder ? entry.title : entry.path.split("/").pop()}</span>
-        </button>
-        <button type="button" className="vault-file-menu" aria-label={`Actions for ${entry.title}`} onClick={(event) => onOpenMenu(event, entry)}><Icon name="ellipsis" size={13} /></button>
+        </Button>
+        <Button type="button" className="vault-file-menu" aria-label={`Actions for ${entry.title}`} onClick={(event) => onOpenMenu(event, entry)}><Icon name="ellipsis" size={13} /></Button>
       </div>
       {folder && isExpanded && entry.children.map((child) => (
         <FileTreeEntry key={child.path} entry={child} depth={depth + 1} expanded={expanded} activeNotePath={activeNotePath} onToggleFolder={onToggleFolder} onOpenNote={onOpenNote} onOpenMenu={onOpenMenu} />

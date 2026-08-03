@@ -23,7 +23,7 @@ export function BoardPage({
       className="board-grid"
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${STATUS_COLUMNS.length}, minmax(200px, 1fr))`,
+        gridTemplateColumns: `repeat(${STATUS_COLUMNS.length}, minmax(180px, 1fr))`,
         gap: 10,
         alignItems: "start",
         height: "100%",

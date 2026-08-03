@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 // Cockpit tab-kind registry (ADR 0021) — kind → renderer + metadata.
 //
 // Built-in kinds: terminal (live PTY), browser (iframe), editor (placeholder
@@ -15,6 +17,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { Icon, type IconName } from "../components/Icon";
 import { terminalWsUrl } from "../api";
+import { openTerminalSocket } from "./terminalSocket";
 import { useCockpit, type CockpitTab } from "./store";
 
 export interface CockpitTabKind {
@@ -78,10 +81,7 @@ function TerminalPane({ tab, visible }: { tab: CockpitTab; visible: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const closedRef = useRef(false); // explicit close → stop reconnecting
-  const backoffRef = useRef(0);
-  const reconnectTimerRef = useRef<number | null>(null);
+  const socketRef = useRef<ReturnType<typeof openTerminalSocket> | null>(null);
 
   const [connState, setConnState] = useState<ConnState>("connecting");
   const [persistent, setPersistent] = useState(true);
@@ -89,66 +89,6 @@ function TerminalPane({ tab, visible }: { tab: CockpitTab; visible: boolean }) {
 
   const terminalId = stableTerminalId(tab);
   const node = tab.target?.nodeId ?? "axis";
-
-  // Connect / reconnect to the WS. Called on mount and on socket close.
-  const connect = useCallback(() => {
-    const term = termRef.current;
-    const fit = fitRef.current;
-    if (!term) return;
-
-    const cols = term.cols || 80;
-    const rows = term.rows || 24;
-    const ws = new WebSocket(terminalWsUrl(terminalId, node, cols, rows));
-    wsRef.current = ws;
-
-    if (closedRef.current) return; // tab closed, don't reconnect
-    setConnState(backoffRef.current > 0 ? "reconnecting" : "connecting");
-
-    ws.onopen = () => {
-      backoffRef.current = 0;
-      setConnState("connected");
-    };
-
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        if (msg.kind === "output" && msg.dataB64) {
-          term.write(b64ToUint8(msg.dataB64));
-        } else if (msg.kind === "attached" && typeof msg.persistent === "boolean") {
-          setPersistent(msg.persistent);
-        } else if (msg.kind === "exited") {
-          const code = msg.exitCode ?? msg.error ?? "";
-          term.write(`\r\n\x1b[90m[process exited ${code}]\x1b[0m\r\n`);
-          closedRef.current = true; // shell is gone — don't reconnect
-          setConnState("disconnected");
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-
-    ws.onclose = (e: CloseEvent) => {
-      if (closedRef.current) {
-        setConnState("disconnected");
-        return;
-      }
-      if (e.code === CLOSE_CODE_EXPLICIT) {
-        // Server killed it at our request — don't reconnect.
-        closedRef.current = true;
-        setConnState("disconnected");
-        return;
-      }
-      // Schedule reconnect with exponential backoff + jitter.
-      const attempt = backoffRef.current++;
-      const base = Math.min(1000 * 2 ** attempt, 10_000);
-      const jitter = Math.random() * 500;
-      const delay = base + jitter;
-      setConnState("reconnecting");
-      reconnectTimerRef.current = window.setTimeout(() => {
-        connect();
-      }, delay);
-    };
-  }, [terminalId, node]);
 
   // Mount xterm ONCE per tab.
   useEffect(() => {
@@ -178,32 +118,28 @@ function TerminalPane({ tab, visible }: { tab: CockpitTab; visible: boolean }) {
       updateTab(tab.id, { state: { ...tab.state, terminalId } });
     }
 
-    connect();
+    socketRef.current = openTerminalSocket({
+      url: () => terminalWsUrl(terminalId, node, term.cols || 80, term.rows || 24),
+      state: setConnState,
+      frame: (msg) => {
+        if (msg.kind === "output") term.write(b64ToUint8(msg.dataB64));
+        else if (msg.kind === "attached") setPersistent(msg.persistent);
+        else {
+          term.write(`\r\n\x1b[90m[process exited ${msg.exitCode ?? msg.error ?? ""}]\x1b[0m\r\n`);
+          socketRef.current?.stopReconnect();
+        }
+      },
+      error: console.error,
+    });
 
-    // Keystrokes → server (base64).
-    const enc = (bytes: string) => btoa(bytes);
-    const dataSub = term.onData((data) => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ kind: "input", dataB64: enc(data) }));
-      }
-    });
-    // Resize → server.
-    const resizeSub = term.onResize(({ cols, rows }) => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ kind: "resize", cols, rows }));
-      }
-    });
+    const dataSub = term.onData((data) => socketRef.current?.send(JSON.stringify({ kind: "input", dataB64: btoa(data) })));
+    const resizeSub = term.onResize(({ cols, rows }) => socketRef.current?.send(JSON.stringify({ kind: "resize", cols, rows })));
 
     return () => {
       dataSub.dispose();
       resizeSub.dispose();
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      // Send explicit close so the server kills the session.
-      closedRef.current = true;
-      if (wsRef.current) {
-        wsRef.current.close(CLOSE_CODE_EXPLICIT, "tab-closed");
-        wsRef.current = null;
-      }
+      socketRef.current?.close();
+      socketRef.current = null;
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -302,7 +238,7 @@ function BrowserPane({ tab }: { tab: CockpitTab; visible: boolean }) {
     <div className="cockpit-browser">
       <div className="cockpit-browser-bar">
         <Icon name="globe" size={12} />
-        <input
+        <Input
           className="cockpit-browser-url"
           placeholder="https://…"
           value={input}
@@ -311,9 +247,9 @@ function BrowserPane({ tab }: { tab: CockpitTab; visible: boolean }) {
             if (e.key === "Enter") go();
           }}
         />
-        <button type="button" className="ol-btn ol-btn-sm" onClick={go}>
+        <Button type="button" className="ol-btn ol-btn-sm" onClick={go}>
           Go
-        </button>
+        </Button>
       </div>
       {url ? (
         <iframe className="cockpit-browser-frame" src={url} title={tab.title} />

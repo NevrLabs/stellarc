@@ -4,10 +4,10 @@
 # The single source of truth for "is the tree green?" is `make verify`.
 
 SHELL := /bin/bash
-.PHONY: verify verify-rust verify-ui test lint fmt build run e2e e2e-desktop e2e-live e2e-prod deploy deploy-axis deploy-orbit
+.PHONY: verify verify-rust verify-ui verify-auth test lint fmt build run e2e e2e-desktop e2e-live e2e-prod deploy deploy-axis deploy-orbit
 
 ## verify — run ALL canonical gates (Rust + UI). The harness's go-to command.
-verify: verify-rust verify-ui
+verify: verify-rust verify-ui verify-auth
 	@echo "ALL CANONICAL GATES GREEN"
 
 ## verify-rust — cargo test + clippy (-D warnings) + fmt --check
@@ -20,7 +20,14 @@ verify-rust:
 verify-ui:
 	cd ui && bun run typecheck
 	cd ui && bun run build
+	cd ui && bun run design-system:check
 	cd ui && bun run test:e2e
+
+## verify-auth — pinned Better Auth migration, tests, and native executable.
+verify-auth:
+	cd apps/auth && bun install --frozen-lockfile
+	cd apps/auth && bun test
+	cd apps/auth && bun run build
 
 ## test — Rust tests only (fast inner loop)
 test:

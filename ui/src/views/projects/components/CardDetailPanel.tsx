@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * CardDetailPanel — right-side sticky aside showing full card details.
  *
@@ -42,14 +43,14 @@ export function CardDetailPanel({
           {card.title}
         </span>
         <span className={`gtag ${badgeClass}`}>{card.status}</span>
-        <button
+        <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={onClose}
           title="Close"
         >
           <Icon name="x" size={14} />
-        </button>
+        </Button>
       </div>
 
       {/* Details */}

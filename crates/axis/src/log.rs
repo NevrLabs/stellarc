@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
 use crate::event::Event;
+use crate::migrations;
 use crate::views::card::CardAttempt;
 use crate::views::{CardRow, MessageRow, ProjectRow, RegistryEntry, RepoRow, SessionRow, SetupRow};
 
@@ -23,82 +24,10 @@ impl Log {
         let mut conn =
             Connection::open(path).with_context(|| format!("opening {}", path.display()))?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        conn.execute_batch(SCHEMA)
-            .context("initializing Stellarc SQLite schema")?;
-        migrate_event_payloads_to_json(&mut conn)?;
-        repair_fts_duplicates(&conn)?;
-        // Migrate pre-session_id databases (ADR 0009 incremental migration).
-        let has_sid: bool = conn
-            .prepare("PRAGMA table_info(events)")?
-            .query_map([], |r| r.get::<_, String>(1))?
-            .filter_map(|r| r.ok())
-            .any(|col| col == "session_id");
-        if !has_sid {
-            conn.execute_batch(
-                "ALTER TABLE events ADD COLUMN session_id TEXT;
-                 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);",
-            )
-            .context("migrating events table to add session_id column")?;
-        }
-        let has_org_id = conn
-            .prepare("PRAGMA table_info(sessions)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "org_id");
-        if !has_org_id {
-            conn.execute_batch(
-                "ALTER TABLE sessions ADD COLUMN org_id TEXT NOT NULL DEFAULT 'personal';",
-            )
-            .context("migrating sessions table to add org_id column")?;
-        }
-        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_sessions_org ON sessions(org_id);")
-            .context("indexing sessions by organization")?;
-        let has_capabilities = conn
-            .prepare("PRAGMA table_info(sessions)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "capabilities");
-        if !has_capabilities {
-            conn.execute_batch("ALTER TABLE sessions ADD COLUMN capabilities TEXT;")
-                .context("migrating sessions table to add capabilities")?;
-        }
-        let has_context_projects = conn
-            .prepare("PRAGMA table_info(sessions)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "context_projects");
-        if !has_context_projects {
-            conn.execute_batch(
-                "ALTER TABLE sessions ADD COLUMN context_projects TEXT NOT NULL DEFAULT '[]';",
-            )
-            .context("migrating sessions table to add context projects")?;
-        }
-        for table in ["cards", "projects"] {
-            let has_org_id = conn
-                .prepare(&format!("PRAGMA table_info({table})"))?
-                .query_map([], |row| row.get::<_, String>(1))?
-                .filter_map(Result::ok)
-                .any(|column| column == "org_id");
-            if !has_org_id {
-                conn.execute_batch(&format!(
-                    "ALTER TABLE {table} ADD COLUMN org_id TEXT NOT NULL DEFAULT 'personal';"
-                ))
-                .with_context(|| format!("migrating {table} table to add org_id column"))?;
-            }
-            conn.execute_batch(&format!(
-                "CREATE INDEX IF NOT EXISTS idx_{table}_org ON {table}(org_id);"
-            ))
-            .with_context(|| format!("indexing {table} by organization"))?;
-        }
-        let has_project_layout = conn
-            .prepare("PRAGMA table_info(projects)")?
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .any(|column| column == "layout");
-        if !has_project_layout {
-            conn.execute_batch("ALTER TABLE projects ADD COLUMN layout TEXT;")
-                .context("migrating projects table to add layout")?;
-        }
+        migrations::run(&mut conn, |tx| {
+            migrate_event_payloads_to_json(tx)?;
+            repair_fts_duplicates(tx)
+        })?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -629,7 +558,7 @@ fn repair_fts_duplicates(conn: &Connection) -> Result<()> {
 /// Any database opened without the marker and with existing events is corrupt
 /// or was never migrated — fail closed rather than silently misreading events.
 /// Fresh databases (zero events, no marker) receive the marker immediately.
-fn migrate_event_payloads_to_json(conn: &mut Connection) -> Result<()> {
+fn migrate_event_payloads_to_json(conn: &Connection) -> Result<()> {
     const CODEC_KEY: &str = "event_payload_codec";
     const JSON_CODEC: &str = "json+zstd-v1";
 
@@ -1278,30 +1207,6 @@ fn card_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CardRow> {
     })
 }
 
-const SCHEMA: &str = r#"
-PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA recursive_triggers=ON; PRAGMA cache_size=-4096; PRAGMA temp_store=MEMORY;
-CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,event_type TEXT NOT NULL,payload BLOB NOT NULL,created_at REAL NOT NULL,session_id TEXT);
-CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
-CREATE TABLE IF NOT EXISTS sessions(session_id TEXT PRIMARY KEY,hermes_id TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',model TEXT,title TEXT,started_at REAL NOT NULL,message_count INTEGER NOT NULL DEFAULT 0,input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,pinned INTEGER NOT NULL DEFAULT 0,last_activity REAL NOT NULL DEFAULT 0,agent TEXT,node TEXT,parent_session_id TEXT,card_id TEXT,project_id TEXT,org_id TEXT NOT NULL DEFAULT 'personal',capabilities TEXT,context_projects TEXT NOT NULL DEFAULT '[]');
-CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at DESC); CREATE INDEX IF NOT EXISTS idx_sessions_source ON sessions(source); CREATE INDEX IF NOT EXISTS idx_sessions_archived ON sessions(archived); CREATE INDEX IF NOT EXISTS idx_sessions_pinned ON sessions(pinned);
-CREATE TABLE IF NOT EXISTS messages(session_id TEXT NOT NULL,message_id INTEGER NOT NULL,role TEXT NOT NULL,content TEXT,tool_name TEXT,tool_calls TEXT,reasoning TEXT,timestamp REAL NOT NULL,token_count INTEGER,finish_reason TEXT,PRIMARY KEY(session_id,message_id)) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(session_id,timestamp);
-CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(session_id UNINDEXED,message_id UNINDEXED,content,role UNINDEXED,tool_name UNINDEXED,timestamp UNINDEXED,tokenize='porter unicode61');
-CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON messages BEGIN INSERT INTO messages_fts(session_id,message_id,content,role,tool_name,timestamp) VALUES(new.session_id,new.message_id,new.content,new.role,new.tool_name,new.timestamp); END;
-CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON messages BEGIN DELETE FROM messages_fts WHERE session_id=old.session_id AND message_id=old.message_id; END;
-CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON messages BEGIN DELETE FROM messages_fts WHERE session_id=old.session_id AND message_id=old.message_id; INSERT INTO messages_fts(session_id,message_id,content,role,tool_name,timestamp) VALUES(new.session_id,new.message_id,new.content,new.role,new.tool_name,new.timestamp); END;
-CREATE TABLE IF NOT EXISTS cards(card_id TEXT PRIMARY KEY,board_id TEXT NOT NULL,title TEXT NOT NULL,status TEXT NOT NULL,assigned_id TEXT,assigned_kind TEXT,current_session_id TEXT,current_bookmark TEXT,blocked_by TEXT NOT NULL DEFAULT '[]',priority INTEGER NOT NULL DEFAULT 0,attempts TEXT NOT NULL DEFAULT '[]',created_at REAL NOT NULL,status_changed_at REAL NOT NULL,org_id TEXT NOT NULL DEFAULT 'personal');
-CREATE TABLE IF NOT EXISTS setup(scope TEXT PRIMARY KEY,skills TEXT NOT NULL,mcp TEXT NOT NULL,plugins TEXT NOT NULL,hooks TEXT NOT NULL,declared_at REAL NOT NULL);
-CREATE TABLE IF NOT EXISTS registry(kind TEXT NOT NULL,slug TEXT NOT NULL,definition TEXT NOT NULL,registered_at REAL NOT NULL,PRIMARY KEY(kind,slug));
-CREATE TABLE IF NOT EXISTS projects(project_id TEXT PRIMARY KEY,name TEXT NOT NULL,vaults TEXT NOT NULL DEFAULT '[]',repos TEXT NOT NULL DEFAULT '[]',boards TEXT NOT NULL DEFAULT '[]',layout TEXT,created_at REAL NOT NULL,deleted_at REAL,org_id TEXT NOT NULL DEFAULT 'personal');
-CREATE TABLE IF NOT EXISTS repos(slug TEXT PRIMARY KEY,url TEXT NOT NULL,default_branch TEXT NOT NULL,registered_at REAL NOT NULL);
-CREATE TABLE IF NOT EXISTS session_repos(session_id TEXT NOT NULL,slug TEXT NOT NULL,attached_at REAL NOT NULL,PRIMARY KEY(session_id,slug));
-CREATE TABLE IF NOT EXISTS orbit_watermarks(session_id TEXT PRIMARY KEY,seq INTEGER NOT NULL) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS observed_sessions(hermes_id TEXT PRIMARY KEY) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS observed_messages(hermes_id TEXT NOT NULL,message_id INTEGER NOT NULL,PRIMARY KEY(hermes_id,message_id)) WITHOUT ROWID;
-"#;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1343,7 +1248,7 @@ mod tests {
         let path = dir.path().join("stellarc.db");
         {
             let conn = Connection::open(&path).unwrap();
-            conn.execute_batch(SCHEMA).unwrap();
+            conn.execute_batch(migrations::MIGRATION_1_SQL).unwrap();
             let event = fixture_event();
             // Write a valid JSON+zstd payload but deliberately omit the codec marker.
             let json = serde_json::to_vec(&event).unwrap();
@@ -1376,7 +1281,9 @@ mod tests {
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
-                "CREATE TABLE sessions(
+                "CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,event_type TEXT NOT NULL,payload BLOB NOT NULL,created_at REAL NOT NULL);
+                 CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
+                 CREATE TABLE sessions(
                     session_id TEXT PRIMARY KEY,
                     hermes_id TEXT NOT NULL DEFAULT '',
                     source TEXT NOT NULL DEFAULT '',
@@ -1518,7 +1425,7 @@ fn marker_present_second_open_does_not_mutate_payloads() {
     ];
     {
         let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(SCHEMA).unwrap();
+        conn.execute_batch(migrations::MIGRATION_1_SQL).unwrap();
         for ev in &events {
             let json = serde_json::to_vec(ev).unwrap();
             let payload = zstd::stream::encode_all(json.as_slice(), 3).unwrap();
@@ -1837,4 +1744,26 @@ fn replaying_session_created_preserves_accumulated_state() {
     );
     assert!(session.archived, "archived was reset by the replay");
     assert!(session.pinned, "pinned was reset by the replay");
+}
+
+#[test]
+fn migration_fixture_concurrent_startup() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = std::sync::Arc::new(dir.path().join("concurrent.sqlite"));
+    let threads: Vec<_> = (0..2)
+        .map(|_| {
+            let path = path.clone();
+            std::thread::spawn(move || Log::open(&path).map(drop))
+        })
+        .collect();
+    for thread in threads {
+        thread.join().unwrap().unwrap();
+    }
+    let db = Connection::open(&*path).unwrap();
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM stellarc_migrations", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
 }

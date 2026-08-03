@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * RightPanel — View-owned right sidebar (tabbed).
  * Tabs: Overview / Outline / Settings / Browser / Diff / Git / AI.
@@ -63,7 +64,7 @@ export function RightPanel({
     <aside className="rsidebar" style={width ? { width } : undefined}>
       <div className="rs-tabbar">
         {tabs.map((t) => (
-          <button
+          <Button
             key={t.id}
             type="button"
             className={`rs-tab${tab === t.id ? " on" : ""}`}
@@ -71,7 +72,7 @@ export function RightPanel({
             onClick={() => onTabChange(t.id)}
           >
             <Icon name={t.icon} size={13} />
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -356,7 +357,7 @@ function ContextProjectsSection({ session }: { session: Session | undefined }) {
             {c.mode}
           </span>
           <span className="srow-actions" style={{ display: "flex", position: "static", transform: "none" }}>
-            <button
+            <Button
               type="button"
               className="srow-act"
               title="Detach context project"
@@ -364,7 +365,7 @@ function ContextProjectsSection({ session }: { session: Session | undefined }) {
               onClick={(e) => { e.stopPropagation(); void handleDetach(c.projectId); }}
             >
               <Icon name="x" size={11} />
-            </button>
+            </Button>
           </span>
         </div>
       ))}
@@ -379,38 +380,38 @@ function ContextProjectsSection({ session }: { session: Session | undefined }) {
               <div key={p.id} className="art" style={{ padding: "4px 8px" }}>
                 <Icon name="folder" size={11} />
                 <span className="nm">{p.name}</span>
-                <button
+                <Button
                   type="button"
                   className="srow-act"
                   title="Attach read-only"
                   disabled={busy}
                   onClick={() => void handleAttach(p.id, "read")}
-                >read</button>
-                <button
+                >read</Button>
+                <Button
                   type="button"
                   className="srow-act"
                   title="Attach read-write"
                   disabled={busy}
                   onClick={() => void handleAttach(p.id, "write")}
-                >write</button>
+                >write</Button>
               </div>
             ))
           )}
-          <button
+          <Button
             type="button"
             className="srow-act"
             style={{ alignSelf: "flex-start" }}
             onClick={() => { setAdding(false); setError(null); }}
-          >cancel</button>
+          >cancel</Button>
         </div>
       )}
       {!adding && candidates.length > 0 && (
-        <button
+        <Button
           type="button"
           className="srow-act"
           style={{ alignSelf: "flex-start" }}
           onClick={() => { setAdding(true); setError(null); }}
-        >+ attach project…</button>
+        >+ attach project…</Button>
       )}
       {error && (
         <div role="alert" style={{ padding: "4px 8px", color: "var(--err)", fontSize: 12 }}>

@@ -56,6 +56,8 @@ pub(crate) struct PutVaultNoteBody {
     path: Option<String>,
     #[serde(default)]
     create_only: bool,
+    #[serde(default)]
+    expected_cid: Option<String>,
 }
 
 pub(crate) async fn list_vaults(State(state): State<AppState>) -> Response {
@@ -135,6 +137,7 @@ pub(crate) async fn put_vault_note(
             markdown: body.markdown,
             new_path,
             create_only: body.create_only,
+            expected_cid: body.expected_cid,
         },
     ) {
         Ok(note) => {

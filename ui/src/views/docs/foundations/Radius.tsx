@@ -1,0 +1,3 @@
+const TOKENS = ["--radius-sm", "--radius-md", "--radius-lg", "--radius-full"];
+const value = (token: string) => getComputedStyle(document.documentElement).getPropertyValue(token).trim() || (token === "--radius-full" ? "9999px fallback" : "unset");
+export function Radius() { return <div className="flex flex-wrap gap-5">{TOKENS.map(token => <div key={token} data-testid={`radius-${token}`} className="grid justify-items-center gap-1 text-center"><span className="block size-16 border border-border bg-muted" style={{borderRadius: `var(${token}, ${token === "--radius-full" ? "9999px" : "0"})`}} /><code className="text-xs">{token}</code><code className="text-xs text-muted-foreground">{value(token)}</code></div>)}</div>; }

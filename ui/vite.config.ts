@@ -1,5 +1,10 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode, command }) => {
   const fileEnv = loadEnv(mode, process.cwd(), "VITE_");
@@ -15,8 +20,11 @@ export default defineConfig(({ mode, command }) => {
   const servingDevelopment = command === "serve";
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
+    resolve: { alias: { "@": path.resolve(here, "src") } },
     server: {
+      // allow ?raw imports from the repo docs/ dir (DocsView design-system page)
+      fs: { allow: [path.resolve(here, "..")] },
       port: 5177,
       host: "127.0.0.1",
       allowedHosts,

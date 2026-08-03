@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * FleetView — the Fleet View component (owns sidebar + viewport layout).
  *
@@ -24,7 +25,7 @@
  * hosts — the node model already carries `transport`; a `kind` field
  * (orbit | sandbox | remote) is the natural next extension.
  */
-import React, { useState, useCallback } from "react";
+import React, { memo, useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../components/Icon";
@@ -37,6 +38,8 @@ import { relativeTime } from "../lib/format";
 import type { AgentInfo, EnrollResponse, NodeInfo, NodeStatus } from "../types";
 
 // ── Helpers ────────────────────────────────────────
+
+function shortNodeId(value: string): string { return value.length > 32 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value; }
 
 function statusDotColor(status: NodeStatus): string {
   if (status === "online") return "var(--green)";
@@ -67,7 +70,7 @@ function slotPct(used: number, total: number): number {
 
 // ── Main View ──────────────────────────────────────
 
-export default function FleetView({ nodeId }: { nodeId: string | null }) {
+const FleetView = memo(function FleetView({ nodeId }: { nodeId: string | null }) {
   const { sidebarCollapsed } = useUIStore();
   const sidebar = useResizable({
     axis: "x",
@@ -92,7 +95,7 @@ export default function FleetView({ nodeId }: { nodeId: string | null }) {
       </div>
     </>
   );
-}
+});
 
 // ── Sidebar ────────────────────────────────────────
 
@@ -133,10 +136,10 @@ function FleetSidebar({
     <>
       <aside className="sidebar" style={{ width }}>
         <div className="sb-pad">
-          <button type="button" className="newbtn" onClick={() => setAddOpen(true)}>
+          <Button type="button" variant="default" size="sm" onClick={() => setAddOpen(true)}>
             <Icon name="plus" size={14} />
             Add node
-          </button>
+          </Button>
         </div>
         <div className="sb-scroll">
           {nodes.length > 0 ? (
@@ -205,9 +208,9 @@ function NodeTreeItem({
           {agents.length > 0 ? `${agents.length}` : ""}
         </span>
         {agents.length > 0 && (
-          <button
+          <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             style={{ padding: 0, width: 16, height: 16 }}
             title={expanded ? "Collapse" : "Expand"}
             onClick={(e) => {
@@ -216,7 +219,7 @@ function NodeTreeItem({
             }}
           >
             <Icon name={expanded ? "chevron-down" : "chevron-right"} size={10} />
-          </button>
+          </Button>
         )}
       </div>
       {expanded &&
@@ -388,14 +391,14 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
     return (
       <div className="view on" data-view="fleet" style={{ flexDirection: "column" }}>
         <div className="gv-head">
-          <button
+          <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             onClick={() => void navigate({ to: "/fleet" })}
             title="Back to fleet"
           >
             <Icon name="chevron-left" size={14} />
-          </button>
+          </Button>
           <span className="gv-title">{nodeId}</span>
         </div>
         <div className="gv-body">
@@ -468,32 +471,32 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
   return (
     <div className="view on" data-view="fleet" style={{ flexDirection: "column" }}>
       <div className="gv-head">
-        <button
+        <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={() => void navigate({ to: "/fleet" })}
           title="Back to fleet"
         >
           <Icon name="chevron-left" size={14} />
-        </button>
+        </Button>
         <span className="gv-title" style={{ fontFamily: "var(--mono)" }}>
           {node.nodeId}
         </span>
         <span className="gv-sub">· {transportLabel(node)}</span>
         <div className="gv-actions">
-          <button
+          <Button
             type="button"
-            className="btn"
+            variant="outline" size="sm"
             title="Re-detect agents on this node"
             disabled={detecting}
             onClick={handleDetect}
           >
             <Icon name="activity" size={12} />
             {detecting ? "Detecting…" : "Detect agents"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn"
+            variant="outline" size="sm"
             disabled={node.local || actionBusy || node.status === "draining"}
             title={
               node.local
@@ -503,10 +506,10 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
             onClick={handleDrain}
           >
             Drain
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn"
+            variant="outline" size="sm"
             disabled={node.local || actionBusy}
             title={
               node.local
@@ -517,7 +520,7 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
           >
             <Icon name="trash" size={12} />
             Remove
-          </button>
+          </Button>
         </div>
       </div>
       <div className="gv-body">
@@ -546,7 +549,9 @@ function NodeDetailPage({ nodeId }: { nodeId: string }) {
               </div>
               <div className="kv">
                 <span className="k">HOST</span>
-                <span className="v">{node.hostname}</span>
+                <span className="v fleet-host" title={node.hostname}>
+                  {shortNodeId(node.hostname)}
+                </span>
               </div>
             </div>
             <div className="gcard">
@@ -734,15 +739,15 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
             <Icon name="server" size={18} />
             <div className="ol-dialog-title">Add node</div>
           </div>
-          <button
+          <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             onClick={onClose}
             title="Close"
             aria-label="Close"
           >
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </div>
         <div className="ol-dialog-body">
           {error ? (
@@ -781,15 +786,15 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
                 >
                   {enroll.command}
                 </code>
-                <button
+                <Button
                   type="button"
-                  className="icobtn"
+                  variant="ghost" size="icon-sm"
                   title="Copy command"
                   aria-label="Copy command"
                   onClick={copy}
                 >
                   <Icon name={copied ? "check" : "copy"} size={13} />
-                </button>
+                </Button>
               </div>
               <p style={{ fontSize: 11, color: "var(--faint)", marginBottom: 0 }}>
                 Token is single-use and expires in{" "}
@@ -803,3 +808,6 @@ function AddNodeModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+
+export default FleetView;

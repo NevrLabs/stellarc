@@ -42,7 +42,6 @@ pub(crate) fn organization_resource_routes() -> Router<AppState> {
     Router::new()
         .route("/sessions", get(list_sessions).post(create_session))
         .route("/sessions/{id}", get(get_session).patch(patch_session))
-        .route("/sessions/{id}/fork", post(fork_session))
         .route("/sessions/{id}/handover", post(handover_session))
         .route(
             "/sessions/{id}/messages",
@@ -59,6 +58,7 @@ pub(crate) fn organization_resource_routes() -> Router<AppState> {
             get(list_subsessions).post(create_subsession),
         )
         .route("/sessions/{id}/complete", post(complete_session))
+        .route("/sessions/{id}/diagnostics", get(session_diagnostics))
         .route("/cards", get(list_cards).post(create_card))
         .route("/cards/{id}", get(get_card))
         .route("/cards/{id}/assign", post(assign_card))

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ChatPage — viewport content for the active session chat.
  *
@@ -17,10 +18,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Icon } from "../../../components/Icon";
 import { useSession, useMessages, qk } from "../../../hooks/queries";
@@ -28,20 +27,19 @@ import {
   sendMessage,
   cancelSession,
   steerSession,
-  forkSession,
-  onFrame,
   respondPermission,
-  sendFrame,
   getDisplayName,
 } from "../../../api";
 import type { Message, ServerFrame, ToolCall } from "../../../types";
+import { onAxisFrame, sendAxisFrame, subscribeAxisSession } from "../../../axis-events";
 import { MessageBubble } from "../components/MessageBubble";
 import { ToolCard } from "../components/ToolCard";
 import { DiffCard } from "../components/DiffCard";
+import { MarkdownText } from "../components/MarkdownText";
 import { isDiffResult } from "../helpers";
 import { Composer } from "../components/Composer";
-import { ForkModal } from "../components/ForkModal";
 import { QueuePanel, type QueuedMsg } from "../components/QueuePanel";
+import { DraftSession } from "../components/DraftSession";
 
 type AgentStatus = "idle" | "thinking" | "streaming" | "done";
 
@@ -76,16 +74,16 @@ function saveQueue(sessionId: string, items: QueuedMsg[]) {
   }
 }
 
-export function ChatPage({
-  sessionId,
-  onForkRequested,
-}: {
-  sessionId: string;
-  onForkRequested?: (sessionId: string) => void;
-}) {
+export function ChatPage({ sessionId }: { sessionId: string }) {
+  if (sessionId === "new") {
+    return <DraftSession initialProjectId={new URLSearchParams(window.location.search).get("project")} />;
+  }
+  return <ActiveChatPage sessionId={sessionId} />;
+}
+
+function ActiveChatPage({ sessionId }: { sessionId: string }) {
   const { data: session } = useSession(sessionId);
   const { data: msgData, isLoading } = useMessages(sessionId);
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
   // streaming + status — ALL session-scoped, reset on session change.
@@ -99,7 +97,14 @@ export function ChatPage({
   const [sending, setSending] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [text, setText] = useState("");
-  const [optimisticMsg, setOptimisticMsg] = useState<Message | null>(null);
+  const [optimisticMsg, setOptimisticMsg] = useState<Message | null>(() => {
+    const content = sessionStorage.getItem(`stellarc:first-message:${sessionId}`);
+    return content ? {
+      messageId: -1, sessionId, role: "user", content,
+      toolName: null, toolCalls: null, reasoning: null,
+      timestamp: Math.floor(Date.now() / 1000), tokenCount: null, finishReason: null,
+    } : null;
+  });
   const [queue, setQueue] = useState<QueuedMsg[]>([]);
   // Steer message IDs still waiting to be processed by the agent.
   // The backend broadcasts a `steer.delivered` session.log when the
@@ -111,8 +116,12 @@ export function ChatPage({
     options: Array<{ optionId: string; name: string; kind: string }>;
   } | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
-  // The model/thinking used for the last send — reused when the queue drains.
-  const lastSendOpts = useRef<{ model?: string; thinking?: string }>({});
+  // ── Smart auto-scroll: follow new content unless the user scrolled up ──
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
+  isAtBottomRef.current = isAtBottom;
+  // The model/thinking/context used for the last send — reused when the queue drains.
+  const lastSendOpts = useRef<{ model?: string; thinking?: string; contextPreset?: string }>({});
 
   // ── S8: session-scoped WS subscription + typing presence ────────────
   // Who is typing in THIS session right now (sessionId, who) → expiresAt.
@@ -131,11 +140,17 @@ export function ChatPage({
     setStreamParts([]);
     setSending(false);
     setAgentStatus("idle");
-    setOptimisticMsg(null);
+    const firstMessage = sessionStorage.getItem(`stellarc:first-message:${sessionId}`);
+    setOptimisticMsg(firstMessage ? {
+      messageId: -1, sessionId, role: "user", content: firstMessage,
+      toolName: null, toolCalls: null, reasoning: null,
+      timestamp: Math.floor(Date.now() / 1000), tokenCount: null, finishReason: null,
+    } : null);
     setPermission(null);
     setText("");
     setQueue(loadQueue(sessionId));
     setTypers(new Map());
+    setIsAtBottom(true);
   }, [sessionId]);
 
   // Persist queue on every change.
@@ -149,7 +164,7 @@ export function ChatPage({
   // unsubscribe on unmount / session switch. (Backward compatible: the
   // server still delivers session-list-level frames regardless.)
   useEffect(() => {
-    sendFrame({ kind: "subscribe", sessionIds: [sessionId] });
+    const unsubscribeSession = subscribeAxisSession(sessionId);
     // ADR 0020 v2 §4.2 — deliver-on-(re)subscribe. Navigating away drops this
     // session's frames (should_deliver); on return we force a refetch of the
     // durable transcript so a turn completed while we were gone is reconstructed
@@ -160,16 +175,16 @@ export function ChatPage({
     // completed turn would otherwise never appear until manual navigation
     // away and back. Resubscribe (the new socket has no subscription state)
     // and refetch the durable transcript + session liveness.
-    const unsub = onFrame((frame: ServerFrame) => {
+    const unsub = onAxisFrame((frame: ServerFrame) => {
       if (frame.kind === "ws.reconnected") {
-        sendFrame({ kind: "subscribe", sessionIds: [sessionId] });
+        const unsubscribeSession = subscribeAxisSession(sessionId);
         void qc.invalidateQueries({ queryKey: qk.messages(sessionId) });
         void qc.invalidateQueries({ queryKey: qk.session(sessionId) });
       }
     });
     return () => {
       unsub();
-      sendFrame({ kind: "unsubscribe", sessionIds: [sessionId] });
+      unsubscribeSession();
     };
   }, [sessionId, qc]);
 
@@ -234,20 +249,39 @@ export function ChatPage({
   // (server truth), with the optimistic user bubble (messageId -1) always last.
   // This is what prevents the reported reorder: a durable assistant row (higher
   // message_id) can never sort above a newer, not-yet-committed user message.
-  const messages = (
-    optimisticMsg && !hasServerEcho ? [...serverMessages, optimisticMsg] : serverMessages
-  )
-    .slice()
-    .sort((a, b) => {
-      const ai = a.messageId < 0 ? Number.MAX_SAFE_INTEGER : a.messageId;
-      const bi = b.messageId < 0 ? Number.MAX_SAFE_INTEGER : b.messageId;
-      return ai - bi;
-    });
+  const messages = useMemo(
+    () =>
+      (optimisticMsg && !hasServerEcho ? [...serverMessages, optimisticMsg] : serverMessages)
+        .slice()
+        .sort((a, b) => {
+          const ai = a.messageId < 0 ? Number.MAX_SAFE_INTEGER : a.messageId;
+          const bi = b.messageId < 0 ? Number.MAX_SAFE_INTEGER : b.messageId;
+          return ai - bi;
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [serverMessages, optimisticMsg, hasServerEcho],
+  );
+
+  // ── Virtualized message list ──────────────────────────────────────
+  // Uses @tanstack/react-virtual for windowing. Each message is measured
+  // dynamically (no fixed height assumption) so streaming markdown, code
+  // blocks, tool cards, etc. all size correctly. Below a threshold the
+  // overhead isn't worth it — but the virtualizer handles small lists fine.
+  const innerRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => transcriptRef.current,
+    estimateSize: () => 200,
+    overscan: 8,
+  });
 
   // Clear the optimistic copy as soon as the server echo lands.
   useEffect(() => {
-    if (hasServerEcho) setOptimisticMsg(null);
-  }, [hasServerEcho]);
+    if (hasServerEcho) {
+      sessionStorage.removeItem(`stellarc:first-message:${sessionId}`);
+      setOptimisticMsg(null);
+    }
+  }, [hasServerEcho, sessionId]);
 
   const isObserved = session?.managed === false;
 
@@ -289,10 +323,10 @@ export function ChatPage({
 
   // ── Send (used by composer AND queue auto-drain) ──────────────────
   const doSend = useCallback(
-    async (content: string, model?: string, thinking?: string) => {
+    async (content: string, model?: string, thinking?: string, contextPreset?: string) => {
       setSending(true);
       setAgentStatus("thinking");
-      lastSendOpts.current = { model, thinking };
+      lastSendOpts.current = { model, thinking, contextPreset };
 
       const now = Math.floor(Date.now() / 1000);
       setOptimisticMsg({
@@ -309,7 +343,7 @@ export function ChatPage({
       });
 
       try {
-        await sendMessage(sessionId, content, model, thinking);
+        await sendMessage(sessionId, content, model, thinking, contextPreset);
       } catch {
         setSending(false);
         setAgentStatus("idle");
@@ -329,7 +363,7 @@ export function ChatPage({
 
   // ── WS streaming + status ─────────────────────────────────────────
   useEffect(() => {
-    const unsub = onFrame((frame: ServerFrame) => {
+    const unsub = onAxisFrame((frame: ServerFrame) => {
       // Narrow by kind first — not all ServerFrame variants have sessionId.
       if (
         (frame.kind === "message.delta" ||
@@ -400,18 +434,23 @@ export function ChatPage({
         });
       }
       if (frame.kind === "message.done") {
+        // Durable transcript is authoritative. The done frame carries no full
+        // assistant message, so refetch before removing the transient stream.
+        void qc.invalidateQueries({ queryKey: qk.messages(sessionId) });
+        void qc.invalidateQueries({ queryKey: qk.session(sessionId) });
         setStreamParts([]);
         setSending(false);
         setAgentStatus("done");
-        setOptimisticMsg(null);
+        // Keep the optimistic user row until the durable refetch contains its
+        // server echo. Clearing here creates a message-less failure screen.
         setPermission(null);
         // Auto-drain: send the next queued message as a fresh prompt.
         const q = queueRef.current;
         if (q.length > 0) {
           const [head, ...rest] = q;
           setQueue(rest);
-          const { model, thinking } = lastSendOpts.current;
-          void doSendRef.current(head.text, model, thinking).catch(() => {
+          const { model, thinking, contextPreset } = lastSendOpts.current;
+          void doSendRef.current(head.text, model, thinking, contextPreset).catch(() => {
             // restore on failure so the message isn't lost
             setQueue((cur) => [head, ...cur]);
           });
@@ -478,16 +517,66 @@ export function ChatPage({
     [sessionId],
   );
 
-  // ── Auto-scroll ──────────────────────────────────────────────────
+  // ── Smart auto-scroll ─────────────────────────────────────────────
+  // Follow new content only when the user is already at the bottom. When they
+  // scroll up, stop auto-scrolling and show a jump-to-bottom button. This is
+  // the ChatGPT/Slack pattern — lets users read history while new messages stream.
+
+  // Track user scroll position.
   useEffect(() => {
-    if (transcriptRef.current) {
-      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
-    }
+    const el = transcriptRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setIsAtBottom(dist < 80);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new content arrives AND user is at the bottom.
+  // ResizeObserver handles both new messages and streaming text growth.
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    const scrollToBottom = () => {
+      if (isAtBottomRef.current) {
+        // For short transcripts (mobile split-view), align to latest user msg
+        // rather than absolute bottom to avoid clipping the composer.
+        if (el.clientHeight < 300) {
+          const userRows = el.querySelectorAll<HTMLElement>(".msg-row-user");
+          const latestUser = userRows.item(userRows.length - 1);
+          if (!latestUser) {
+            el.scrollTop = 0;
+            return;
+          }
+          const top = latestUser.getBoundingClientRect().top;
+          const elTop = el.getBoundingClientRect().top;
+          el.scrollTop += top - elTop;
+          return;
+        }
+        el.scrollTop = el.scrollHeight;
+      }
+    };
+    scrollToBottom();
+    const observer = new ResizeObserver(scrollToBottom);
+    observer.observe(el);
+    // Also observe the inner content for size changes (images loading, etc.)
+    const inner = el.firstElementChild;
+    if (inner) observer.observe(inner);
+    return () => observer.disconnect();
   }, [messages.length, streamParts, agentStatus]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    setIsAtBottom(true);
+  }, []);
 
   // ── Composer send: idle → send now; running → enqueue ─────────────
   const handleSend = useCallback(
-    async (model?: string, thinking?: string) => {
+    async (model?: string, thinking?: string, contextPreset?: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       if (sending) {
@@ -501,7 +590,7 @@ export function ChatPage({
       }
       setText("");
       try {
-        await doSend(trimmed, model, thinking);
+        await doSend(trimmed, model, thinking, contextPreset);
       } catch {
         setText(trimmed); // restore on error
       }
@@ -553,9 +642,9 @@ export function ChatPage({
         if (msg === "not_running") {
           // No turn in flight — send as a normal prompt instead. The queue
           // auto-drain will handle any remaining items after this one finishes.
-          const { model, thinking } = lastSendOpts.current;
+          const { model, thinking, contextPreset } = lastSendOpts.current;
           try {
-            await doSendRef.current(item.text, model, thinking);
+            await doSendRef.current(item.text, model, thinking, contextPreset);
           } catch {
             setQueue((cur) => [item, ...cur]);
           }
@@ -591,7 +680,7 @@ export function ChatPage({
       // no gap). Only sent when there's actual text.
       if (e.target.value.trim()) {
         if (!typingDebounceRef.current) {
-          sendFrame({ kind: "typing", sessionId });
+          void sendAxisFrame({ kind: "typing", sessionId }).catch(() => undefined);
           typingDebounceRef.current = setTimeout(() => {
             typingDebounceRef.current = null;
           }, 3000);
@@ -608,32 +697,22 @@ export function ChatPage({
     [sessionId],
   );
 
-  // ── Fork (fixed-position modal) ───────────────────────────────────
-  const [forkOpen, setForkOpen] = useState(false);
-  const handleForkRequest = useCallback(() => {
-    setForkOpen(true);
-  }, []);
-  const handleForkConfirm = useCallback(async () => {
-    setForkOpen(false);
-    try {
-      const forked = await forkSession(sessionId);
-      if (forked?.id) {
-        void navigate({
-          to: "/sessions/$sessionId",
-          params: { sessionId: forked.id },
-        });
-      }
-    } catch {
-      // user can retry
-    }
-    onForkRequested?.(sessionId);
-  }, [sessionId, navigate, onForkRequested]);
-
 
   return (
     <>
       {/* Transcript — Page content only (no chatcol wrapper; the View provides it) */}
-      <div className="transcript" ref={transcriptRef}>
+      <div className="transcript transcript-smart" ref={transcriptRef}>
+          {!isAtBottom && (
+            <button
+              className="scroll-bottom-btn"
+              onClick={scrollToBottom}
+              aria-label="Scroll to latest"
+              title="Jump to latest"
+            >
+              <Icon name="arrow-down" size={16} />
+              {streamParts.length > 0 && <span className="sb-pulse" />}
+            </button>
+          )}
           <div className="tcol">
             {isLoading && (
               <div className="msg-empty">Loading messages…</div>
@@ -643,14 +722,43 @@ export function ChatPage({
                 No messages yet. Send a message below.
               </div>
             )}
-            {messages.map((m) => (
-              <MessageBubble
-                key={`${sessionId}-${m.messageId}`}
-                msg={m}
-                steerPending={pendingSteers.has(m.messageId)}
-                onFork={handleForkRequest}
-              />
-            ))}
+            {/* Virtualized message list — only visible + overscan rows are in
+                the DOM. Streaming/thinking indicators render after, outside
+                the virtualizer (always visible at the bottom). */}
+            {messages.length > 0 && (
+              <div
+                ref={innerRef}
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const m = messages[virtualItem.index];
+                  return (
+                    <div
+                      key={`${sessionId}-${m.messageId}`}
+                      className="vrow"
+                      data-index={virtualItem.index}
+                      ref={virtualizer.measureElement}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                    >
+                      <MessageBubble
+                        msg={m}
+                        steerPending={pendingSteers.has(m.messageId)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {/* Streaming assistant reply — interleaved text, tool calls, reasoning */}
             {streamParts.length > 0 && (
               <div className="msg-ai">
@@ -673,9 +781,9 @@ export function ChatPage({
                     );
                   }
                   return (
-                    <ReactMarkdown key={`t-${i}`} remarkPlugins={[remarkGfm]}>
+                    <MarkdownText key={`t-${i}`} isStreaming={agentStatus === "streaming"}>
                       {part.text}
-                    </ReactMarkdown>
+                    </MarkdownText>
                   );
                 })}
               </div>
@@ -712,22 +820,23 @@ export function ChatPage({
                 </div>
                 <div className="perm-opts">
                   {permission.options.map((o) => (
-                    <button
+                    <Button
                       key={o.optionId}
                       type="button"
-                      className={`btn${o.kind.startsWith("allow") ? " pri" : ""}`}
+                      variant={o.kind.startsWith("allow") ? "default" : "outline"}
+                      size="sm"
                       onClick={() => void handlePermission(o.optionId)}
                     >
                       {o.name}
-                    </button>
+                    </Button>
                   ))}
-                  <button
+                  <Button
                     type="button"
-                    className="btn"
+                    variant="outline" size="sm"
                     onClick={() => void handlePermission(null)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -738,11 +847,8 @@ export function ChatPage({
           <div className="obsbanner">
             <Icon name="alert" size={14} />
             <span style={{ flex: 1 }}>
-              This is an observed session — read-only. Fork it to continue from Stellarc.
+              This is an observed session — read-only.
             </span>
-            <button type="button" className="btn pri" onClick={() => setForkOpen(true)}>
-              Fork to continue
-            </button>
           </div>
         </div>
       ) : (
@@ -768,15 +874,6 @@ export function ChatPage({
         </div>
       )}
 
-      {/* Fixed-position fork modal */}
-      <ForkModal
-        open={forkOpen}
-        title="Fork this session?"
-        message="A new Stellarc-managed session will be created, branching from this point. The original session stays unchanged."
-        confirmLabel="Fork to continue"
-        onConfirm={handleForkConfirm}
-        onCancel={() => setForkOpen(false)}
-      />
     </>
   );
 }

@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 // AppShell — the Stellarc application frame.
 //
 // Layout (matches docs/design/concept/stellarc-app-concept.html):
@@ -14,7 +16,8 @@
 // provides its own secondary sidebar slot (session list, vault tree, etc.).
 // Surfaces whose card hasn't merged render a .ol-* placeholder pane.
 
-import { useRouterState, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Icon, type IconName } from "./components/Icon";
 import { useUIStore } from "./store";
 import { useCockpit } from "./cockpit/store";
@@ -27,7 +30,9 @@ import { SessionsView } from "./views/SessionsView";
 import { VaultWorkspaceView } from "./views/VaultWorkspaceView";
 import { ProjectsView } from "./views/ProjectsView";
 import FleetView from "./views/FleetView";
+import { DocsView } from "./views/docs/DocsView";
 import { SettingsView } from "./views/SettingsView";
+import { StatusBar } from "./components/StatusBar";
 
 // ── Helpers ────────────────────────────────────────
 
@@ -46,6 +51,7 @@ const SURFACES: {
   { surface: "projects", label: "Projects", icon: "folder", path: "/projects" },
   { surface: "fleet", label: "Fleet", icon: "server", path: "/fleet" },
   { surface: "settings", label: "Settings", icon: "gear", path: "/settings" },
+  { surface: "docs", label: "Docs", icon: "book", path: "/docs" },
 ];
 
 // ── Helpers ────────────────────────────────────────
@@ -54,43 +60,76 @@ const SURFACES: {
 
 // ── Main shell ─────────────────────────────────────
 
+const ALL_SURFACES = ["sessions", "vaults", "projects", "fleet", "docs", "settings"] as const;
+
 export function AppShell() {
-  const { location } = useRouterState();
+  const location = useLocation();
   const { surface, sessionId, projectId, page, nodeId } = parseRoute(location.pathname);
-  const { sidebarCollapsed, sidebarWidth } = useUIStore();
+  const sidebarCollapsed = useUIStore(s => s.sidebarCollapsed);
+  const sidebarWidth = useUIStore(s => s.sidebarWidth);
+
+  // Deferred mount: active view renders immediately, rest mount after idle.
+  const [mounted, setMounted] = useState<Set<string>>(() => new Set([surface]));
+
+  const preMounted = useRef(false);
+  useEffect(() => {
+    // Add active surface immediately if not yet mounted.
+    setMounted((prev) => prev.has(surface) ? prev : new Set(prev).add(surface));
+    // Pre-mount all views once, after idle.
+    if (preMounted.current) return;
+    preMounted.current = true;
+    const ric = (cb: () => void) =>
+      "requestIdleCallback" in window
+        ? (window as any).requestIdleCallback(cb, { timeout: 2000 })
+        : setTimeout(cb, 800);
+    ric(() => setMounted(new Set(ALL_SURFACES)));
+  }, [surface]);
 
   return (
     <div className="app">
       <TopBar activeSurface={surface} />
       <div className="body">
-        {/* Sessions View owns its own sidebar + viewport layout */}
-        {surface === "sessions" && (
-          <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
-        )}
-
-        {/* Vaults View owns its own sidebar + viewport layout */}
-        {surface === "vaults" && (
-          <VaultWorkspaceView />
-        )}
-
-        {surface === "projects" && <ProjectsView />}
-
-        {surface === "fleet" && <FleetView nodeId={nodeId} />}
-
-        {/* Other surfaces keep the shell-level sidebar + viewport split */}
-        {!sidebarCollapsed && surface === "settings" && (
-          <SecondarySidebar width={sidebarWidth}>
-            <PlaceholderSidebar surface={surface} />
-          </SecondarySidebar>
-        )}
-
-        {/* Viewport for shell-managed surfaces (projects, settings) */}
-        {surface === "settings" ? (
-          <div className="viewport">
-            <SettingsView />
+        {/* Deferred mount: render active view immediately, pre-mount others
+            after idle so subsequent switches are instant CSS toggles. */}
+        {mounted.has("sessions") && (
+          <div className={surface === "sessions" ? "view-slot" : "view-hidden"}>
+            <SessionsView sessionId={sessionId} projectId={projectId} page={page} />
           </div>
-        ) : null}
+        )}
+        {mounted.has("vaults") && (
+          <div className={surface === "vaults" ? "view-slot" : "view-hidden"}>
+            <VaultWorkspaceView />
+          </div>
+        )}
+        {mounted.has("projects") && (
+          <div className={surface === "projects" ? "view-slot" : "view-hidden"}>
+            <ProjectsView />
+          </div>
+        )}
+        {mounted.has("fleet") && (
+          <div className={surface === "fleet" ? "view-slot" : "view-hidden"}>
+            <FleetView nodeId={nodeId} />
+          </div>
+        )}
+        {mounted.has("docs") && (
+          <div className={surface === "docs" ? "view-slot" : "view-hidden"}>
+            <DocsView />
+          </div>
+        )}
+        {mounted.has("settings") && (
+          <div className={surface === "settings" ? "view-slot" : "view-hidden"}>
+            {!sidebarCollapsed && (
+              <SecondarySidebar width={sidebarWidth}>
+                <PlaceholderSidebar surface={surface} />
+              </SecondarySidebar>
+            )}
+            <div className="viewport">
+              <SettingsView />
+            </div>
+          </div>
+        )}
       </div>
+      <StatusBar />
       {/* Operator cockpit (ADR 0021): floating, persists across every surface
           because it is mounted here at the app root, outside the body switch. */}
       <Cockpit />
@@ -106,25 +145,27 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
   const navigate = useNavigate();
   const { toggleSidebar } = useUIStore();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAxisAuth();
+  const { user, organization, organizations, logout } = useAxisAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <div className="topbar">
       <div className="tb-left">
-        <button
+        <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={toggleSidebar}
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
         >
           <Icon name="mountain" size={14} />
-        </button>
+        </Button>
+        {import.meta.env.VITE_STELLARC_ENV === "dev" && <span className="env-pill">DEV</span>}
         <span className="divider" />
         {/* View selector — icon chips for each surface (concept: topbar .layouts) */}
         <div className="layouts" role="tablist" aria-label="Surfaces">
           {SURFACES.map((s) => (
-            <button
+            <Button
               type="button"
               key={s.surface}
               className={`chip ${activeSurface === s.surface ? "on" : ""}`}
@@ -134,7 +175,7 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
               aria-current={activeSurface === s.surface ? "page" : undefined}
             >
               <Icon name={s.icon} size={13} />
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -147,19 +188,54 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
         {/* Operator cockpit toggle (ADR 0021) — floating terminal workspace. */}
         <CockpitToggle />
         {/* Theme toggle */}
-        <button
+        <Button
           type="button"
-          className="icobtn"
+          variant="ghost" size="icon-sm"
           onClick={toggleTheme}
           title={theme === "obsidian" ? "Switch to light" : "Switch to dark"}
           aria-label="Toggle theme"
         >
           <Icon name={theme === "obsidian" ? "sun" : "moon"} size={14} />
-        </button>
+        </Button>
         <OrgChip />
-        <button className="profile" title={`Sign out ${user.username}`} onClick={() => void logout()}>
-          {user.username.slice(0, 2).toLowerCase()}
-        </button>
+        <div className="account-menu-wrap">
+          <Button
+            type="button"
+            className="profile"
+            title={`Account menu for ${user.username}`}
+            aria-label={`Account menu for ${user.username}`}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            onClick={() => setAccountOpen((open) => !open)}
+          >
+            {user.username.slice(0, 2).toLowerCase()}
+          </Button>
+          {accountOpen && (
+            <div className="account-menu" role="menu">
+              <div className="account-menu-user" role="none">
+                <span className="profile" aria-hidden="true">{user.username.slice(0, 2).toLowerCase()}</span>
+                <div>
+                  <div className="account-menu-name">{user.username}</div>
+                  <div className="account-menu-meta">{user.kind}</div>
+                </div>
+              </div>
+              <div className="account-menu-sep" role="separator" />
+              <div className="account-menu-item account-menu-muted" role="menuitem" aria-disabled="true">
+                <span>Organization</span>
+                <strong>{organization.displayName}</strong>
+              </div>
+              <div className="account-menu-item account-menu-muted" role="menuitem" aria-disabled="true">
+                {organizations.length > 1 ? "Use the organization selector in the top bar." : "No other organizations available."}
+              </div>
+              <Button type="button" className="account-menu-item" role="menuitem" onClick={() => { setAccountOpen(false); void navigate({ to: "/settings" }); }}>
+                Settings
+              </Button>
+              <Button type="button" className="account-menu-item danger" role="menuitem" onClick={() => void logout()}>
+                Sign out
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -168,16 +244,16 @@ function TopBar({ activeSurface }: { activeSurface: SurfaceName }) {
 function CockpitToggle() {
   const { open, toggle } = useCockpit();
   return (
-    <button
+    <Button
       type="button"
-      className={`icobtn ${open ? "on" : ""}`}
+      variant="ghost" size="icon-sm" aria-expanded={open}
       onClick={toggle}
       title="Operator cockpit (terminal)"
       aria-label="Toggle operator cockpit"
       aria-pressed={open}
     >
       <Icon name="terminal" size={14} />
-    </button>
+    </Button>
   );
 }
 
@@ -186,14 +262,14 @@ function OrgChip() {
   return (
     <label className="org" title="Organization">
       <span className="mk" />
-      <select
+      <NativeSelect
         aria-label="Organization"
         value={organization.id}
         onChange={(event) => selectOrganization(event.target.value)}
         style={{ background: "transparent", border: 0, color: "inherit", maxWidth: 180 }}
       >
         {organizations.map((org) => <option key={org.id} value={org.id}>{org.displayName}</option>)}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

@@ -5,6 +5,8 @@
 //! Phase 6: tantivy full-text search (`search`).
 
 pub mod auth;
+pub mod auth_mode;
+pub mod auth_sidecar;
 pub mod auth_store;
 pub mod edge;
 pub mod edit_model;
@@ -15,6 +17,7 @@ pub mod import;
 pub mod irc;
 pub mod jobs;
 pub mod log;
+mod migrations;
 #[cfg(feature = "postgres")]
 pub mod log_pg;
 pub mod node;

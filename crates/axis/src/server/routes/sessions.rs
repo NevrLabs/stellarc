@@ -21,7 +21,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/sessions", get(list_sessions).post(create_session))
         .route("/api/sessions/{id}", get(get_session).patch(patch_session))
-        .route("/api/sessions/{id}/fork", post(fork_session))
         .route("/api/sessions/{id}/handover", post(handover_session))
         .route(
             "/api/sessions/{id}/messages",
@@ -48,6 +47,7 @@ pub fn router() -> Router<AppState> {
             get(list_subsessions).post(create_subsession),
         )
         .route("/api/sessions/{id}/complete", post(complete_session))
+        .route("/api/sessions/{id}/diagnostics", get(session_diagnostics))
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -82,6 +82,11 @@ pub(crate) struct PostMessageBody {
     /// prompt. Absent/None = leave the session's current setting alone.
     #[serde(default)]
     thinking: Option<String>,
+    /// Context window preset ("default" | "256k" | "1m"). Accepted and logged
+    /// for now; the Orbit bridge mapping is NOT implemented yet.
+    #[serde(default)]
+    #[serde(rename = "contextPreset")]
+    context_preset: Option<String>,
 }
 
 /// Body for `POST /api/sessions` — optional agent/node binding at creation. All
@@ -114,15 +119,6 @@ pub(crate) struct PatchSessionBody {
     archived: Option<bool>,
     #[serde(default)]
     pinned: Option<bool>,
-    #[serde(default)]
-    capabilities: Option<CapabilitySet>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ForkSessionBody {
-    #[serde(default)]
-    fork_type: Option<String>,
     #[serde(default)]
     capabilities: Option<CapabilitySet>,
 }
@@ -368,6 +364,71 @@ pub(crate) async fn get_session(
     }
 }
 
+/// GET /api/sessions/{id}/diagnostics — full runtime status for one session,
+/// assembled from state Axis already holds (dev-tooling surface; no new
+/// bookkeeping). Reports the session row, derived liveness, the bound node's
+/// registry entry, whether that node's orbit connection is currently open,
+/// and whether the bridge holds a live runtime / in-flight turn / pending
+/// permission for the session.
+pub(crate) async fn session_diagnostics(
+    State(state): State<AppState>,
+    scope: Option<axum::extract::Extension<OrgScope>>,
+    Path(id): Path<String>,
+) -> Response {
+    let views = state.views.read().await;
+    let Some(row) = views.sessions.get(&id) else {
+        return (StatusCode::NOT_FOUND, "session not found").into_response();
+    };
+    if let Some(scope) = scope.as_ref() {
+        if row.org_id != scope.0.organization_id {
+            return (StatusCode::NOT_FOUND, "session not found").into_response();
+        }
+    }
+    let dto = SessionDto::from_row(row);
+    drop(views);
+
+    let in_flight = state.bridge.in_flight_set().await;
+    let awaiting = state.bridge.awaiting_input_set().await;
+    let managed = dto.source == "acp" || dto.source == "stellarc";
+    let liveness = crate::server::dto::compute_liveness(
+        dto.last_activity,
+        now_epoch(),
+        in_flight.contains(&dto.id),
+        managed,
+        awaiting.contains(&dto.id),
+    );
+    let runtime_held = state.bridge.get_runtime(&dto.id).await.is_some();
+
+    let (node_info, orbit_connected) = match dto.node.as_deref() {
+        Some(node_id) => {
+            let info = state.nodes.get(node_id).await;
+            let connected = state.orbit_conns.get(node_id).await.is_some();
+            (info, connected)
+        }
+        None => (None, false),
+    };
+
+    Json(json!({
+        "sessionId": dto.id,
+        "hermesId": dto.hermes_id,
+        "source": dto.source,
+        "managed": managed,
+        "agent": dto.agent,
+        "model": dto.model,
+        "node": dto.node,
+        "liveness": liveness,
+        "inFlight": in_flight.contains(&dto.id),
+        "awaitingInput": awaiting.contains(&dto.id),
+        "runtimeHeld": runtime_held,
+        "orbitConnected": orbit_connected,
+        "lastActivity": dto.last_activity,
+        "messageCount": dto.message_count,
+        "nodeInfo": node_info,
+    }))
+    .into_response()
+}
+
+
 /// Extract the timestamp from a MessageAppended event (for DTO building).
 pub(crate) fn event_timestamp(event: &crate::event::Event) -> f64 {
     match event {
@@ -489,6 +550,23 @@ pub(crate) async fn create_session(
                 )
                     .into_response();
             }
+        }
+    } else if let Some(agent_id) = body.agent.as_deref() {
+        if !state
+            .nodes
+            .all_agents()
+            .await
+            .iter()
+            .any(|agent| agent.id == agent_id)
+        {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "agent_unavailable",
+                    "message": format!("Agent {agent_id} is not available on any connected node"),
+                })),
+            )
+                .into_response();
         }
     }
     let organization_id = scope.as_ref().map(|scope| scope.0.organization_id.as_str());
@@ -760,204 +838,23 @@ pub(crate) async fn patch_session(
     }
 }
 
-/// POST /api/sessions/:id/fork — fork an observed session into Stellarc.
-pub(crate) async fn fork_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(body): Json<ForkSessionBody>,
-) -> Response {
-    let (source, messages) = {
-        let views = state.views.read().await;
-        let Some(source) = views.sessions.get(&id).cloned() else {
-            return (StatusCode::NOT_FOUND, "session not found").into_response();
-        };
-        let messages = views
-            .messages
-            .recent(&id, usize::MAX)
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        (source, messages)
-    };
-
-    let child_capabilities = match (&source.capabilities, body.capabilities) {
-        (Some(parent), Some(mut requested)) => {
-            if !parent.can_fork {
-                return capability_error("capability_denied", "parent lacks session.fork");
-            }
-            requested.signature.clear();
-            let effective = CapabilitySet::intersect(parent, &requested);
-            if effective != requested {
-                return capability_error(
-                    "capability_expansion",
-                    "requested child capabilities exceed the parent",
-                );
-            }
-            Some(effective)
-        }
-        (Some(parent), None) => {
-            if !parent.can_fork {
-                return capability_error("capability_denied", "parent lacks session.fork");
-            }
-            let mut inherited = parent.clone();
-            inherited.signature.clear();
-            Some(inherited)
-        }
-        (None, requested) => requested,
-    };
-    let fork_type = body.fork_type.unwrap_or_else(|| "sub".to_string());
-    let fork = match state
-        .bridge
-        .fork_session(
-            &source.hermes_id,
-            source.model.clone(),
-            source.title.clone(),
-            messages.len() as u64,
-            Some(&source.org_id),
-        )
-        .await
-    {
-        Ok(fork) => fork,
-        Err(e) => {
-            tracing::error!(error = %e, source_session = %id, "bridge fork_session failed");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "error": "bridge_error",
-                    "message": format!("Failed to fork agent session: {e:#}"),
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    for (idx, msg) in messages.iter().enumerate() {
-        if let Err(e) = state.log.append(&crate::event::Event::MessageAppended {
-            session_id: fork.session_id.clone(),
-            hermes_session_id: fork.hermes_id.clone(),
-            message_id: idx as u64,
-            role: msg.role.clone(),
-            content: msg.content.clone(),
-            tool_name: msg.tool_name.clone(),
-            tool_calls: None,
-            reasoning: None,
-            timestamp: msg.timestamp,
-            token_count: msg.token_count,
-            finish_reason: None,
-        }) {
-            tracing::warn!(error = %e, fork_session = %fork.session_id, "failed to append forked message");
-        }
+/// Build a user-facing diagnostic when a turn ends with no assistant text AND
+/// no tool calls — i.e. the model returned nothing usable (refusal / empty
+/// completion). Returns `None` when the turn produced content, so callers keep
+/// the real reply. Kept pure so the empty-turn branch has a runnable check.
+fn empty_turn_diagnostic(
+    assistant_text: &str,
+    no_tool_calls: bool,
+    finish_reason: Option<&str>,
+) -> Option<String> {
+    if assistant_text.trim().is_empty() && no_tool_calls {
+        let reason = finish_reason.unwrap_or("empty");
+        Some(format!(
+            "\u{26a0} The model returned no content (finish reason: {reason}). This usually means the request was refused or the provider returned an empty completion."
+        ))
+    } else {
+        None
     }
-
-    let mut dto = {
-        let mut views = state.views.write().await;
-        if let Ok(events) = state.log.read_all() {
-            for (_seq, event) in events {
-                match &event {
-                    crate::event::Event::SessionCreated { session_id, .. }
-                    | crate::event::Event::MessageAppended { session_id, .. }
-                    | crate::event::Event::SessionUpdated { session_id, .. }
-                    | crate::event::Event::SessionOrganizationAssigned { session_id, .. }
-                        if session_id == &fork.session_id =>
-                    {
-                        views.apply(&event);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        match views.sessions.get(&fork.session_id) {
-            Some(row) => SessionDto::from_row(row),
-            None => SessionDto {
-                id: fork.session_id.clone(),
-                hermes_id: fork.hermes_id.clone(),
-                org_id: source.org_id.clone(),
-                owner_id: "rpw".into(),
-                context_id: None,
-                source: "stellarc".into(),
-                model: source.model.clone(),
-                title: source.title.clone(),
-                started_at: 0.0,
-                last_activity: 0.0,
-                message_count: messages.len() as u64,
-                input_tokens: 0,
-                output_tokens: 0,
-                archived: false,
-                pinned: false,
-                forked_from: None,
-                fork_point: None,
-                fork_type: None,
-                managed: true,
-                agent: None,
-                node: None,
-                liveness: "active".to_string(),
-                parent_session_id: None,
-                card_id: None,
-                project_id: source.project_id.clone(),
-                context_projects: Vec::new(),
-                capabilities: None,
-            },
-        }
-    };
-    dto.forked_from = Some(id.clone());
-    dto.fork_type = Some(fork_type.clone());
-    dto.parent_session_id = Some(id.clone());
-
-    // Emit SessionForked so the session tree is durable (ADR 0006 §7 footgun 3).
-    // The child inherits the parent's card_id (if any) via the view projection.
-    let forked_event = crate::event::Event::SessionForked {
-        parent_session_id: id.clone(),
-        child_session_id: fork.session_id.clone(),
-        fork_type: fork_type.clone(),
-        fork_point: None,
-        forked_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(0.0),
-    };
-    let capability_event = match child_capabilities {
-        Some(capabilities) => match signed_capability_event(
-            &state,
-            fork.session_id.clone(),
-            capabilities,
-            &Principal::Operator,
-            Some(id.clone()),
-        ) {
-            Ok(event) => Some(event),
-            Err(response) => return response,
-        },
-        None => None,
-    };
-    {
-        let mut views = state.views.write().await;
-        if let Err(error) = state.log.append(&forked_event) {
-            tracing::error!(%error, "persisting SessionForked event");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-        views.apply(&forked_event);
-        if let Some(event) = capability_event.as_ref() {
-            if let Err(error) = state.log.append(event) {
-                tracing::error!(%error, "persisting fork capabilities");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-            views.apply(event);
-        }
-    }
-    // Re-read the child row to get projected inherited state.
-    if let Some(child_row) = {
-        let views = state.views.read().await;
-        views.sessions.get(&fork.session_id).cloned()
-    } {
-        dto.card_id = child_row.card_id.clone();
-        dto.project_id = child_row.project_id.clone();
-        dto.capabilities = child_row.capabilities.clone().map(Box::new);
-    }
-
-    let _ = state.deltas.send(ServerFrame::SessionAdded {
-        session: Box::new(dto.clone()),
-    });
-
-    Json(json!({ "session": dto })).into_response()
 }
 
 /// POST a message to drive a session.
@@ -1177,6 +1074,12 @@ pub(crate) async fn post_message(
         .clone()
         .filter(|t| matches!(t.as_str(), "low" | "medium" | "high"));
     let prompt_model = body.model.clone();
+    // Context preset: accepted from the client, logged here. The Orbit bridge
+    // mapping is not implemented yet — this is the seam.
+    let prompt_context_preset = body.context_preset.clone();
+    if let Some(ref ctx) = prompt_context_preset {
+        tracing::info!(session = %id, context_preset = %ctx, "context preset requested");
+    }
     let assistant_seed_id = next_id + 1;
     let log_deltas = deltas.clone();
     let log_session_id = session_id.clone();
@@ -1543,6 +1446,25 @@ pub(crate) async fn post_message(
                     } else {
                         Some(serde_json::Value::Array(tool_calls_acc.clone()).to_string())
                     };
+                    // An empty turn (no text AND no tool calls) means the model
+                    // returned nothing usable — usually a refusal or an empty
+                    // completion. Surface it instead of persisting a blank
+                    // bubble that looks like a hang. ponytail: substitutes a
+                    // fixed diagnostic string; richer provider-error passthrough
+                    // if we later thread the raw error up the runtime stream.
+                    if let Some(diagnostic) = empty_turn_diagnostic(
+                        &assistant_text,
+                        tool_calls_acc.is_empty(),
+                        finish_reason.as_deref(),
+                    ) {
+                        tracing::warn!(
+                            session = %session_id,
+                            finish = finish_reason.as_deref().unwrap_or("empty"),
+                            "agent produced an empty turn (no text, no tool calls)"
+                        );
+                        emit_log("error", "agent", &diagnostic);
+                        assistant_text = diagnostic;
+                    }
                     // ADR 0020 v2 §4.1 — DURABLE-FIRST completion. Persist the
                     // final assistant message AND apply it to the views, and
                     // broadcast `message.appended`, BEFORE signalling
@@ -2349,7 +2271,7 @@ pub(crate) async fn handover_session(
     };
 
     // Create the target session.
-    let target_id = format!("oly-{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
+    let target_id = state.bridge.new_session_id();
     if let Err(error) = state.bridge.ensure_space(&source.org_id, &target_id) {
         tracing::error!(%error, "creating organization-scoped handover workspace");
         return (
@@ -2714,4 +2636,32 @@ pub(crate) async fn detach_context_project(
     };
 
     Json(json!({ "contextProjects": context_projects })).into_response()
+}
+
+#[cfg(test)]
+mod empty_turn_tests {
+    use super::empty_turn_diagnostic;
+
+    #[test]
+    fn empty_refusal_produces_diagnostic() {
+        let d = empty_turn_diagnostic("", true, Some("refusal"));
+        assert!(d.is_some());
+        assert!(d.unwrap().contains("refusal"));
+    }
+
+    #[test]
+    fn whitespace_only_is_empty() {
+        assert!(empty_turn_diagnostic("   \n", true, None).is_some());
+    }
+
+    #[test]
+    fn real_text_returns_none() {
+        assert!(empty_turn_diagnostic("Hi!", true, Some("stop")).is_none());
+    }
+
+    #[test]
+    fn tool_calls_only_returns_none() {
+        // No text but a tool call ran — that is a valid turn, not empty.
+        assert!(empty_turn_diagnostic("", false, Some("tool_use")).is_none());
+    }
 }

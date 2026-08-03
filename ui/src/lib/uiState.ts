@@ -1,5 +1,3 @@
-import { apiFetch } from "../api";
-
 const PREFIX = "stellarc-ui-state:";
 
 function key(surface: string): string {
@@ -28,24 +26,9 @@ export function getLocalUiState<T>(surface: string): T | null {
 }
 
 export async function loadWorkspaceState<T>(surface: string): Promise<T | null> {
-  const local = getLocalUiState<T>(surface);
-  try {
-    const res = await apiFetch(`/api/ui-state/${encodeURIComponent(surface)}`);
-    // The Axis route may not exist yet; the SPA fallback answers 200 text/html.
-    // Only trust a real JSON response — otherwise fall back to local state.
-    if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) return local;
-    const body = (await res.json()) as { state?: unknown };
-    return (body.state ?? body) as T;
-  } catch {
-    return local;
-  }
+  return getLocalUiState<T>(surface);
 }
 
 export function saveWorkspaceState(surface: string, state: unknown): void {
   writeLocal(surface, state);
-  void apiFetch(`/api/ui-state/${encodeURIComponent(surface)}`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ state }),
-  }).catch(() => undefined);
 }

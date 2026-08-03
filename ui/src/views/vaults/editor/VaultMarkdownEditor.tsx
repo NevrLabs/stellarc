@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { autocompletion } from "@codemirror/autocomplete";
 import { redo, undo } from "@codemirror/commands";
@@ -66,15 +67,15 @@ export function VaultMarkdownEditor(props: VaultMarkdownEditorProps) {
           <span className="vault-note-mode-label">{editorLabel}</span>
         </div>
         <div className="vault-note-action-group">
-          {props.onSave && <button type="button" className="btn pri" aria-label="Save note" disabled={props.saving || !props.dirty} onClick={props.onSave}>{props.saving ? "Saving…" : "Save"}</button>}
-          {props.onCancel && <button type="button" className="vault-toolbar-button" aria-label="Cancel edits" disabled={props.saving || !props.dirty} onClick={() => { props.onCancel?.(); setEditorGeneration((generation) => generation + 1); }}>Cancel</button>}
-          {props.onDelete && <button type="button" className="vault-toolbar-button danger" aria-label="Delete note" onClick={props.onDelete}>Delete</button>}
-          <button type="button" className="vault-toolbar-button" aria-label="Note actions" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>⋯</button>
+          {props.onSave && <Button type="button" variant="default" size="sm" aria-label="Save note" disabled={props.saving || !props.dirty} onClick={props.onSave}>{props.saving ? "Saving…" : "Save"}</Button>}
+          {props.onCancel && <Button type="button" className="vault-toolbar-button" aria-label="Cancel edits" disabled={props.saving || !props.dirty} onClick={() => { props.onCancel?.(); setEditorGeneration((generation) => generation + 1); }}>Cancel</Button>}
+          {props.onDelete && <Button type="button" className="vault-toolbar-button danger" aria-label="Delete note" onClick={props.onDelete}>Delete</Button>}
+          <Button type="button" className="vault-toolbar-button" aria-label="Note actions" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>⋯</Button>
           {menuOpen && (
             <div className="vault-note-menu" role="menu">
-              <button type="button" role="menuitem" onClick={() => { const next = mode === "rich" ? "source" : "rich"; setMode(next); props.onEditorModeChange?.(next); setMenuOpen(false); }} disabled={conflicted && mode === "source"}>
+              <Button type="button" role="menuitem" onClick={() => { const next = mode === "rich" ? "source" : "rich"; setMode(next); props.onEditorModeChange?.(next); setMenuOpen(false); }} disabled={conflicted && mode === "source"}>
                 {mode === "rich" ? "Edit source" : "Edit rich"}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -82,9 +83,9 @@ export function VaultMarkdownEditor(props: VaultMarkdownEditorProps) {
       {props.saveError && <div className="vault-save-error" role="alert">{props.saveError}</div>}
       {mode === "rich" ? (
         <Suspense fallback={<div className="vault-editor-loading">Loading rich editor…</div>}>
-          <MilkdownRichEditor key={editorGeneration} markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} />
+          <MilkdownRichEditor key={editorGeneration} markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} dirty={props.dirty} />
         </Suspense>
-      ) : <SourceMarkdownEditor markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} saveError={props.saveError} />}
+      ) : <SourceMarkdownEditor markdown={props.markdown} onChange={props.onChange} suggestions={props.suggestions} dirty={props.dirty} saveError={props.saveError} />}
     </div>
   );
 }
@@ -189,7 +190,7 @@ interface ToolbarButtonProps {
 function ToolbarButton({ label, text, onClick, onMouseDown, strong, italic, strike }: ToolbarButtonProps) {
   const emphasis = [strong && "strong", italic && "italic", strike && "strike"].filter(Boolean).join(" ");
   return (
-    <button
+    <Button
       type="button"
       className={`vault-toolbar-button ${emphasis}`}
       aria-label={label}
@@ -198,7 +199,7 @@ function ToolbarButton({ label, text, onClick, onMouseDown, strong, italic, stri
       onClick={onClick}
     >
       {text}
-    </button>
+    </Button>
   );
 }
 

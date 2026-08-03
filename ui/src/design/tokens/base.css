@@ -2,7 +2,7 @@
    Global resets + element defaults that consumers get for free by linking
    styles.css. Everything here reads from tokens (colors/type/motion). */
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+@layer base { * { box-sizing: border-box; margin: 0; padding: 0; } }
 
 html, body {
   height: 100%;

@@ -18,6 +18,38 @@ const LOGIN_WINDOW_SECONDS: i64 = 60;
 const LOGIN_GLOBAL_LIMIT: usize = 20;
 const LOGIN_USERNAME_LIMIT: usize = 5;
 
+async fn sidecar_response(
+    state: &AppState,
+    path: &str,
+    headers: &HeaderMap,
+    body: Vec<u8>,
+) -> Option<Response> {
+    let socket = state.auth_sidecar_socket.as_ref()?;
+    let cookie = headers.get(header::COOKIE).and_then(|v| v.to_str().ok());
+    Some(
+        match crate::auth_sidecar::request(socket, hyper::Method::POST, path, cookie, body).await {
+            Ok(reply) => {
+                let mut response = (reply.status, reply.body).into_response();
+                if let Some(cookie) = reply
+                    .set_cookie
+                    .and_then(|v| HeaderValue::from_str(&v).ok())
+                {
+                    response.headers_mut().append(header::SET_COOKIE, cookie);
+                }
+                response
+            }
+            Err(error) => {
+                tracing::error!(%error, "calling auth sidecar");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "authentication unavailable",
+                )
+                    .into_response()
+            }
+        },
+    )
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     username: String,
@@ -27,6 +59,27 @@ pub struct LoginRequest {
 /// Unauthenticated probe: has this Axis been claimed yet? Deliberately a bare
 /// boolean — no usernames, no counts, no org names.
 pub async fn bootstrap_state(State(state): State<AppState>) -> Response {
+    if let Some(socket) = &state.auth_sidecar_socket {
+        return match crate::auth_sidecar::request(
+            socket,
+            hyper::Method::GET,
+            "/stellarc/bootstrap",
+            None,
+            vec![],
+        )
+        .await
+        {
+            Ok(reply) => (reply.status, reply.body).into_response(),
+            Err(error) => {
+                tracing::error!(%error, "reading auth sidecar bootstrap state");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "authentication unavailable",
+                )
+                    .into_response()
+            }
+        };
+    }
     match state.auth_store.has_any_user() {
         Ok(exists) => Json(json!({ "usersExist": exists })).into_response(),
         Err(error) => {
@@ -52,6 +105,19 @@ pub async fn register(
 ) -> Response {
     if !crate::auth::request_origin_ok(&headers, false) {
         return (StatusCode::FORBIDDEN, "forbidden origin").into_response();
+    }
+    if let Some(response) = sidecar_response(
+        &state,
+        "/stellarc/register",
+        &headers,
+        serde_json::to_vec(
+            &serde_json::json!({"username": body.username, "password": body.password}),
+        )
+        .unwrap(),
+    )
+    .await
+    {
+        return response;
     }
     if !allow_login_attempt(&body.username, unix_timestamp()) {
         return (StatusCode::TOO_MANY_REQUESTS, "too many login attempts").into_response();
@@ -99,6 +165,19 @@ pub async fn login(
 ) -> Response {
     if !crate::auth::request_origin_ok(&headers, false) {
         return (StatusCode::FORBIDDEN, "forbidden origin").into_response();
+    }
+    if let Some(response) = sidecar_response(
+        &state,
+        "/stellarc/login",
+        &headers,
+        serde_json::to_vec(
+            &serde_json::json!({"username": body.username, "password": body.password}),
+        )
+        .unwrap(),
+    )
+    .await
+    {
+        return response;
     }
     if !allow_login_attempt(&body.username, unix_timestamp()) {
         return (StatusCode::TOO_MANY_REQUESTS, "too many login attempts").into_response();
@@ -166,6 +245,18 @@ pub async fn list_organizations(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
 ) -> Response {
+    if state.auth_mode == crate::auth_mode::AuthMode::SingleUser
+        || state.auth_sidecar_socket.is_some()
+    {
+        let id = crate::entry::default_org();
+        return Json(json!({ "organizations": [{
+            "id": id,
+            "slug": id,
+            "displayName": "Personal",
+            "role": "owner"
+        }] }))
+        .into_response();
+    }
     let Principal::User { user_id, .. } = principal else {
         return (StatusCode::FORBIDDEN, "user login required").into_response();
     };
@@ -183,6 +274,9 @@ pub async fn list_organizations(
 }
 
 pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(response) = sidecar_response(&state, "/stellarc/logout", &headers, vec![]).await {
+        return response;
+    }
     if let Some(token) = session_token(&headers) {
         if let Err(error) = state.auth_store.revoke_session(&token) {
             tracing::error!(%error, "revoking Axis login session");

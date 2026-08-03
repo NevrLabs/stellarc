@@ -7,6 +7,8 @@ import { Icon } from "../../../components/Icon";
 import { deleteVaultNote, putVaultNote } from "../../../api";
 import { qk, useVaultNote } from "../../../hooks/queries";
 import { collectVaultSuggestions } from "../editor/vaultMarkdown";
+import { deleteVaultDraft, getVaultDraft, putVaultDraft } from "../../../lib/vaultDrafts";
+import { openVaultCollab } from "../../../lib/vaultCollab";
 
 const VaultMarkdownEditor = lazy(() =>
   import("../editor/VaultMarkdownEditor").then((module) => ({
@@ -37,16 +39,77 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const baseCidRef = useRef<string | null>(null);
+  const collabRef = useRef<ReturnType<typeof openVaultCollab> | null>(null);
 
   useEffect(() => {
     if (!note) return;
-    setDraft(note.markdown);
-    draftRef.current = note.markdown;
-    setDraftPath(note.path);
-    setDirty(false);
-    onDirtyChange(false);
-    setSaveError(null);
+    let active = true;
+    void getVaultDraft(vaultId, note.path).then((local) => {
+      if (!active) return;
+      const markdown = local?.markdown ?? note.markdown;
+      const restored = local != null && markdown !== note.markdown;
+      setDraft(markdown); draftRef.current = markdown; setDraftPath(note.path);
+      baseCidRef.current = local?.baseCid ?? note.cid ?? null;
+      setDirty(restored); onDirtyChange(restored);
+      setSaveError(restored ? "Local draft restored" : null);
+    }).catch(() => {
+      if (!active) return;
+      setDraft(note.markdown); draftRef.current=note.markdown; setDraftPath(note.path);
+      baseCidRef.current=note.cid ?? null; setDirty(false); onDirtyChange(false);
+    });
+    return () => { active = false; };
   }, [note?.path, vaultId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!note || draftPath !== note.path) return;
+    const collab = openVaultCollab(vaultId, note.path, draftRef.current, (markdown) => {
+      if (markdown === draftRef.current) return;
+      draftRef.current = markdown; setDraft(markdown); setDirty(true); onDirtyChange(true);
+      void putVaultDraft(vaultId, note.path, markdown, baseCidRef.current);
+    });
+    collabRef.current = collab;
+    return () => { collab.destroy(); if (collabRef.current === collab) collabRef.current = null; };
+  }, [vaultId, note?.path, draftPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    if (!notePath) return;
+    const path = notePath;
+    const submittedSnapshot = draftRef.current;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const saved = await putVaultNote(vaultId, path, { markdown: submittedSnapshot, expectedCid: baseCidRef.current });
+      baseCidRef.current = saved.cid ?? null;
+      await qc.invalidateQueries({ queryKey: qk.vaultNote(vaultId, path) });
+      await qc.invalidateQueries({ queryKey: qk.vaultNotes(vaultId) });
+      await deleteVaultDraft(vaultId, path);
+      const clearDirty = shouldClearDirtyAfterSave(draftRef.current, submittedSnapshot);
+      if (!clearDirty) await putVaultDraft(vaultId, path, draftRef.current, baseCidRef.current);
+      setDirty(!clearDirty);
+      onDirtyChange(!clearDirty);
+    } catch (saveFailure) {
+      setSaveError(saveFailure instanceof Error ? `${saveFailure.message}. Local draft kept.` : "Save failed. Local draft kept.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      if (dirty && !saving) void handleSave();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dirty, saving]);
+
+  useEffect(() => {
+    const sync = () => { if (dirty && !saving) void handleSave(); };
+    window.addEventListener("online", sync);
+    return () => window.removeEventListener("online", sync);
+  }, [dirty, saving, notePath]);
 
   if (!notePath) {
     return (
@@ -76,24 +139,6 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
     );
   }
 
-  const handleSave = async () => {
-    const submittedSnapshot = draftRef.current;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await putVaultNote(vaultId, notePath, { markdown: submittedSnapshot });
-      await qc.invalidateQueries({ queryKey: qk.vaultNote(vaultId, notePath) });
-      await qc.invalidateQueries({ queryKey: qk.vaultNotes(vaultId) });
-      const clearDirty = shouldClearDirtyAfterSave(draftRef.current, submittedSnapshot);
-      setDirty(!clearDirty);
-      onDirtyChange(!clearDirty);
-    } catch (saveFailure) {
-      setSaveError(saveFailure instanceof Error ? saveFailure.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDelete = async () => {
     try {
       await deleteVaultNote(vaultId, notePath);
@@ -110,6 +155,7 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
     setDirty(false);
     onDirtyChange(false);
     setSaveError(null);
+    void deleteVaultDraft(vaultId, notePath);
   };
 
   return (
@@ -130,9 +176,11 @@ export function NotePage({ vaultId, notePath, onDirtyChange, editorMode, onEdito
           onChange={(markdown) => {
             const nextDirty = markdown !== note.markdown;
             draftRef.current = markdown;
+            collabRef.current?.replace(markdown);
             setDraft(markdown);
             setDirty(nextDirty);
             onDirtyChange(nextDirty);
+            void putVaultDraft(vaultId, notePath, markdown, baseCidRef.current);
           }}
         />
       </Suspense>

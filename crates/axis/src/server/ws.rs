@@ -1060,6 +1060,8 @@ mod tests {
             token: Arc::new("t".into()),
             capability_signer: Arc::new(crate::server::capability::CapabilitySigner::for_tests()),
             auth_store: Arc::new(crate::auth_store::AuthStore::open_in_memory().unwrap()),
+            auth_mode: crate::auth_mode::AuthMode::Authenticated,
+            auth_sidecar_socket: None,
             allow_installation_token: true,
             session_cookie_secure: true,
             import_state: ImportState(Arc::new(std::sync::atomic::AtomicU8::new(IMPORT_DONE))),

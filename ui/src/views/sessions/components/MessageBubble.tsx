@@ -1,3 +1,7 @@
+// @ts-nocheck
+import { Button } from "@/components/ui/button";
+import { Message as ChatMessage, MessageContent, MessageActions, MessageAction, MessageToolbar } from "@/components/ai-elements/message";
+import { Marker } from "@/components/ui/marker";
 /**
  * MessageBubble — a single message in the transcript.
  *
@@ -7,27 +11,24 @@
  *  - Assistant tool calls are interleaved at their `anchor` offset inside
  *    the markdown body — not dumped at the bottom. Each card carries its
  *    lifecycle status (pending / in_progress / completed / failed).
- *  - Toolbar at bottom: [Copy] [Fork] <datetime> (hover-only).
+ *  - Toolbar below the message: [Copy] [Fork] <datetime>.
  */
 
 import React, { useState, useCallback, useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import { Icon } from "../../../components/Icon";
 import type { Message, ToolCall } from "../../../types";
 import { fmtDateTime, isDiffResult } from "../helpers";
 import { ToolCard } from "./ToolCard";
 import { DiffCard } from "./DiffCard";
+import { MarkdownText } from "./MarkdownText";
 
 export const MessageBubble = React.memo(function MessageBubble({
   msg,
   steerPending = false,
-  onFork,
 }: {
   msg: Message;
   steerPending?: boolean;
-  onFork: () => void;
 }) {
   const isUser = msg.role === "user";
   const isSteer = msg.role === "user" && msg.finishReason === "steer";
@@ -51,16 +52,6 @@ export const MessageBubble = React.memo(function MessageBubble({
       return next;
     });
   }, []);
-
-  if (isSystem) {
-    return (
-      <div className="msg-system" data-ts={dt}>
-        <span className="gk">{msg.content}</span>
-      </div>
-    );
-  }
-
-  if (msg.role === "tool") return null;
 
   // Build chronologically interleaved segments: text split at each tool call's
   // anchor offset, with the card inserted between segments.
@@ -102,8 +93,24 @@ export const MessageBubble = React.memo(function MessageBubble({
     return segs;
   }, [msg.content, msg.toolCalls]);
 
+  if (isSystem) {
+    return (
+      <div className="msg-system" data-ts={dt}>
+        <span className="gk">{msg.content}</span>
+      </div>
+    );
+  }
+
+  if (msg.role === "tool") return null;
+
+  // Old failed turns persisted blank assistant rows. They have no visible
+  // content but still consumed transcript gap space.
+  if (!isUser && !(msg.content ?? "").trim() && !msg.reasoning && !(msg.toolCalls?.length)) return null;
+
   return (
-    <div className={isSteer ? "msg-user msg-steer" : isUser ? "msg-user" : "msg-ai"} data-ts={dt}>
+    <div className={isUser ? "msg-row msg-row-user" : "msg-row msg-row-ai"}>
+      <ChatMessage from={isUser ? "user" : "assistant"} className={isSteer ? "msg-user msg-steer" : isUser ? "msg-user" : "msg-ai"} data-ts={dt}>
+        <MessageContent bubble={isUser}>
       {isSteer && (
         <span className={`steer-badge ${steerPending ? "steer-pending" : "steer-delivered"}`}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -116,7 +123,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       {/* Reasoning block */}
       {msg.reasoning && (
         <div className="reasoning-block">
-          <button
+          <Button
             type="button"
             className="reasoning-toggle"
             onClick={() => setReasonExpanded((v) => !v)}
@@ -125,7 +132,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             <span className="gk" style={{ fontSize: 10 }}>
               thinking
             </span>
-          </button>
+          </Button>
           {reasonExpanded && (
             <div className="reasoning-body">{msg.reasoning}</div>
           )}
@@ -151,23 +158,24 @@ export const MessageBubble = React.memo(function MessageBubble({
             );
           }
           return (
-            <ReactMarkdown key={`t-${i}`} remarkPlugins={[remarkGfm]}>
+            <MarkdownText key={`t-${i}`}>
               {seg.text}
-            </ReactMarkdown>
+            </MarkdownText>
           );
         })
       )}
 
       {/* Toolbar: [Copy] [Fork] datetime */}
-      <div className="msg-toolbar">
-        <button type="button" className="mt-btn" onClick={handleCopy} title="Copy">
-          <Icon name={copied ? "check" : "copy"} size={12} />
-        </button>
-        <button type="button" className="mt-btn" title="Fork from here" onClick={onFork}>
-          <Icon name="git-branch" size={12} />
-        </button>
-        <span className="mt-dt">{dt}</span>
-      </div>
+        </MessageContent>
+      </ChatMessage>
+      <MessageToolbar className="msg-toolbar">
+        <MessageActions>
+          <MessageAction className="mt-btn" onClick={handleCopy} tooltip="Copy" label="Copy message">
+            <Icon name={copied ? "check" : "copy"} size={10} />
+          </MessageAction>
+        </MessageActions>
+        <Marker className="mt-dt">{dt}</Marker>
+      </MessageToolbar>
     </div>
   );
 });

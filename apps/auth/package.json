@@ -1,0 +1,18 @@
+{
+  "name": "@stellarc/auth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build --compile --minify src/server.ts --outfile dist/stellarc-auth",
+    "migrate": "bun node_modules/@better-auth/cli/dist/index.mjs migrate --config src/auth.ts --yes"
+  },
+  "dependencies": {
+    "better-auth": "1.6.25"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "1.4.21",
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}

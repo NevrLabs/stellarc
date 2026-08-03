@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ProjectsView — the Projects View component (owns sidebar + kanban board).
  *
@@ -23,7 +24,8 @@
  *   └──────────────────────────────────────────────────────────────┘
  */
 
-import React, { useState, useMemo } from "react";
+import React, { memo, useState, useMemo } from "react";
+import { useResizable } from "../hooks/useResizable";
 import { useUIStore } from "../store";
 import { useCards } from "../hooks/queries";
 import type { Card, CardStatus } from "../types";
@@ -52,8 +54,12 @@ function uniqueAssignees(cards: Card[]): string[] {
   return Array.from(set).sort();
 }
 
-export function ProjectsView() {
+export const ProjectsView = memo(function ProjectsView() {
   const { sidebarCollapsed } = useUIStore();
+  const sidebar = useResizable({
+    axis: "x", min: 220, max: 360, initial: 260,
+    direction: "right", persistKey: "stellarc-projects-sidebar-w",
+  });
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [filterAssignee, setFilterAssignee] = useState<string | null>(null);
 
@@ -77,10 +83,12 @@ export function ProjectsView() {
       {/* ── View-owned left sidebar ─────────────────────────────── */}
       {!sidebarCollapsed && (
         <ProjectSidebar
+          width={sidebar.size}
           assignees={assignees}
           activeFilter={filterAssignee}
           onFilterChange={setFilterAssignee}
           cards={cards}
+          onResizeStart={sidebar.onResizeStart}
         />
       )}
 
@@ -96,10 +104,11 @@ export function ProjectsView() {
             {/* Header */}
             <div className="gv-head">
               <span className="gv-title">Projects</span>
+              <span className="gv-sub">Boards → Cards</span>
               <span className="gtag">{cards.length} cards</span>
               <div className="sp" />
               {filterAssignee && (
-                <button
+                <Button
                   type="button"
                   className="gtag ok"
                   style={{ cursor: "pointer" }}
@@ -107,7 +116,7 @@ export function ProjectsView() {
                   title="Clear filter"
                 >
                   {filterAssignee === "__unassigned__" ? "No assignee" : filterAssignee} ×
-                </button>
+                </Button>
               )}
             </div>
 
@@ -122,10 +131,10 @@ export function ProjectsView() {
                   <div className="empty-state-icon">
                     <Icon name="kanban" size={32} />
                   </div>
-                  <div className="empty-state-title">No cards</div>
+                  <div className="empty-state-title">No cards on this board</div>
                   <div className="empty-state-msg">
                     {cards.length === 0
-                      ? "Cards will appear here when agents pick up work."
+                      ? "Cards created through the board API will appear here for agents to pick up."
                       : "No cards match the current filter."}
                   </div>
                 </div>
@@ -153,4 +162,4 @@ export function ProjectsView() {
       </div>
     </>
   );
-}
+});

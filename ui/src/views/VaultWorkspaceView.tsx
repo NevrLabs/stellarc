@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { memo } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,7 +21,7 @@ import {
 
 const EMPTY_NOTES: NoteTreeEntry[] = [];
 
-export function VaultWorkspaceView() {
+export const VaultWorkspaceView = memo(function VaultWorkspaceView() {
   const { location } = useRouterState();
   const { sidebarCollapsed } = useUIStore();
   const navigate = useNavigate();
@@ -28,7 +30,11 @@ export function VaultWorkspaceView() {
   const routeNote = new URLSearchParams(location.search).get("note");
   const { data: vaultsData } = useVaults();
   const vaults = vaultsData?.vaults ?? [];
-  const activeVaultId = route.vaultId ?? vaults[0]?.id ?? null;
+  // Only auto-select first vault when vaults surface is active.
+  // When mounted-but-hidden (e.g. user is on /sessions), route.vaultId is
+  // null and we must NOT fall back to vaults[0] — that would trigger
+  // vault WebSocket connections and navigate away from the current page.
+  const activeVaultId = route.surface === "vaults" ? (route.vaultId ?? vaults[0]?.id ?? null) : route.vaultId;
   const { data: notesData } = useVaultNotes(activeVaultId);
   const notes = notesData?.notes ?? EMPTY_NOTES;
   const [createVaultOpen, setCreateVaultOpen] = useState(false);
@@ -189,7 +195,7 @@ export function VaultWorkspaceView() {
             })}
           />
         ) : (
-          <div className="empty-state"><div className="empty-state-title">Create your first vault</div><div className="empty-state-msg">Connect a GitHub repository to begin.</div><button type="button" className="btn primary" onClick={() => setCreateVaultOpen(true)}>Create vault</button></div>
+          <div className="empty-state"><div className="empty-state-title">Create your first vault</div><div className="empty-state-msg">Connect a GitHub repository to begin.</div><Button type="button" variant="default" size="sm" onClick={() => setCreateVaultOpen(true)}>Create vault</Button></div>
         )}
       </div>
       {createVaultOpen && <CreateVaultDialog busy={busy} error={mutationError} onClose={() => setCreateVaultOpen(false)} onCreate={handleCreateVault} />}
@@ -198,7 +204,7 @@ export function VaultWorkspaceView() {
       <DeleteNoteDialog path={deleteEntry?.path ?? null} busy={busy} error={mutationError} onClose={() => setDeleteEntry(null)} onDelete={handleDelete} />
     </>
   );
-}
+});
 
 function targetFromRoute(page: "note" | "tables" | "graph", path: string | null, notes: NoteTreeEntry[]): WorkspaceTab | null {
   if (page === "graph") return graphTab;

@@ -40,10 +40,6 @@ pub struct RuntimeEntry {
 
 /// The result of forking a source agent session into a fresh runtime: the
 /// started runtime and the agent session id it captured.
-pub struct ForkedRuntime {
-    pub runtime: Arc<dyn AgentRuntime>,
-    pub hermes_id: String,
-}
 
 /// Active agent runtimes keyed by Stellarc session id, plus the factory that
 /// spawns them (ensure/send/stop per-session mechanics).
@@ -132,22 +128,6 @@ impl RuntimeTable {
         );
 
         Ok((runtime, hermes_id))
-    }
-
-    /// Fork a source agent session into a fresh runtime (not yet registered —
-    /// the caller assigns the Stellarc session id and calls [`Self::register`]).
-    pub async fn fork_runtime(&self, source_hermes_id: &str) -> Result<ForkedRuntime> {
-        let runtime = (self.factory)(None, &RuntimeSpec::default())?;
-        runtime
-            .fork_session(source_hermes_id)
-            .await
-            .context("forking agent runtime session")?;
-
-        let hermes_id = runtime
-            .hermes_session_id()
-            .await
-            .unwrap_or_else(|| format!("fork-{}", chrono_millis()));
-        Ok(ForkedRuntime { runtime, hermes_id })
     }
 
     /// Register an already-started runtime under an Stellarc session id,
@@ -273,10 +253,6 @@ mod tests {
             self.started.notify_one();
             self.release.notified().await;
             *self.hermes_id.lock().await = Some("hermes-session".into());
-            Ok(())
-        }
-
-        async fn fork_session(&self, _session_id: &str) -> Result<()> {
             Ok(())
         }
 

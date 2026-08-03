@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 /**
  * SessionSidebar — the View-owned left sidebar for Sessions (v4 layout).
  *
@@ -8,7 +10,7 @@
  *  4. PROJECTS: tree — no-project pseudo-row, project rows (N live pill),
  *     sessions nested via .tree hairline, subsessions one deeper, N more… ghost
  *
- * Sections are collapsible (click header) + vertically resizable (RECENT↔PROJECTS).
+ * Sections are collapsible. RECENT is fixed to the five newest sessions.
  * Collapse/hidden-projects persist to localStorage.
  */
 
@@ -18,11 +20,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "../../../components/Icon";
 import { useProjects, useSessions, useUpdateSession } from "../../../hooks/queries";
 import { useUIStore } from "../../../store";
-import { attachSessionToProject, createSession } from "../../../api";
+import { attachContextProject, attachSessionToProject } from "../../../api";
 import type { Session, Project } from "../../../types";
 import { timeAgo } from "../helpers";
-import { AgentPicker } from "./AgentPicker";
-import { useResizable } from "../../../hooks/useResizable";
+
 import {
   DEFAULT_SESSION_METADATA_FIELDS,
   SESSION_METADATA_FIELDS,
@@ -72,10 +73,17 @@ export function SessionSidebar({
     if (isPhoneViewport()) toggleSidebar();
   }, [toggleSidebar]);
 
+  // Search/filter state
+  const [search, setSearch] = useState("");
+  const searchLower = search.toLowerCase().trim();
+
   // RECENT: all managed non-archived, newest first. Cap at a reasonable number.
   const recent = useMemo(
-    () => [...sessions].sort((a, b) => b.lastActivity - a.lastActivity).slice(0, 8),
-    [sessions],
+    () => [...sessions]
+      .filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower))
+      .sort((a, b) => b.lastActivity - a.lastActivity)
+      .slice(0, 5),
+    [sessions, searchLower],
   );
 
   // PROJECTS tree: group sessions by projectId, build subsession nesting.
@@ -100,9 +108,12 @@ export function SessionSidebar({
     return { byProject, noProject, subsessions };
   }, [sessions]);
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerError, setPickerError] = useState<string | null>(null);
   const [projectActionError, setProjectActionError] = useState<string | null>(null);
+  const [contextOffer, setContextOffer] = useState<{
+    sessionId: string;
+    projectId: string;
+    projectName: string;
+  } | null>(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [metadataFields, setMetadataFields] = useState<ReadonlySet<SessionMetadataField>>(
     () => new Set(DEFAULT_SESSION_METADATA_FIELDS),
@@ -110,37 +121,24 @@ export function SessionSidebar({
 
   const { prefs, toggle, hideProject, showProject } = useSidebarPrefs();
 
-  // Vertical resize between RECENT and PROJECTS sections.
-  const recentResize = useResizable({
-    axis: "y", min: 80, max: 500, initial: 200, direction: "down",
-    persistKey: "stellarc-sidebar-recent-h",
-  });
 
   const handleNewSession = useCallback(() => {
-    setPickerError(null);
-    setPickerOpen(true);
-  }, []);
+    void navigate({
+      to: "/sessions/$sessionId",
+      params: { sessionId: "new" },
+      search: activeProjectId ? { project: activeProjectId } : {},
+    });
+    closeIfPhone();
+  }, [activeProjectId, closeIfPhone, navigate]);
 
-  const handlePickAgent = useCallback(
-    async (agentId: string, nodeId: string) => {
-      setPickerError(null);
-      try {
-        const session = await createSession({ agent: agentId, node: nodeId });
-        setPickerOpen(false);
-        if (session?.id) {
-          if (activeProjectId && onOpenSession) {
-            await onOpenSession(session.id);
-          } else {
-            void navigate({ to: "/sessions/$sessionId", params: { sessionId: session.id } });
-          }
-        }
-      } catch (error) {
-        setPickerOpen(true);
-        setPickerError(error instanceof Error ? error.message : `Could not create session on ${nodeId}`);
-      }
-    },
-    [activeProjectId, navigate, onOpenSession],
-  );
+  const handleProjectDraft = useCallback((projectId: string) => {
+    void navigate({
+      to: "/sessions/$sessionId",
+      params: { sessionId: "new" },
+      search: { project: projectId },
+    });
+    closeIfPhone();
+  }, [closeIfPhone, navigate]);
 
   const handleOpenSession = useCallback(
     (id: string, split?: "right" | "below") => {
@@ -168,14 +166,36 @@ export function SessionSidebar({
     const sessionId = sessionDragId(event.dataTransfer);
     if (!sessionId) return;
     setProjectActionError(null);
+    setContextOffer(null);
     try {
       await attachSessionToProject(sessionId, projectId);
       await queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (error) {
+      if (typeof error === "object" && error && "status" in error && error.status === 409) {
+        setContextOffer({
+          sessionId,
+          projectId,
+          projectName: projects.find((project) => project.id === projectId)?.name ?? projectId,
+        });
+        return;
+      }
       const detail = error instanceof Error ? `: ${error.message}` : "";
       setProjectActionError(`Could not move session to project${detail}`);
     }
-  }, [queryClient]);
+  }, [projects, queryClient]);
+
+  const handleAttachAsContext = useCallback(async (mode: "read" | "write") => {
+    if (!contextOffer) return;
+    setProjectActionError(null);
+    try {
+      await attachContextProject(contextOffer.sessionId, contextOffer.projectId, mode);
+      setContextOffer(null);
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      const detail = error instanceof Error ? `: ${error.message}` : "";
+      setProjectActionError(`Could not attach context project${detail}`);
+    }
+  }, [contextOffer, queryClient]);
 
   const recentCollapsed = prefs.collapsed.recent;
   const projectsCollapsed = prefs.collapsed.projects;
@@ -186,20 +206,20 @@ export function SessionSidebar({
       <aside className="sidebar" style={{ width }}>
         <div className="sb-pad">
           <div className="session-sidebar-primary">
-            <button type="button" className="newbtn" onClick={handleNewSession}>
+            <Button type="button" variant="default" size="sm" onClick={handleNewSession}>
               <Icon name="plus" size={14} />
               New session
               <span className="kbd" style={{ marginLeft: "auto" }}>⌘N</span>
-            </button>
-            <button type="button" className="icobtn" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Configure session row metadata" aria-expanded={metadataOpen} onClick={() => setMetadataOpen((open) => !open)}>
               <Icon name="settings-2" size={13} />
-            </button>
+            </Button>
           </div>
           {metadataOpen && (
             <div className="session-metadata-menu" role="group" aria-label="Session row metadata">
               {SESSION_METADATA_FIELDS.map((field) => (
                 <label key={field}>
-                  <input type="checkbox" checked={metadataFields.has(field)} onChange={() => setMetadataFields((current) => toggleSessionMetadataField(current, field))} />
+                  <Input type="checkbox" checked={metadataFields.has(field)} onChange={() => setMetadataFields((current) => toggleSessionMetadataField(current, field))} />
                   <span>{field}</span>
                 </label>
               ))}
@@ -208,6 +228,16 @@ export function SessionSidebar({
           <NavItem label="Agents" icon="bot" path="/sessions/agents" />
           <NavItem label="History" icon="clock" path="/sessions/history" />
           <NavItem label="Usage" icon="activity" path="/sessions/usage" />
+        </div>
+        <div className="sb-pad sb-search-wrap">
+          <Input
+            type="text"
+            placeholder="Search sessions…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="sb-search-input"
+            aria-label="Search sessions"
+          />
         </div>
         <div className="sb-scroll sb-scroll-v4">
           {projectActionError && (
@@ -224,10 +254,7 @@ export function SessionSidebar({
             onToggle={() => toggle("recent")}
           />
           {!recentCollapsed && (
-            <div
-              className="sec-content sec-recent"
-              style={recent.length > 0 ? { maxHeight: recentResize.size, overflowY: "auto" } : undefined}
-            >
+            <div className="sec-content sec-recent">
               {recent.map((s) => (
                 <SessionRow
                   key={s.id}
@@ -245,10 +272,6 @@ export function SessionSidebar({
             </div>
           )}
 
-          {/* Resize bar between RECENT and PROJECTS */}
-          {!recentCollapsed && !projectsCollapsed && recent.length > 0 && (
-            <div className="rz-y rz-y-section" role="separator" aria-label="Resize sections" onMouseDown={recentResize.onResizeStart} />
-          )}
 
           {/* ── PROJECTS ── */}
           <SectionHeader
@@ -259,19 +282,29 @@ export function SessionSidebar({
           />
           {!projectsCollapsed && (
             <div className="sec-content sec-projects">
+              {contextOffer && (
+                <div style={{ margin: "4px 8px 8px", padding: 8, border: "1px solid var(--border-strong)", borderRadius: 6, background: "var(--elev)", fontSize: 11 }}>
+                  <div style={{ marginBottom: 6 }}>{contextOffer.projectName} is not the primary project. Attach as context?</div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <Button type="button" variant="outline" size="sm" aria-label="Attach read-only" onClick={() => void handleAttachAsContext("read")}>read</Button>
+                    <Button type="button" variant="outline" size="sm" aria-label="Attach read-write" onClick={() => void handleAttachAsContext("write")}>write</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setContextOffer(null)}>dismiss</Button>
+                  </div>
+                </div>
+              )}
               {/* no-project pseudo-row */}
-              {noProject.length > 0 && (
+              {noProject.filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)).length > 0 && (
                 <ProjectRow
                   project={null}
-                  liveCount={countLive(noProject)}
-                  sessionCount={noProject.length}
+                  liveCount={countLive(noProject.filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)))}
+                  sessionCount={noProject.filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)).length}
                   isActive={!activeProjectId}
                   onNavigate={() => void navigate({ to: "/sessions/history", search: { project: "none" } })}
                 />
               )}
 
               {visibleProjects.map((project) => {
-                const projectSessions = (byProject.get(project.id) ?? []).sort(
+                const projectSessions = (byProject.get(project.id) ?? []).filter(s => !searchLower || (s.title || "Untitled").toLowerCase().includes(searchLower)).sort(
                   (a, b) => b.lastActivity - a.lastActivity,
                 );
                 const liveCount = countLive(projectSessions);
@@ -288,6 +321,7 @@ export function SessionSidebar({
                       isActive={activeProjectId === project.id}
                       onNavigate={() => void navigate({ to: "/sessions/projects/$projectId", params: { projectId: project.id } })}
                       onHide={() => hideProject(project.id)}
+                      onNewSession={() => handleProjectDraft(project.id)}
                       data-project-id={project.id}
                       onDragOver={(e: React.DragEvent) => e.preventDefault()}
                       onDrop={(e: React.DragEvent) => void handleProjectDrop(e, project.id)}
@@ -311,7 +345,7 @@ export function SessionSidebar({
                         />
                       ))}
                       {remaining > 0 && (
-                        <button
+                        <Button
                           type="button"
                           className="srow ghost-row"
                           onClick={() => void navigate({ to: "/sessions/history", search: { project: project.id } })}
@@ -319,7 +353,7 @@ export function SessionSidebar({
                           <span className="srow-copy">
                             <span className="srow-title ghost">{remaining} more…</span>
                           </span>
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -328,7 +362,7 @@ export function SessionSidebar({
 
               {/* hidden projects ghost row */}
               {prefs.hiddenProjects.length > 0 && (
-                <button
+                <Button
                   type="button"
                   className="srow ghost-row"
                   onClick={() => prefs.hiddenProjects.forEach(showProject)}
@@ -336,7 +370,7 @@ export function SessionSidebar({
                   <span className="srow-copy">
                     <span className="srow-title ghost">{prefs.hiddenProjects.length} hidden…</span>
                   </span>
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -344,12 +378,6 @@ export function SessionSidebar({
       </aside>
       <div className="rz-x" role="separator" aria-label="Resize sessions sidebar" aria-orientation="vertical" aria-valuemin={160} aria-valuemax={400} aria-valuenow={width} tabIndex={0} onMouseDown={onResizeStart} onKeyDown={onResizeKeyDown} />
 
-      <AgentPicker
-        open={pickerOpen}
-        onSelect={handlePickAgent}
-        onCancel={() => setPickerOpen(false)}
-        error={pickerError}
-      />
     </>
   );
 }
@@ -391,12 +419,12 @@ function SectionHeader({
   onToggle: () => void;
 }) {
   return (
-    <button type="button" className="sec-head sec-head-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+    <Button type="button" className="sec-head sec-head-toggle" onClick={onToggle} aria-expanded={!collapsed}>
       <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={10} />
       <span className="lbl">{label}</span>
       <span className="sp" />
       <span className="ct">{count}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -414,7 +442,7 @@ function NavItem({
   const isActive = pathname === path;
 
   return (
-    <button
+    <Button
       type="button"
       className={`navitem${isActive ? " on" : ""}`}
       onClick={() => void navigate({ to: path })}
@@ -422,7 +450,7 @@ function NavItem({
     >
       <Icon name={icon} size={14} />
       <span>{label}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -434,6 +462,7 @@ function ProjectRow({
   isActive,
   onNavigate,
   onHide,
+  onNewSession,
   ...dropProps
 }: {
   project: Project | null;
@@ -442,12 +471,13 @@ function ProjectRow({
   isActive: boolean;
   onNavigate: () => void;
   onHide?: () => void;
+  onNewSession?: () => void;
 } & React.HTMLAttributes<HTMLDivElement>) {
   const [menu, setMenu] = useState(false);
 
   if (!project) {
     return (
-      <button
+      <Button
         type="button"
         className={`navitem no-project-row${isActive ? " on" : ""}`}
         onClick={onNavigate}
@@ -455,7 +485,7 @@ function ProjectRow({
         <span className="srow-dot done" style={{ width: 6, height: 6, background: "transparent", border: "1px solid var(--faint)" }} />
         <span style={{ fontStyle: "italic", color: "var(--faint)" }}>no project</span>
         {sessionCount > 0 && <span className="ct" style={{ marginLeft: "auto" }}>{sessionCount}</span>}
-      </button>
+      </Button>
     );
   }
 
@@ -469,25 +499,36 @@ function ProjectRow({
       <span>{project.name}</span>
       {liveCount > 0 && <span className="live-pill">{liveCount} live</span>}
       <span className="proj-actions">
-        <button
+        {onNewSession && (
+          <Button
+            type="button"
+            className="srow-act"
+            title={`New session in ${project.name}`}
+            aria-label={`New session in ${project.name}`}
+            onClick={(e) => { e.stopPropagation(); onNewSession(); }}
+          >
+            <Icon name="plus" size={11} />
+          </Button>
+        )}
+        <Button
           type="button"
           className="srow-act"
           title="Project menu"
           onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
         >
           <Icon name="ellipsis" size={11} />
-        </button>
+        </Button>
       </span>
       {menu && onHide && (
         <div className="ctx-menu" style={{ position: "absolute", right: 0, top: "100%", zIndex: 1000 }} onClick={(e) => e.stopPropagation()}>
-          <button
+          <Button
             type="button"
             className="ctx-item"
             onClick={(e) => { e.stopPropagation(); setMenu(false); onHide(); }}
           >
             <Icon name="x" size={12} />
             Hide from sidebar
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -589,15 +630,15 @@ function SessionRow({
           <span className="hc-row"><span className="hc-k">subs</span><span className="hc-v">{subsessionCount}</span></span>
         )}
       </span>
-      {showIcon && (
-        <span className="srow-icon">
-          {isRunning ? (
-            <span className="srow-spinner" />
-          ) : (
-            <span className="srow-dot needs-input" title="Waiting for your input" />
-          )}
-        </span>
-      )}
+      <span className="srow-icon">
+        {isRunning ? (
+          <span className="srow-spinner" title="Running" />
+        ) : needsInput ? (
+          <span className="srow-dot needs-input" title="Waiting for your input" />
+        ) : (
+          <span className="srow-dot idle" title="Idle" />
+        )}
+      </span>
       <span className="srow-copy">
         <span className="srow-title">{title}</span>
         {sublineParts.length > 0 && <span className="srow-meta">{sublineParts.join(" · ")}</span>}
@@ -607,23 +648,23 @@ function SessionRow({
       <span className="srow-actions">
         {onOpenSession && (
           <>
-            <button type="button" className="srow-act" title="Open right" onClick={(e) => { e.stopPropagation(); fireOpen("right"); }}>
+            <Button type="button" className="srow-act" title="Open right" onClick={(e) => { e.stopPropagation(); fireOpen("right"); }}>
               <Icon name="panel-right" size={11} />
-            </button>
-            <button type="button" className="srow-act" title="Open below" onClick={(e) => { e.stopPropagation(); fireOpen("below"); }}>
+            </Button>
+            <Button type="button" className="srow-act" title="Open below" onClick={(e) => { e.stopPropagation(); fireOpen("below"); }}>
               <Icon name="panel-bottom" size={11} />
-            </button>
+            </Button>
           </>
         )}
-        <button type="button" className="srow-act" title="Open menu" onClick={openMenu}>
+        <Button type="button" className="srow-act" title="Open menu" onClick={openMenu}>
           <Icon name="ellipsis" size={11} />
-        </button>
-        <button type="button" className="srow-act" title={session.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
+        </Button>
+        <Button type="button" className="srow-act" title={session.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
           <Icon name="pin" size={11} />
-        </button>
-        <button type="button" className="srow-act" title="Archive" onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { archived: true } }); }}>
+        </Button>
+        <Button type="button" className="srow-act" title="Archive" onClick={(e) => { e.stopPropagation(); update.mutate({ id: session.id, patch: { archived: true } }); }}>
           <Icon name="archive" size={11} />
-        </button>
+        </Button>
       </span>
       {menu && (
         <div
@@ -632,35 +673,35 @@ function SessionRow({
           style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 1000 }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen()}>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen()}>
             <Icon name="message-square" size={12} />
             Open
-          </button>
+          </Button>
           {onOpenSession && (
             <>
-              <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("right")}>
+              <Button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("right")}>
                 <Icon name="panel-right" size={12} />
                 Open Right
-              </button>
-              <button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("below")}>
+              </Button>
+              <Button type="button" className="ctx-item" role="menuitem" onClick={() => fireOpen("below")}>
                 <Icon name="panel-bottom" size={12} />
                 Open Below
-              </button>
+              </Button>
             </>
           )}
           <div className="ctx-sep" />
-          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { pinned: !session.pinned } }); }}>
             <Icon name="pin" size={12} />
             {session.pinned ? "Unpin" : "Pin"}
-          </button>
-          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); navigator.clipboard?.writeText(session.id); }}>
+          </Button>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); navigator.clipboard?.writeText(session.id); }}>
             <Icon name="copy" size={12} />
             Copy ID
-          </button>
-          <button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { archived: true } }); }}>
+          </Button>
+          <Button type="button" className="ctx-item" role="menuitem" onClick={(e) => { e.stopPropagation(); setMenu(null); update.mutate({ id: session.id, patch: { archived: true } }); }}>
             <Icon name="archive" size={12} />
             Archive
-          </button>
+          </Button>
         </div>
       )}
     </div>

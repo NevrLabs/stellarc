@@ -17,10 +17,9 @@ import {
   fetchVaultNote,
   fetchVaultDocuments,
   updateSession,
-  onFrame,
-  connectWs,
 } from "../api";
 import type { ServerFrame } from "../types";
+import { onAxisFrame, startAxisEvents } from "../axis-events";
 
 /** Query key factory — centralizes cache keys. */
 export const qk = {
@@ -52,16 +51,16 @@ export function useSessions(params?: {
 }) {
   return useQuery({
     queryKey: qk.sessions(params),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       fetchSessions({
         managed: params?.managed,
         archived: params?.archived,
         sort: params?.sort as "lastActivity" | "startedAt" | "messageCount" | undefined,
         limit: params?.limit,
         node: params?.node,
-      }),
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+      }, signal),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
     enabled: params?.enabled ?? true,
   });
 }
@@ -70,7 +69,7 @@ export function useSessions(params?: {
 export function useSession(id: string | null) {
   return useQuery({
     queryKey: id ? qk.session(id) : ["session", "none"],
-    queryFn: () => fetchSession(id!),
+    queryFn: ({ signal }) => fetchSession(id!, signal),
     enabled: !!id,
     staleTime: 5_000,
   });
@@ -79,14 +78,14 @@ export function useSession(id: string | null) {
 export function useProject(id: string | null) {
   return useQuery({
     queryKey: id ? qk.project(id) : ["project", "none"],
-    queryFn: () => fetchProject(id!),
+    queryFn: ({ signal }) => fetchProject(id!, signal),
     enabled: !!id,
     staleTime: 0,
   });
 }
 
 export function useProjects() {
-  return useQuery({ queryKey: qk.projects(), queryFn: fetchProjects, staleTime: 10_000 });
+  return useQuery({ queryKey: qk.projects(), queryFn: ({ signal }) => fetchProjects(signal), staleTime: 10_000 });
 }
 
 /** Messages for a session.
@@ -99,25 +98,25 @@ export function useProjects() {
  * now always observes the committed assistant row. */
 export function useMessages(sessionId: string | null) {
   return useQuery({
-    queryKey: sessionId ? qk.messages(sessionId) : ["messages", "none"],
-    queryFn: () => fetchMessages(sessionId!, { limit: 100 }),
-    enabled: !!sessionId,
-    staleTime: 0, // WS notifies; refetch on (re)subscribe reconstructs truth
+    queryKey: sessionId && sessionId !== "new" ? qk.messages(sessionId) : ["messages", "none"],
+    queryFn: ({ signal }) => fetchMessages(sessionId!, { limit: 100 }, signal),
+    enabled: !!sessionId && sessionId !== "new",
+    staleTime: 15_000, // WS notifies; generous stale to avoid refetch storms
   });
 }
 
 /** Agents list. */
 export function useAgents() {
-  return useQuery({ queryKey: qk.agents(), queryFn: fetchAgents, staleTime: 60_000 });
+  return useQuery({ queryKey: qk.agents(), queryFn: ({ signal }) => fetchAgents(signal), staleTime: 60_000 });
 }
 
 /** Per-node agent availability for new-session routing. */
 export function useAgentCatalog(enabled = true) {
   return useQuery({
     queryKey: qk.agentCatalog(),
-    queryFn: fetchAgentCatalog,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    queryFn: ({ signal }) => fetchAgentCatalog(signal),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
     enabled,
   });
 }
@@ -154,9 +153,9 @@ export function useUpdateSession() {
 export function useNodes() {
   return useQuery({
     queryKey: ["nodes"],
-    queryFn: fetchNodes,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    queryFn: ({ signal }) => fetchNodes(signal),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 }
 
@@ -164,7 +163,7 @@ export function useNodes() {
 export function useModels(agentId?: string | null) {
   return useQuery({
     queryKey: qk.models(agentId),
-    queryFn: () => fetchModels(agentId ?? undefined),
+    queryFn: ({ signal }) => fetchModels(agentId ?? undefined, signal),
     staleTime: 60_000,
   });
 }
@@ -173,9 +172,9 @@ export function useModels(agentId?: string | null) {
 export function useHealth() {
   return useQuery({
     queryKey: qk.health(),
-    queryFn: healthCheck,
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    queryFn: ({ signal }) => healthCheck(signal),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 
@@ -183,7 +182,7 @@ export function useHealth() {
 export function useCards(params?: { boardId?: string; status?: string }) {
   return useQuery({
     queryKey: qk.cards(params),
-    queryFn: () => fetchCards(params),
+    queryFn: ({ signal }) => fetchCards(params, signal),
     staleTime: 10_000,
   });
 }
@@ -192,7 +191,7 @@ export function useCards(params?: { boardId?: string; status?: string }) {
 export function useVaults() {
   return useQuery({
     queryKey: qk.vaults(),
-    queryFn: fetchVaults,
+    queryFn: ({ signal }) => fetchVaults(signal),
     staleTime: 30_000,
   });
 }
@@ -201,7 +200,7 @@ export function useVaults() {
 export function useVaultNotes(vaultId: string | null) {
   return useQuery({
     queryKey: vaultId ? qk.vaultNotes(vaultId) : ["vaultNotes", "none"],
-    queryFn: () => fetchVaultNotes(vaultId!),
+    queryFn: ({ signal }) => fetchVaultNotes(vaultId!, signal),
     enabled: !!vaultId,
     staleTime: 10_000,
   });
@@ -210,7 +209,7 @@ export function useVaultNotes(vaultId: string | null) {
 export function useVaultDocuments(vaultId: string | null) {
   return useQuery({
     queryKey: vaultId ? qk.vaultDocuments(vaultId) : ["vaultDocuments", "none"],
-    queryFn: () => fetchVaultDocuments(vaultId!),
+    queryFn: ({ signal }) => fetchVaultDocuments(vaultId!, signal),
     enabled: !!vaultId,
     staleTime: 10_000,
   });
@@ -221,7 +220,7 @@ export function useVaultNote(vaultId: string | null, path: string | null) {
   return useQuery({
     queryKey:
       vaultId && path ? qk.vaultNote(vaultId, path) : ["vaultNote", "none"],
-    queryFn: () => fetchVaultNote(vaultId!, path!),
+    queryFn: ({ signal }) => fetchVaultNote(vaultId!, path!, signal),
     enabled: !!vaultId && !!path,
     staleTime: 5_000,
   });
@@ -282,8 +281,8 @@ export function useLiveSync(organizationId: string) {
   );
 
   useEffect(() => {
-    connectWs();
-    const unsub = onFrame(handleFrame);
+    if (organizationId) startAxisEvents(organizationId);
+    const unsub = onAxisFrame(handleFrame);
     return unsub;
   }, [handleFrame, organizationId]);
 }

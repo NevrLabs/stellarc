@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DockviewReact,
@@ -11,6 +12,7 @@ import "dockview-react/dist/styles/dockview.css";
 import { loadWorkspaceState, saveWorkspaceState, getLocalUiState } from "../../../lib/uiState";
 import { GraphPage } from "../pages/GraphPage";
 import { NotePage } from "../pages/NotePage";
+import { ErrorBoundary } from "../../../ErrorBoundary";
 import { VaultTablePage } from "../pages/VaultTablePage";
 import { noteTab, type WorkspaceTab } from "../vaultWorkspace";
 
@@ -218,7 +220,7 @@ function VaultTab({ api, params }: IDockviewPanelHeaderProps<VaultPanelParams>) 
   return (
     <div className="vault-dock-tab">
       <span>{api.title}</span>
-      <button
+      <Button
         type="button"
         aria-label={`Close ${params.tab.title}`}
         onClick={(event) => {
@@ -227,7 +229,7 @@ function VaultTab({ api, params }: IDockviewPanelHeaderProps<VaultPanelParams>) 
         }}
       >
         ×
-      </button>
+      </Button>
     </div>
   );
 }
@@ -239,13 +241,21 @@ function VaultPanel({ params }: IDockviewPanelProps<VaultPanelParams>) {
   if (tab.kind === "graph") return <GraphPage vaultId={vaultId} onOpenNote={onOpenNote} />;
   if (tab.kind === "table") return <VaultTablePage vaultId={vaultId} onOpenNote={onOpenNote} />;
   return (
-    <NotePage
-      vaultId={vaultId}
-      notePath={tab.path ?? null}
-      onNavigateNote={onOpenNote}
-      onDirtyChange={(dirty) => onDirtyChange(tab.id, dirty)}
-      editorMode={editorMode}
-      onEditorModeChange={(mode) => onEditorModeChange(tab.id, mode)}
-    />
+    <ErrorBoundary fallback={(error, retry) => (
+      <div className="vault-content"><div className="empty-state" role="alert">
+        <div className="empty-state-title">This note could not be displayed</div>
+        <div className="empty-state-msg">{error.message}</div>
+        <Button type="button" variant="outline" size="sm" onClick={retry}>Retry note</Button>
+      </div></div>
+    )}>
+      <NotePage
+        vaultId={vaultId}
+        notePath={tab.path ?? null}
+        onNavigateNote={onOpenNote}
+        onDirtyChange={(dirty) => onDirtyChange?.(tab.id, dirty)}
+        editorMode={editorMode}
+        onEditorModeChange={(mode) => onEditorModeChange?.(tab.id, mode)}
+      />
+    </ErrorBoundary>
   );
 }

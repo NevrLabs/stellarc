@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * SessionsView — the Sessions View component (owns sidebar + viewport layout).
  *
@@ -33,7 +34,7 @@
  *   └──────────────────────────────────────────────────────────────┘
  */
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,6 +58,7 @@ import { SessionSidebar } from "./sessions/components/SessionSidebar";
 import { RightPanel, type RsTab } from "./sessions/components/RightPanel";
 import { BottomPanel, type BpTab } from "./sessions/components/BottomPanel";
 import { ChatPage } from "./sessions/pages/ChatPage";
+import { SessionStatusPopover } from "./sessions/components/SessionStatusPopover";
 import { AgentsPage } from "./sessions/pages/AgentsPage";
 import { UsagePage } from "./sessions/pages/UsagePage";
 import { HistoryPage } from "./sessions/pages/HistoryPage";
@@ -99,7 +101,7 @@ interface SessionPanelParams {
   sessionId: string;
 }
 
-export function SessionsView({
+export const SessionsView = memo(function SessionsView({
   sessionId,
   projectId,
   page,
@@ -570,7 +572,7 @@ export function SessionsView({
       </div>
     </>
   );
-}
+});
 
 /** Remove groups restored without any panel — they render as dead watermark
  * panes. A layout can carry them when it was serialized mid-teardown by an
@@ -604,10 +606,14 @@ function SessionDockPanel({ params }: IDockviewPanelProps<SessionPanelParams>) {
 }
 
 function SessionPanel({ sessionId }: { sessionId: string }) {
+  const isNew = sessionId === "new";
   const [rsCollapsed, setRsCollapsed] = useSessionPanelState(sessionId, "rsCollapsed", false);
-  const [bpCollapsed, setBpCollapsed] = useSessionPanelState(sessionId, "bpCollapsed", false);
+  // Collapse bottom panel for draft sessions — Terminal is unavailable and the
+  // draft view owns the full viewport.
+  const [bpCollapsed, setBpCollapsed] = useSessionPanelState(sessionId, "bpCollapsed", isNew);
   const [rsTab, setRsTab] = useSessionPanelState<RsTab>(sessionId, "rsTab", "overview");
-  const [bpTab, setBpTab] = useSessionPanelState<BpTab>(sessionId, "bpTab", "terminal");
+  // Default to "logs" for new sessions — Terminal is a placeholder.
+  const [bpTab, setBpTab] = useSessionPanelState<BpTab>(sessionId, "bpTab", isNew ? "logs" : "terminal");
   const rightPanel = useResizable({
     axis: "x", min: 200, max: 450, initial: 279,
     direction: "left", persistKey: `stellarc-session-${sessionId}-rsidebar-w`,
@@ -681,8 +687,11 @@ function SessionChatLayout({
   onBpTabChange: (t: BpTab) => void;
   onCloseBp: () => void;
 }) {
-  const { data: session } = useSession(sessionId);
-  const { data: msgData } = useMessages(sessionId);
+  // "new" is a virtual draft-session route, not a real session id.
+  // Passing it to useSession/useMessages would fire GET /sessions/new (404).
+  const realSessionId = sessionId === "new" ? null : sessionId;
+  const { data: session } = useSession(realSessionId);
+  const { data: msgData } = useMessages(realSessionId);
   const { data: agentsData } = useAgents();
   const messages = msgData?.messages ?? [];
   const navigate = useNavigate();
@@ -724,15 +733,15 @@ function SessionChatLayout({
       {/* ── vp-head ─────────────────────────────────────────────── */}
       <div className="vp-head">
         <div className="vp-left">
-          <button
+          <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             style={{ padding: 0 }}
             onClick={() => void navigate({ to: "/sessions" })}
             title="Back"
           >
             <Icon name="chevron-left" />
-          </button>
+          </Button>
           <span className="vp-title chat-title">{session?.title ?? "Untitled"}</span>
           {session?.agent && (
             <span className="proj-badge">
@@ -742,6 +751,7 @@ function SessionChatLayout({
           )}
         </div>
         <div className="vp-right">
+          <SessionStatusPopover sessionId={sessionId} liveness={session?.liveness} />
           {session?.liveness === "active" && (
             <div className="live chat-live-badge">
               <span className="dot" />
@@ -751,22 +761,22 @@ function SessionChatLayout({
           {session?.managed && session?.liveness !== "active" && (
             <span className="gtag ok chat-managed-badge">managed</span>
           )}
-          <button
+          <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             title="Toggle bottom panel"
             onClick={onToggleBp}
           >
             <Icon name="panel-bottom" size={14} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="icobtn"
+            variant="ghost" size="icon-sm"
             title="Toggle right panel"
             onClick={onToggleRs}
           >
             <Icon name="panel-right" size={14} />
-          </button>
+          </Button>
         </div>
       </div>
 

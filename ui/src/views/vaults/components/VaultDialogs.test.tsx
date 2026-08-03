@@ -33,4 +33,21 @@ describe("NewNoteDialog", () => {
 
     expect(onCreate).toHaveBeenCalledWith("docs/api/rfc.md", "RFC");
   });
+
+  it("moves focus into the destination tree and activates a folder with the keyboard", async () => {
+    const user = userEvent.setup();
+    render(<NewNoteDialog folder="docs/api" notes={notes} busy={false} error={null} onClose={vi.fn()} onCreate={vi.fn()} />);
+
+    await user.tab();
+    await user.tab();
+
+    const docs = screen.getByRole("treeitem", { name: "docs" });
+    expect(docs).toHaveFocus();
+    expect(docs).toHaveAttribute("aria-pressed", "false");
+
+    await user.keyboard("{Enter}");
+
+    expect(docs).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("treeitem", { name: "api" })).toHaveAttribute("aria-pressed", "false");
+  });
 });

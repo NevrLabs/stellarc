@@ -1,0 +1,7 @@
+export interface VaultDraft { key: string; vaultId: string; path: string; markdown: string; baseCid: string | null; updatedAt: number }
+const DB = "stellarc-vault-drafts", STORE = "drafts";
+function open(): Promise<IDBDatabase> { return new Promise((resolve,reject)=>{ const r=indexedDB.open(DB,1); r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:"key"}); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); }
+const key=(vaultId:string,path:string)=>`${vaultId}:${path}`;
+export async function getVaultDraft(vaultId:string,path:string):Promise<VaultDraft|null>{const db=await open();return new Promise((resolve,reject)=>{const r=db.transaction(STORE).objectStore(STORE).get(key(vaultId,path));r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error);});}
+export async function putVaultDraft(vaultId:string,path:string,markdown:string,baseCid:string|null):Promise<void>{const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).put({key:key(vaultId,path),vaultId,path,markdown,baseCid,updatedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+export async function deleteVaultDraft(vaultId:string,path:string):Promise<void>{const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).delete(key(vaultId,path));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}

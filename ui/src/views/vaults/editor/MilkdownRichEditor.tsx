@@ -1,7 +1,8 @@
+import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx } from "@milkdown/kit/core";
-import { replaceRange } from "@milkdown/kit/utils";
+import { replaceAll, replaceRange } from "@milkdown/kit/utils";
 import "@milkdown/crepe/theme/common/style.css";
 import {
   findVaultSuggestion,
@@ -18,17 +19,20 @@ interface MilkdownRichEditorProps {
   markdown: string;
   onChange: (markdown: string) => void;
   suggestions?: VaultSuggestion[];
+  dirty?: boolean;
 }
 
 const EMPTY_SUGGESTIONS: VaultSuggestion[] = [];
 
-export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUGGESTIONS }: MilkdownRichEditorProps) {
+export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUGGESTIONS, dirty = false }: MilkdownRichEditorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const lifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const onChangeRef = useRef(onChange);
   const loadedDocumentRef = useRef(splitVaultMarkdown(markdown));
   const initialBodyRef = useRef(toRichMarkdown(loadedDocumentRef.current.body));
+  const emittedMarkdownRef = useRef<string | null>(null);
+  const applyingExternalRef = useRef(false);
   const [activeMatch, setActiveMatch] = useState<VaultSuggestionMatch | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -47,7 +51,7 @@ export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUG
     });
     crepe.on((listener) => {
       listener.markdownUpdated((ctx, nextMarkdown, previousMarkdown) => {
-        if (disposed || nextMarkdown === previousMarkdown) return;
+        if (disposed || applyingExternalRef.current || nextMarkdown === previousMarkdown) return;
         const canonicalBody = fromRichMarkdown(nextMarkdown);
         const view = ctx.get(editorViewCtx);
         const { $from } = view.state.selection;
@@ -55,7 +59,10 @@ export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUG
         const match = findVaultSuggestion(textBeforeCursor);
         setActiveMatch(match);
         if (match) setSelectedIndex(0);
-        onChangeRef.current(joinVaultMarkdown({ ...loadedDocumentRef.current, body: canonicalBody }));
+        const nextDocument = joinVaultMarkdown({ ...loadedDocumentRef.current, body: canonicalBody });
+        if (nextDocument === markdown) return;
+        emittedMarkdownRef.current = nextDocument;
+        onChangeRef.current(nextDocument);
       });
     });
     const ready = lifecycleRef.current.then(async () => {
@@ -70,6 +77,25 @@ export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUG
       });
     };
   }, []);
+
+  useEffect(() => {
+    if (markdown === emittedMarkdownRef.current) {
+      emittedMarkdownRef.current = null;
+      return;
+    }
+    const crepe = crepeRef.current;
+    if (!crepe) return;
+    const nextDocument = splitVaultMarkdown(markdown);
+    const nextBody = toRichMarkdown(nextDocument.body);
+    if (nextBody === crepe.getMarkdown()) {
+      loadedDocumentRef.current = nextDocument;
+      return;
+    }
+    applyingExternalRef.current = true;
+    loadedDocumentRef.current = nextDocument;
+    crepe.editor.action(replaceAll(nextBody));
+    applyingExternalRef.current = false;
+  }, [markdown, dirty]);
 
   const matches = activeMatch
     ? suggestions.filter((item) => item.kind === activeMatch.kind && (item.label.toLowerCase().includes(activeMatch.query.toLowerCase()) || item.id.toLowerCase().includes(activeMatch.query.toLowerCase())))
@@ -121,9 +147,9 @@ export function MilkdownRichEditor({ markdown, onChange, suggestions = EMPTY_SUG
       {activeMatch && (
         <div className="vault-suggestions" role="listbox" aria-label={`${activeMatch.kind} suggestions`}>
           {matches.length > 0 ? matches.map((suggestion, index) => (
-            <button key={`${suggestion.kind}:${suggestion.id}`} type="button" role="option" aria-selected={index === selectedIndex} className={`vault-suggestion ${index === selectedIndex ? "selected" : ""}`} onMouseDown={(event) => { event.preventDefault(); chooseSuggestion(suggestion); }}>
+            <Button key={`${suggestion.kind}:${suggestion.id}`} type="button" role="option" aria-selected={index === selectedIndex} className={`vault-suggestion ${index === selectedIndex ? "selected" : ""}`} onMouseDown={(event) => { event.preventDefault(); chooseSuggestion(suggestion); }}>
               <span>{suggestion.label}</span><span className="mono">{suggestion.id}</span>
-            </button>
+            </Button>
           )) : <div className="vault-suggestion-empty">No matching {activeMatch.kind}s</div>}
         </div>
       )}
