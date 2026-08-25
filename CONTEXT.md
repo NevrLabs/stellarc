@@ -2,6 +2,8 @@
 
 Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 
+**Ratified topology (#5):** Bun/TS CP (kernel, main-venue plugins, BetterAuth auth plugin, HTTP+MCP, event log, scheduler+workflow engine, SSE/WS) · Rust arclet (host effects, adapters, workspace CoW, iroh endpoint, journal) · standalone Rust tunnel (capability-scoped iroh). Effect as library; Hono+zod core; IPv6-preferred + ipv6_only knob; self-hosted iroh-dns discovery.
+
 - **Package** — installable, distributable, content-addressed artifact; may carry many contributions.
 - **Plugin** — a package's executable component that extends stellarc internals through a typed extension class.
 - **Extension class** — the typed slot a plugin fills (activity, trigger, resource, view, policy, storage, indexer, session-tool, runtime-adapter, embedded-app).
