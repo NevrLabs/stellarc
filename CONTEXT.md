@@ -21,6 +21,7 @@ Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 - **MCP transit** — kernel owns the single stellarc MCP surface: `main` plugins register into it, apps are proxied as namespaced sub-servers; capability checks at the chokepoint for both. Planned convergence with the aigw/llgw gateway — it may front the CP, never bypass checks.
 - **Principal** — human, agent, or workflow; all first-class with own identity. Every kernel-chokepoint action logs `actor` (mandatory, no anonymous agent actions) + optional `on-behalf-of` subject for delegation.
 - **Quarantine** — kernel-wrapped extension dispatch; N failures auto-disable a plugin via the grant layer (hot, no restart) until operator re-enable. Fail-closed: quarantined enforcement plugins deny dependent requests, never pass-through.
+- **Node (arclet)** — least-privilege principal on untrusted hardware: own identity, scoped to its org + own sessions; reports are claims, not plane truths. Cross-node actions (deploys, MCP, session/agent orchestration) require CP authorization; same-node only on node authority.
 
 ## Decisions
 
@@ -33,6 +34,7 @@ Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 - **D8 (tenancy of composition)** — plane-global install, per-org grants: one plugin tree per boot generation; orgs activate via grant layer (hot-reload). Custom per-org code = app (now) / isolate (later stage).
 - **D7 (composition timing)** — membership at boot (restart/blue-green to apply), config hot-reloads; registrations effect-shaped (unwind on teardown); scoped live mounts (isolates) staged later. Mirrors dsh: boot-time bundles + hot cordis.patch.yml.
 - **D10 (plugin events)** — tolerant replay + mandatory `pluginId:type` namespacing; log never silently rewritten; purge = explicit operator command. Rejected: compaction-on-uninstall (violates append-only).
+- **D14 (node trust)** — nodes = least-privilege principals; transcripts are node claims; rooted-node blast radius = own scope; cross-node actions require CP authorization, same-node exempt. Same manifest/grant/quarantine doctrine node-side.
 - **D13 (fault doctrine)** — kernel-wrapped dispatch + auto-quarantine via grant layer; failures logged as events; fail-closed degradation for enforcement plugins. Rejected: let-it-crash, in-main OS isolation.
 - **D12 (principals)** — humans/agents/workflows distinct first-class principals; agent MCP actions always logged with agent as actor; optional on-behalf-of subject; grants and limits attach to either.
 - **D11 (MCP transit)** — kernel-owned MCP surface for `main` plugins + namespaced proxy for apps; capability checks at the chokepoint. aigw/llgw gateway convergence planned: front the CP, never bypass checks.
