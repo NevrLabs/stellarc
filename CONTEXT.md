@@ -18,6 +18,7 @@ Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 - **Composition rule** — app contributes function; companion plugin contributes presence.
 - **Template** — versioned, org-scoped, instantiable bundle (agent/project/workflow) [ticket #9].
 - **Event namespacing** — every event type is `pluginId:type` with owning-plugin provenance; replay is tolerant (unknown/uninstalled namespaces kept as bytes, skipped by projections); namespace purge is an explicit operator command.
+- **MCP transit** — kernel owns the single stellarc MCP surface: `main` plugins register into it, apps are proxied as namespaced sub-servers; capability checks at the chokepoint for both. Planned convergence with the aigw/llgw gateway — it may front the CP, never bypass checks.
 
 ## Decisions
 
@@ -30,4 +31,5 @@ Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 - **D8 (tenancy of composition)** — plane-global install, per-org grants: one plugin tree per boot generation; orgs activate via grant layer (hot-reload). Custom per-org code = app (now) / isolate (later stage).
 - **D7 (composition timing)** — membership at boot (restart/blue-green to apply), config hot-reloads; registrations effect-shaped (unwind on teardown); scoped live mounts (isolates) staged later. Mirrors dsh: boot-time bundles + hot cordis.patch.yml.
 - **D10 (plugin events)** — tolerant replay + mandatory `pluginId:type` namespacing; log never silently rewritten; purge = explicit operator command. Rejected: compaction-on-uninstall (violates append-only).
+- **D11 (MCP transit)** — kernel-owned MCP surface for `main` plugins + namespaced proxy for apps; capability checks at the chokepoint. aigw/llgw gateway convergence planned: front the CP, never bypass checks.
 - **D6 (kernel boundary)** — kernel = boot + loader + capability check + event log + authn/z + transit chokepoints. Resources opt-in (plugin-provided): vaults, sessions, tables, nodes, harnesses, grants-as-resource. Auth plugin non-removable at runtime; CP refuses plugin routes without it. TCB = kernel; upgrades by redeploy only.
