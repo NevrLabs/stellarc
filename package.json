@@ -1,0 +1,6 @@
+{
+  "name": "stellarc",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "packageManager": "bun@1.2.0"
+}
