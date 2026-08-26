@@ -47,6 +47,7 @@ Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 - **D10 (plugin events)** — tolerant replay + mandatory `pluginId:type` namespacing; log never silently rewritten; purge = explicit operator command. Rejected: compaction-on-uninstall (violates append-only).
 - **D23 (engine signals)** — workflows consume curated lifecycle signals (own projection, own versioning); raw transcript subscription grant-gated only.
 - **D22 (identity spine)** — session→turn→item, parts transport-only; adapter-owned turn-close events; item causality refs make trace views pure projections.
+- **D25 (primitives)** — structural: org/principal/grant/node/event/boot-generation; kinds: session/agent/repo/arcdrive/table/workflow/template/project + app-registered. No secret kind (D16), no budget primitive (policy plugin over claims + aigw), boards = app.
 - **D24 (templates)** — resource kind, frozen versions, copy+override instantiation with event provenance, explicit re-sync, 3-tier distribution, 4 seed templates.
 - **D21 (transcript split)** — normalized union plane-side; raw journal node-local; grant-shaped async raw-retention to blob storage by reference. Compression normalization parked.
 - **D20 (workflow execution)** — n8n model: engine runs the node graph in-process; freestyle (custom-authored) steps in an isolate runner; workers + webhooks all ride the workflow engine. Runner sandbox tech chosen in the engine design session.
