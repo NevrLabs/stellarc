@@ -14,13 +14,21 @@
    1 config, 2 message, 4 thinking, 9 tool_call, 9 tool_result, 1 harness_meta).
 3. **Replay prompt:** rendered from the events per design rule 1 (lossy by
    design) → `20260814_220506_dfb32bde.replay-prompt.md` (~10 KB).
-4. **Second harness:** `claude` CLI 2.1.220 on PATH, run as
+4. **Second harness:** `claude` CLI 2.1.220, run as
    `claude -p --model haiku --max-turns 1 --disallowedTools "*"` — cheapest
-   model, one turn, no tools. (codex also on PATH; claude used as the one
-   demo — one continuation was the budget.)
+   model, one turn, no tools. Codex was tried first for a genuinely different
+   harness family but its ChatGPT auth is dead (`refresh_token_reused`,
+   interactive re-login needed) — receipt in
+   `continuation-codex-auth-failed.log`; `opencode` is not installed.
+5. **Verification rerun (2026-08-26):** every artifact re-derived from source
+   by an independent pass — mapper re-executed and diffed field-by-field
+   against the committed events (only random uuid7/ingested_at differ), and
+   the continuation re-run once more on haiku. Trail:
+   `verification-evidence.md`.
 
 ## Continuation transcript (receipt)
 
+### Original run
 Prompt tail: *"The user has now completed the AWS SSO device authentication.
 State, in one short paragraph, what you would do next and why."*
 
@@ -31,6 +39,23 @@ State, in one short paragraph, what you would do next and why."*
 > volume), and cross-reference any recent OOM kills with pod restart logs—this
 > gives me the workload profile needed to calculate proper RAM sizing with
 > headroom for traffic spikes.
+
+### Verification rerun (primary receipt)
+
+Same prompt, same flags, structured JSON output (`--output-format json`),
+committed raw in `continuation-claude-haiku.verify.json`: exit=0,
+`num_turns: 1`, subtype `success`, cost $0.0121, 10 s.
+
+> Once AWS credentials are active, I'd verify the tempo-ingester deployment
+> in the `noov-prod-admin` cluster to see its current memory requests/limits
+> and any recent OOM events … Then I'd query Grafana's Prometheus metrics for
+> the actual peak memory consumption over the last 7–14 days … With both the
+> current config and observed peak usage, I can recommend proper memory
+> sizing that accounts for headroom and Kubernetes eviction thresholds.
+
+Stronger than coherence: **`noov-prod-admin` appears nowhere in the replay's
+prose** — only inside a `[tool call] kubectl --context noov-prod-admin …`
+argument. The model demonstrably consumed the structured transcript.
 
 **Coherent.** Haiku correctly recovered: the original goal (RAM sizing for
 tempo-ingester), the blocker that was just cleared (SSO), the environment
@@ -87,9 +112,57 @@ the canonical transcript works with zero shared state.
 4. **No gap for the rest**: 16/16 rows mapped, nothing needed a 10th kind.
    `harness_meta` absorbed the one unknown (`session_meta`) as intended.
 
+## Self-review (mandatory)
+
+### Verified with receipts
+
+- Session exists read-only in `state.db`; row counts/distribution match the
+  events file exactly (SQL receipts in `verification-evidence.md`).
+- Mapper output reproduces committed `.events.jsonl` deterministically;
+  only per-run uuid7s and `ingested_at` differ across runs.
+- Replay prompt faithful to DB rows (verbatim match on the closing assistant
+  turn; thinking summaries match `reasoning` column lengths).
+- One-turn continuation on claude-haiku: exit=0, success, no tools
+  (`--disallowedTools "*"`), coherent recovery incl. tool-arg-only facts.
+- "bun is blocked on this host" claim: true — symlink to `compute-denied`
+  wrapper exits 126; suggested `fxrun` offloader absent. The python3 choice
+  stands despite the ticket's bun/TS preference (deviation documented here
+  rather than shipping a cosmetic TS port that adds no proof).
+- No credential-pattern matches in committed artifacts.
+
+### Unverified / inherited
+
+- The original 09:38Z claude-haiku run (`.run.log`, first commit) predates
+  the audit and cannot be proven post-hoc; its conclusion is independently
+  reproduced by the rerun above, which is the primary receipt.
+
+### Known weaknesses
+
+- n=1 session, n=1 usable second harness (codex auth dead, opencode absent);
+  "cross-harness" is currently claude-over-hermes only.
+- Turn boundaries are a per-user-message heuristic (`deterministic_turn_end:
+  false`) — untested against compaction/rewind sessions (`compacted=0` here).
+- `in_context` mirrors only Hermes' `active` flag; `superseded_by` never
+  exercised.
+- `.events.jsonl` inlines full normalized bodies (incl. 36 KB skill dumps) —
+  D21 tension between normalized bodies and journal-only raw; fine for a
+  spike artifact, but the production adapter needs truncation/journal policy.
+- Internal identifiers travel with the artifacts (AWS account IDs, EKS
+  hostnames, expired SSO device code). Acceptable private-repo tradeoff;
+  would need redaction policy before any wider sharing.
+- Replay-prompt task line ("user has now completed SSO") is hand-authored by
+  the mapper script — a real planner must generate it from session state.
+
 ## Files
 
-- `handover/map_session.py` — mapper + replay-prompt generator (stdlib only).
+- `handover/map_session.py` — mapper + replay-prompt generator (stdlib only;
+  bun hard-blocked on this host, see self-review).
 - `handover/20260814_220506_dfb32bde.events.jsonl` — 26 canonical events.
 - `handover/20260814_220506_dfb32bde.replay-prompt.md` — the handover artifact.
-- `handover/continuation-claude-haiku.txt` — raw second-harness output.
+- `handover/continuation-claude-haiku.txt` — first-harness continuation text.
+- `handover/continuation-claude-haiku.run.log` — original run receipt.
+- `handover/continuation-claude-haiku.verify.log` / `.verify.json` — verified
+  rerun receipt (primary).
+- `handover/continuation-codex-auth-failed.log` — codex attempt, auth dead.
+- `handover/verification-evidence.md` — audit trail: SQL receipts, rerun diff,
+  secret scan, environment checks.
