@@ -139,7 +139,10 @@ adapter must key on message ids, not on counting `result` frames.
 
 `--mcp-config <file-or-json>` + `--strict-mcp-config` (ignore host config
 entirely): marker-script MCP server was spawned (marker created), host
-`~/.claude.json` untouched. `--model`, `--permission-mode`,
+`~/.claude.json` untouched. [Review note: the original worker run committed no
+receipt for this claim; it was re-probed at the merge gate on 2026-08-26 —
+receipt: `adapter-probes-receipts/claude-mcp-config.receipt.json`
+(`exit=0, marker_created=true, host_config_untouched=true`).] `--model`, `--permission-mode`,
 `--allowedTools`, `--setting-sources` all per-invocation; one process = one
 session, so process flags are session config.
 
@@ -164,8 +167,10 @@ process-per-session.
 
 `codex app-server` speaks JSON-RPC with a large method surface —
 `thread/start|resume|fork|archive|list|read`, `turn/start`, `turn/steer`,
-`turn/interrupt`, `model/list`, `mcpServer/*`, `account/*`… (full list in
-the probe log — the error message enumerates every variant).
+`turn/interrupt`, `model/list`, `mcpServer/*`, `account/*`… (method names
+observed in the app-server's unknown-method error enumeration during probing;
+the full log was not archived — treat the tail of this list as indicative,
+not receipted).
 `thread/start` returns the thread + its on-disk rollout path:
 
 ```json

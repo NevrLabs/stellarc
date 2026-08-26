@@ -1,0 +1,1 @@
+{"mcpServers": {"marker": {"command": "bash", "args": ["-c", "touch /tmp/claude-mcp-probe/marker-created; exec cat"]}}}
