@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"01a03bd9-5c10-7720-8fdd-b37759cdd79a"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `gpt-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Reply with exactly: PONG"}}
+{"type":"turn.completed","usage":{"input_tokens":64257,"cached_input_tokens":34560,"output_tokens":16,"reasoning_output_tokens":0}}
