@@ -2,7 +2,7 @@
 
 Glossary only. Decisions live in tickets (#4–#13) until founding ADRs land.
 
-**Ratified topology (#5):** Bun/TS CP (kernel, main-venue plugins, BetterAuth auth plugin, HTTP+MCP, event log, scheduler+workflow engine, SSE/WS) · Rust arclet (host effects, adapters, workspace CoW, iroh endpoint, journal) · standalone Rust tunnel (capability-scoped iroh). Effect as library; Hono+zod core; IPv6-preferred + ipv6_only knob; self-hosted iroh-dns discovery.
+**Ratified topology (#5, amended by ADR 0007):** Bun/TS CP, **Effect-native** (kernel, main-venue plugins, BetterAuth auth plugin, HTTP+MCP via @effect/platform HttpApi, event log, scheduler+workflow engine — effect/workflow default candidate, SSE/WS via Effect Streams; Schema everywhere, Layer boot composition; Hono+zod dropped) · Rust arclet (host effects, adapters, workspace CoW, iroh endpoint, journal) · standalone Rust tunnel (capability-scoped iroh). IPv6-preferred + ipv6_only knob; self-hosted iroh-dns discovery.
 
 - **Package** — installable, distributable, content-addressed artifact; may carry many contributions.
 - **Plugin** — a package's executable component that extends stellarc internals through a typed extension class.

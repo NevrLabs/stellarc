@@ -15,7 +15,10 @@ Three components (ticket #5, ratified as amended):
   iroh; later arclet's transport layer.
 
 Effect is a **library, not a framework** (`effect/Schema`, `Data.Error` where
-types earn it). Storage: PostgreSQL, schema-per-org default with db-per-org
+types earn it). **[Amended by ADR 0007: the CP is now Effect-native — Schema
+everywhere, Layer boot composition, HttpApi transport, effect/workflow as the
+default durable-engine candidate. Hono+zod dropped.]** Storage: PostgreSQL,
+schema-per-org default with db-per-org
 escalation behind a routing seam (D9). Network: IPv6-preferred with an
 `ipv6_only` knob; self-hosted iroh-dns-server discovery zone.
 
