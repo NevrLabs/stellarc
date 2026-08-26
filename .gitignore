@@ -3,3 +3,6 @@ target/
 dist/
 *.log
 .env*
+
+# spike #13: handover continuation receipts are deliverables, not noise
+!docs/spikes/handover/*.log

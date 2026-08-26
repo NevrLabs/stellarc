@@ -1,0 +1,7 @@
+# Codex attempt (2026-08-26T02:47Z) — FAILED pre-model-call, auth dead
+# cmd: cat replay-prompt.md | codex exec --ephemeral --ignore-rules --skip-git-repo-check -m gpt-5-mini -s read-only --json -
+# stderr head:
+#   2026-08-26T02:47:27.886384Z ERROR codex_login::auth::manager: Failed to refresh token: 401 Unauthorized: {
+#       "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+# {"type":"turn.failed","error":{"message":"Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again."}}
+# conclusion: refresh_token_reused -> interactive re-login required; not attempted.

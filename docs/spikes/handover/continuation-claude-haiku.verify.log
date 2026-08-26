@@ -1,0 +1,4 @@
+# Continuation run receipt (verification rerun) — 2026-08-26T02:48:08Z
+# cmd: cat 20260814_220506_dfb32bde.replay-prompt.md | claude -p --model haiku --max-turns 1 --disallowedTools "*" --output-format json
+2.1.220 (Claude Code)
+exit=0
