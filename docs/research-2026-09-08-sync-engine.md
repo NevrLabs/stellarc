@@ -1,0 +1,67 @@
+# Recon: Sync engine for Stellarc (TanStack DB / Electric protocol / Effect)
+
+Date: 2026-09-08. Read-only recon by Paseo lane d502c6fc (goose / glm-5.3-flash).
+**Salvaged by orchestrator from the live transcript** — the agent completed
+investigation (32+ calls, all evidence gathered) but its final write_file
+never executed. Content below is the agent's own synthesis, verbatim, with
+UNVERIFIED markers preserved. Treat as leads until re-verified.
+
+Tooling note the agent reported: `ddgs` CLI produced empty output in its shell;
+it fell back to `fetch` only. Bun at ~/.bun/bin/bun; packages installed into
+/tmp/sync-probe for .d.ts verification.
+
+---
+
+**Q1 Adapters (installed @tanstack/db@0.8.7 era, versions from bun add output):**
+- @tanstack/db core: local-storage.d.ts, local-only.d.ts, query/ (live-query-collection.d.ts) — LocalStorageCollectionOptions, LocalOnlyCollectionOptions, LiveQueryCollectionOptions (grep -l hits). 
+- @tanstack/query-db-collection@1.2.12: exports `queryCollectionOptions`, `QueryCollectionConfig` (dist/esm/index.d.ts:2; query.d.ts:17) — expects `queryFn` (REST/loader via TanStack Query) + push path; wire = your own HTTP.
+- @tanstack/electric-db-collection@0.4.7: `electricCollectionOptions`, `ElectricCollectionConfig` with `shapeOptions: ShapeStreamOptions` (electric.d.ts:64-68) — wire = Electric shape protocol.
+- @tanstack/powersync-db-collection@0.1.66: exports powersync collection; definitions.d.ts:1 imports AbstractPowerSyncDatabase from @powersync/common — requires PowerSync client SDK + PowerSync Service.
+- @tanstack/trailbase-db-collection@0.1.106: `trailBaseCollectionOptions`, TrailBaseCollectionConfig (trailbase.d.ts:16,33) — expects TrailBase server (single Rust executable w/ SSE realtime).
+- @tanstack/rxdb-db-collection@0.1.94: rxdb.d.ts:26 `rxCollection: RxCollection` — expects an RxDB collection (which itself replicates via RxDB protocol).
+- TrailBase site confirms "TanStack/db ships with a TrailBase integration out-of-the-box".
+
+**Q2 Electric HTTP protocol** (https://electric-sql.com/docs/api/http, OpenAPI spec https://github.com/electric-sql/electric/blob/main/website/electric-api.yaml):
+- GET /v1/shape; initial request offset=-1; paginate via electric-offset header; live mode live=true + handle + offset (0_0 style); 204 on live timeout; control messages up-to-date {headers:{control:"up-to-date"}}, must-refetch, snapshot-end {xmin,xmax,xip_list}, subset-end; SSE via live_sse=true with keep-alive every 21s; log=full|changes_only; offset=now; subset snapshots POST where/params/limit/offset/order_by (GET subset__* legacy; Electric 2.0 deprecates GET subsets).
+- Headers: electric-handle, electric-offset, electric-up-to-date, electric-cursor (client-development guide); electric-schema + electric-snapshot appear in client code (grep of @electric-sql/client dist JS shows all: electric-offset/handle/schema/up-to-date/cursor/snapshot counts 1 each).
+- Op message: ChangeMessage {key, value, old_value?, headers:{operation: insert|update|delete, txids?}} — client index.d.ts:116-128; docs materialization example (client-development guide).
+- Stability/reimplementation: docs explicitly say "The algorithm ... can be implemented from scratch ... we hope that the pattern is simple enough that you should be able to write your own client" — client-development guide. OpenAPI spec published. Also official guidance recommends proxying through your backend (auth). Verdict: yes, publicly documented & designed to be reimplemented; note GET subset deprecation in 2.0 and versioned params; protocol includes extra pieces (subset snapshots, move-in/move-out events, tags) that the TS client understands (EventMessage move-out/move-in in index.d.ts:110-115).
+
+**Q3** ShapeStreamOptions (client dist/index.d.ts:478-545): url: string (483, "full URL ... Electric server directly or a proxy"), offset?, handle?, headers (dynamic fn values), params (ExternalParamsRecord, reserved offset/handle/live/cursor, table/where/columns/replica specified here), subscribe?, liveSse?, log?, signal, fetchClient?: typeof fetch (537), backoffOptions. electricCollectionOptions requires shapeOptions: ShapeStreamOptions (electric.d.ts:68) + docs "url: The URL of your proxy to Electric". → YES, arbitrary URL; must speak shape protocol incl. headers & offsets; fetchClient lets you inject custom fetch (auth, Bun/Effect interop).
+
+**Q4 write path:** TanStack DB docs (electric-collection page): optimistic mutations; handlers onInsert/onUpdate/onDelete called before/during persist; return { txid } (recommended) → client blocks sync data until mutation confirmed; awaitTxId(txid, timeout?) and awaitMatch(matchFn, timeout?) via collection.utils; isChangeMessage/isControlMessage helpers; matching strategy also `{ txid: [..], timeout }` or custom match or timeout fallback (2s crude). txid = PG transaction id extracted server-side via `SELECT txid_current()`; must match the txid in stream messages (headers.txids in ChangeMessage per index.d.ts:123). Common failure: txid mismatch → awaitTxId stalls (documented known issue). For our own shape server: server must (a) run the write in a single tx, (b) return that tx's id, (c) include matching txids in the shape-log message headers for that row's changes.
+- Transaction reconciliation: transactions committed via `tx.mutate...`; isPersisted.promise resolves when matching strategy settles (docs mention transaction's isPersisted.promise).
+
+**Q5 Effect building blocks:**
+- HttpServerResponse.stream(body: Stream<Uint8Array,E,never>) — @effect/platform/dist/dts/HttpServerResponse.d.ts:150. Also `empty` :79.
+- @effect/sql-pg PgClient.d.ts:39: `readonly listen: (channel: string) => Stream.Stream<string, SqlError>` — LISTEN/NOTIFY as a Stream.
+- Queue: effect/dist/dts/Queue.d.ts:57 `export interface Queue<in out A> extends Enqueue<A>, Dequeue<A>`.
+- PubSub module exists (effect/dist/dts/PubSub.d.ts) — exact make signature grep returned nothing due to my pattern; mark partially UNVERIFIED (PubSub.make/unbounded bounded known APIs but not verified here).
+- SSE: @effect/platform has Sse-related? My grep for Sse in platform dts returned nothing in the file list (grep -rln "Sse" | head -4 printed nothing) — UNVERIFIED; but SSE can be hand-rolled via HttpServerResponse.stream since it's just text/event-stream bytes. HttpApi streaming: grep found nothing in HttpApiEndpoint.d.ts (file didn't exist at that path?) — mark UNVERIFIED; note long-poll is fine with plain HttpServerResponse and delayed streams; the Electric TS client itself defaults to long-poll (SSE optional), so a custom shape server can implement long-poll only.
+- Versions installed: effect (latest, tail showed sql-pg@0.53.0, @effect/sql@0.52.1; effect version not shown — UNVERIFIED exact, but 3.x per current).
+
+**Q6 alternatives:**
+- LiveStore: livestore.dev/docs — React web, Effect-based (their docs; I saw docs index; Effect basis is well-known but I only partially verified → mark: docs index + tutorial sync via Cloudflare Worker). Sync server = Cloudflare Worker (tutorial step 4 "Sync data to Cloudflare"). Client owns local SQLite (WASM) + event log; server is separate (Worker). Owns writes? Client commits events locally, sync server distributes. Verdict: separate sync backend (CF Worker/Node), would displace TanStack DB as the client store (SQLite + effects), diverges from Postgres projection + D9 schema-per-org; high migration cost. Also TanStack DB adapter? None shipped for LiveStore (not in package list above) — you'd use LiveStore queries instead of TanStack DB.
+- Replicache: rocicorp/replicache README = "Realtime Sync for Any Backend Stack", repo is issue-tracker pointing to replicache.dev/doc.replicache.dev. Same vendor as Zero (rejected). Push/pull: you implement server endpoints; client is in-process JS library; server side you must implement diff-server or use Replicache-only patterns; status of Reflect Zero-merger UNVERIFIED (README thin). Verdict: vendor overlap with rejected Zero; write path integration (push handlers) fine but you build diff/space; risk of deprecated future direction.
+- PowerSync: docs.powersync.com/architecture — "PowerSync Service and client SDK operate in unison to keep client-side SQLite in sync with backend source database". Service = separate deployment (open-source TS service, self-hostable; UNVERIFIED embeddable-in-process). Client SDK manages SQLite — would bypass/replace TanStack DB collections? There IS @tanstack/powersync-db-collection adapter (shipped). Verdict: service, not embeddable; adds second DB (client SQLite).
+- TrailBase: trailbase.io — "single executable", realtime SSE push, auth built-in, TanStack/db ships TrailBase integration; adapter exists (@tanstack/trailbase-db-collection). It's a whole backend (Rust + SQLite) — replacing your Hono/Postgres control plane = no; verdict: separate service & owns writes to its own SQLite.
+- RxDB: rxdb.info/replication.html — backend "does not have to be an RxDB instance... custom GraphQL or HTTP server on top of PostgreSQL"; protocol = 3 simple endpoints (push/pull/event stream); complex parts in RxDB client. Client would be RxDB collections with @tanstack/rxdb-db-collection adapter bridging to TanStack DB. In-process: client lib yes; server: you implement endpoints in Effect (read-path-ish: your API still owns writes; RxDB replication reads your endpoints). License: core Apache? RxDB premium features require license — UNVERIFIED specifics. Verdict: viable, but extra client storage layer (RxDB) + document model; NoSQL.
+- CRDT (Yjs/Automerge): document/CRDT model; server authority & append-only audit (D10) get awkward; TanStack DB has no CRDT adapter shipped; verdict: overkill/mismatch for relational control-plane data; convergence guarantees unnecessary when you have a central Postgres writer; would complicate actor attribution (D12).
+
+**Q7 snapshot+tail:** Electric's subset snapshots show the pattern: response data + PostgresSnapshot metadata (xmin, xmax, xip_list) in snapshot-end so client knows which changes are already incorporated — electric docs (api/http page). Standard technique over event log: read projection at seq N in one tx (REPEATABLE READ), then stream events > N; gotchas: BIGSERIAL gaps & out-of-order visibility (a tx with smaller seq can commit after a tx with larger seq) → tail from seq N may skip late-committing events; mitigations: single-writer/serialized counter (single-row counter table under advisory lock, or serialized writes), or use PG snapshot xmin/xmax/xip_list to filter (like Electric), or per-org single-row monotonic counter updated in the write tx (fits schema-per-org, one counter per org). LISTEN/NOTIFY fires at commit but delivery vs visibility race handled by re-reading. Specifics of pg_current_snapshot (returns pg_snapshot text xmin:xmax:xip_list; on PG13+ as function) — cite PG docs functions-info page, anchor UNVERIFIED (didn't fetch). Mark accordingly.
+
+**Q8 schema-per-org:** TanStack DB = multiple collections, each electric collection = its own ShapeStream → each org-scoped collection points at a shape URL with an org-scoped cursor; client may run several concurrent live shapes (docs show multiple shapes maintenance "into a local store ... no matter which shape" client-development). No documented hard cap on concurrent shapes in TanStack adapter; each shape = one long-poll (or SSE) connection on client; server cost = per-shape state (handle, offsets). Electric service handles many shapes per client; for schema-per-org, table names identical across org schemas → the shape URL must disambiguate org (e.g., params.org or path prefix /org/:id/v1/shape, or where clause on org column if single-db multi-schema routing) — the shape key canonicalization (canonicalShapeKey, client index.d.ts:746) keyed by URL. Cursor per shape per org = per collection. Limits: Electric sync service docs mention global shape limits? UNVERIFIED. Keep to what's verified + reasonable note.
+
+Also worth noting from the bun add: blocked 3 postinstalls (irrelevant).
+
+Versions: @tanstack/db@0.8.7, electric-db-collection@0.4.7, query-db-collection@1.2.12, powersync-db-collection@0.1.66, trailbase-db-collection@0.1.106, rxdb-db-collection@0.1.94, @electric-sql/client@1.5.27, @effect/sql-pg@0.53.0, @effect/sql@0.52.1. effect version UNVERIFIED exact (didn't print) — say "latest 3.x at install time" with note.
+
+---
+
+## Recommendation (agent's, verbatim)
+
+Effect server speaking shape protocol over the event log, long-poll + optional SSE, single-row per-org monotonic counter (or snapshot metadata), returns txid from write path via effect/Schema-wrapped actions; fits D6 chokepoint, D9 per-org shapes, D10 log→shape log; adapter maturity of electric-db-collection is the best (txid matching); RxDB/PowerSync/LiveStore all add second client store or service; CRDT mismatch.
+
+## Open questions for the operator (agent's, verbatim)
+
+long-poll timeout mechanics behind Bun's server (keep-alive) — needs prototype; SSE buffering through their proxy; number of concurrent shapes per browser (connection pool H1 vs H2); shape auth (proxy pattern) w/ capability checks at kernel chokepoint (D6) mapping to shape URL authz; whether txid ordering across per-org counters is enough vs xmin-based filtering; PG: single-writer counter throughput per org; columns/where subset support needed initially?; effect HttpApi vs raw Hono for the shape endpoint (charter says Hono
