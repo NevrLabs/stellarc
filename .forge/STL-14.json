@@ -8,9 +8,10 @@
   },
   {
    "stage": "triage",
-   "status": "pass",
-   "at": "2026-09-08T23:13:53+00:00",
-   "agent": "1cddcdf4-1a75-45ec-90b0-57de3e1830aa"
+   "status": "fail",
+   "at": "2026-09-08T23:20:00+00:00",
+   "agent": "1cddcdf4-1a75-45ec-90b0-57de3e1830aa",
+   "reason": "orchestrator invalidated: verdict inferred from transcript (contained brief text), no verdict file existed"
   }
  ],
  "cycle": 0

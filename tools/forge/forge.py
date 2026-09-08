@@ -183,7 +183,7 @@ ISSUE #{iss['number']}: {iss['title']}
 ---
 {iss['body'] or '(no body)'}
 ---
-Write /tmp/forge-{t}-triage.md with: verdict line (ACCEPT|NEEDS-INFO|REJECT), wave/slice, duplicate check, rationale (≤10 lines). Then reply with the verdict line only."""
+Write /tmp/forge-{t}-triage.md using your file-writing tool. Its FIRST LINE must be exactly one of: ACCEPT / NEEDS-INFO / REJECT. Then: wave/slice, duplicate check, rationale (≤10 lines). The file is the ONLY channel the orchestrator reads — a reply without the file is a failed stage. Then reply with the verdict line only."""
 
 def brief_spec(t, c, iss):
     return f"""{brief_header(t, c, "spec", "triage")}
@@ -293,8 +293,18 @@ def cmd_triage(args):
     print(f"dispatched {a}; waiting…")
     wait_idle(a, c["stage_timeout_s"]["triage"])
     out = Path(f"/tmp/forge-{t}-triage.md")
-    text = out.read_text() if out.exists() else logs_tail(a)
-    verdict = next((w for w in ("ACCEPT", "NEEDS-INFO", "REJECT") if w in text.split("\n", 3)[0].upper()), None) or ("ACCEPT" if "ACCEPT" in text.upper() else "NEEDS-INFO")
+    if not out.exists():
+        # No artefact = no verdict. Never infer a decision from the transcript: the
+        # transcript contains our own brief, which contains every verdict word.
+        record(t, "triage", "fail", agent=a, reason="agent wrote no verdict file")
+        comment(n, c["repo"], f"### forge · triage → **NO VERDICT**\n\nAgent `{a}` finished without writing `/tmp/forge-{t}-triage.md`. Re-run `forge triage {n}`.\n\n<details><summary>agent tail</summary>\n\n```\n{logs_tail(a, 25)}\n```\n</details>")
+        die(f"triage agent {a} produced no verdict file — refusing to infer one")
+    text = out.read_text()
+    first = text.strip().splitlines()[0].upper() if text.strip() else ""
+    verdict = next((w for w in ("ACCEPT", "NEEDS-INFO", "REJECT") if w in first), None)
+    if verdict is None:
+        record(t, "triage", "fail", agent=a, reason=f"first line not a verdict: {first[:80]}")
+        die(f"triage file's first line is not ACCEPT|NEEDS-INFO|REJECT: {first[:80]!r}")
     comment(n, c["repo"], f"### forge · triage → **{verdict}**\n\n{text}\n\n_agent `{a}`_")
     if verdict == "ACCEPT":
         record(t, "triage", "pass", agent=a); set_stage_label(n, c["repo"], "spec")
