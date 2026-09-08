@@ -225,7 +225,7 @@ TDD CONTRACT (non-negotiable):
    (Committing on YOUR branch in YOUR worktree is the one exception to the no-commit rule — the orchestrator merges, you never do.)
 6. Budget: {c.get('implement_budget_min', 90)} minutes. If you cannot finish, commit what is GREEN, push, open the PR as draft, and say exactly what remains.
 
-Every UI-touching change: run `{c.get('screenshot_cmd', 'bun run e2e:screens')}` and commit the PNGs under the path the spec names. A UI change without a screenshot is incomplete.
+Every UI-touching change: run `{c.get('screenshot_cmd', 'bun run e2e:screens')}` — it captures ALL Playwright projects ({', '.join(c.get('viewports', ['desktop','tablet','mobile','mobile-small']))}) — and commit the PNGs under e2e/__screenshots__/<project>/. A UI change with screenshots for only one viewport is incomplete. Mobile projects use real touch (page.tap), not mouse.
 
 === SPEC (verbatim) ===
 {spec}
@@ -244,7 +244,7 @@ AUDIT, in order, each with a per-item verdict:
 3. MIGRATIONS — any modified/deleted migration that already shipped? (`git tag --contains`). Journal reformatted wholesale instead of appended?
 4. DOCTRINE — direct SQL writes bypassing the API (D12)? Event without actor? Mutation without event? Hardcoded hex instead of token? Model call from the control plane (D4)?
 5. WORKER DEBRIS — stray files, commented code, debug logs, giant generated diffs.
-6. SCREENSHOTS — present for every UI surface the spec names? Do they actually differ from baseline where they should and match where they shouldn't?
+6. SCREENSHOTS — present for every UI surface the spec names AND for every Playwright project ({', '.join(c.get('viewports', ['desktop','tablet','mobile','mobile-small']))})? A PR that only regenerated desktop PNGs is REWORK. Do they differ from baseline where they should and match where they shouldn't? Did the mobile layout actually get exercised with touch?
 7. Re-run the focused tests and the gates yourself. Paste output.
 
 Write .forge/{t}.review-{cycle}.md: verdict line (PASS|REWORK), then the per-item table, then a DEFECTS list (numbered, each with file:line and the exact fix expected). Reply with the verdict line and defect count only.
@@ -267,6 +267,7 @@ def cmd_init(args):
         "gates": ["bun run lint", "bun run typecheck", "bun test", "bun run build"],
         "e2e": "bun run e2e",
         "screenshot_cmd": "bun run e2e:screens",
+        "viewports": ["desktop", "tablet", "mobile", "mobile-small"],
         "models": {
             "triage": "goose/glm/glm-5.3-flash",
             "spec": "glm/glm-5.3",

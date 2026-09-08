@@ -28,5 +28,11 @@
     "spec": 1800,
     "implement": 7200,
     "review": 2400
-  }
+  },
+  "viewports": [
+    "desktop",
+    "tablet",
+    "mobile",
+    "mobile-small"
+  ]
 }

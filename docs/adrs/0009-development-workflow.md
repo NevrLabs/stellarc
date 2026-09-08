@@ -51,31 +51,57 @@ bun run lint · bun run typecheck · bun test · bun run build · bun run e2e
 plus a debris scan (`*.log`, `*.tmp`, `console.log`, `/debug`). Any red = PR
 labelled `forge:rework`, spec re-armed, cycle counter advances.
 
-## UI evidence: Playwright now, Maestro when the desktop returns
+## Target platforms
 
-**Playwright** is the UI test runner for `dev`:
+Stellarc ships to **web, desktop (Linux/Windows/macOS), and mobile (Android/iOS)**
+from **one React codebase**. The shell is **Tauri 2** — already the v1 choice
+(`desktop/Cargo.toml`, `@tauri-apps/cli ^2`) and Tauri 2 targets iOS and
+Android from the same webview app. No second UI stack (Capacitor, Expo,
+React Native) — that would fork the pixel-frozen UI.
 
-- The frozen UI is a web SPA; Playwright drives real Chromium against the built
-  bundle with the real keyboard (needed for `:focus-visible` — programmatic
-  `.focus()` does not trigger it and produced a false negative this session).
-- **Screenshot parity is a gate.** `toHaveScreenshot()` against baselines
-  committed under `apps/stellarc-ui/e2e/__screenshots__/`, 0.1% pixel
-  threshold. Because the UI is pixel-frozen, any diff is a regression by
-  definition. Baselines are captured from the Kaneo fork once at T0.
-- Every UI-touching PR must include the regenerated PNGs; the reviewer checks
-  they changed where the spec says and nowhere else.
+Consequence for the freeze: the fork's **responsive layer is part of the
+frozen surface**. It exists today — 473 Tailwind breakpoint prefixes
+(`sm:` 358, `md:` 70, `lg:` 34), `useIsMobile()` at **768px** in 12 sites, the
+sidebar collapsing to a Sheet below it — but it was **never under test**.
+`dev` puts it under test from T0.
 
-**Maestro** is *not* adopted on `dev` yet. Stellarc v1 uses it (21 flows) for
-the desktop shell, and it will return with the desktop stage of the rewrite.
-Two runners for one web surface is duplication; Maestro's strength is mobile/
-desktop apps, which `dev` does not have.
+## UI evidence: Playwright projects per viewport, Maestro per native shell
+
+**Playwright** runs the web bundle under **four projects**, every PR:
+
+| Project | Viewport | Emulates | Why |
+|---|---|---|---|
+| `desktop` | 1440×900 | Chromium | primary cockpit |
+| `tablet` | 1024×768 | iPad, touch | `lg:` boundary, sidebar still visible |
+| `mobile` | 390×844 | iPhone 14, touch, `hasTouch`, `isMobile` | below 768 — Sheet sidebar, stacked layouts |
+| `mobile-small` | 360×640 | Android small, touch | the smallest layout we promise |
+
+- Real keyboard on desktop (needed for `:focus-visible`); **real touch** on
+  mobile projects (`page.tap`, swipe) — a mobile layout driven by a mouse is not
+  tested.
+- **Screenshot parity is a gate on every project.** `toHaveScreenshot()` against
+  baselines committed under `apps/stellarc-ui/e2e/__screenshots__/<project>/`,
+  0.1% threshold. Baselines are captured from the Kaneo fork **at all four
+  viewports** at T0. Any diff on any project is a regression by definition.
+- Each frozen screen gets one spec that runs across all projects; project-
+  specific assertions (Sheet open on mobile, sidebar rail on desktop) are
+  branched on `testInfo.project.name`, not skipped.
+- Every UI-touching PR includes regenerated PNGs for all four projects; the
+  reviewer checks they changed where the spec says and nowhere else.
+
+**Maestro** covers the **native shells** (Tauri desktop, Tauri iOS/Android) when
+those stages land. v1 already has `.maestro/config.mobile.yaml` and 21 flows;
+they return with the desktop/mobile packaging tickets. Maestro is not run
+against the web bundle — that is Playwright's job, and one surface does not
+get two runners.
 
 ## Screenshot delivery
 
-Screenshots are committed to the PR and linked from the review comment. They
-are **not** delivered via `MEDIA:` paths (does not render in Paseo/ACP). For
-human review outside GitHub, `design/` and `e2e/__screenshots__/` are served
-at `https://kaneo-design.stellarc.app/` behind the existing tunnel.
+Screenshots are committed to the PR and linked from the review comment,
+grouped by project. They are **not** delivered via `MEDIA:` paths (does not
+render in Paseo/ACP). For human review outside GitHub, `design/` and
+`e2e/__screenshots__/` are served at `https://kaneo-design.stellarc.app/`
+behind the existing tunnel.
 
 ## What forge does not do
 
