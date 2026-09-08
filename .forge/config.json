@@ -1,0 +1,32 @@
+{
+  "repo": "NevrLabs/stellarc",
+  "base": "dev",
+  "ticket_prefix": "STL",
+  "gates": [
+    "bun run lint",
+    "bun run typecheck",
+    "bun test",
+    "bun run build"
+  ],
+  "e2e": "bun run e2e",
+  "screenshot_cmd": "bun run e2e:screens",
+  "models": {
+    "triage": "goose/glm/glm-5.3-flash",
+    "spec": "glm/glm-5.3",
+    "implement": [
+      "cx/gpt-6-astra",
+      "glm/glm-5.3-flash"
+    ],
+    "review": [
+      "glm/glm-5.3",
+      "ocg/deepseek-v4-pro"
+    ]
+  },
+  "implement_budget_min": 90,
+  "stage_timeout_s": {
+    "triage": 900,
+    "spec": 1800,
+    "implement": 7200,
+    "review": 2400
+  }
+}
