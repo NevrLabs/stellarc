@@ -13,3 +13,6 @@
 2026-09-09T03:08:21+00:00 start      STL-14   implement
 2026-09-09T03:08:27+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
 2026-09-09T03:08:39+00:00 start      STL-14   implement
+2026-09-09T03:41:45+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-09T03:41:53+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T03:44:03+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)

@@ -433,10 +433,22 @@ def cmd_implement(args):
         if prev.exists():
             body = prev.read_text(); i = body.upper().find("DEFECTS"); defects = body[i:] if i >= 0 else body
     model = c["models"]["implement"][(cycle - 1) % len(c["models"]["implement"])]
-    branch = f"forge/{t.lower()}-c{cycle}"
-    record(t, "implement", "running", cycle=cycle, model=model, branch=branch)
-    a = dispatch(f"forge implement {t} c{cycle}", brief_implement(t, c, spec, cycle, defects), model,
-                 worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
+    prev_partial = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "partial"), None)
+    if prev_partial:
+        branch = prev_partial["branch"]
+        cont = (f"\n\nCONTINUATION: cycle {prev_partial['cycle']} ran out of budget and left draft PR #{prev_partial['pr']} on this branch "
+                f"with committed, green work. Read `git log dev..HEAD` and the PR body's 'Remaining' list FIRST. Do NOT redo done work. "
+                f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}` and push. "
+                f"If you run out again, update the PR body's Remaining list and leave it draft.")
+        record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"])
+        a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model,
+                     cwd=None, extra=["--new-workspace", "worktree", "--worktree-mode", "checkout-branch", "--branch", branch,
+                                      "--worktree-slug", f"{t.lower()}-c{cycle}"])
+    else:
+        branch = f"forge/{t.lower()}-c{cycle}"
+        record(t, "implement", "running", cycle=cycle, model=model, branch=branch)
+        a = dispatch(f"forge implement {t} c{cycle}", brief_implement(t, c, spec, cycle, defects), model,
+                     worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
     watch(a, f"{t}-impl-c{cycle}", t, "implement")
     print(f"dispatched {a} on {branch} ({model}); waiting up to {c['stage_timeout_s']['implement']}s…")
     wt = None
@@ -463,8 +475,15 @@ def cmd_implement(args):
         record(t, "implement", "fail", agent=a, cycle=cycle, reason="no PR opened")
         die(f"no PR on {branch}. Salvage: `git -C <worktree> status`; `paseo logs {a} | tail -40`\n{tail}")
     pr = prs[0]
-    record(t, "implement", "pass", agent=a, cycle=cycle, pr=pr["number"], pr_url=pr["url"], draft=pr["isDraft"])
-    comment(n, c["repo"], f"### forge · implement (cycle {cycle}, `{model}`)\n\nPR: {pr['url']}{' (DRAFT — incomplete)' if pr['isDraft'] else ''}\n\n<details><summary>agent tail</summary>\n\n```\n{logs_tail(a, 30)}\n```\n</details>")
+    if pr["isDraft"]:
+        # Budget ran out with real, green, committed work. Not a failure: the next cycle CONTINUES this branch.
+        record(t, "implement", "partial", agent=a, cycle=cycle, pr=pr["number"], pr_url=pr["url"], branch=branch)
+        record(t, "spec", "pass", note=f"re-armed: continue c{cycle} draft PR #{pr['number']} on {branch}")
+        comment(n, c["repo"], f"### forge · implement (cycle {cycle}, `{model}`) → **PARTIAL (draft)**\n\nPR: {pr['url']} — budget reached with committed green work. Next cycle continues on `{branch}`.\n\n<details><summary>agent tail</summary>\n\n```\n{logs_tail(a, 30)}\n```\n</details>")
+        print(f"{t} implement c{cycle} → PARTIAL draft {pr['url']} (will continue)")
+        return
+    record(t, "implement", "pass", agent=a, cycle=cycle, pr=pr["number"], pr_url=pr["url"], branch=branch)
+    comment(n, c["repo"], f"### forge · implement (cycle {cycle}, `{model}`)\n\nPR: {pr['url']}\n\n<details><summary>agent tail</summary>\n\n```\n{logs_tail(a, 30)}\n```\n</details>")
     set_stage_label(n, c["repo"], "review")
     print(f"{t} implement c{cycle} → {pr['url']}")
 
