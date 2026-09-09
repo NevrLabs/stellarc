@@ -100,6 +100,32 @@ test("T15 version chains validate identity, synthetic v0, and reject unknown sch
 	});
 });
 
+test("T18 shape query allowlist rejects every undocumented parameter before SQL", async () => {
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const postgres = (await import("postgres")).default;
+	const sql = postgres("postgres://localhost:1/unused", { connect_timeout: 1 });
+	try {
+		const engine = new ShapeEngine(sql);
+		for (const name of [
+			"where",
+			"columns",
+			"replica",
+			"subset__limit",
+			"live_sse",
+			"params[1]",
+			"unknown",
+		]) {
+			const url = new URL(
+				"http://localhost/orgs/org/v1/shape?table=sync_probe&offset=-1",
+			);
+			url.searchParams.set(name, "");
+			expect((await engine.shape("org", url)).status, name).toBe(400);
+		}
+	} finally {
+		await sql.end();
+	}
+});
+
 test("transaction IDs reject overflow rather than rounding", () => {
 	expect(safeTxid("123")).toBe(123);
 	expect(() => safeTxid("9007199254740992")).toThrow(
