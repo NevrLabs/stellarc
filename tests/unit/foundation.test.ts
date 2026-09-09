@@ -126,6 +126,44 @@ test("T18 shape query allowlist rejects every undocumented parameter before SQL"
 	}
 });
 
+test("shape log modes reach the OTel logger without leaking request values", async () => {
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { ManagedRuntime } = await import("effect");
+	const postgres = (await import("postgres")).default;
+	const sql = postgres("postgres://localhost:1/unused", { connect_timeout: 1 });
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		const engine = new ShapeEngine(sql);
+		for (const mode of ["full", "changes_only", "private-request-value"]) {
+			await runtime.runPromise(
+				engine.shapeEffect(
+					"org",
+					new URL(
+						`http://localhost/orgs/org/v1/shape?table=sync_probe&offset=-1&where=&log=${mode}`,
+					),
+				),
+			);
+		}
+		await telemetry.logProcessor.forceFlush();
+		const records = telemetry.logs.getFinishedLogRecords();
+		expect(records.map((record) => record.body)).toEqual([
+			"shape request",
+			"shape request",
+		]);
+		expect(
+			records.map((record) => record.attributes["stellarc.shape.log"]),
+		).toEqual(["full", "changes_only"]);
+		expect(
+			JSON.stringify(records.map((record) => record.attributes)),
+		).not.toContain("private-request-value");
+	} finally {
+		await runtime.dispose();
+		await sql.end();
+	}
+});
+
 test("transaction IDs reject overflow rather than rounding", () => {
 	expect(safeTxid("123")).toBe(123);
 	expect(() => safeTxid("9007199254740992")).toThrow(

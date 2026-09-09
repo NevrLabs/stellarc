@@ -35,14 +35,19 @@ export class ShapeEngine {
 	constructor(
 		private sql: Sql,
 		private upcasters = new UpcasterRegistry(),
-		private telemetry: (entry: { org: string; log: string }) => void = (
-			entry,
-		) => console.info("shape request", entry),
+		private telemetry?: (entry: { org: string; log: string }) => void,
 	) {}
 	shapeEffect = Effect.fn("Sync.shape")(
 		(org: string, url: URL, signal?: AbortSignal) => {
 			const self = this;
 			return Effect.gen(function* () {
+				const log = url.searchParams.get("log");
+				if (log === "full" || log === "changes_only") {
+					yield* Effect.logInfo("shape request").pipe(
+						Effect.annotateLogs("stellarc.shape.log", log),
+					);
+					self.telemetry?.({ org, log });
+				}
 				const runtime = yield* Effect.runtime<never>();
 				const live = url.searchParams.get("live") === "true";
 				const began = performance.now();
@@ -116,7 +121,6 @@ export class ShapeEngine {
 		page: (url: URL) => Promise<Response>,
 	): Promise<Response> {
 		const q = url.searchParams;
-		if (q.has("log")) this.telemetry({ org, log: q.get("log") ?? "full" });
 		if (q.has("live") && !["true", "false"].includes(q.get("live") ?? ""))
 			return new Response(null, { status: 400 });
 		if (q.get("live") !== "true") return page(url);
