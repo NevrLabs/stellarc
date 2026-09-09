@@ -50,6 +50,67 @@ test("T01 HTTP shape spans remain inside the inbound request trace", async () =>
 	}
 });
 
+test("T11 HTTP disconnect interrupts live polling without further SQL queries", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const db = await disposablePostgres();
+	await migrate(db.sql);
+	const telemetry = TelemetryTest();
+	const web = foundationHandler(
+		db.sql,
+		new ShapeEngine(db.sql),
+		() => "ok",
+		undefined,
+		telemetry.layer,
+	);
+	try {
+		const initial = await web.handler(
+			new Request(
+				"http://test/orgs/cancel/v1/shape?table=sync_probe&offset=-1",
+			),
+		);
+		await initial.text();
+		const url = new URL(
+			"http://test/orgs/cancel/v1/shape?table=sync_probe&live=true",
+		);
+		url.searchParams.set(
+			"handle",
+			initial.headers.get("electric-handle") ?? "",
+		);
+		url.searchParams.set(
+			"offset",
+			initial.headers.get("electric-offset") ?? "",
+		);
+		const controller = new AbortController();
+		const tails = () =>
+			telemetry.spans
+				.getFinishedSpans()
+				.filter((span) => span.name === "stellarc.shape.tail").length;
+		const poll = web
+			.handler(new Request(url, { signal: controller.signal }))
+			.catch(() => undefined);
+		await expect.poll(tails).toBeGreaterThan(0);
+		controller.abort();
+		await poll;
+		// Allow an already-dispatched query to finish; no later poll may begin.
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		const stoppedAt = tails();
+		await new Promise((resolve) => setTimeout(resolve, 350));
+		expect(tails()).toBe(stoppedAt);
+		const [activity] =
+			await db.sql`SELECT count(*)::int AS active FROM pg_stat_activity WHERE pid<>pg_backend_pid() AND datname=current_database() AND state='active'`;
+		expect(activity.active).toBe(0);
+	} finally {
+		await web.dispose();
+		await db.close();
+	}
+});
+
 test("T06 migration exports its applied version through the caller trace", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { applyMigration } = await import("../../packages/db/src/migrate");
