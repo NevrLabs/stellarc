@@ -93,6 +93,63 @@ test("T05 append spans share the mutation trace and report committed event ident
 	}
 });
 
+test("T01 shape spans preserve snapshot and contiguous tail boundaries", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { writeProbe } = await import("../../packages/domain/src/index");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { Effect, ManagedRuntime } = await import("effect");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		await migrate(db.sql);
+		const engine = new ShapeEngine(db.sql);
+		const url = new URL(
+			"http://test/orgs/trace/v1/shape?table=sync_probe&offset=-1",
+		);
+		await runtime.runPromise(
+			Effect.gen(function* () {
+				let response = yield* engine.shapeEffect("trace", url);
+				url.searchParams.set(
+					"handle",
+					response.headers.get("electric-handle")!,
+				);
+				for (const id of ["one", "two"]) {
+					url.searchParams.set(
+						"offset",
+						response.headers.get("electric-offset")!,
+					);
+					yield* Effect.promise(() =>
+						writeProbe(db.sql, "trace", "actor", id, id),
+					);
+					response = yield* engine.shapeEffect("trace", url);
+				}
+			}).pipe(Effect.withSpan("reconnect.caller")),
+		);
+		const spans = telemetry.spans.getFinishedSpans();
+		expect(
+			spans.filter((span) => span.name === "stellarc.shape.snapshot"),
+		).toHaveLength(1);
+		const tails = spans.filter((span) => span.name === "stellarc.shape.tail");
+		expect(
+			tails.map((span) => span.attributes["stellarc.shape.offset_from"]),
+		).toEqual(["0", "1"]);
+		expect(
+			tails.map((span) => span.attributes["stellarc.shape.events_sent"]),
+		).toEqual([1, 1]);
+		for (const span of tails)
+			expect(span.spanContext().traceId).toBe(
+				spans.find((entry) => entry.name === "reconnect.caller")?.spanContext()
+					.traceId,
+			);
+	} finally {
+		await runtime.dispose();
+		await db.close();
+	}
+});
+
 test("T09 real fixture HttpApi commits mutations and stock awaitTxId settles", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);

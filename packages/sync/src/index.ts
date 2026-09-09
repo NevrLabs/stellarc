@@ -1,3 +1,4 @@
+import { Effect, Runtime } from "effect";
 import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
@@ -21,18 +22,73 @@ export class ShapeEngine {
 			entry,
 		) => console.info("shape request", entry),
 	) {}
-	async shape(org: string, url: URL, signal?: AbortSignal): Promise<Response> {
+	shapeEffect = Effect.fn("Sync.shape")(
+		(org: string, url: URL, signal?: AbortSignal) => {
+			const self = this;
+			return Effect.gen(function* () {
+				const runtime = yield* Effect.runtime<never>();
+				return yield* Effect.tryPromise({
+					try: () =>
+						self.runShape(org, url, signal, (pageUrl) =>
+							Runtime.runPromise(runtime)(self.pageEffect(org, pageUrl)),
+						),
+					catch: (cause) => cause,
+				});
+			});
+		},
+	);
+	shape(org: string, url: URL, signal?: AbortSignal): Promise<Response> {
+		return Effect.runPromise(this.shapeEffect(org, url, signal));
+	}
+	private pageEffect(org: string, url: URL) {
+		const offset = url.searchParams.get("offset") ?? "-1";
+		const snapshot = this.snapshots.get(url.searchParams.get("handle") ?? "");
+		const decoded = snapshot?.cursors.get(offset) ?? offset;
+		const initial = decoded === "-1" || decoded.startsWith("s:");
+		return Effect.fn(
+			initial ? "stellarc.shape.snapshot" : "stellarc.shape.tail",
+		)(() =>
+			Effect.tryPromise({
+				try: () => this.page(org, url),
+				catch: (cause) => cause,
+			}).pipe(
+				Effect.tap((response) =>
+					Effect.gen(function* () {
+						const messages =
+							response.status === 200
+								? yield* Effect.promise(() => response.clone().json())
+								: [];
+						yield* Effect.annotateCurrentSpan({
+							"stellarc.shape.table": "sync_probe",
+							"stellarc.shape.offset_from": initial
+								? decoded
+								: decoded.split("_")[0],
+							"stellarc.shape.events_sent": (
+								messages as Array<{ headers: { operation?: string } }>
+							).filter((message) => message.headers.operation).length,
+						});
+					}),
+				),
+			),
+		)();
+	}
+	private async runShape(
+		org: string,
+		url: URL,
+		signal: AbortSignal | undefined,
+		page: (url: URL) => Promise<Response>,
+	): Promise<Response> {
 		const q = url.searchParams;
 		if (q.has("log")) this.telemetry({ org, log: q.get("log") ?? "full" });
 		if (q.has("live") && !["true", "false"].includes(q.get("live") ?? ""))
 			return new Response(null, { status: 400 });
-		if (q.get("live") !== "true") return this.page(org, url);
+		if (q.get("live") !== "true") return page(url);
 		if (!q.get("handle") || !q.get("offset") || q.get("offset") === "-1")
 			return new Response(null, { status: 400 });
 		const deadline = Date.now() + 20000;
 		while (true) {
 			signal?.throwIfAborted();
-			const response = await this.page(org, url);
+			const response = await page(url);
 			response.headers.set("electric-cursor", crypto.randomUUID());
 			if (response.status !== 200) return response;
 			const messages = (await response.clone().json()) as Array<{
