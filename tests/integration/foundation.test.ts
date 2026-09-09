@@ -111,6 +111,85 @@ test("T11 HTTP disconnect interrupts live polling without further SQL queries", 
 	}
 });
 
+test("T11 live connection gauge returns to zero and wait histogram records abort", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { Effect, ManagedRuntime } = await import("effect");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	const controller = new AbortController();
+	try {
+		await migrate(db.sql);
+		const engine = new ShapeEngine(db.sql);
+		const url = new URL("http://test/?table=sync_probe&offset=-1");
+		const initial = await runtime.runPromise(
+			engine.shapeEffect("metrics", url),
+		);
+		url.searchParams.set(
+			"handle",
+			initial.headers.get("electric-handle") ?? "",
+		);
+		url.searchParams.set(
+			"offset",
+			initial.headers.get("electric-offset") ?? "",
+		);
+		url.searchParams.set("live", "true");
+		const pending = runtime.runPromise(
+			engine.shapeEffect("metrics", url, controller.signal).pipe(Effect.either),
+		);
+		await expect
+			.poll(
+				() =>
+					telemetry.spans
+						.getFinishedSpans()
+						.filter((span) => span.name === "stellarc.shape.tail").length,
+			)
+			.toBeGreaterThan(0);
+		const metrics = () =>
+			telemetry.metrics
+				.getMetrics()
+				.slice()
+				.reverse()
+				.flatMap((resource) =>
+					resource.scopeMetrics.flatMap((scope) => scope.metrics),
+				);
+		await telemetry.reader.forceFlush();
+		expect(
+			metrics()
+				.find(
+					(metric) =>
+						metric.descriptor.name === "stellarc_shape_live_connections",
+				)
+				?.dataPoints.map((point) => point.value),
+		).toContain(1);
+		controller.abort();
+		await pending;
+		await telemetry.reader.forceFlush();
+		expect(
+			metrics()
+				.find(
+					(metric) =>
+						metric.descriptor.name === "stellarc_shape_live_connections",
+				)
+				?.dataPoints.map((point) => point.value),
+		).toContain(0);
+		expect(
+			metrics().some(
+				(metric) =>
+					metric.descriptor.name === "stellarc_shape_tail_wait_seconds" &&
+					metric.dataPoints.length > 0,
+			),
+		).toBe(true);
+	} finally {
+		controller.abort();
+		await runtime.dispose();
+		await db.close();
+	}
+});
+
 test("SqlLive exports query metadata without SQL text or parameter values", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { migrate } = await import("../../packages/db/src/migrate");

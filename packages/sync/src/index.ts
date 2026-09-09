@@ -1,4 +1,11 @@
-import { Cause, Effect, Exit, Runtime } from "effect";
+import { Cause, Effect, Exit, Metric, MetricBoundaries, Runtime } from "effect";
+
+const liveConnections = Metric.gauge("stellarc_shape_live_connections");
+const tailWait = Metric.histogram(
+	"stellarc_shape_tail_wait_seconds",
+	MetricBoundaries.exponential({ start: 0.01, factor: 2, count: 13 }),
+);
+let activeLiveConnections = 0;
 
 async function runEffect<A>(
 	runtime: Runtime.Runtime<never>,
@@ -37,13 +44,30 @@ export class ShapeEngine {
 			const self = this;
 			return Effect.gen(function* () {
 				const runtime = yield* Effect.runtime<never>();
-				return yield* Effect.tryPromise({
+				const live = url.searchParams.get("live") === "true";
+				const began = performance.now();
+				const request = Effect.tryPromise({
 					try: (fiberSignal) =>
 						self.runShape(org, url, signal ?? fiberSignal, (pageUrl) =>
 							runEffect(runtime, self.pageEffect(org, pageUrl)),
 						),
 					catch: (cause) => cause,
 				});
+				if (!live) return yield* request;
+				return yield* Effect.acquireUseRelease(
+					Effect.sync(() => ++activeLiveConnections).pipe(
+						Effect.tap((count) => Metric.set(liveConnections, count)),
+					),
+					() => request,
+					() =>
+						Effect.gen(function* () {
+							yield* Metric.set(liveConnections, --activeLiveConnections);
+							yield* Metric.update(
+								tailWait,
+								(performance.now() - began) / 1000,
+							);
+						}),
+				);
 			});
 		},
 	);
