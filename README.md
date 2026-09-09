@@ -2,6 +2,25 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c19: integration cleanup and closed query contract (partial)
+
+- `93c1e05` releases integration resources after each test; `dc7e5b2` avoids
+  syncing disposable PostgreSQL seed files. Full Bun bridge now exits 0:
+  `4 passed (4)` unit, `38 passed (38)` integration, `2 pass / 0 fail` bridge.
+  Integration duration: 110.13 seconds. This run does not prove all flakiness gone.
+- `17778c8` adds T18 closed-allowlist regression coverage: `where`, `columns`,
+  `replica`, `subset__limit`, `live_sse`, `params[1]`, and arbitrary unknown keys
+  all return 400 before SQL. Existing integration coverage accepts both log modes.
+- Handler already satisfied the ruling: no new implementation RED is claimed.
+  Negative control allowing `where` reached SQL and failed with `ECONNREFUSED`:
+  `1 failed | 4 passed (5)`, exit 1. Restored: `5 passed (5)`, exit 0.
+- Lint and root typecheck exit 0 (two inherited lint warnings); build reports
+  `3 successful, 3 total` (cached). No UI or screenshot completion claimed.
+- Remaining: synthetic four-project sign-in/org-shell E2E and CI wiring;
+  telemetry/service coverage and mutation-to-shape propagation audit; noConsole
+  enforcement; required span controls; Grafana/Tempo export screenshot; final
+  acceptance audit. PR #28 remains draft; legacy reconciliation N/A.
+
 ### Continuation c18: HTTP trace, SQL privacy and cancellation (partial)
 
 - Pushed `514bd63`, `488c501`, `b3f109e`, and `791ad40`: preserve the inbound
