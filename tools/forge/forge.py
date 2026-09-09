@@ -146,8 +146,17 @@ def split_model(spec):
     return "omp", spec, None
 
 def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branch=None, extra=None):
+    """Briefs can exceed ARG_MAX (a 1200-line spec did). Write the brief to a file and hand the agent
+    a short pointer prompt; the agent's first action is to read it. The file lives under the repo's
+    .forge/briefs/ so it is inspectable and survives the run."""
     env = paseo_env()
     provider, model, mode = split_model(model_spec)
+    bdir = repo_root() / ".forge/briefs"; bdir.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
+    bpath = bdir / f"{slug}-{int(time.time())}.md"
+    bpath.write_text(brief)
+    pointer = (f"Your full brief is in the file {bpath} — read it FIRST with your file-reading tool, in full, "
+               f"then follow it exactly. Do not begin any other action before reading it.")
     cmd = [str(PASEO), "run", "-d", "--title", title, "--provider", provider, "--json"]
     if model: cmd += ["--model", model]
     if mode:  cmd += ["--mode", mode]
@@ -155,7 +164,7 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
         cmd += ["--new-workspace", "worktree", "--worktree-mode", "branch-off", "--base", base, "--new-branch", branch, "--worktree-slug", worktree]
     if cwd: cmd += ["--cwd", str(cwd)]
     if extra: cmd += extra
-    cmd.append(brief)
+    cmd.append(pointer)
     r = sh(cmd, env=env, timeout=120)
     out = json.loads(r.stdout)
     return out["agentId"]

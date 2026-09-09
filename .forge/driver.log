@@ -1,0 +1,2 @@
+2026-09-09T02:48:23+00:00 start      STL-14   implement
+2026-09-09T02:48:24+00:00 fail       STL-14   implement rc=1:   File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child |     raise child_exception_type(errno_num, err_msg, err_filename) | OSError: [Errno 7] Argument list too long: '/home/rpw/.local/node/bin/paseo'

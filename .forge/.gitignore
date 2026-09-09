@@ -1,2 +1,3 @@
 # state files ARE committed; only scratch is ignored
 *.tmp
+briefs/
