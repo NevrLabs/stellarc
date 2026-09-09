@@ -447,9 +447,19 @@ def cmd_implement(args):
     prev_partial = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "partial"), None)
     if prev_partial:
         branch = prev_partial["branch"]
+        # Paseo's checkout-branch mode checks out the LOCAL ref. If it lags origin (it will — agents push from
+        # their own worktrees), the continuation starts from a stale base and can't fast-forward push. Sync first.
+        sh(["git", "fetch", "-q", "origin", branch], cwd=repo_root(), check=False)
+        r = sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root(), check=False)
+        if r.returncode:  # branch is checked out in some worktree — remove stale worktrees for this ticket first
+            for wtp in Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c*"):
+                sh(["git", "worktree", "remove", "--force", str(wtp)], cwd=repo_root(), check=False)
+            sh(["git", "worktree", "prune"], cwd=repo_root(), check=False)
+            sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root())
         head_before = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
         cont = (f"\n\nCONTINUATION: cycle {prev_partial['cycle']} ran out of budget and left draft PR #{prev_partial['pr']} on this branch "
                 f"with committed, green work. Read `git log dev..HEAD` and the PR body's 'Remaining' list FIRST. Do NOT redo done work. "
+                f"FIRST: run `git fetch origin {prev_partial['branch']} && git status -sb` and confirm HEAD == origin/{prev_partial['branch']}. If it is behind, run `git merge --ff-only origin/{prev_partial['branch']}` (pre-authorised; it is a sync, not a merge into dev). "
                 f"You are ALREADY on branch `{prev_partial['branch']}` with the draft PR open. Do NOT create a new branch, do NOT open a new PR. Commit and `git push origin HEAD:{prev_partial['branch']}`. "
                 f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}`. "
                 f"If you run out again, update the PR body's Remaining list and leave it draft.")

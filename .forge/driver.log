@@ -37,3 +37,375 @@
 2026-09-09T04:33:24+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-09T04:35:40+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-09T04:37:53+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:40:08+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:40:22+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-09T04:40:36+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:42:51+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:45:05+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:47:19+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:49:31+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:51:44+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:53:55+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:56:05+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:58:17+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:00:33+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:02:47+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:05:02+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:07:15+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:09:30+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:11:41+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:13:53+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:16:03+00:00 start      STL-14   implement
+2026-09-09T05:26:35+00:00 fail       STL-14   implement rc=1: dispatched da5ef10a-483a-4ee4-bdfa-b491579047ed on forge/stl-14-c4 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | forge: implementer da5ef10a-483a-4ee4-bdfa-b491579047ed pushed nothing to forge/stl-14-c4 — cycle wasted
+2026-09-09T05:28:46+00:00 start      STL-14   implement
+2026-09-09T05:31:07+00:00 fail       STL-14   implement rc=1: dispatched 648aa9b7-116b-4f53-af61-06036515ba63 on forge/stl-14-c4 (hermes:accept_edits/ocg/deepseek-v4-pro); waiting up to 10800s… | forge: implementer 648aa9b7-116b-4f53-af61-06036515ba63 pushed nothing to forge/stl-14-c4 — cycle wasted
+2026-09-09T05:31:07+00:00 escalate   STL-14   implement — human needed; delete .forge/STL-14.escalation to resume
+2026-09-09T05:33:19+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:33:19+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:35:28+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:35:28+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:37:37+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:37:37+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:39:47+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:39:47+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:41:56+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:41:56+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:44:06+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:44:06+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:46:15+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:46:15+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:48:24+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:48:24+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:50:33+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:50:33+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:52:42+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:52:42+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:54:52+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:54:52+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:57:02+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:57:02+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T05:59:11+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T05:59:11+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:01:20+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:01:20+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:03:30+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:03:30+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:05:39+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:05:39+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:07:48+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:07:48+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:09:58+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:09:58+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:12:07+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:12:07+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:14:16+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:14:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:16:25+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:16:25+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:18:35+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:18:35+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:20:45+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:20:45+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:22:55+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:22:55+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:25:04+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:25:04+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:27:14+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:27:14+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:29:23+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:29:23+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:31:32+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:31:32+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:33:41+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:33:41+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:35:51+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:35:51+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:38:01+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:38:01+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:40:10+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:40:10+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:42:20+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:42:20+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:44:29+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:44:29+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:46:38+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:46:38+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:48:48+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:48:48+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:50:57+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:50:57+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:53:06+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:53:06+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:55:16+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:55:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:57:25+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:57:25+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T06:59:35+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T06:59:35+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:01:45+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:01:45+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:03:55+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:03:55+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:06:04+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:06:04+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:08:14+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:08:14+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:10:24+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:10:24+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:12:33+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:12:33+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:14:43+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:14:43+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:16:52+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:16:52+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:19:02+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:19:02+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:21:12+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:21:12+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:23:21+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:23:21+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:25:31+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:25:31+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:27:40+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:27:40+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:29:49+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:29:49+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:31:59+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:31:59+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:34:09+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:34:09+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:36:18+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:36:18+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:38:27+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:38:27+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:40:36+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:40:36+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:42:46+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:42:46+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:44:55+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:44:55+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:47:04+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:47:04+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:49:15+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:49:15+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:51:24+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:51:24+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:53:34+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:53:34+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:55:42+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:55:42+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T07:57:52+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T07:57:52+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:00:01+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:00:01+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:02:11+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:02:11+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:04:21+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:04:21+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:06:29+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:06:29+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:08:40+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:08:40+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:10:49+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:10:49+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:13:00+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:13:00+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:15:09+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:15:09+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:17:20+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:17:20+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:19:29+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:19:29+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:21:39+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:21:39+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:23:49+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:23:49+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:25:58+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:25:58+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:28:08+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:28:08+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:30:18+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:30:18+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:32:27+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:32:27+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:34:36+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:34:36+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:36:45+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:36:45+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:38:55+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:38:55+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:41:04+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:41:04+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:43:14+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:43:14+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:45:23+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:45:23+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:47:33+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:47:33+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:49:42+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:49:42+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:51:51+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:51:51+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:54:01+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:54:01+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:56:11+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:56:11+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T08:58:21+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T08:58:21+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:00:32+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:00:32+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:02:41+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:02:41+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:04:51+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:04:51+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:07:00+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:07:00+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:09:10+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:09:10+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:11:19+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:11:19+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:13:29+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:13:29+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:15:39+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:15:39+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:17:49+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:17:49+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:19:59+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:19:59+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:22:09+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:22:09+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:24:18+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:24:18+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:26:28+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:26:28+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:28:38+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:28:38+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:30:49+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:30:49+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:32:58+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:32:58+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:35:08+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:35:08+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:37:17+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:37:17+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:39:28+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:39:28+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:41:38+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:41:38+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:43:47+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:43:47+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:45:56+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:45:56+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:48:06+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:48:06+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:50:16+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:50:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:52:26+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:52:26+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:54:36+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:54:36+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:56:46+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:56:46+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T09:58:56+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T09:58:56+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:01:06+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:01:06+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:03:16+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:03:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:05:25+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:05:25+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:07:35+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:07:35+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:09:45+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:09:45+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:11:55+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:11:55+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:14:06+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:14:06+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:16:16+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:16:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:18:27+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:18:27+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:20:38+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:20:38+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:22:47+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:22:47+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:24:58+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:24:58+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:27:08+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:27:08+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:29:18+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:29:18+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:31:27+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:31:27+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:33:37+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:33:37+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:35:47+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:35:47+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:37:56+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:37:56+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:40:06+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:40:06+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:42:16+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:42:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:44:26+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:44:26+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:46:35+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:46:35+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:48:45+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:48:45+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:50:54+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:50:54+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:53:05+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:53:05+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:55:14+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:55:14+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:57:23+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:57:23+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T10:59:33+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T10:59:33+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:01:42+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:01:42+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:03:52+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:03:52+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:06:02+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:06:02+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:08:11+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:08:11+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:10:22+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:10:22+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:12:31+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:12:31+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:14:40+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:14:40+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:16:50+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:16:50+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:19:01+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:19:01+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:21:11+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:21:11+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:23:21+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:23:21+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:25:31+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:25:31+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:27:40+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:27:40+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:29:50+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:29:50+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:32:00+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:32:00+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:34:10+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:34:10+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:36:19+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:36:19+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:38:29+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:38:29+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:40:38+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:40:38+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:42:49+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:42:49+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:44:58+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:44:58+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T11:47:07+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
+2026-09-09T11:47:07+00:00 start      STL-14   implement
+2026-09-09T11:47:11+00:00 fail       STL-14   implement rc=1: forge: command failed (128): git branch -f forge/stl-14-c4 origin/forge/stl-14-c4 | fatal: cannot force update the branch 'forge/stl-14-c4' checked out at '/tmp/stl14-salvage'

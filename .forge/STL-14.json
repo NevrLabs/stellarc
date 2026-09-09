@@ -200,9 +200,70 @@
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
    "branch": "forge/stl-14-c4",
    "continues": 6,
-   "agent": "090c0d02",
-   "note": "orphan duplicate 76f4e72d (worktree c8-1) killed; its fail entry removed"
+   "agent": "090c0d02-509f-4332-b6d5-ed291ceb4d83",
+   "note": "orphan duplicate 76f4e72d (worktree c8-1) killed; its fail entry removed",
+   "adopted": true
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T05:14:50+00:00",
+   "agent": "090c0d02-509f-4332-b6d5-ed291ceb4d83",
+   "cycle": 8,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T05:14:50+00:00",
+   "note": "re-armed: continue c8 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T05:16:04+00:00",
+   "cycle": 9,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 8,
+   "agent": "da5ef10a-483a-4ee4-bdfa-b491579047ed"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T05:26:29+00:00",
+   "agent": "da5ef10a-483a-4ee4-bdfa-b491579047ed",
+   "cycle": 9,
+   "reason": "stale local branch; commit 44b0daa salvaged by orchestrator as acdc1ea + fixes 4798ed1",
+   "pr": 28,
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T05:28:46+00:00",
+   "cycle": 10,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 8,
+   "agent": "648aa9b7-116b-4f53-af61-06036515ba63"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-09T05:31:02+00:00",
+   "agent": "648aa9b7-116b-4f53-af61-06036515ba63",
+   "cycle": 10,
+   "reason": "stale local branch (orchestrator bug, fixed: forge syncs local ref before continuation)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T11:50:00+00:00",
+   "note": "re-armed: continue draft PR #28 on forge/stl-14-c4 @4798ed1"
   }
  ],
- "cycle": 8
+ "cycle": 11
 }

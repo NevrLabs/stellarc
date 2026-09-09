@@ -1238,6 +1238,21 @@ Response headers the stock client requires (verified against the same tarball, `
 
 This ruling closes the protocol surface for T0. No further parameter questions are open; anything not in the table above is rejected and the implementer does not need to ask.
 
+
+### 5d. Orchestrator amendment — baselines delivered, salvage, gate facts (2026-09-09)
+
+**Baselines are DONE and committed** at `apps/stellarc-ui/e2e/__screenshots__/<project>/<screen>.png` (84 files) + `manifest.json` + the capture script at `e2e/tools/capture-fork-baselines.mts`. Do not re-capture from the fork. Your job for §5 item 6 is to make the LIFTED UI render pixel-identically to these under Playwright's four projects (`toHaveScreenshot`, `maxDiffPixelRatio: 0.001`). Sign-in is unauthenticated; every other screen uses a storage state you create against your OWN dev server + stub API, not the fork's.
+
+**Branch head is `f1b2b70`** and carries: c4 thin path, c6 delete, c9's batch/rollback (salvaged as `acdc1ea`), orchestrator fixes (`4798ed1`: cluster reaping on exit, gate bridge 300s, lockfile refreshed), baselines (`f1b2b70`). Read `git log dev..HEAD` before anything.
+
+**Gate facts you must not fight:**
+- `bun install --frozen-lockfile` is what the merge gate runs. If you add a dependency, commit the regenerated `bun.lock` in the same commit.
+- `bun run lint` currently reports 17 findings in 16 lifted files (16 `suppressions/unused` + 1 format), all inherited from the fork (which has 74 under the same rules). **Fix them** — they are mechanical (`biome check --write .` for the format one; delete the unused `// biome-ignore` comments for the rest). A red lint gate blocks merge regardless of provenance.
+- Integration tests use disposable PG clusters; a timed-out test used to leak its cluster and slow every later run. Fixed in the helper. If you see T05 > 10s, look for stray `stellarc-test-*` dirs first.
+- Vitest is the real runner; `bun test` only runs `tests/gates.test.ts`, which spawns both Vitest configs and asserts exit 0.
+
+**Remaining scope (authoritative, replaces the PR body's stale list):** T02, T03, T07–T09, T11, T12, T14–T23 test matrix per §7; production `Config`/`SqlLive`/`Authz` Layers with sanitized error map (§3); worker lifecycle (acquire/release/terminate only); runtime append-only grants on `event`; opaque authenticated cursors + long-poll wake/cancel; server-side log-mode telemetry (§5c ruling); Playwright config with four projects + `toHaveScreenshot` against the committed baselines; CI workflow running lint/typecheck/unit/integration/e2e. Update the PR body's Remaining list to this and keep it current.
+
 ## 6. Pixel-frozen UI surfaces
 
 Capture fork baseline and compare built Stellarc with the SAME synthetic fixture, locale en-US, timezone UTC, theme, fonts, fixed clock and disabled animations. No production account, shared server mutation, baseline captured from Stellarc, or automatic snapshot acceptance in CI. Baseline root `apps/stellarc-ui/e2e/__screenshots__/<project>/`; `maxDiffPixelRatio: 0.001`. Preserve the complete imported fork screen set, not a replacement toy shell.
