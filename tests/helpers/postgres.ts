@@ -24,7 +24,17 @@ export async function disposablePostgres() {
 	const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
 	execFileSync(
 		join(bin, "initdb"),
-		["-D", data, "-A", "trust", "--no-locale", "-U", "stellarc_owner"],
+		[
+			"-D",
+			data,
+			"-A",
+			"trust",
+			"--no-locale",
+			// Disposable fixtures need runtime durability, not an fsync of initdb's seed files.
+			"--no-sync",
+			"-U",
+			"stellarc_owner",
+		],
 		{ stdio: "pipe" },
 	);
 	execFileSync(
