@@ -2,6 +2,31 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c21: sanitized denials and sign-in baselines (partial)
+
+- `3d1cf11` routes initial and resumed authorization denials through the shared
+  sanitized JSON mapper. Focused T13 RED preceded the fix; disabling the mapper
+  produced `expected 500 to be 401`; restoration passed. Full-suite verification
+  then exposed two old empty-body expectations; these now assert exact sanitized
+  JSON plus absence of `electric-handle` (included in `cd0d2f3`).
+- `cd0d2f3` adds Playwright 1.62.0, four viewport projects, strict sign-in API
+  interception, structural form assertions and four synthetic sign-in PNGs.
+  `bun run e2e:screens` compares by default. Initial rendering failed before
+  interception; after stubbing, four projects passed. Visual negative control:
+  red input backgrounds produced `18929 pixels (ratio 0.02 ... ) are different`,
+  exit 1. A body-background control was invisible and passed; it is NOT evidence.
+  Both controls were removed; restored screenshots: `4 passed (12.4s)`.
+- Final root gates: lint exit 0 (three warnings), typecheck exit 0;
+  unit `6 passed (6)`, real-PG integration `39 passed (39)`, Bun bridge
+  `2 pass / 0 fail`; build `3 successful, 3 total` (fresh UI Vite build included).
+- Still incomplete: authenticated org-shell minimum synthetic fixture and its
+  four-project landmarks/screenshots; responsive touch/breakpoint proof; fixture
+  mirror manifest and E2E CI wiring; telemetry completeness/propagation audit,
+  noConsole enforcement and Grafana/Tempo export screenshot; final acceptance
+  controls audit. Sign-in alone is NOT T0 acceptance. PR #28 must remain draft.
+- Legacy reconciliation remains N/A. Broader domain UI fixtures and typing are
+  deferred to STL-15–21 under section 5e; no production UI source was changed.
+
 ### Continuation c19: integration cleanup and closed query contract (partial)
 
 - `93c1e05` releases integration resources after each test; `dc7e5b2` avoids
