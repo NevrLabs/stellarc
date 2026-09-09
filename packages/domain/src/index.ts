@@ -33,3 +33,26 @@ export async function writeProbe(
 		return { txid };
 	});
 }
+
+export async function deleteProbe(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
+	if (!org || !actor || !id) throw new Error("Invalid principal or probe ID");
+	return sql.begin(async (tx) => {
+		const [existing] =
+			await tx`SELECT id FROM sync_probe WHERE org=${org} AND id=${id} FOR UPDATE`;
+		if (!existing) throw new Error("NotFound");
+		await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
+		const [counter] =
+			await tx`UPDATE org_event_counter SET seq=seq+1 WHERE org=${org} RETURNING seq::text`;
+		const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
+		const txid = safeTxid(transaction.txid);
+		await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+			VALUES (${org},${counter.seq},'foundation:probe-deleted',${actor},${tx.json({ id })},1,${transaction.txid})`;
+		await tx`DELETE FROM sync_probe WHERE org=${org} AND id=${id}`;
+		return { txid };
+	});
+}

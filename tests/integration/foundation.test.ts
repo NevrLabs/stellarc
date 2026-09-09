@@ -89,3 +89,33 @@ test("T01 snapshot/reconnect retains the mutation committed between projection a
 		"after",
 	);
 }, 30_000);
+
+test("T10 delete emits a stable-key delete and missing delete leaves the log unchanged", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("org-a", "probe", "present");
+	const initial = await fetch(
+		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&offset=-1`,
+		{ headers: { authorization: "Bearer org-a" } },
+	);
+	const handle = initial.headers.get("electric-handle")!;
+	const offset = initial.headers.get("electric-offset")!;
+	const deleted = await server.delete("org-a", "probe");
+	const tail = await fetch(
+		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&handle=${handle}&offset=${offset}`,
+		{ headers: { authorization: "Bearer org-a" } },
+	);
+	const messages = await tail.json();
+	expect(messages[0]).toEqual({
+		key: JSON.stringify(["org-a", "probe"]),
+		value: { org: "org-a", id: "probe" },
+		headers: {
+			operation: "delete",
+			relation: ["public", "sync_probe"],
+			txids: [deleted.txid],
+		},
+	});
+	const before = await server.eventCount("org-a");
+	await expect(server.delete("org-a", "missing")).rejects.toThrow("NotFound");
+	expect(await server.eventCount("org-a")).toBe(before);
+});

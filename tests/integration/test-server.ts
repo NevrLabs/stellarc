@@ -1,5 +1,5 @@
 import { migrate } from "../../packages/db/src/migrate";
-import { writeProbe } from "../../packages/domain/src/index";
+import { deleteProbe, writeProbe } from "../../packages/domain/src/index";
 import { ShapeEngine } from "../../packages/sync/src/index";
 import { disposablePostgres } from "../helpers/postgres";
 export async function startTestServer() {
@@ -30,6 +30,13 @@ export async function startTestServer() {
 		},
 		write: (org: string, id: string, value: string) =>
 			writeProbe(db.sql, org, "test-actor", id, value),
+		delete: (org: string, id: string) =>
+			deleteProbe(db.sql, org, "test-actor", id),
+		async eventCount(org: string) {
+			const [row] =
+				await db.sql`SELECT count(*)::int AS count FROM event WHERE org=${org}`;
+			return row.count as number;
+		},
 		async close() {
 			server.stop(true);
 			await http.dispose();

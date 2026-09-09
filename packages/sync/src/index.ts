@@ -80,15 +80,18 @@ export class ShapeEngine {
 		} else {
 			if (!/^\d+_0$/.test(offset)) return new Response(null, { status: 400 });
 			const events = await this
-				.sql`SELECT seq::text,txid::text,payload FROM event WHERE org=${org} AND seq>${offset.split("_")[0]!} ORDER BY seq LIMIT 100`;
+				.sql`SELECT seq::text,txid::text,plugin_type,payload FROM event WHERE org=${org} AND seq>${offset.split("_")[0]!} ORDER BY seq LIMIT 100`;
 			next = offset;
 			for (const event of events) {
 				next = `${event.seq}_0`;
+				const deleted = event.plugin_type === "foundation:probe-deleted";
 				messages.push({
 					key: key(org, event.payload.id),
-					value: { org, ...event.payload, last_seq: event.seq },
+					value: deleted
+						? { org, id: event.payload.id }
+						: { org, ...event.payload, last_seq: event.seq },
 					headers: {
-						operation: "update",
+						operation: deleted ? "delete" : "update",
 						relation: ["public", "sync_probe"],
 						txids: [Number(event.txid)],
 					},
