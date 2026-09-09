@@ -5,6 +5,77 @@ import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
 
+test("T05 multi-event mutation reserves contiguous sequences with one committed txid", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { mutateProbes } = await import("../../packages/domain/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	const result = await mutateProbes(db.sql, "batch-org", "actor", [
+		{ operation: "upsert", id: "a", value: "first" },
+		{ operation: "upsert", id: "b", value: "second" },
+	]);
+	const events =
+		await db.sql`SELECT seq::text, txid::text FROM event WHERE org='batch-org' ORDER BY seq`;
+	expect(events.map((event) => event.seq)).toEqual(["1", "2"]);
+	const physical =
+		await db.sql`SELECT xmin::text AS txid FROM event WHERE org='batch-org'`;
+	expect(physical.map((event) => event.txid)).toEqual([
+		String(result.txid),
+		String(result.txid),
+	]);
+	expect(events.map((event) => event.txid)).toEqual([
+		String(result.txid),
+		String(result.txid),
+	]);
+	expect(
+		await db.sql`SELECT id FROM sync_probe WHERE org='batch-org' ORDER BY id`,
+	).toEqual([{ id: "a" }, { id: "b" }]);
+});
+
+test("T04 failed batch rolls back appended events, counter and projection; T10 missing delete is inert", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { mutateProbes, writeProbe } = await import(
+		"../../packages/domain/src/index"
+	);
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await writeProbe(db.sql, "rollback-org", "actor", "a", "original");
+	await expect(
+		mutateProbes(db.sql, "rollback-org", "actor", [
+			{ operation: "upsert", id: "a", value: "uncommitted" },
+			{ operation: "delete", id: "absent" },
+		]),
+	).rejects.toThrow("Probe not found");
+	expect(
+		await db.sql`SELECT seq::text FROM org_event_counter WHERE org='rollback-org'`,
+	).toEqual([{ seq: "1" }]);
+	expect(
+		await db.sql`SELECT seq::text FROM event WHERE org='rollback-org'`,
+	).toEqual([{ seq: "1" }]);
+	expect(
+		await db.sql`SELECT value, last_seq::text FROM sync_probe WHERE org='rollback-org'`,
+	).toEqual([{ value: "original", last_seq: "1" }]);
+	const result = await mutateProbes(db.sql, "rollback-org", "actor", [
+		{ operation: "delete", id: "a" },
+	]);
+	expect(
+		await db.sql`SELECT id FROM sync_probe WHERE org='rollback-org'`,
+	).toHaveLength(0);
+	expect(
+		await db.sql`SELECT seq::text, plugin_type, txid::text FROM event WHERE org='rollback-org' AND seq=2`,
+	).toEqual([
+		{
+			seq: "2",
+			plugin_type: "foundation:probe-deleted",
+			txid: String(result.txid),
+		},
+	]);
+});
+
 test("T06 migrations serialize, repeat safely, and reject checksum drift", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { migrate } = await import("../../packages/db/src/migrate");

@@ -1,5 +1,38 @@
 # Stellarc — `dev` (v2 rewrite)
 
+## STL-14 implementation evidence (partial)
+
+Setup: `bun install --frozen-lockfile`. Local integration tests require PostgreSQL
+15 binaries at `/usr/lib/postgresql/15/bin` (override with `PG_BIN`). The harness
+creates isolated temporary clusters; do not supply a production database.
+Gates: `bun run lint && bun run typecheck && bun test && bun run build`.
+
+Continuation adds the shared `mutateProbes` transaction service: contiguous batch
+reservation under the org row lock, one checked PostgreSQL txid, upsert/delete
+events, rollback on missing delete, and the original single-write wrapper.
+This is domain-service coverage, not HTTP delete or sync-delete acceptance.
+
+Real execution evidence:
+- Initial RED: `2 failed | 2 passed (4)`; `mutateProbes is not a function`.
+- GREEN: integration `4 passed (4)`.
+- T05 wrong-connection txid control initially passed; the test was strengthened
+  against event-row `xmin` in the fresh disposable cluster (no wraparound).
+  Behavioral RED: `expected [ '725', '725' ] to deeply equal [ '726', '726' ]`.
+- T04 counter-outside-transaction control: behavioral RED,
+  `expected [ { seq: '3' } ] to deeply equal [ { seq: '1' } ]`.
+- Both controls restored. Gates previously returned lint exit 0 (4 inherited
+  warnings), typecheck exit 0, `7 pass / 0 fail`, build `1 successful, 1 total`.
+  Turbo warns that Bun lockfile v2 is unsupported.
+
+Remaining: full T01 reconnect/pagination identity coverage; concurrency controls;
+append-only runtime permissions; Config/SqlLive/Authz Layers, error mapping and
+worker lifecycle; HTTP mutation routes; deletion-aware sync, upcasters, opaque
+cursor/expiry and long polling; remaining T01–T23 controls; frozen UI mirror,
+fixture contracts, four-viewport fork baselines, route smoke and CI. No UI/E2E or
+merge-readiness claim. Reconciliation N/A: zero legacy tables imported.
+The explicit STL-14 Effect HttpApi requirement supersedes ADR 0002's Hono premise;
+that ADR is retained unchanged pending its owner's update.
+
 **This branch is a full reset.** It shares history with nothing on `main`.
 `main` is Stellarc v1 (Rust cockpit + arclet); it stays as reference and keeps
 running. `dev` is where v2 is built from the ground up.
