@@ -337,13 +337,14 @@
   },
   {
    "stage": "implement",
-   "status": "running",
+   "status": "fail",
    "at": "2026-09-09T14:03:41+00:00",
    "cycle": 15,
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
    "branch": "forge/stl-14-c4",
    "continues": 14,
-   "agent": "11e0db0b-f1ab-4edb-b070-c9961a4ffe5d"
+   "agent": "11e0db0b-f1ab-4edb-b070-c9961a4ffe5d",
+   "reason": "superseded"
   },
   {
    "stage": "implement",
@@ -351,16 +352,13 @@
    "at": "2026-09-09T14:17:30+00:00",
    "agent": "11e0db0b-f1ab-4edb-b070-c9961a4ffe5d",
    "cycle": 15,
-   "reason": "draft PR unchanged: no commits pushed this cycle"
+   "reason": "agent reaped by Paseo with 2 uncommitted files (worker lifecycle span test + T12 stock restart) during a daemon stall; work lost \u2014 commit-early rule reinforced in brief"
   },
   {
-   "stage": "implement",
-   "status": "running",
-   "at": "2026-09-09T14:20:13+00:00",
-   "cycle": 16,
-   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
-   "branch": "forge/stl-14-c4",
-   "continues": 14
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T14:40:00+00:00",
+   "note": "re-armed after daemon stall; continue #28 from 6d770f8"
   }
  ],
  "cycle": 16
