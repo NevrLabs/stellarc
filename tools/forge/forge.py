@@ -303,7 +303,8 @@ AUDIT, in order, each with a per-item verdict:
 4. DOCTRINE — direct SQL writes bypassing the API (D12)? Event without actor? Mutation without event? Hardcoded hex instead of token? Model call from the control plane (D4)?
 5. WORKER DEBRIS — stray files, commented code, debug logs, giant generated diffs.
 6. SCREENSHOTS — present for every UI surface the spec names AND for every Playwright project ({', '.join(c.get('viewports', ['desktop','tablet','mobile','mobile-small']))})? A PR that only regenerated desktop PNGs is REWORK. Do they differ from baseline where they should and match where they shouldn't? Did the mobile layout actually get exercised with touch?
-7. Re-run the focused tests and the gates yourself. Paste output.
+7. SPANS (ADR 0010) — is every new/changed service function an `Effect.fn("Module.name")`? Do new endpoints carry http.route/method/status/stellarc.org/stellarc.principal.kind? Does at least one test assert on a span for each new path, and does that assertion go red when the instrumentation is removed? Any `console.*` outside tests/fatal handler? Any statement text or PII (email, token) in span attributes?
+8. Re-run the focused tests and the gates yourself. Paste output.
 
 Write .forge/{t}.review-{cycle}.md: verdict line (PASS|REWORK), then the per-item table, then a DEFECTS list (numbered, each with file:line and the exact fix expected). Reply with the verdict line and defect count only.
 

@@ -1273,6 +1273,27 @@ Rulings:
    Everything else in the T02–T23 matrix that is not listed above is **deferred to the slice that owns the domain** (see §1 OUT-of-scope owners) and must be named in that ticket's spec by the orchestrator.
 5. When (4) holds: `gh pr ready 28`. Not before.
 
+
+### 5f. Orchestrator amendment — OpenTelemetry-native from T0 (ADR 0010, 2026-09-09)
+
+Operator ruling: Stellarc is OTel-native. **T0 delivers `TelemetryLive`** and instruments everything T0 already built. This is added to §5e acceptance.
+
+Deliverables:
+1. `packages/telemetry/src/index.ts` — `TelemetryLive` Layer built on `@effect/opentelemetry` `NodeSdk`: OTLP/HTTP trace + metric + log exporters from `OTEL_EXPORTER_OTLP_ENDPOINT` (no-op exporter when unset), resource attrs `service.name`, `service.version` (git SHA via env), `deployment.environment`, `stellarc.boot_generation`. Plus `TelemetryTest` Layer with **in-memory exporters** that tests read from.
+2. Wrap the `@effect/sql-pg` client so every query emits a `db.*` span (`db.system=postgresql`, `db.operation`, `db.sql.table`); **statement text is never an attribute**.
+3. Convert every existing service function in `packages/domain`, `packages/sync`, `packages/db` to `Effect.fn("<Module>.<name>")`. Migration runner spans: `stellarc.migrate.apply` with `stellarc.migration.version`.
+4. Event append: span `stellarc.event.append` with `stellarc.event.type`, `stellarc.event.seq`, `stellarc.event.txid`; counter `stellarc_events_appended_total{type}`.
+5. Shape server: `stellarc.shape.snapshot` / `stellarc.shape.tail` spans with `stellarc.shape.table`, `stellarc.shape.offset_from`, `stellarc.shape.events_sent`; histogram `stellarc_shape_tail_wait_seconds`; gauge `stellarc_shape_live_connections`. Inbound `traceparent` honoured on every shape request; the mutation→event→shape-emit chain is ONE trace.
+6. HTTP: server span per request with `http.route`, `http.request.method`, `http.response.status_code`, `stellarc.org`, `stellarc.principal.kind`. Errors recorded with `error.type` = tagged-error `_tag`. Sanitized messages only.
+7. Worker: `stellarc.job.<type>` span per job, span-linked to the producing mutation; `stellarc_outbox_lag_seconds` gauge. (T0 worker has no jobs — instrument the lifecycle: `stellarc.worker.start/stop`.)
+8. Effect `Logger` bridged to OTel logs; `console.*` forbidden outside `tests/` and the fatal handler — add a Biome rule (`noConsole` with those overrides) and prove it fires.
+9. **Span assertions in tests** (this is where the negative control lives): T01 asserts the reconnect trace has exactly one `stellarc.shape.snapshot` and N `stellarc.shape.tail` spans with contiguous `offset_from`; T05 asserts one `stellarc.event.append` span per event under one parent; T13 asserts the 401/403 spans carry `error.type` and NO principal attributes. Sabotage: remove `Effect.fn` from one service → its span assertion goes red.
+10. `docker-compose.otel.yml` (Collector → Tempo/Prometheus/Loki/Grafana) + `bun run otel:up`; not required by tests.
+
+Add to the PR: a screenshot of one T01 trace in Grafana/Tempo showing the snapshot→tail spans under one request. That is the "it actually exports" proof.
+
+§5e acceptance now includes items 1–9 above. Item 10 may be a follow-up commit in the same PR.
+
 ## 6. Pixel-frozen UI surfaces
 
 Capture fork baseline and compare built Stellarc with the SAME synthetic fixture, locale en-US, timezone UTC, theme, fonts, fixed clock and disabled animations. No production account, shared server mutation, baseline captured from Stellarc, or automatic snapshot acceptance in CI. Baseline root `apps/stellarc-ui/e2e/__screenshots__/<project>/`; `maxDiffPixelRatio: 0.001`. Preserve the complete imported fork screen set, not a replacement toy shell.
