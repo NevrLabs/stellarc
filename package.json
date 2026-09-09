@@ -12,6 +12,7 @@
 		"test:unit": "bun --bun x vitest run --config vitest.config.ts",
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
+		"typecheck:ui": "tsc --noEmit --pretty false -p apps/stellarc-ui/tsconfig.app.json",
 		"build": "turbo run build"
 	},
 	"dependencies": {

@@ -1,0 +1,67 @@
+name: Foundation
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install disposable PostgreSQL binaries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-15
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - name: Unit and real PostgreSQL integration bridge
+        run: bun test
+      - run: bun run build
+
+  ui-typecheck-budget:
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Publish expected-red UI diagnostic count
+        shell: bash
+        run: |
+          set +e
+          bun run typecheck:ui > ui-typecheck.log 2>&1
+          status=$?
+          set -e
+          python3 - "$status" <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          output = Path('ui-typecheck.log').read_text()
+          count = len(re.findall(r'error TS\d+:', output))
+          budget = json.loads(Path('.forge/ui-typecheck-budget.json').read_text())['count']
+          status = int(sys.argv[1])
+          summary = f'UI TypeScript diagnostics: {count}; recorded budget: {budget}; compiler exit: {status}\n'
+          print(summary)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
+              target.write(summary)
+          if status not in (0, 2) or (status == 2 and count == 0):
+              sys.exit('Compiler failed without a usable diagnostic report')
+          if count > budget:
+              sys.exit('UI typecheck budget increased')
+          sys.exit(status)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-typecheck-diagnostics
+          path: ui-typecheck.log
