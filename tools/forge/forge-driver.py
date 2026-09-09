@@ -71,6 +71,38 @@ def blockers(n, key2num):
     m = re.search(r"\*\*Blocked by:\*\* (.*)", json.loads(out)["body"])
     return [int(x) for x in re.findall(r"#(\d+)", m.group(1))] if m else []
 
+def paseo_status(agent_id):
+    if not agent_id: return ""
+    try:
+        r = subprocess.run(["paseo", "ls", "--json"], capture_output=True, text=True, env=env(), timeout=60)
+        for a in json.loads(r.stdout or "[]"):
+            if a["id"].startswith(agent_id): return a.get("status", "")
+    except Exception: pass
+    return "unknown"
+
+def reap_orphans(n):
+    """A 'running' implement whose watcher pid is dead means the forge process was killed (driver restart, OOM).
+    If the agent itself is idle/completed, record its pushed head as a partial and release the ticket lock so the
+    next tick continues from there instead of blocking forever."""
+    p = REPO_ROOT / f".forge/{tid(n)}.json"
+    if not p.exists(): return
+    s = json.loads(p.read_text()); changed = False
+    for x in s["stages"]:
+        if x.get("stage") != "implement" or x.get("status") != "running" or not x.get("pid"): continue
+        try: os.kill(x["pid"], 0); continue          # watcher alive → leave it
+        except PermissionError: continue
+        except ProcessLookupError: pass
+        status = paseo_status(x.get("agent", ""))
+        if status in ("running", "needs_input"): continue  # agent still working; adopt manually with `forge adopt`
+        head = subprocess.run(["git", "ls-remote", "origin", f"refs/heads/{x.get('branch','')}"], capture_output=True, text=True, cwd=REPO_ROOT).stdout.split()[:1]
+        x["status"] = "partial"; x["head"] = head[0][:8] if head else ""; x["reason"] = f"orphan running: watcher pid {x['pid']} dead, agent {status or 'gone'}; recorded by driver"
+        log("orphan", tid(n), f"c{x.get('cycle')} watcher dead, agent {status or 'gone'}; partial @{x['head']}")
+        changed = True
+    if changed:
+        p.write_text(json.dumps(s, indent=1) + "\n")
+        lock = REPO_ROOT / f".forge/.{tid(n)}.lock"
+        if lock.exists(): lock.unlink()
+
 def is_done(n):
     s = state(n)
     return last(s, "merged") == "pass" or (REPO_ROOT / f".forge/{tid(n)}.skip").exists()
@@ -132,6 +164,7 @@ def tick():
     ready = []
     for n in nums:
         if is_done(n): continue
+        reap_orphans(n)
         bl = blockers(n, wm)
         if bl is None: continue
         if all(is_done(b) for b in bl):

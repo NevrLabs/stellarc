@@ -292,13 +292,22 @@
   },
   {
    "stage": "implement",
-   "status": "running",
+   "status": "partial",
    "at": "2026-09-09T12:25:47+00:00",
    "cycle": 13,
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
    "branch": "forge/stl-14-c4",
    "continues": 12,
-   "agent": "fad446e9-8668-4a20-982d-9d8780884469"
+   "agent": "fad446e9-8668-4a20-982d-9d8780884469",
+   "pr": 28,
+   "head": "5eaba22e",
+   "reason": "agent finished (pushed 5eaba22, PR body updated) but the watching forge process was killed by a driver restart; recorded by orchestrator"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T12:40:00+00:00",
+   "note": "re-armed: \u00a75e acceptance + \u00a75f OTel; continue #28 from 5eaba22"
   }
  ],
  "cycle": 13
