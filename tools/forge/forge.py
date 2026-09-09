@@ -268,6 +268,8 @@ REWORK CYCLE {cycle}. The previous review FAILED with these defects — fix ALL 
 
 You are in an isolated git worktree on a fresh branch. Implement EXACTLY the spec below — do not reinterpret the ticket.{rework}
 
+YOU ARE THE IMPLEMENTER. Do NOT delegate, spawn, or create other agents (no paseo, no create_agent, no delegate_task, no subagents). Do the work yourself in this worktree. Dispatching another agent counts as doing nothing and fails the cycle.
+
 TDD CONTRACT (non-negotiable):
 1. RED: write the failing test first. Run it. PASTE the failure output into your reply.
 2. GREEN: minimal code to pass. Run it. Paste the pass.
@@ -433,9 +435,11 @@ def cmd_implement(args):
         if prev.exists():
             body = prev.read_text(); i = body.upper().find("DEFECTS"); defects = body[i:] if i >= 0 else body
     model = c["models"]["implement"][(cycle - 1) % len(c["models"]["implement"])]
+    head_before = None
     prev_partial = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "partial"), None)
     if prev_partial:
         branch = prev_partial["branch"]
+        head_before = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
         cont = (f"\n\nCONTINUATION: cycle {prev_partial['cycle']} ran out of budget and left draft PR #{prev_partial['pr']} on this branch "
                 f"with committed, green work. Read `git log dev..HEAD` and the PR body's 'Remaining' list FIRST. Do NOT redo done work. "
                 f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}` and push. "
@@ -458,7 +462,13 @@ def cmd_implement(args):
         time.sleep(3)
     d = wait_idle(a, c["stage_timeout_s"]["implement"], worktree=wt, on_question=answer_question(t, c, spec))
     if d.get("_answered"): record(t, "implement", "note", cycle=cycle, questions_answered=d["_answered"])
+    head_after = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
     prs = json.loads(gh(["pr", "list", "--head", branch, "--json", "number,url,isDraft,state"], c["repo"]).stdout)
+    if prs and prs[0]["isDraft"] and head_before and head_after == head_before:
+        # Draft PR exists but this cycle pushed nothing. The agent did not work (or delegated the work away).
+        record(t, "implement", "fail", agent=a, cycle=cycle, reason="draft PR unchanged: no commits pushed this cycle")
+        comment(n, c["repo"], f"### forge · implement c{cycle} → **FAIL (no progress)**\n\nBranch head unchanged at `{head_after[0][:8]}`. Agent went idle without pushing.\n\n```\n{logs_tail(a, 15)}\n```")
+        die(f"implementer {a} pushed nothing to {branch} — cycle wasted")
     if not prs:
         tail = logs_tail(a, 12)
         wt = next(iter(Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c{cycle}")), None)

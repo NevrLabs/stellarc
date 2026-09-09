@@ -134,7 +134,21 @@
    "status": "pass",
    "at": "2026-09-09T04:05:30+00:00",
    "note": "re-armed: continue c4 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T04:20:00+00:00",
+   "agent": "0c746580-3802-47f7-8128-a4b2e394b973",
+   "cycle": 5,
+   "reason": "agent delegated to a sub-agent via mcp__paseo__create_agent and went idle; pushed nothing. Sub-dispatch now forbidden in brief; PARTIAL requires head movement."
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T04:20:30+00:00",
+   "note": "re-armed: continue c4 draft PR #28 on forge/stl-14-c4"
   }
  ],
- "cycle": 4
+ "cycle": 5
 }
