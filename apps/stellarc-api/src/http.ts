@@ -34,8 +34,11 @@ export function foundationHandler(
 				Effect.gen(function* () {
 					const decision = authorize(path.org, request.headers);
 					if (decision !== "ok")
-						return HttpServerResponse.empty({
-							status: decision === "unauthenticated" ? 401 : 403,
+						return errorResponse({
+							_tag:
+								decision === "unauthenticated"
+									? "Unauthenticated"
+									: "Forbidden",
 						});
 					const response = yield* engine.shapeEffect(
 						path.org,
@@ -43,8 +46,9 @@ export function foundationHandler(
 					);
 					const resumed = authorize(path.org, request.headers);
 					if (resumed !== "ok")
-						return HttpServerResponse.empty({
-							status: resumed === "unauthenticated" ? 401 : 403,
+						return errorResponse({
+							_tag:
+								resumed === "unauthenticated" ? "Unauthenticated" : "Forbidden",
 						});
 					if (response.status === 204)
 						return HttpServerResponse.empty({

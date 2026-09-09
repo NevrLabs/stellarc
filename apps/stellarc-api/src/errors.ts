@@ -4,6 +4,22 @@ import { HttpServerResponse } from "@effect/platform";
 export function errorResponse(
 	error: unknown,
 ): HttpServerResponse.HttpServerResponse {
+	if (typeof error === "object" && error !== null && "_tag" in error) {
+		if (error._tag === "Unauthenticated" || error._tag === "Forbidden")
+			return HttpServerResponse.unsafeJson(
+				{
+					_tag: error._tag,
+					message:
+						error._tag === "Unauthenticated"
+							? "Authentication required"
+							: "Access denied",
+				},
+				{
+					status: error._tag === "Unauthenticated" ? 401 : 403,
+					headers: { "cache-control": "no-store" },
+				},
+			);
+	}
 	const wrapped =
 		typeof error === "object" &&
 		error !== null &&

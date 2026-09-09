@@ -55,6 +55,43 @@ test("T01 HTTP shape spans remain inside the inbound request trace", async () =>
 	}
 });
 
+test("T13 denied shape responses use the shared sanitized error contract", async () => {
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const postgres = (await import("postgres")).default;
+	const sql = postgres("postgres://localhost:1/unused", { connect_timeout: 1 });
+	try {
+		for (const decision of ["unauthenticated", "forbidden"] as const) {
+			const web = foundationHandler(sql, new ShapeEngine(sql), () => decision);
+			try {
+				const response = await web.handler(
+					new Request(
+						"http://test/orgs/private/v1/shape?table=sync_probe&offset=-1",
+					),
+				);
+				expect(response.status).toBe(
+					decision === "unauthenticated" ? 401 : 403,
+				);
+				expect(response.headers.get("content-type")).toContain(
+					"application/json",
+				);
+				expect(await response.json()).toEqual(
+					decision === "unauthenticated"
+						? { _tag: "Unauthenticated", message: "Authentication required" }
+						: { _tag: "Forbidden", message: "Access denied" },
+				);
+				expect(response.headers.has("electric-handle")).toBe(false);
+			} finally {
+				await web.dispose();
+			}
+		}
+	} finally {
+		await sql.end();
+	}
+});
+
 test("T11 HTTP disconnect interrupts live polling without further SQL queries", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { migrate } = await import("../../packages/db/src/migrate");
