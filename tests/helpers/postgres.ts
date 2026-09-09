@@ -4,6 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import postgres from "postgres";
 
+const live = new Set<string>();
+function reap(data: string, bin: string) {
+	try { execFileSync(join(bin, "pg_ctl"), ["-D", data, "stop", "-m", "immediate"], { stdio: "ignore" }); } catch {}
+}
+// A test that times out never reaches close(); reap every cluster this process started, on any exit.
+process.on("exit", () => { for (const d of live) reap(d, process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin"); });
+
 export async function disposablePostgres() {
 	const root = await mkdtemp(join(tmpdir(), "stellarc-test-"));
 	const data = join(root, "data");
@@ -27,6 +34,7 @@ export async function disposablePostgres() {
 		],
 		{ stdio: "pipe" },
 	);
+	live.add(data);
 	const sql = postgres({
 		host: root,
 		username: "stellarc_owner",
@@ -37,6 +45,7 @@ export async function disposablePostgres() {
 	return {
 		sql,
 		async close() {
+			live.delete(data);
 			await sql.end();
 			execFileSync(
 				join(bin, "pg_ctl"),

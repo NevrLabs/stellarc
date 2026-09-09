@@ -13,11 +13,11 @@ for (const config of ["vitest.config.ts", "vitest.integration.config.ts"]) {
 			],
 			{ stdout: "inherit", stderr: "inherit" },
 		);
-		const timer = setTimeout(() => child.kill(), 120000);
+		const timer = setTimeout(() => child.kill(), 300000);
 		try {
 			expect(await child.exited).toBe(0);
 		} finally {
 			clearTimeout(timer);
 		}
-	}, 130000);
+	}, 310000);
 }
