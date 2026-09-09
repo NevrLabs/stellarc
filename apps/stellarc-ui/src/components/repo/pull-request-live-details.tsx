@@ -191,7 +191,6 @@ export default function PullRequestLiveDetails({
   const [tabsHeight, setTabsHeight] = useState(0);
   const [propertiesHeight, setPropertiesHeight] = useState(0);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the properties row mounts only when the Diffs tab becomes active
   useEffect(() => {
     const tabs = tabsRef.current;
     if (!tabs) return;

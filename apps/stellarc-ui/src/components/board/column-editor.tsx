@@ -207,7 +207,6 @@ export default function ColumnEditor({ boardId }: ColumnEditorProps) {
     <div className="space-y-3">
       <div className="space-y-1">
         {columns?.map((col, index) => (
-          // biome-ignore lint/a11y/useSemanticElements: false positive for role="listitem"
           <div
             key={col.id}
             role="listitem"

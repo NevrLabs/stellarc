@@ -60,7 +60,6 @@ export function ProjectRow({
   const { t } = useTranslation();
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: false positive for onClick and onKeyDown
     <div
       className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-3 last:border-b-0"
       data-testid="project-row"

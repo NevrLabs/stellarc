@@ -182,7 +182,6 @@ export const TaskCardContent = memo(function TaskCardContent({
             isDragging={isDragging}
             task={task}
           >
-            {/** biome-ignore lint/a11y/noStaticElementInteractions: false positive for onClick and onKeyDown */}
             <div
               onClick={handleTaskCardClick}
               className={`group relative rounded-lg border bg-background p-3 shadow-xs/5 transition-[background-color,border-color,box-shadow,scale,translate] duration-150 ease-out active:scale-[0.98] motion-safe:hover:-translate-y-0.5 ${

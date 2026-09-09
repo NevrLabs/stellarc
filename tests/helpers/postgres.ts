@@ -6,10 +6,17 @@ import postgres from "postgres";
 
 const live = new Set<string>();
 function reap(data: string, bin: string) {
-	try { execFileSync(join(bin, "pg_ctl"), ["-D", data, "stop", "-m", "immediate"], { stdio: "ignore" }); } catch {}
+	try {
+		execFileSync(join(bin, "pg_ctl"), ["-D", data, "stop", "-m", "immediate"], {
+			stdio: "ignore",
+		});
+	} catch {}
 }
 // A test that times out never reaches close(); reap every cluster this process started, on any exit.
-process.on("exit", () => { for (const d of live) reap(d, process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin"); });
+process.on("exit", () => {
+	for (const d of live)
+		reap(d, process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin");
+});
 
 export async function disposablePostgres() {
 	const root = await mkdtemp(join(tmpdir(), "stellarc-test-"));

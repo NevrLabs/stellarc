@@ -2,6 +2,40 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation: cursor/page integrity and frozen-lift build repair
+
+- T12 issued opaque offsets are bound to a snapshot handle; malformed syntax is
+  rejected and forged/cross-handle offsets return `must-refetch`. This does not
+  yet prove expiry/restart recovery through the stock client.
+- T23 unrelated plugin events advance the cursor without emitting probe changes;
+  repeated pages retain keys/sequence identities and cursor decimals above 2^53
+  remain exact. Stable-key application is tested; no exactly-once network claim.
+- T07 preserves 205 materialized snapshot rows across intervening mutations,
+  drains a 105-event tail in capped pages without premature `up-to-date`, and
+  reconciles replayed values/last_seq against the SQL projection.
+- RED T23: unexpected `9007199254740995` emitted for unrelated plugin; exit 1.
+  GREEN: `1 passed | 8 skipped`; exit 0. Number-conversion control lost the final
+  event (`finalMessages[0].value.last_seq` undefined), exit 1; restored green.
+- RED T07: expected 100 messages, received 101 (premature control), exit 1.
+  GREEN: `2 passed | 8 skipped` with T23. Requery-page-two control changed frozen
+  row values (`expected false to be true`), exit 1; restored suite `10 passed`.
+- T12 accept-unissued-cursor control: `expected 200 to be 409`, exit 1.
+- Mechanical inherited lint cleanup removes only unused suppressions and formats
+  tooling. Root lint has zero warnings/errors. Runtime UI build required contracts
+  workspace dependencies and the fork's Better Auth 1.6.25 pin; see
+  `.forge-deps-added.md`. API + lifted UI build: `2 successful, 2 total`.
+- Orchestrator ruling: the 84 fork PNGs and manifest now live under
+  `apps/stellarc-ui/e2e/__screenshots__/fork-provenance/`; they are provenance,
+  never `toHaveScreenshot` targets. Synthetic-fixture baselines and per-screen,
+  per-project structural parity remain to be implemented. Teams is provenance-only.
+
+**Acceptance gap:** root `typecheck` excludes the lifted UI and legacy contracts.
+The UI's own `bun run --cwd apps/stellarc-ui typecheck` exits 2 (556 diagnostic
+lines), including unresolved `@kaneo/api` types. Root-green is NOT workspace-green.
+Do not mark T21 or merge readiness complete. The build previously never exercised
+this lift successfully. No screenshot assertion run or fixture acceptance is claimed.
+
+
 Setup: `bun install --frozen-lockfile`. Local integration tests require PostgreSQL
 15 binaries at `/usr/lib/postgresql/15/bin` (override with `PG_BIN`). The harness
 creates isolated temporary clusters; do not supply a production database.

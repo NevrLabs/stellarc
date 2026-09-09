@@ -185,7 +185,6 @@ export const TaskRowContent = memo(function TaskRowContent({
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: false positive for onClick and onKeyDown */}
           <div
             onClick={handleClick}
             onKeyDown={handleKeyDown}

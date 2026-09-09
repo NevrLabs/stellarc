@@ -42,7 +42,6 @@ export default function TaskTitle({ taskId }: TaskTitleProps) {
     updateTaskRef.current = updateTaskTitle;
   }, [task, updateTaskTitle]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: taskId is not needed here
   useEffect(() => {
     isInitializedRef.current = false;
   }, [taskId]);

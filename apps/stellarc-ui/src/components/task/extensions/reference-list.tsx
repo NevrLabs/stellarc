@@ -37,7 +37,6 @@ const ReferenceList = forwardRef<ReferenceListRef, ReferenceListProps>(
   ({ items, command }, ref) => {
     const [selected, setSelected] = useState(0);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: reset on items change
     useEffect(() => setSelected(0), [items]);
 
     const select = (index: number) => {

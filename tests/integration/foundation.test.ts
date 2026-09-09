@@ -5,6 +5,200 @@ import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
 
+test("T12 cursors are issued per handle and reject forged or cross-handle continuations", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("org-a", "probe", "initial");
+	const base = `${server.url}/orgs/org-a/v1/shape?table=sync_probe`;
+	const headers = { authorization: "Bearer org-a" };
+	const first = await fetch(`${base}&offset=-1`, { headers });
+	const second = await fetch(`${base}&offset=-1`, { headers });
+	const handle = first.headers.get("electric-handle");
+	const other = second.headers.get("electric-handle");
+	const offset = first.headers.get("electric-offset");
+	expect(offset).not.toBe(second.headers.get("electric-offset"));
+	const crossed = await fetch(`${base}&handle=${other}&offset=${offset}`, {
+		headers,
+	});
+	expect(crossed.status).toBe(409);
+	expect(await crossed.json()).toEqual([
+		{ headers: { control: "must-refetch" } },
+	]);
+	const forged = await fetch(`${base}&handle=${handle}&offset=999999_0`, {
+		headers,
+	});
+	expect(forged.status).toBe(409);
+	for (const invalid of ["s:-100", "s:NaN", "1e3_0", "-2"]) {
+		const response = await fetch(`${base}&handle=${handle}&offset=${invalid}`, {
+			headers,
+		});
+		expect(response.status).toBe(400);
+	}
+	const resumed = await fetch(`${base}&handle=${handle}&offset=${offset}`, {
+		headers,
+	});
+	expect(resumed.status).toBe(200);
+});
+
+test("T23 retries preserve identities, unrelated events advance and bigint boundaries stay exact", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { mutateProbes } = await import("../../packages/domain/src/index");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await db.sql`INSERT INTO org_event_counter(org,seq) VALUES ('big','9007199254740992')`;
+	const engine = new ShapeEngine(db.sql);
+	const shape = (offset: string, handle = "") =>
+		engine.shape(
+			"big",
+			new URL(
+				`http://test/?table=sync_probe&offset=${offset}&handle=${handle}`,
+			),
+		);
+	const initial = await shape("-1");
+	const handle = initial.headers.get("electric-handle") ?? "";
+	const cursor = initial.headers.get("electric-offset") ?? "";
+	await mutateProbes(db.sql, "big", "actor", [
+		{ operation: "upsert", id: "same", value: "one" },
+		{ operation: "upsert", id: "same", value: "two" },
+	]);
+	await db.sql.begin(async (tx) => {
+		const [row] =
+			await tx`UPDATE org_event_counter SET seq=seq+1 WHERE org='big' RETURNING seq::text`;
+		await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid) VALUES ('big',${row.seq},'other:changed','actor','{}',1,pg_current_xact_id()::text::bigint)`;
+	});
+	const first = await shape(cursor, handle);
+	const replay = await shape(cursor, handle);
+	const messages = await first.json();
+	expect(await replay.json()).toEqual(messages);
+	expect(replay.headers.get("electric-offset")).toBe(
+		first.headers.get("electric-offset"),
+	);
+	const changes = messages.filter(
+		(message: { headers: { operation?: string } }) => message.headers.operation,
+	);
+	expect(
+		changes.map(
+			(message: { value: { last_seq: string } }) => message.value.last_seq,
+		),
+	).toEqual(["9007199254740993", "9007199254740994"]);
+	const applied = new Map<string, string>();
+	const identities = new Set<string>();
+	for (const message of [...changes, ...changes]) {
+		const identity = `${message.value.org}:${message.value.last_seq}`;
+		if (identities.has(identity)) continue;
+		identities.add(identity);
+		applied.set(message.key, message.value.value);
+	}
+	expect([...identities]).toEqual([
+		"big:9007199254740993",
+		"big:9007199254740994",
+	]);
+	expect([...applied]).toEqual([[JSON.stringify(["big", "same"]), "two"]]);
+	const next = first.headers.get("electric-offset") ?? "";
+	const drained = await shape(next, handle);
+	expect(await drained.json()).toEqual([
+		{ headers: { control: "up-to-date" } },
+	]);
+	expect(drained.headers.get("electric-offset")).toBe(next);
+	await mutateProbes(db.sql, "big", "actor", [
+		{ operation: "upsert", id: "same", value: "three" },
+	]);
+	const final = await shape(next, handle);
+	const finalMessages = await final.json();
+	expect(finalMessages[0].value.last_seq).toBe("9007199254740996");
+});
+
+test("T07 immutable snapshot pages survive updates and deletes; tail only declares caught-up at its boundary", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { mutateProbes } = await import("../../packages/domain/src/index");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await mutateProbes(
+		db.sql,
+		"pages",
+		"actor",
+		Array.from({ length: 205 }, (_, i) => ({
+			operation: "upsert" as const,
+			id: `row-${String(i).padStart(3, "0")}`,
+			value: "before",
+		})),
+	);
+	const engine = new ShapeEngine(db.sql);
+	const shape = (offset: string, handle = "") =>
+		engine.shape(
+			"pages",
+			new URL(
+				`http://test/?table=sync_probe&offset=${offset}&handle=${handle}`,
+			),
+		);
+	const initial = await shape("-1");
+	const handle = initial.headers.get("electric-handle") ?? "";
+	const rows = await initial.json();
+	expect(rows).toHaveLength(100);
+	expect(initial.headers.has("electric-up-to-date")).toBe(false);
+	await mutateProbes(db.sql, "pages", "actor", [
+		{ operation: "delete", id: "row-150" },
+		...Array.from({ length: 104 }, (_, i) => ({
+			operation: "upsert" as const,
+			id: `row-${String(i + 100).padStart(3, "0")}`,
+			value: "after",
+		})),
+	]);
+	let offset = initial.headers.get("electric-offset") ?? "";
+	for (let page = 0; page < 2; page++) {
+		const response = await shape(offset, handle);
+		rows.push(
+			...(await response.json()).filter(
+				(message: { value?: unknown }) => message.value,
+			),
+		);
+		offset = response.headers.get("electric-offset") ?? "";
+	}
+	expect(rows).toHaveLength(205);
+	expect(new Set(rows.map((row: { key: string }) => row.key)).size).toBe(205);
+	expect(
+		rows.every(
+			(row: { value: { value: string } }) => row.value.value === "before",
+		),
+	).toBe(true);
+	const tail = await shape(offset, handle);
+	const events = await tail.json();
+	expect(events).toHaveLength(100);
+	expect(tail.headers.has("electric-up-to-date")).toBe(false);
+	const rest = await shape(tail.headers.get("electric-offset") ?? "", handle);
+	const remaining = await rest.json();
+	expect(remaining).toHaveLength(6);
+	expect(rest.headers.get("electric-up-to-date")).toBe("true");
+	const projection = new Map<
+		string,
+		{ id: string; value: string; last_seq: string }
+	>(
+		rows.map(
+			(row: {
+				key: string;
+				value: { id: string; value: string; last_seq: string };
+			}) => [row.key, row.value],
+		),
+	);
+	for (const message of [...events, ...remaining]) {
+		if (message.headers.operation === "delete") projection.delete(message.key);
+		else if (message.value) projection.set(message.key, message.value);
+	}
+	const persisted =
+		await db.sql`SELECT id,value,last_seq::text FROM sync_probe WHERE org='pages' ORDER BY id`;
+	expect(
+		[...projection.values()]
+			.map(({ id, value, last_seq }) => ({ id, value, last_seq }))
+			.sort((a, b) => a.id.localeCompare(b.id)),
+	).toEqual([...persisted]);
+});
+
 test("T05 multi-event mutation reserves contiguous sequences with one committed txid", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { migrate } = await import("../../packages/db/src/migrate");

@@ -137,7 +137,7 @@ export function ColumnDropzone({
   // Switching boards can yield the same group count, so column.id is required
   // here even though biome sees it as redundant — without it the window stays
   // wherever the previous board's chunking left it.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: column.id resets the window on board switch
+
   useEffect(() => {
     setMountCount(Math.min(totalGroups, INITIAL_WINDOW));
   }, [column.id, totalGroups]);

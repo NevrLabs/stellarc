@@ -203,7 +203,6 @@ export function TasksImportExport({ board }: TasksImportExportProps) {
                 </pre>
               </div>
 
-              {/** biome-ignore lint/a11y/noStaticElementInteractions: false positive for onDrop and onDragOver */}
               <div
                 className={cn(
                   "border-2 border-dashed rounded-lg p-8 text-center mb-4",

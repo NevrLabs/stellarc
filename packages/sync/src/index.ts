@@ -5,7 +5,13 @@ export class ShapeEngine {
 	afterProjectionRead?: () => Promise<void>;
 	private snapshots = new Map<
 		string,
-		{ org: string; rows: ProbeRow[]; boundary: string; expires: number }
+		{
+			org: string;
+			rows: ProbeRow[];
+			boundary: string;
+			expires: number;
+			cursors: Map<string, string>;
+		}
 	>();
 	constructor(private sql: Sql) {}
 	async shape(org: string, url: URL): Promise<Response> {
@@ -26,8 +32,11 @@ export class ShapeEngine {
 			return new Response(null, { status: 404 });
 		if (q.has("log") && !["full", "changes_only"].includes(q.get("log") ?? ""))
 			return new Response(null, { status: 400 });
-		const offset = q.get("offset");
-		if (!offset) return new Response(null, { status: 400 });
+		let offset = q.get("offset");
+		if (!offset || (offset !== "-1" && !/^\d+_0$/.test(offset)))
+			return new Response(null, { status: 400 });
+		if (offset !== "-1" && !q.get("handle"))
+			return new Response(null, { status: 400 });
 		let handle = q.get("handle") ?? "";
 		if (offset === "-1") {
 			const snapshot = await this.sql.begin(
@@ -44,6 +53,7 @@ export class ShapeEngine {
 						rows: [...rows],
 						boundary: counter?.seq ?? "0",
 						expires: Date.now() + 300000,
+						cursors: new Map<string, string>(),
 					};
 				},
 			);
@@ -62,8 +72,18 @@ export class ShapeEngine {
 				status: 409,
 				headers,
 			});
+		if (offset !== "-1") {
+			const decoded = snapshot.cursors.get(offset);
+			if (!decoded)
+				return Response.json([{ headers: { control: "must-refetch" } }], {
+					status: 409,
+					headers,
+				});
+			offset = decoded;
+		}
 		const messages: unknown[] = [];
 		let next: string;
+		let caughtUp = true;
 		if (offset === "-1" || offset.startsWith("s:")) {
 			const index = offset === "-1" ? 0 : Number(offset.slice(2));
 			const rows = snapshot.rows.slice(index, index + 100);
@@ -81,10 +101,17 @@ export class ShapeEngine {
 			if (!/^\d+_0$/.test(offset)) return new Response(null, { status: 400 });
 			const cursorSeq = offset.split("_")[0] ?? "0";
 			const events = await this
-				.sql`SELECT seq::text,txid::text,plugin_type,payload FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 100`;
+				.sql`SELECT seq::text,txid::text,plugin_type,payload FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 101`;
+			caughtUp = events.length <= 100;
 			next = offset;
-			for (const event of events) {
+			for (const event of events.slice(0, 100)) {
 				next = `${event.seq}_0`;
+				if (
+					!["foundation:probe-upserted", "foundation:probe-deleted"].includes(
+						event.plugin_type,
+					)
+				)
+					continue;
 				const deleted = event.plugin_type === "foundation:probe-deleted";
 				messages.push({
 					key: key(org, event.payload.id),
@@ -99,11 +126,18 @@ export class ShapeEngine {
 				});
 			}
 		}
-		if (!next.startsWith("s:")) {
+		if (!next.startsWith("s:") && caughtUp) {
 			messages.push({ headers: { control: "up-to-date" } });
 			headers.set("electric-up-to-date", "true");
 		}
-		headers.set("electric-offset", next);
+		// Keep the client-compatible numeric wire syntax without exposing a sequence.
+		// The immutable snapshot owns the issued token and its exact internal cursor.
+		let token = [...snapshot.cursors].find(([, value]) => value === next)?.[0];
+		if (!token) {
+			token = `${BigInt(`0x${crypto.randomUUID().replaceAll("-", "")}`)}_0`;
+			snapshot.cursors.set(token, next);
+		}
+		headers.set("electric-offset", token);
 		return Response.json(messages, { headers });
 	}
 }
