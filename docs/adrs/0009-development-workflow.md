@@ -79,13 +79,23 @@ sidebar collapsing to a Sheet below it — but it was **never under test**.
 - Real keyboard on desktop (needed for `:focus-visible`); **real touch** on
   mobile projects (`page.tap`, swipe) — a mobile layout driven by a mouse is not
   tested.
-- **Screenshot parity is a gate on every project.** `toHaveScreenshot()` against
-  baselines committed under `apps/stellarc-ui/e2e/__screenshots__/<project>/`,
-  0.1% threshold. Baselines are captured from the Kaneo fork **at all four
-  viewports** at T0. Any diff on any project is a regression by definition.
+- **Two kinds of screenshot, never confused:**
+  - **Fork provenance** — 84 PNGs captured once from the live fork at the pinned
+    SHA with real data, committed under `e2e/__screenshots__/fork-provenance/`
+    with a manifest. They record what "frozen" means. They are **never** a
+    `toHaveScreenshot` target: they contain production data, and the lifted UI
+    runs on a synthetic fixture.
+  - **Playwright baselines** — generated **once** by the implementer from the
+    lifted UI on the committed deterministic fixture (`--update-snapshots`, that
+    cycle only), asserted on every later run at `maxDiffPixelRatio: 0.001`. Any
+    diff on any project is a regression by definition.
+- **Frozen-UI parity against the fork is proven structurally**, not by pixel
+  diff against provenance: per screen × project, one assertion that the same
+  landmark set exists (sidebar vs Sheet trigger per viewport, kanban column
+  count, table headers, etc.), derived from the provenance manifest and the
+  lifted components.
 - Each frozen screen gets one spec that runs across all projects; project-
-  specific assertions (Sheet open on mobile, sidebar rail on desktop) are
-  branched on `testInfo.project.name`, not skipped.
+  specific assertions are branched on `testInfo.project.name`, not skipped.
 - Every UI-touching PR includes regenerated PNGs for all four projects; the
   reviewer checks they changed where the spec says and nowhere else.
 
