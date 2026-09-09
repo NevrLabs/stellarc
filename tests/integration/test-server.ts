@@ -9,11 +9,10 @@ export async function startTestServer() {
 	const { foundationHandler } = await import(
 		"../../apps/stellarc-api/src/http"
 	);
-	const http = foundationHandler(
-		db.sql,
-		engine,
-		(org, headers) => headers.authorization === `Bearer ${org}`,
-	);
+	const http = foundationHandler(db.sql, engine, (org, headers) => {
+		if (!headers.authorization) return "unauthenticated";
+		return headers.authorization === `Bearer ${org}` ? "ok" : "forbidden";
+	});
 	const server = Bun.serve({
 		port: 0,
 		hostname: "127.0.0.1",

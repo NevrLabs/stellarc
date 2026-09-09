@@ -9,5 +9,6 @@
 		"types": ["bun"],
 		"allowImportingTsExtensions": true
 	},
-	"include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts", "vitest*.ts"]
+	"include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts", "vitest*.ts"],
+	"exclude": ["apps/stellarc-ui/**", "packages/contracts/src/legacy/**", "node_modules"]
 }

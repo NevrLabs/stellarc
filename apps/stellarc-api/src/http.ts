@@ -8,13 +8,15 @@ import type { Sql } from "postgres";
 import { FoundationApi } from "../../../packages/contracts/src/api";
 import type { ShapeEngine } from "../../../packages/sync/src/index";
 
+export type AuthzResult = "ok" | "unauthenticated" | "forbidden";
+
 export function foundationHandler(
 	sql: Sql,
 	engine: ShapeEngine,
 	authorize: (
 		org: string,
 		headers: Readonly<Record<string, string>>,
-	) => boolean,
+	) => AuthzResult,
 ) {
 	const group = HttpApiBuilder.group(FoundationApi, "foundation", (handlers) =>
 		handlers
@@ -26,7 +28,10 @@ export function foundationHandler(
 			)
 			.handleRaw("shape", ({ path, request }) =>
 				Effect.promise(async () => {
-					if (!authorize(path.org, request.headers))
+					const decision = authorize(path.org, request.headers);
+					if (decision === "unauthenticated")
+						return HttpServerResponse.empty({ status: 401 });
+					if (decision === "forbidden")
 						return HttpServerResponse.empty({ status: 403 });
 					const response = await engine.shape(
 						path.org,

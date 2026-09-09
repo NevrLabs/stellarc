@@ -1,0 +1,2730 @@
+{
+	"auth": {
+		"signIn": {
+			"continueWithOidc": "Продолжи со OIDC",
+			"invitationAlert": "По најавувањето, ќе можеш да ја прифатиш поканата за работниот простор.",
+			"githubError": "Неуспешна најава со GitHub",
+			"continueWithDiscord": "Продолжи со Discord",
+			"invitationSubtitle": "Најави се за да ја прифатиш поканата",
+			"continueWithGoogle": "Продолжи со Google",
+			"signingIn": "Се најавува...",
+			"lastUsed": "Последно користено",
+			"guestSuccess": "Најавен како гостин",
+			"passwordRegistrationDisabled": "Регистрацијата со лозинка е оневозможена. Користи социјална или OIDC метода за најава за да креираш сметка.",
+			"toggleMessage": "Немаш сметка?",
+			"title": "Добредојде назад",
+			"continueWithGithub": "Продолжи со GitHub",
+			"guestError": "Неуспешна најава како гостин",
+			"oidcError": "Неуспешна најава со OIDC",
+			"subtitle": "Внеси ги твоите податоци за да пристапиш до работниот простор",
+			"pageTitle": "Најава",
+			"registrationDisabled": "Јавната регистрација е оневозможена. Користи покана за да креираш сметка.",
+			"instanceStatusError": "Не можеше да се воспостави врска со серверот. Обиди се повторно за момент.",
+			"errors": {
+				"registration_is_currently_disabled_you_need_a_valid_invitation_to_create_an_account_": "Регистрацијата е моментално оневозможена. Потребна ти е валидна покана за да креираш сметка.",
+				"account_not_linked": "This identity could not be linked to the existing account. Sign in by email to verify the account, then try SSO again. If email sign-in is unavailable, contact your administrator.",
+				"oauth_code_verification_failed": "OAuth верификацијата не успеа. Обиди се повторно."
+			},
+			"toggleLink": "Креирај сметка",
+			"googleError": "Неуспешна најава со Google",
+			"discordError": "Неуспешна најава со Discord"
+		},
+		"onboarding": {
+			"descriptionPlaceholder": "На што работи твојот тим?",
+			"createWorkspaceTitle": "Креирај работен простор",
+			"creating": "Се креира...",
+			"validation": {
+				"organizationNameRequired": "Името на работниот простор е задолжително",
+				"workspaceNameRequired": "Името на работниот простор е задолжително"
+			},
+			"workspacePageTitle": "Креирај работен простор",
+			"createOrganization": "Креирај работен простор",
+			"descriptionOptional": "Опис (опционално)",
+			"redirectingToOrganization": "Те носиме на <name>{{name}}</name>...",
+			"workspaceNamePlaceholder": "пр. Acme Inc, Мојот тим",
+			"createWorkspace": "Креирај работен простор",
+			"organizationCreatedTitle": "Работниот простор е креиран",
+			"organizationNamePlaceholder": "пр. Acme Inc, Мојот тим",
+			"redirectingToWorkspace": "Те носиме на <name>{{name}}</name>...",
+			"workspaceCreatedTitle": "Работниот простор е креиран",
+			"createOrganizationTitle": "Креирај работен простор",
+			"createOrganizationSubtitle": "Постави го твојот работен простор за да почнеш со управување на проекти",
+			"createWorkspaceSubtitle": "Постави го твојот работен простор за да почнеш со управување на проекти",
+			"toast": {
+				"workspaceCreated": "Работниот простор е успешно креиран",
+				"createFailed": "Неуспешно креирање на работен простор",
+				"organizationCreated": "Работниот простор е успешно креиран"
+			},
+			"workspaceName": "Име на работен простор",
+			"pageTitle": "Добредојде на Kaneo",
+			"organizationPageTitle": "Креирај работен простор",
+			"organizationName": "Име на работен простор"
+		},
+		"signUp": {
+			"toggleMessage": "Веќе имаш сметка?",
+			"title": "Креирај сметка",
+			"invitationAlert": "По креирањето на сметката, ќе можеш да ја прифатиш поканата за работниот простор.",
+			"subtitleDefault": "Започни со твојот работен простор",
+			"passwordDisabledAlert": "Креирањето сметка со лозинка е оневозможено. Користи социјална или OIDC метода за најава од страницата за најава.",
+			"pageTitle": "Креирај сметка",
+			"subtitlePasswordDisabled": "Користи социјална или OIDC најава за да креираш сметка",
+			"instanceAdminTitle": "Постави ја твојата Kaneo инстанца",
+			"instanceAdminSubtitle": "Оваа сметка станува администратор на инстанцата со целосен пристап.",
+			"subtitleRegistrationDisabled": "Регистрацијата бара покана",
+			"subtitleInvitation": "Креирај сметка за да ја прифатиш поканата",
+			"continueAsGuest": "Продолжи како гостин",
+			"instanceStatusError": "Не можеше да се воспостави врска со серверот. Обиди се повторно за момент.",
+			"toggleLink": "Најави се",
+			"signingIn": "Се најавува...",
+			"registrationDisabledAlert": "Регистрацијата е моментално оневозможена. Ако си поканет, внеси ја е-поштата на која ја доби поканата за да ја креираш сметката."
+		},
+		"providers": {
+			"discord": "Discord",
+			"google": "Google"
+		},
+		"signInForm": {
+			"failedSignIn": "Неуспешна најава",
+			"signIn": "Најави се",
+			"signingIn": "Се најавува...",
+			"signedInSuccess": "Успешно најавен"
+		},
+		"invitation": {
+			"errorTitle": "Грешка со поканата",
+			"invalidTitle": "Невалидна покана",
+			"pageTitleInvalid": "Невалидна покана",
+			"signedInAs": "Најавен како <email>{{email}}</email>",
+			"toast": {
+				"acceptSuccess": "Поканата е прифатена! Добредојде во тимот.",
+				"acceptFailed": "Неуспешно прифаќање на поканата"
+			},
+			"inviteBodySignedIn": "<inviter>{{inviterName}}</inviter> те покани да се приклучиш на нивниот работен простор.",
+			"errorLoadDescription": "Неуспешно вчитување на деталите за поканата. Поканата може да е невалидна или истечена.",
+			"youveBeenInvited": "Поканет си!",
+			"organizationLabel": "Работен простор: {{organizationName}}",
+			"invitationFor": "Покана за: <email>{{email}}</email>",
+			"pageTitleAccept": "Прифати покана",
+			"loadingTitle": "Се вчитува поканата...",
+			"signInToAccept": "Најави се за да ја прифатиш поканата.",
+			"inviteBodySignedOut": "<inviter>{{inviterName}}</inviter> те покани да се приклучиш на нивниот работен простор на Kaneo.",
+			"joinWorkspace": "Приклучи се на {{workspaceName}}",
+			"signIn": "Најави се",
+			"createAccount": "Креирај сметка",
+			"accepting": "Се прифаќа...",
+			"invitationExpired": "Поканата истече",
+			"workspaceLabel": "Работен простор: {{workspaceName}}",
+			"createAccountOrSignIn": "Креирај сметка за да ја прифатиш оваа покана, или најави се ако веќе имаш.",
+			"goToSignIn": "Оди на најава",
+			"joinOrganization": "Приклучи се на {{organizationName}}",
+			"acceptInvitation": "Прифати покана",
+			"pageTitleError": "Грешка со поканата",
+			"goToDashboard": "Оди на контролна табла"
+		},
+		"otpSignIn": {
+			"codeSent": "Кодот за потврда е испратен! Провери ја е-поштата.",
+			"sendVerificationCode": "Испрати код за потврда",
+			"sending": "Се испраќа...",
+			"sendFailed": "Неуспешно испраќање на кодот за потврда"
+		},
+		"signUpForm": {
+			"failedSignUp": "Неуспешна регистрација",
+			"fullName": "Целосно име",
+			"createAccount": "Креирај сметка",
+			"accountCreated": "Сметката е успешно креирана",
+			"namePlaceholder": "Петар Петровски",
+			"creatingAccount": "Се креира сметка...",
+			"passwordTooShort": "Лозинката е прекратка"
+		},
+		"verifyOtp": {
+			"title": "Внеси го кодот за потврда",
+			"subtitle": "Користи го 6-цифрениот код испратен на твојата е-пошта за да продолжиш",
+			"pageTitle": "Потврди код",
+			"changeEmail": "Промени е-пошта",
+			"verificationCodeLabel": "Код за потврда",
+			"validation": {
+				"codeLength": "Кодот мора да има 6 цифри"
+			},
+			"toast": {
+				"verifyFailed": "Неуспешна потврда на кодот",
+				"resendSuccess": "Нов код за потврда е испратен!",
+				"resendFailed": "Неуспешно повторно испраќање на кодот",
+				"invalidCode": "Невалиден код за потврда",
+				"signedInSuccess": "Успешно најавен!"
+			},
+			"verifying": "Се потврдува...",
+			"codeSentTo": "Кодот е испратен на {{email}}",
+			"verifyAndSignIn": "Потврди и најави се",
+			"resend": "Испрати повторно"
+		},
+		"profileSetup": {
+			"yourName": "Твоето име",
+			"redirecting": "Те носиме на контролната табла...",
+			"subtitle": "Внеси го твоето име за да започнеш",
+			"pageTitle": "Заврши го профилот",
+			"namePlaceholder": "пр. Петар Петровски",
+			"toast": {
+				"updateSuccess": "Профилот е успешно ажуриран",
+				"updateFailed": "Неуспешно ажурирање на профилот"
+			},
+			"continue": "Продолжи",
+			"validation": {
+				"nameShort": "Името мора да има најмалку 2 знаци",
+				"nameRequired": "Името е задолжително"
+			},
+			"completeTitle": "Заврши го твојот профил",
+			"saving": "Се зачувува...",
+			"welcome": "Добредојде, {{name}}!"
+		},
+		"checkEmail": {
+			"title": "Провери ја е-поштата",
+			"emailFallback": "твојата е-пошта",
+			"backToLogin": "Назад кон најава",
+			"inboxMessage": "Ти испративме привремен линк за најава. Провери го сандачето на <email>{{email}}</email>.",
+			"pageTitle": "Провери ја е-поштата"
+		},
+		"forms": {
+			"or": "или",
+			"showPassword": "Прикажи лозинка",
+			"emailPlaceholder": "me@example.com",
+			"password": "Лозинка",
+			"email": "Е-пошта",
+			"hidePassword": "Сокриј лозинка",
+			"passwordPlaceholder": "••••••••"
+		}
+	},
+	"notifications": {
+		"clearDialogDescription": "Ова трајно ќе ги отстрани сите известувања. Не можеш да ја вратиш оваа акција.",
+		"title": "Известувања",
+		"emptyTitle": "Нема известувања засега",
+		"clearAll": "Исчисти ги сите известувања",
+		"emptySubtitle": "Тука ќе ги гледаш ажурирањата и активностите.",
+		"shortcuts": {
+			"open": "Отвори известувања"
+		},
+		"newCount_one": "{{count}} ново",
+		"clearDialogTitle": "Исчисти ги сите известувања?",
+		"newCount_other": "{{count}} нови",
+		"reminderLeadTime": {
+			"minutes_one": "{{count}} минута",
+			"minutes_other": "{{count}} минути",
+			"hours_one": "{{count}} час",
+			"hours_other": "{{count}} часа",
+			"days_one": "{{count}} ден",
+			"days_other": "{{count}} дена",
+			"days": "days",
+			"hours": "hours",
+			"minutes": "minutes"
+		},
+		"events": {
+			"organization_created": {
+				"title": "Работниот простор е креиран",
+				"content": "Твојот работен простор \"{{organizationName}}\" е успешно креиран"
+			},
+			"task_overdue": {
+				"title": "Задачата е задоцнета",
+				"content": "{{taskTitle}} го помина крајниот рок"
+			},
+			"workspace_created": {
+				"title": "Работниот простор е креиран",
+				"content": "Твојот работен простор \"{{workspaceName}}\" е успешно креиран"
+			},
+			"task_flag_resolved": {
+				"title": "Знаменцето на тикетот е разрешено",
+				"content": "{{flagTypeName}} е разрешено на „{{taskTitle}}“"
+			},
+			"task_flag_raised": {
+				"title": "Поставено е знаменце на тикетот",
+				"content": "{{flagTypeName}} е поставено на „{{taskTitle}}“"
+			},
+			"task_mention": {
+				"title": "{{mentionerName}} те спомна",
+				"content": "{{mentionerName}} те спомна во: {{taskTitle}}"
+			},
+			"task_description_changed": {
+				"title": "Описот на тикетот е ажуриран",
+				"content": "Описот на „{{taskTitle}}“ е ажуриран"
+			},
+			"time_entry_created": {
+				"contentWithoutTask": "Следењето на време е започнато на задача",
+				"title": "Следењето на време е започнато",
+				"contentWithTask": "Следењето на време е започнато на тикетот: {{taskTitle}}"
+			},
+			"task_comment": {
+				"title": "{{commenterName}} коментираше на твојата задача",
+				"content": "Нов коментар на {{taskTitle}}: {{commentPreview}}"
+			},
+			"task_status_changed": {
+				"title": "Статусот на задачата е променет",
+				"content": "Статусот на тикетот \"{{taskTitle}}\" е променет од \"{{oldStatus}}\" во \"{{newStatus}}\""
+			},
+			"task_title_changed": {
+				"title": "Насловот на тикетот е променет",
+				"content": "„{{oldTitle}}“ е преименуван во „{{newTitle}}“"
+			},
+			"task_priority_changed": {
+				"title": "Приоритетот на тикетот е променет",
+				"content": "Приоритетот на „{{taskTitle}}“ е променет од {{oldPriority}} во {{newPriority}}"
+			},
+			"task_created": {
+				"title": "Нова задача е креирана",
+				"content": "Тикетот \"{{taskTitle}}\" е креиран"
+			},
+			"task_due_date_changed": {
+				"title": "Крајниот рок на тикетот е променет",
+				"content": "Крајниот рок на „{{taskTitle}}“ е ажуриран"
+			},
+			"task_assignee_changed": {
+				"title": "Задачата ти е доделена",
+				"content": "Ти е доделен тикетот: {{taskTitle}}"
+			},
+			"due_date_reminder": {
+				"title": "Задачата наскоро доспева",
+				"content": "{{taskTitle}} доспева за {{leadTime}}"
+			}
+		},
+		"clearGroup": "Clear group"
+	},
+	"common": {
+		"error": {
+			"tryAgain": "Обиди се повторно",
+			"title": "Нешто тргна наопаку",
+			"viewDeploymentGuide": "Погледни го водичот за поставување",
+			"refreshPage": "Освежи ја страницата",
+			"troubleshooting": "Чекори за решавање проблеми:"
+		},
+		"a11y": {
+			"toggleSidebar": "Вклучи/исклучи странична лента"
+		},
+		"sidebar": {
+			"mobileDescription": "Ја прикажува мобилната странична лента.",
+			"title": "Странична лента"
+		},
+		"pagination": {
+			"previous": "Претходна",
+			"next": "Следна",
+			"previousPage": "Оди на претходна страница",
+			"nextPage": "Оди на следна страница",
+			"label": "Пагинација",
+			"morePages": "Повеќе страници"
+		},
+		"breadcrumb": {
+			"label": "Навигација",
+			"more": "Повеќе"
+		},
+		"unknown": "Непознато",
+		"language": {
+			"korean": "Корејски",
+			"macedonian": "Македонски",
+			"french": "Француски",
+			"english": "Англиски",
+			"german": "Германски",
+			"greek": "Грчки",
+			"dutch": "Холандски",
+			"italian": "Италијански",
+			"spanish": "Шпански",
+			"chinese": "Кинески"
+		},
+		"people": {
+			"unknown": "Непознат",
+			"someone": "Некој"
+		},
+		"empty": {
+			"loading": "Се вчитува..."
+		},
+		"formats": {
+			"never": "Никогаш"
+		},
+		"actions": {
+			"filter": "Филтрирај",
+			"clearAll": "Исчисти се",
+			"clearAllFilters": "Исчисти ги сите филтри",
+			"reset": "Ресетирај",
+			"deleting": "Се брише...",
+			"delete": "Избриши",
+			"cancel": "Откажи",
+			"close": "Затвори",
+			"markAllRead": "Означи ги сите како прочитани",
+			"remove": "Отстрани",
+			"clear": "Clear"
+		},
+		"modals": {
+			"createOrganization": {
+				"breadcrumbKaneo": "KANEO",
+				"title": "Креирај нов работен простор",
+				"description": "Креирај нов работен простор со внесување на име.",
+				"namePlaceholder": "Име на работен простор",
+				"descriptionPlaceholder": "Додади опис...",
+				"createButton": "Креирај работен простор",
+				"successToast": "Работниот простор е успешно креиран",
+				"errorToast": "Неуспешно креирање на работен простор"
+			},
+			"createWorkspace": {
+				"breadcrumbKaneo": "KANEO",
+				"title": "Креирај нов работен простор",
+				"description": "Креирај нов работен простор со внесување на име.",
+				"namePlaceholder": "Име на работен простор",
+				"descriptionPlaceholder": "Додади опис...",
+				"createButton": "Креирај работен простор",
+				"successToast": "Работниот простор е успешно креиран",
+				"errorToast": "Неуспешно креирање на работен простор"
+			},
+			"createTask": {
+				"prepareTaskError": "Неуспешна подготовка на задача",
+				"descriptionPlaceholder": "Додади опис за твојата задача...",
+				"taskTitlePlaceholder": "Наслов на задача",
+				"statusFallback": "Во тек",
+				"chooseColor": "Избери боја",
+				"discardDraft": "Отфрли нацрт",
+				"assign": "Додели",
+				"successCreated": "Задачата е успешно креирана",
+				"priority": "Приоритет",
+				"breadcrumbTask": "ЗАДАЧА",
+				"startDate": "Почетен датум",
+				"successUpdated": "Задачата е успешно ажурирана",
+				"labels": "Етикети",
+				"labelCreateError": "Неуспешно креирање на етикета",
+				"clearDueDate": "Исчисти краен рок",
+				"createLabel": "Креирај \"{{name}}\"",
+				"chooseProjectForImages": "Избери проект пред да прикачиш слики.",
+				"dueDate": "Краен рок",
+				"assignUnassignedTitle": "Недоделен",
+				"title": "Нова задача",
+				"clearStartDate": "Исчисти почетен датум",
+				"createError": "Неуспешно креирање на задача",
+				"assignUnassigned": "Недоделен",
+				"labelColors": {
+					"violet": "Виолетова",
+					"slate": "Плочест",
+					"stone": "Камен",
+					"sky": "Небо",
+					"lime": "Лимета",
+					"rose": "Роза",
+					"orchid": "Орхидеја",
+					"honey": "Мед",
+					"cocoa": "Какао",
+					"lavender": "Лаванда",
+					"terracotta": "Теракота",
+					"emerald": "Смарагд",
+					"indigo": "Индиго",
+					"ocean": "Океан",
+					"amber": "Килибар",
+					"forest": "Шума",
+					"crimson": "Гримизна",
+					"lagoon": "Лагуна",
+					"blossom": "Цвет",
+					"sage": "Жалфија"
+				},
+				"selectProject": "Избери проект",
+				"createButton": "Креирај задача",
+				"noLabelsFound": "Не се пронајдени етикети",
+				"chooseBoardForImages": "Избери проект пред да прикачиш слики.",
+				"createMore": "Креирај уште",
+				"description": "Креирај нова задача со наслов, опис и други детали.",
+				"untitledTask": "Задача без наслов",
+				"labelCreated": "Етикетата е креирана",
+				"searchLabels": "Пребарај етикети..."
+			},
+			"createProject": {
+				"title": "Креирај нов проект",
+				"breadcrumbNew": "Креирај нов проект",
+				"workspaceFallback": "РАБОТЕН ПРОСТОР",
+				"description": "Креирај нов проект во твојот работен простор со име, клуч и избор на икона.",
+				"pickIcon": "Избери икона",
+				"searchIcons": "Пребарај икони...",
+				"projectName": "Име на проект",
+				"keyLabel": "Клуч:",
+				"keyHint": "Се користи за ID на тикети (пр. {{example}}-123)",
+				"createButton": "Креирај проект",
+				"successToast": "Проектот е успешно креиран",
+				"errorToast": "Неуспешно креирање на проект"
+			},
+			"createBoard": {
+				"title": "Креирај нов проект",
+				"breadcrumbNew": "Креирај нов проект",
+				"organizationFallback": "РАБОТЕН ПРОСТОР",
+				"description": "Креирај нов проект во твојот работен простор со име, клуч и избор на икона.",
+				"pickIcon": "Избери икона",
+				"searchIcons": "Пребарај икони...",
+				"boardName": "Име на проект",
+				"keyLabel": "Клуч:",
+				"keyHint": "Се користи за ID на тикети (пр. {{example}}-123)",
+				"createButton": "Креирај проект",
+				"successToast": "Проектот е успешно креиран",
+				"errorToast": "Неуспешно креирање на проект"
+			}
+		},
+		"appName": "Kaneo",
+		"team": {
+			"members": {
+				"people": "People"
+			}
+		}
+	},
+	"activity": {
+		"moved": "ја премести задачата од \"{{from}}\" во \"{{to}}\"",
+		"clearedDueDate": "го исчисти краениот рок",
+		"created": "ја создаде задачата",
+		"setDueDate": "го постави краениот рок на {{date}}",
+		"statusRunSteps": "{{count}} чекори",
+		"assignedTo": "ја додели задачата на {{name}}",
+		"githubUser": "GitHub корисник",
+		"resolutionNote": "Белешка за решавање",
+		"unassigned": "ја одзеде задачата",
+		"statusRun": "го премести од {{from}} во {{to}}",
+		"statusRunNoOp": "го смени статусот неколку пати, враќајќи се на {{status}}",
+		"assignedToSelf": "ја додели задачата на себеси",
+		"changedTitle": "го промени насловот од \"{{from}}\" во \"{{to}}\"",
+		"changedPriority": "го промени приоритетот од {{from}} во {{to}}",
+		"changedStatus": "го промени статусот од {{from}} во {{to}}",
+		"changedDueDate": "го промени краениот рок од {{from}} во {{to}}",
+		"comment": {
+			"failedToUpdate": "Неуспешно ажурирање на коментар",
+			"edit": "Уреди коментар",
+			"attachFile": "Прикачи датотека",
+			"updated": "Коментарот е ажуриран",
+			"editor": {
+				"ariaCopied": "Копирано",
+				"dropImageToUpload": "Пушти слика за прикачување",
+				"ariaCopyCode": "Копирај код",
+				"embedErrorYoutubeOnly": "Само YouTube линкови може да се вградат.",
+				"searchHeading": "наслов заглавие h2",
+				"fileAttached": "Датотеката е прикачена",
+				"pasteUrl": "Залепи URL",
+				"embed": "Вгради",
+				"searchParagraph": "текст параграф нормален",
+				"slashGroupLists": "Листи",
+				"uploadingFile": "Се прикачува датотека...",
+				"copy": "Копирај",
+				"searchTaskList": "задачи чеклиста ознака листа",
+				"keepAsLink": "Задржи како линк",
+				"slashCodeBlock": "Блок со код",
+				"slashBulletList": "Листа со точки",
+				"slashTable": "Табела",
+				"previewImageAlt": "Преглед на слика",
+				"copied": "Копирано",
+				"slashTaskList": "Листа на задачи",
+				"plaintext": "Обичен текст",
+				"searchQuote": "цитат блокцитат",
+				"searchCodeBlock": "код фрагмент",
+				"slashOrderedList": "Нумерирана листа",
+				"searchOrderedList": "листа нумерирана подредена",
+				"ariaCommentEditor": "Уредувач на коментари",
+				"codeLang": {
+					"html": "HTML",
+					"swift": "Swift",
+					"javascript": "JavaScript",
+					"java": "Java",
+					"python": "Python",
+					"css": "CSS",
+					"sql": "SQL",
+					"go": "Golang",
+					"json": "JSON",
+					"graphql": "GraphQL",
+					"cpp": "C++",
+					"plaintext": "Обичен текст",
+					"yaml": "YAML",
+					"csharp": "C#",
+					"markdown": "Markdown",
+					"bash": "Bash",
+					"rust": "Rust",
+					"typescript": "TypeScript"
+				},
+				"slashGroupInsert": "Вметни",
+				"hintEsc": "Esc",
+				"searchTable": "табела мрежа",
+				"asLink": "Како линк",
+				"searchBulletList": "листа точки ненумерирана",
+				"slashHeading": "Наслов",
+				"searchFile": "датотека прикачување слика фотографија прикачи",
+				"table": {
+					"addColumnBefore": "Вметни колона лево",
+					"addColumnAfter": "Вметни колона десно",
+					"deleteColumn": "Избриши колона",
+					"addRowBefore": "Вметни ред над",
+					"addRowAfter": "Вметни ред под",
+					"deleteRow": "Избриши ред",
+					"deleteTable": "Избриши табела"
+				},
+				"autoDetect": "Автоматско откривање",
+				"embedVideo": "Вгради видео",
+				"failedToUploadFile": "Неуспешно прикачување на датотека",
+				"embedErrorInvalidUrl": "Внеси валиден URL",
+				"slashQuote": "Цитат",
+				"imageUploaded": "Сликата е прикачена",
+				"enterUrl": "Внеси URL",
+				"slashFile": "Датотека",
+				"hintTab": "Tab",
+				"noCommands": "Нема команди",
+				"uploadsOnlyOnSavedTasks": "Прикачување на датотеки е достапно само на зачувани задачи.",
+				"slashGroupText": "Текст",
+				"ariaCommentContent": "Содржина на коментар",
+				"slashParagraph": "Текст"
+			},
+			"leavePlaceholder": "Остави коментар...",
+			"viewGithubProfile": "Погледни GitHub профил",
+			"editPlaceholder": "Уреди коментар...",
+			"save": "Зачувај",
+			"failedToAdd": "Неуспешно додавање на коментар",
+			"draftSaved": "Нацртот е зачуван",
+			"commentedOnGithub": "коментираше на GitHub",
+			"deleteDraft": "Избриши нацрт",
+			"github": "GitHub",
+			"submitShortcut": "Испрати коментар",
+			"mustBeLoggedInToEdit": "Мораш да бидеш најавен за да уредуваш коментари",
+			"cannotBeEmpty": "Коментарот не може да биде празен",
+			"added": "Коментарот е додаден",
+			"editHistory": "Edit history"
+		}
+	},
+	"publicBoard": {
+		"pageTitle": "Јавен приказ",
+		"badge": "Јавен",
+		"readOnly": "Само за читање",
+		"error": {
+			"title": "Проектот не е пронајден",
+			"description": "Овој проект не постои или не е јавно достапен."
+		},
+		"taskCard": {
+			"viewDetailsAria": "Погледни детали за задачата {{title}}"
+		},
+		"taskDetail": {
+			"labels": "Етикети",
+			"externalLinks": "Надворешни линкови",
+			"pullRequestFallback": "Pull Request",
+			"issueFallback": "Issue",
+			"prStatusMerged": "Споен",
+			"prStatusDraft": "Нацрт",
+			"prStatusOpen": "Отворен",
+			"dueWithDate": "Рок {{date}}",
+			"created": "Креирана",
+			"dueDateLabel": "Краен рок"
+		},
+		"theme": {
+			"switchToLight": "Префрли на светол режим",
+			"switchToDark": "Префрли на темен режим"
+		},
+		"copyUrl": {
+			"successToast": "URL е копиран",
+			"errorToast": "Неуспешно копирање на URL",
+			"copied": "Копирано",
+			"share": "Сподели"
+		},
+		"branding": {
+			"poweredBy": "Овозможено од"
+		}
+	},
+	"tasks": {
+		"assignee": {
+			"label": "Доделен",
+			"unassigned": "Недоделен"
+		},
+		"display": {
+			"label": "Display",
+			"show": "Show",
+			"assignee": "Assignee",
+			"priority": "Priority",
+			"labels": "Labels",
+			"dates": "Dates"
+		},
+		"move": {
+			"error": "Неуспешно преместување на задача",
+			"title": "Премести задача",
+			"statusLabel": "Целен статус",
+			"statusHintKeep": "Тековниот статус веќе е поддржан во целниот проект.",
+			"statusHintAdjust": "Избери статус што ќе се користи во целниот проект.",
+			"projectLabel": "Целен проект",
+			"projectPlaceholder": "Избери проект",
+			"success": "Задачата е успешно преместена",
+			"boardPlaceholder": "Избери проект",
+			"boardLabel": "Целен проект",
+			"action": "Премести задача"
+		},
+		"priority": {
+			"medium": "Среден",
+			"no-priority": "Без приоритет",
+			"label": "Приоритет",
+			"high": "Висок",
+			"urgent": "Итен",
+			"low": "Низок"
+		},
+		"boardSync": {
+			"syncedWith": "Синхронизирано со {{repo}}"
+		},
+		"editor": {
+			"table": {
+				"addColumnBefore": "Вметни колона лево",
+				"addColumnAfter": "Вметни колона десно",
+				"deleteColumn": "Избриши колона",
+				"addRowBefore": "Вметни ред над",
+				"addRowAfter": "Вметни ред под",
+				"deleteRow": "Избриши ред",
+				"deleteTable": "Избриши табела"
+			}
+		},
+		"backlog": {
+			"moveAllConfirm": "Премести ги сите {{count}} планирани задачи во За правење?",
+			"filter": "Филтрирај",
+			"moveAllDialogConfirm_other": "Премести {{count}} тикети",
+			"addTask": "Додади задача",
+			"filters": {
+				"assignee": "Доделен: {{name}}",
+				"noDueDate": "Без краен рок",
+				"dueNextWeek": "Рок следна недела",
+				"priority": "Приоритет: {{name}}",
+				"dueThisWeek": "Рок оваа недела",
+				"due": "Рок: {{date}}",
+				"label": "Етикета: {{name}}"
+			},
+			"moveAll": "Премести ги сите",
+			"moveAllTooltip": "Премести ги сите планирани во За правење",
+			"moveAllDialogDescription_other": "{{count}} планирани тикети ќе бидат преместени во „За правење“.",
+			"plan": "Планирај",
+			"moveAllDialogConfirm": "Премести {{count}} тикет",
+			"pageTitle": "Заостанати задачи на {{name}}",
+			"moveAllDialogDescription": "{{count}} планиран тикет ќе биде преместен во „За правење“.",
+			"addFilter": "Додади филтер...",
+			"sections": {
+				"archived": "Архивирано",
+				"planned": "Планирано"
+			},
+			"moveAllSuccess": "Преместени {{count}} задачи во За правење",
+			"noTasksToMove": "Нема планирани задачи за преместување",
+			"moveAllDialogTitle": "Премести ги сите планирани тикети?",
+			"noTasksInSection": "Нема {{section}} задачи"
+		},
+		"labels": {
+			"label": "Етикети",
+			"empty": "Нема достапни етикети",
+			"fromRepository": "Од поврзано складиште"
+		},
+		"view": {
+			"list": "Листа",
+			"board": "Табла"
+		},
+		"dueDate": {
+			"updateSuccess": "Краениот рок на задачата е успешно ажуриран",
+			"clearSuccess": "Краениот рок на задачата е исчистен",
+			"clearError": "Неуспешно чистење на краен рок",
+			"label": "Краен рок",
+			"outcome": {
+				"early": "Порано",
+				"on-time": "На време",
+				"late": "Со задршка"
+			},
+			"clear": "Исчисти датум",
+			"updateError": "Неуспешно ажурирање на краен рок на задача"
+		},
+		"properties": {
+			"labels": "Етикети",
+			"title": "Својства",
+			"copyTaskLink": "Копирај линк на задача",
+			"start": "Почеток",
+			"noDate": "Без датум",
+			"copyTaskBranch": "Копирај гранка на задача",
+			"startDate": "Почетен датум",
+			"follow": "Follow",
+			"following": "Following"
+		},
+		"boardSearchPlaceholder": "Пребарај тикети...",
+		"common": {
+			"taskNotFound": "Задачата не е пронајдена",
+			"selectTask": "Избери задача",
+			"loadingTask": "Се вчитува задача...",
+			"taskNotFoundDescription": "Задачата што ја барате не постои или е избришана."
+		},
+		"relations": {
+			"types": {
+				"blocks": "блокира",
+				"related": "е поврзана со",
+				"blocked_by": "блокирана од"
+			},
+			"title": "Релации",
+			"blockedBy": "Блокиран од",
+			"linkError": "Неуспешно поврзување на задача",
+			"searchPlaceholder": "Пребарај задачи за поврзување...",
+			"noTasksFound": "Не се пронајдени задачи",
+			"tasksInBoard": "Задачи во проект",
+			"removeRelation": "Отстрани релација",
+			"blocks": "Блокира",
+			"otherBoard": "друга табла",
+			"empty": "Нема поврзани задачи",
+			"related": "Поврзана",
+			"openTask": "Отвори задача",
+			"selectTask": "Избери задача за поврзување",
+			"tasksInProject": "Задачи во проект",
+			"allBoards": "Сите"
+		},
+		"sort": {
+			"descending": "Опаѓачки",
+			"direction": "Насока",
+			"ascending": "Растечки",
+			"label": "Подреди",
+			"fields": {
+				"createdAt": "Датум на креирање",
+				"title": "Наслов",
+				"position": "Рачно (позиција)",
+				"priority": "Приоритет",
+				"number": "Број на задача",
+				"dueDate": "Краен рок"
+			},
+			"by": "Подреди по"
+		},
+		"delete": {
+			"error": "Неуспешно бришење на задача",
+			"title": "Избриши задача?",
+			"description": "Ова трајно ќе ја отстрани задачата и сите нејзини податоци. Не можеш да ја вратиш оваа акција.",
+			"success": "Задачата е успешно избришана",
+			"action": "Избриши задача"
+		},
+		"entity": {
+			"task": "Задача"
+		},
+		"subtasks": {
+			"title": "Подзадачи",
+			"deleteError": "Неуспешно бришење на задача",
+			"createError": "Неуспешно креирање на подзадача",
+			"deleteSuccess": "Задачата е успешно избришана",
+			"addAction": "Додади",
+			"linkExisting": "Поврзи постоечка задача",
+			"searchPlaceholder": "Барај задачи низ сите табли…",
+			"deleteDialogDescription": "Ова трајно ќе ја отстрани задачата и сите нејзини податоци. Не можеш да ја вратиш оваа акција.",
+			"completeAria": "Означи ја подзадачата како завршена",
+			"inputPlaceholder": "Наслов на подзадача...",
+			"deleteAction": "Избриши задача",
+			"empty": "Нема подзадачи засега",
+			"deleteDialogTitle": "Избриши задача?",
+			"linkExistingHint": "Изберете задача за додавање како подзадача"
+		},
+		"group": {
+			"label": "Group",
+			"by": "Group by",
+			"none": "No grouping",
+			"status": "Status",
+			"priority": "Priority",
+			"assignee": "Assignee"
+		},
+		"calendar": {
+			"pageTitle": "{{name}} — Calendar",
+			"title": "Calendar",
+			"today": "Today",
+			"previousMonth": "Previous month",
+			"nextMonth": "Next month",
+			"more": "+{{count}} more"
+		},
+		"nest": {
+			"willNestUnder": "Вгнезди под {{title}}",
+			"releaseToNest": "Отпуштете за да го вгнездите овој тикет под {{title}}.",
+			"cannotNestHere": "Не може да се вгнезди тука",
+			"cannotNestReason": "Овој тикет не може да се вгнезди под таа цел. Изберете друг родител.",
+			"unknownTarget": "овој тикет"
+		},
+		"titleTokens": {
+			"labels": "Ознаки",
+			"members": "Членови",
+			"priority": "Приоритет",
+			"hint": "# за ознаки, @ за членови, ! за приоритет"
+		},
+		"actions": {
+			"archive": "Архивирај",
+			"markAsPlanned": "Означи како планирана",
+			"delete": "Избриши...",
+			"unarchive": "Врати од архива"
+		},
+		"detail": {
+			"addDescription": "Додади опис...",
+			"activity": "Активност",
+			"editor": {
+				"ariaLabel": "Уредувач на опис на задача",
+				"copied": "Копирано",
+				"dropToUpload": "Пушти слика за прикачување",
+				"previewImage": "Преглед на слика",
+				"slash": {
+					"groups": {
+						"insert": "Вметни",
+						"lists": "Листи",
+						"text": "Текст"
+					},
+					"commands": {
+						"file": "Датотека",
+						"bullet-list": "Листа со точки",
+						"blockquote": "Цитат",
+						"table": "Табела",
+						"task-list": "Листа на задачи",
+						"code-block": "Блок со код",
+						"heading-2": "Наслов",
+						"ordered-list": "Нумерирана листа",
+						"paragraph": "Текст"
+					},
+					"empty": "Нема команди"
+				},
+				"languages": {
+					"ocaml": "OCaml",
+					"swift": "Swift",
+					"javascript": "JavaScript",
+					"java": "Java",
+					"python": "Python",
+					"dart": "Dart",
+					"css": "CSS",
+					"haskell": "Haskell",
+					"terraform": "Terraform",
+					"go": "Golang",
+					"makefile": "Makefile",
+					"plaintext": "Обичен текст",
+					"yaml": "YAML",
+					"csharp": "C#",
+					"kotlin": "Kotlin",
+					"reasonml": "ReasonML",
+					"markdown": "Markdown",
+					"sql": "SQL",
+					"bash": "Bash",
+					"diff": "Diff",
+					"xml": "XML",
+					"rust": "Rust",
+					"typescript": "TypeScript",
+					"html": "HTML",
+					"excel": "Excel",
+					"perl": "Perl",
+					"php": "PHP",
+					"elixir": "Elixir",
+					"cypher": "Cypher",
+					"clojure": "Clojure",
+					"toml": "TOML",
+					"json": "JSON",
+					"graphql": "GraphQL",
+					"cpp": "C++",
+					"r": "R",
+					"ruby": "Ruby"
+				},
+				"placeholder": "Напиши опис...",
+				"enterUrl": "Внеси URL",
+				"attachFile": "Прикачи датотека",
+				"embed": {
+					"inputPlaceholder": "Залепи URL",
+					"embeddedContent": "Вградена содржина",
+					"onlyYoutubeInline": "Само YouTube URL може да се вградат. Користи режим на линк наместо тоа.",
+					"submit": "Вгради",
+					"asLink": "Како линк",
+					"errors": {
+						"invalidUrl": "Внеси валиден URL",
+						"onlyYoutube": "Само YouTube линкови може да се вградат."
+					},
+					"choice": {
+						"embedVideo": "Вгради видео",
+						"keepAsLink": "Задржи како линк"
+					}
+				},
+				"copyCode": "Копирај код",
+				"autoDetect": "Автоматско откривање",
+				"copy": "Копирај",
+				"upload": {
+					"fileSuccess": "Датотеката е прикачена",
+					"failed": "Неуспешно прикачување на датотека",
+					"loading": "Се прикачува датотека...",
+					"imageSuccess": "Сликата е прикачена"
+				},
+				"checkbox": {
+					"markComplete": "Означи задача како завршена",
+					"markIncomplete": "Означи задача како незавршена"
+				}
+			},
+			"openInFullPage": "Отвори на цела страница",
+			"subtaskOf": "Подзадача на",
+			"close": "Затвори детали за тикетот",
+			"noActivity": "Нема пронајдена активност",
+			"titlePlaceholder": "Кликни за да додадеш наслов",
+			"titleSaving": "Зачувување на насловот…"
+		},
+		"pr": {
+			"count_one": "{{count}} PR",
+			"count_other": "{{count}} PR-а",
+			"open": "Отворен",
+			"label": "Pull Request",
+			"merged": "Споен",
+			"draft": "Нацрт",
+			"count": "{{count}} pull requests"
+		},
+		"bulkActions": {
+			"label": "Масовни дејства"
+		},
+		"kanban": {
+			"addTask": "Додади задача"
+		},
+		"status": {
+			"planned": "Планирано",
+			"to-do": "За правење",
+			"label": "Статус",
+			"in-progress": "Во тек",
+			"archived": "Архивирано",
+			"in-review": "На преглед",
+			"done": "Завршено"
+		},
+		"update": {
+			"error": "Неуспешно ажурирање на задача",
+			"success": "Задачата е успешно ажурирана"
+		},
+		"groupBy": {
+			"dueDate": "Краен рок",
+			"noDueDate": "Без краен рок",
+			"noLabel": "Без етикета",
+			"status": "Статус",
+			"milestone": "Пресвртница",
+			"noStatus": "Без статус"
+		},
+		"contextMenu": {
+			"copyLink": "Копирај линк",
+			"copyLinkSuccess": "Линкот на задачата е копиран!"
+		},
+		"boardFilters": {
+			"allAssignees": "Сите доделени",
+			"allPriorities": "Сите приоритети",
+			"selectedCount": "{{count}} избрани",
+			"subjects": {
+				"assignee": "Доделен",
+				"labels": "Етикети",
+				"priority": "Приоритет",
+				"status": "Статус",
+				"dueDate": "Краен рок"
+			},
+			"allLabels": "Сите етикети",
+			"allDueDates": "Сите крајни рокови",
+			"operators": {
+				"includeAnyOf": "вклучува било кој од",
+				"isAnyOf": "е било кој од"
+			},
+			"filterBy": "Филтрирај по",
+			"allStatuses": "Сите статуси"
+		},
+		"bulk": {
+			"deleteError": "Неуспешно бришење на задачи",
+			"deleteSuccess": "{{count}} задачи се избришани",
+			"setPriority": "Постави приоритет",
+			"actions": "Акции",
+			"selectedCount": "{{count}} избрани",
+			"moveToBoardSuccess": "{{count}} задачи се преместени на табла",
+			"addLabel": "Додади етикета",
+			"updatePriorityError": "Неуспешно ажурирање на приоритет",
+			"moveToBacklog": "Премести во заостанати",
+			"setDueDate": "Постави краен рок",
+			"updateError": "Неуспешно ажурирање на задачи",
+			"updateDueDateError": "Неуспешно ажурирање на краен рок",
+			"noActionsFound": "Не се пронајдени акции.",
+			"moveToBacklogSuccess": "{{count}} задачи се преместени во заостанати",
+			"moveToBoardError": "Неуспешно преместување на задачи на табла",
+			"changeStatus": "Промени статус",
+			"searchActions": "Пребарај акции...",
+			"assignTo": "Додели на",
+			"moveToBoard": "Премести на табла",
+			"moveToBacklogError": "Неуспешно преместување на задачи во заостанати",
+			"archiveError": "Неуспешно архивирање на задачи",
+			"assignSuccess": "{{count}} задачи се доделени",
+			"updateSuccess": "{{count}} задачи се ажурирани",
+			"delete": "Избриши задачи",
+			"addLabelSuccess": "Етикетата е додадена на {{count}} задачи",
+			"addLabelError": "Неуспешно додавање на етикета",
+			"deleteConfirm": "Избриши {{count}} задачи? Оваа акција не може да се врати.",
+			"assignError": "Неуспешно доделување на задачи",
+			"archive": "Архивирај задачи",
+			"archiveSuccess": "{{count}} задачи се архивирани"
+		},
+		"gantt": {
+			"updateDatesError": "Неуспешно ажурирање на датуми на задача",
+			"unscheduledHint": "Без датуми - влечете за распоред",
+			"noMilestone": "Без пресвртница",
+			"noTasksFound": "Не се пронајдени задачи",
+			"dragToScheduleHint": "Влечете по временската линија за да го распоредите овој тикет",
+			"title": "Gantt временска линија",
+			"zoom": {
+				"day": "Day",
+				"week": "Week",
+				"month": "Month"
+			},
+			"resizeDue": "Промени краен рок",
+			"taskAriaLabel": "{{title}} — отвори или повлечи за преместување",
+			"noTasks": "Нема закажани задачи",
+			"searchPlaceholder": "Пребарај закажани тикети...",
+			"pageTitle": "{{name}} — Gantt",
+			"noTasksSubtitle": "Додади почетен датум, краен рок, или двете на задачите за да ги поставиш на временската линија на проектот.",
+			"noTasksMatch": "Нема закажани задачи што одговараат на \"{{query}}\"",
+			"resizeStart": "Промени почетен датум",
+			"taskHeader": "Задача",
+			"showTasks": "Прикажи задачи",
+			"hideTasks": "Сокриј задачи",
+			"today": "Today"
+		},
+		"listView": {
+			"addTask": "Додади задача",
+			"noTasks": "Нема задачи",
+			"archiveAllTooltip": "Архивирај ги сите завршени задачи"
+		},
+		"archive": {
+			"error": "Неуспешно архивирање на тикетите",
+			"success": "Архивирани {{count}} задачи"
+		},
+		"popover": {
+			"assignee": {
+				"updateError": "Неуспешно ажурирање на доделеност на задача",
+				"unassigned": "Недоделен"
+			},
+			"labels": {
+				"chooseColor": "Избери боја",
+				"addSuccess": "Етикетата е додадена",
+				"repoSource": "Ознака синхронизирана со GitHub",
+				"createError": "Неуспешно креирање на етикета",
+				"searchPlaceholder": "Пребарај етикети...",
+				"create": "Креирај \"{{name}}\"",
+				"updateError": "Неуспешно ажурирање на етикета",
+				"createSuccess": "Етикетата е креирана и додадена",
+				"empty": "Не се пронајдени етикети",
+				"colors": {
+					"violet": "Виолетова",
+					"slate": "Плочест",
+					"stone": "Камен",
+					"sky": "Небо",
+					"lime": "Лимета",
+					"rose": "Роза",
+					"orchid": "Орхидеја",
+					"honey": "Мед",
+					"cocoa": "Какао",
+					"lavender": "Лаванда",
+					"terracotta": "Теракота",
+					"emerald": "Смарагд",
+					"indigo": "Индиго",
+					"ocean": "Океан",
+					"amber": "Килибар",
+					"forest": "Шума",
+					"crimson": "Гримизна",
+					"lagoon": "Лагуна",
+					"blossom": "Цвет",
+					"sage": "Жалфија"
+				},
+				"removeSuccess": "Етикетата е отстранета"
+			},
+			"priority": {
+				"updateError": "Неуспешно ажурирање на приоритет на задача"
+			},
+			"status": {
+				"updateError": "Неуспешно ажурирање на статус на задача"
+			},
+			"dueDate": {
+				"updateSuccess": "Краениот рок на задачата е успешно ажуриран",
+				"clear": "Исчисти датум",
+				"updateError": "Неуспешно ажурирање на краен рок на задача"
+			},
+			"startDate": {
+				"updateSuccess": "Почетниот датум на задачата е успешно ажуриран",
+				"clear": "Исчисти почетен датум",
+				"updateError": "Неуспешно ажурирање на почетен датум на задача"
+			}
+		},
+		"milestone": {
+			"manage": {
+				"dueDate": "Краен рок"
+			}
+		}
+	},
+	"navigation": {
+		"settingsLayout": {
+			"back": "Назад",
+			"toggleSidebar": "Вклучи/исклучи странична лента"
+		},
+		"workspaceSwitcher": {
+			"workspaces": "Работни простори",
+			"switching": "Се префрлува...",
+			"addWorkspace": "Додади работен простор",
+			"selectWorkspace": "Избери работен простор"
+		},
+		"projectList": {
+			"viewProject": "Погледни проект",
+			"shareProject": "Сподели проект",
+			"projectSettings": "Поставки на проектот",
+			"linkCopied": "Линкот на проектот е копиран во клипборд",
+			"addProject": "Додади проект",
+			"deleteConfirmTitle": "Избриши проект?",
+			"deleteConfirmDescription": "Ова трајно ќе го отстрани проектот и сите негови податоци. Не можеш да ја вратиш оваа акција.",
+			"deletedToast": "Проектот е избришан",
+			"deleteProject": "Избриши проект"
+		},
+		"notifications": "Известувања",
+		"sidebar": {
+			"projects": "Проекти",
+			"backToBoard": "Назад на табла",
+			"boards": "Проекти",
+			"invitations": "Покани",
+			"moreRepos": "More repos",
+			"myTasks": "My tasks",
+			"repos": "Repos",
+			"moreBoards": "More boards",
+			"members": "Членови",
+			"more": "Повеќе",
+			"overview": "Преглед",
+			"inbox": "Inbox"
+		},
+		"userMenu": {
+			"signedOutSuccess": "Успешно одјавен",
+			"settings": "Поставки",
+			"signingOut": "Се одјавува...",
+			"signOutFailed": "Неуспешна одјава",
+			"unnamedUser": "Корисник",
+			"logOut": "Одјави се"
+		},
+		"commandPalette": {
+			"createOrganization": "Креирај работен простор",
+			"darkTheme": "Темна тема",
+			"commands": "Команди",
+			"projects": "Проекти",
+			"boards": "Проекти",
+			"suggestions": "Предлози",
+			"inputPlaceholder": "Пребарај апликации и команди...",
+			"empty": "Нема пронајдени резултати.",
+			"members": "Членови",
+			"search": "Пребарај",
+			"systemTheme": "Системска тема",
+			"footer": {
+				"open": "Отвори",
+				"close": "Затвори",
+				"navigate": "Навигирај"
+			},
+			"lightTheme": "Светла тема",
+			"createWorkspace": "Креирај работен простор",
+			"createTask": "Креирај задача",
+			"createProject": "Креирај проект",
+			"keyboardShortcuts": "Кратенки на тастатура",
+			"createBoard": "Креирај проект"
+		},
+		"projectSettings": {
+			"projectLabel": "Проект"
+		},
+		"search": {
+			"inputPlaceholder": "Пребарај задачи, проекти, коментари...",
+			"groups": {
+				"task": "Задачи",
+				"board": "Проекти",
+				"project": "Проекти",
+				"workspace": "Работни простори",
+				"activity": "Активности",
+				"fallback": "Резултати",
+				"organization": "Работни простори",
+				"comment": "Коментари"
+			},
+			"minCharsHint": "Внеси најмалку 3 знаци за пребарување"
+		},
+		"organizationSwitcher": {
+			"organizations": "Работни простори",
+			"switching": "Се префрлува...",
+			"addOrganization": "Додади работен простор",
+			"selectOrganization": "Избери работен простор"
+		},
+		"page": {
+			"projectsTitle": "Проекти",
+			"boardsTitle": "Проекти",
+			"settingsWorkspaceTab": "Работен простор",
+			"settingsOrganizationTab": "Работен простор",
+			"settingsTitle": "Поставки",
+			"backToOrganization": "Назад кон работен простор",
+			"backToWorkspace": "Назад кон работен простор"
+		},
+		"boardList": {
+			"viewBoard": "Погледни проект",
+			"shareBoard": "Сподели проект",
+			"boardSettings": "Поставки на проектот",
+			"linkCopied": "Линкот на проектот е копиран во клипборд",
+			"addBoard": "Додади проект",
+			"deleteConfirmTitle": "Избриши проект?",
+			"deleteConfirmDescription": "Ова трајно ќе го отстрани проектот и сите негови податоци. Не можеш да ја вратиш оваа акција.",
+			"deletedToast": "Проектот е избришан",
+			"deleteBoard": "Избриши проект"
+		},
+		"repoList": {
+			"allRepos": "All repos"
+		},
+		"tables": {
+			"title": "Табели",
+			"create": "Создај табела",
+			"noTables": "Сѐ уште нема табели",
+			"loadError": "Табелите не можеа да се вчитаат.",
+			"retry": "Обиди се повторно",
+			"loading": "Вчитување на табелите",
+			"tableName": "Име на табелата",
+			"createTitle": "Создај нова табела",
+			"createDescription": "Започнете со празна табела, а потоа додајте полиња и редови.",
+			"cancel": "Откажи",
+			"createAction": "Создај табела",
+			"loadTableError": "Оваа табела не можеше да се вчита",
+			"connectionHelp": "Проверете ја врската и обидете се повторно.",
+			"row_one": "{{count}} ред",
+			"row_other": "{{count}} редови",
+			"field_one": "{{count}} поле",
+			"field_other": "{{count}} полиња",
+			"empty": "Оваа табела е празна",
+			"readOnlyEmpty": "Имате пристап само за читање. Уредувач може да го додаде првото поле.",
+			"addField": "Додај поле",
+			"newFieldName": "Име на новото поле",
+			"noRows": "Сѐ уште нема редови. Додајте ред за да започнете со внесување податоци.",
+			"addRow": "Додај ред",
+			"deleteField": "Избриши поле",
+			"deleteFieldConfirm": "Да се избрише полето „{{name}}“?",
+			"renameFieldError": "Полето не можеше да се преименува",
+			"deleteFieldError": "Полето не можеше да се избрише",
+			"addFieldError": "Полето не можеше да се додаде",
+			"deleteRowError": "Редот не можеше да се избрише",
+			"saveCellError": "Ќелијата не можеше да се зачува",
+			"renameTableError": "Табелата не можеше да се преименува",
+			"addRowError": "Редот не можеше да се додаде",
+			"creating": "Се создава…",
+			"created": "Табелата е создадена",
+			"createError": "Табелата не можеше да се создаде",
+			"tableOptions": "Опции за табелата",
+			"deleteTable": "Избриши табела",
+			"deleteTableConfirm": "Да се избрише оваа табела и сите нејзини податоци? Ова дејство не може да се поништи.",
+			"deleted": "Табелата е избришана",
+			"deleteTableError": "Табелата не можеше да се избрише",
+			"field": "Field",
+			"row": "Row"
+		},
+		"keyboardShortcuts": {
+			"title": "Кратенки на тастатура",
+			"footer": "Притисни <kbd>Escape</kbd> за затворање",
+			"categories": {
+				"general": "Општо",
+				"navigation": "Навигација",
+				"views": "Прикази",
+				"ticketTitle": "Наслов на тикет",
+				"create": "Креирај",
+				"quickSelect": "Брз избор (во менија)",
+				"editor": "Опис и коментари"
+			},
+			"searchPlaceholder": "Пребарај кратенки...",
+			"subtitle": "Забрзај го работниот тек со кратенки на тастатура",
+			"items": {
+				"showShortcuts": "Прикажи кратенки на тастатура",
+				"quickSelectNumber": "Избери опција по број",
+				"backlogView": "Премини на приказ заостанати",
+				"editorSlash": "Отвори мени за блокови",
+				"closeModal": "Затвори модал/мени",
+				"titlePriority": "Постави приоритет",
+				"openTask": "Отвори избрана задача",
+				"titleLabel": "Додај ознака",
+				"titleMember": "Додели член",
+				"toggleSidebar": "Вклучи/исклучи странична лента",
+				"editorTicket": "Референцирај тикет",
+				"createBoard": "Креирај проект",
+				"createProject": "Креирај проект",
+				"globalSearch": "Глобално пребарување",
+				"createOrganization": "Креирај работен простор",
+				"nextTask": "Следна задача",
+				"editorMention": "Спомни член",
+				"openCommandPalette": "Отвори палета на команди",
+				"prevTask": "Претходна задача",
+				"listView": "Премини на приказ листа",
+				"createWorkspace": "Креирај работен простор",
+				"boardView": "Премини на приказ табла",
+				"createTask": "Креирај задача"
+			}
+		},
+		"boardSettings": {
+			"boardLabel": "Проект"
+		},
+		"repoSettings": {
+			"repoLabel": "Repository"
+		}
+	},
+	"settings": {
+		"developerPage": {
+			"title": "Програмерски поставки",
+			"unnamedKey": "Неименуван клуч",
+			"apiKeysCardTitle": "API клучеви",
+			"subtitle": "Управувај со твоите API клучеви и програмерски ресурси.",
+			"pageTitle": "Програмерски поставки",
+			"createApiKey": "Креирај API клуч",
+			"apiKeysCardDescription": "Креирај и управувај со API клучеви за програмски пристап до Kaneo."
+		},
+		"projectGeneral": {
+			"pageTitle": "Поставки на проект",
+			"title": "Општи поставки",
+			"subtitle": "Управувај со името, клучот, иконата и описот на проектот.",
+			"projectInfoTitle": "Информации за проектот",
+			"projectInfoSubtitle": "Конфигурирај ги деталите и преференциите на проектот.",
+			"iconLabel": "Икона",
+			"iconHint": "Се прикажува во страничната лента и на површините на проектот.",
+			"pickIconTitle": "Избери икона",
+			"searchIconsPlaceholder": "Пребарај икони...",
+			"projectNameLabel": "Име на проект",
+			"projectNameHint": "Името на твојот проект",
+			"projectNamePlaceholder": "Внеси име на проект",
+			"keyLabel": "Клуч",
+			"keyHint": "Се користи за ID на тикети (пр. {{slug}}-123)",
+			"keyPlaceholder": "ПРО",
+			"descriptionLabel": "Опис",
+			"descriptionHint": "Краток опис на твојот проект",
+			"descriptionPlaceholder": "Внеси опис на проект",
+			"dangerZone": "Опасна зона",
+			"dangerZoneSubtitle": "Неповратни и деструктивни акции.",
+			"deleteProject": "Избриши проект",
+			"deleteProjectDescription": "Закажи трајно бришење на проектот",
+			"deleteModalTitle": "Избриши проект?",
+			"deleteModalDescription": "Ова трајно ќе го избрише проектот \"{{name}}\" и сите негови податоци. Оваа акција не може да се врати.",
+			"deleteModalConfirm": "Избриши проект",
+			"toastUpdated": "Проектот е успешно ажуриран",
+			"toastUpdateError": "Неуспешно ажурирање на проектот",
+			"toastDeleted": "Проектот е успешно избришан",
+			"toastDeleteError": "Неуспешно бришење на проектот",
+			"validation": {
+				"nameRequired": "Името на проектот е задолжително",
+				"keyRequired": "Клучот е задолжителен",
+				"keyMax": "Клучот мора да има најмногу 8 знаци",
+				"iconRequired": "Иконата е задолжителна"
+			},
+			"importExportTasks": "Импортирање/Експортирање",
+			"importExportTasksDescription": "Импортирање/Експортирање на задачи"
+		},
+		"projectWorkflow": {
+			"pageTitle": "Поставки на работен тек",
+			"title": "Работен тек",
+			"subtitle": "Конфигурирај ги колоните на таблата и правилата за автоматизација за овој проект.",
+			"columnsTitle": "Колони",
+			"columnsDescription": "Управувај со колоните што се прикажуваат на таблата. Повлечи за да ги преуредиш. Вклучи \"Завршна колона\" за фази што претставуваат завршена работа.",
+			"automationTitle": "Правила за автоматизација",
+			"automationDescription": "Поврзи настани од интеграции со колони. Кога ќе се случи настан, поврзаната задача се преместува во одредената колона."
+		},
+		"workflowEditor": {
+			"toastUpdated": "Правилото за работен тек е ажурирано",
+			"selectColumnPlaceholder": "Избери колона...",
+			"toastError": "Неуспешно ажурирање на правило",
+			"giteaHeading": "Gitea",
+			"giteaHint": "Кога ќе се случи Gitea webhook настан, премести ја поврзаната задача во колона.",
+			"loading": "Се вчитува...",
+			"githubHint": "Кога ќе се случи GitHub настан, премести ја поврзаната задача во колона.",
+			"createColumnsFirst": "Прво креирај колони за да конфигурираш правила за автоматизација.",
+			"githubHeading": "GitHub",
+			"events": {
+				"branch_push": "Push на гранка",
+				"issue_opened": "Issue отворен",
+				"pr_merged": "PR спoен",
+				"issue_closed": "Issue затворен",
+				"pr_opened": "PR отворен"
+			}
+		},
+		"slackIntegration": {
+			"channelHint": "Опционална ознака за тебе. Slack го одредува каналот преку webhook поставките.",
+			"validation": {
+				"webhookInvalid": "Внеси валидна Slack webhook URL"
+			},
+			"toast": {
+				"saved": "Slack интеграцијата е успешно зачувана",
+				"enabled": "Slack известувањата се вклучени",
+				"removed": "Slack интеграцијата е успешно отстранета",
+				"saveError": "Не успеа зачувувањето на Slack интеграцијата",
+				"disabled": "Slack известувањата се паузирани",
+				"removeError": "Не успеа отстранувањето на Slack интеграцијата",
+				"updateError": "Не успеа ажурирањето на Slack интеграцијата"
+			},
+			"connect": "Поврзи Slack",
+			"connected": "Поврзано",
+			"events": {
+				"taskStatusChanged": "Промени на статус",
+				"taskPriorityChanged": "Промени на приоритет",
+				"taskCommentCreated": "Нови коментари",
+				"taskDescriptionChanged": "Промени на опис",
+				"taskTitleChanged": "Промени на наслов",
+				"taskCreated": "Нови задачи"
+			},
+			"eventsTitle": "Известувања за настани",
+			"update": "Ажурирај Slack",
+			"paused": "Паузирано",
+			"channelPlaceholder": "#team-updates",
+			"disconnect": "Откачи",
+			"connectionHint": "Залепи Slack incoming webhook URL и избери кои настани за задачи да се испраќаат.",
+			"webhookLabel": "Incoming webhook URL",
+			"webhookPlaceholder": "https://hooks.slack.com/services/...",
+			"channelLabel": "Име на канал",
+			"eventsHint": "Избери кои промени на проектот да се испраќаат во Slack.",
+			"webhookHint": "Креирај Incoming Webhook во Slack и залепи ја генерираната URL тука.",
+			"saveChanges": "Зачувај промени",
+			"connectionTitle": "Slack webhook конекција"
+		},
+		"githubIntegration": {
+			"verify": "Верифицирај",
+			"repoNameHint": "Името на репозиториумот",
+			"missingPermissionsLabel": "Недостасуваат дозволи:",
+			"importSectionHint": "Увези постоечки issues од твојот GitHub репозиториум како задачи",
+			"notConnectedHint": "Нема поврзан репозиториум",
+			"validation": {
+				"nameInvalid": "Невалиден формат на име на репозиториум",
+				"ownerRequired": "Сопственикот на репозиториумот е задолжителен",
+				"ownerInvalid": "Невалиден формат на сопственик на репозиториум",
+				"nameRequired": "Името на репозиториумот е задолжително"
+			},
+			"actionsTitle": "Акции",
+			"appStatusHint": "Статус на инсталација и дозволи",
+			"badgeNotConnected": "Неповрзан",
+			"importIssues": "Увези Issues",
+			"importing": "Се увезува...",
+			"commentTaskLinkHint": "Кога е вклучено, Kaneo објавува коментар на секој нов GitHub issue со линк до задачата.",
+			"repoNameLabel": "Име на репозиториум",
+			"browse": "Прелистај",
+			"repoNamePlaceholder": "пр. my-board",
+			"repositoryHint": "Поврзан GitHub репозиториум",
+			"badgeConnected": "Поврзан",
+			"ownerPlaceholder": "пр. octocat",
+			"statusMissingPermissions": "Недостасуваат дозволи",
+			"toast": {
+				"repoNotFound": "Репозиториумот не е пронајден или не е достапен",
+				"importError": "Неуспешен увоз на issues",
+				"updateError": "Неуспешно ажурирање на GitHub интеграцијата",
+				"updated": "GitHub интеграцијата е успешно ажурирана",
+				"removeError": "Неуспешно отстранување на GitHub интеграцијата",
+				"commentOnEnabled": "Kaneo ќе коментира со линк до задачата на новите issues",
+				"settingsUpdateError": "Неуспешно ажурирање на GitHub интеграцијата",
+				"needsInstallOnRepo": "GitHub апликацијата треба да се инсталира на овој репозиториум",
+				"commentOnDisabled": "Коментарите со линк до задачата на новите issues се исклучени",
+				"verifyError": "Неуспешна верификација на GitHub инсталацијата",
+				"installedOk": "GitHub апликацијата е правилно инсталирана!",
+				"installedMissingPerms": "GitHub апликацијата е инсталирана но недостасуваат потребни дозволи",
+				"missingPermsDetail": "На GitHub апликацијата и недостасуваат потребни дозволи: {{list}}. Ажурирај ги дозволите на апликацијата.",
+				"removed": "GitHub интеграцијата е успешно отстранета",
+				"installAppFirst": "Инсталирај ја GitHub апликацијата на овој репозиториум прво",
+				"issuesImported": "Issues се успешно увезени"
+			},
+			"commentTaskLinkTitle": "Коментирај Kaneo линк на нови issues",
+			"connect": "Поврзи",
+			"importSectionTitle": "Увези GitHub Issues",
+			"appStatusTitle": "Статус на GitHub апликација",
+			"updatePermissions": "Ажурирај дозволи",
+			"statusProperlyConfigured": "Правилно конфигуриран",
+			"repository": "Репозиториум",
+			"importDisabledHint": "Заврши ја конфигурацијата на репозиториумот погоре за да овозможиш увоз",
+			"connectionStatus": "Статус на конекција",
+			"update": "Ажурирај",
+			"disconnect": "Откачи",
+			"ownerHint": "GitHub корисничко име или организација",
+			"statusNotInstalled": "Не е инсталиран",
+			"actionsHint": "Управувај со конекцијата на репозиториумот",
+			"connectedActive": "Репозиториумот е поврзан и активен",
+			"ownerLabel": "Сопственик на репозиториум",
+			"installGithubApp": "Инсталирај GitHub апликација"
+		},
+		"preferencesPage": {
+			"selectViewMode": "Избери режим на приказ",
+			"themeSystem": "Системска",
+			"weekStartsOnMonday": "Понеделник",
+			"priorityDescription": "Прикажи индикатори за приоритет",
+			"weekStartsOnSaturday": "Сабота",
+			"weekStartsOnSunday": "Недела",
+			"priority": "Приоритет",
+			"languageDescription": "Избери го претпочитаниот јазик на интерфејсот",
+			"taskNumbersDescription": "Прикажи ID и броеви на задачи",
+			"language": "Јазик",
+			"labels": "Етикети",
+			"board": "Табла",
+			"dueDatesDescription": "Прикажи рокови на задачите",
+			"taskNumbers": "Броеви на задачи",
+			"title": "Преференции",
+			"themeLight": "Светла",
+			"sidebarDefaultDescription": "Задржи ја страничната лента отворена при стартување",
+			"displayOptions": "Опции за приказ",
+			"subtitle": "Прилагоди го твоето Kaneo искуство.",
+			"selectTheme": "Избери тема",
+			"firstDayOfWeek": "Прв ден од неделата",
+			"defaultView": "Стандарден приказ",
+			"firstDayOfWeekDescription": "Избери на кој ден почнуваат календарите и неделите",
+			"labelsDescription": "Прикажи етикети и тагови на задачите",
+			"sidebarDefault": "Стандардна странична лента",
+			"selectLanguage": "Избери јазик",
+			"list": "Листа",
+			"reduceOverlayBlurDescription": "Отстрани ја заматената позадина зад дијалозите, листовите и палетата со команди.",
+			"reduceOverlayBlur": "Намали заматување",
+			"theme": "Тема",
+			"assignees": "Доделени",
+			"selectFirstDayOfWeek": "Избери прв ден",
+			"dueDates": "Крајни рокови",
+			"gantt": "Gantt",
+			"themeDescription": "Избери ја претпочитаната шема на бои",
+			"appearanceSubtitle": "Визуелни поставки и преференции за распоред.",
+			"themeDark": "Темна",
+			"appearanceTitle": "Изглед",
+			"displayOptionsDescription": "Избери кои информации да се прикажуваат во приказите на задачи",
+			"defaultViewDescription": "Избери го претпочитаниот режим на приказ на задачи",
+			"assigneesDescription": "Прикажи кој е доделен на задачите"
+		},
+		"organizationGeneral": {
+			"pageTitle": "Општи поставки",
+			"title": "Општи поставки",
+			"subtitle": "Управувај со името и описот на работниот простор.",
+			"organizationInfoTitle": "Информации за работниот простор",
+			"organizationInfoSubtitle": "Конфигурирај ги деталите и преференциите на работниот простор.",
+			"nameLabel": "Име на работен простор",
+			"nameHint": "Името на твојот работен простор",
+			"namePlaceholder": "Внеси име на работен простор",
+			"descriptionLabel": "Опис",
+			"descriptionHint": "Краток опис на твојот работен простор",
+			"descriptionPlaceholder": "Внеси опис на работен простор",
+			"dangerZone": "Опасна зона",
+			"dangerZoneSubtitle": "Неповратни и деструктивни акции.",
+			"deleteOrganization": "Избриши работен простор",
+			"deleteOrganizationDescription": "Закажи трајно бришење на работниот простор",
+			"deleteModalTitle": "Избриши работен простор?",
+			"deleteModalDescription": "Ова трајно ќе го избрише работниот простор \"{{name}}\" и сите негови податоци. Оваа акција не може да се врати.",
+			"deleteModalConfirm": "Избриши работен простор",
+			"toastUpdated": "Работниот простор е успешно ажуриран",
+			"toastUpdateError": "Неуспешно ажурирање на работниот простор",
+			"toastDeleted": "Работниот простор е успешно избришан",
+			"toastDeleteError": "Неуспешно бришење на работниот простор",
+			"validation": {
+				"nameRequired": "Името на работниот простор е задолжително",
+				"nameShort": "Името на работниот простор мора да има најмалку 2 знаци"
+			},
+			"transferOwnership": {
+				"button": "Transfer ownership",
+				"confirm": "Transfer",
+				"dialogDescription": "Choose a member to become the organization owner.",
+				"dialogTitle": "Transfer organization ownership",
+				"noEligibleMembers": "No eligible members",
+				"pickerHint": "The selected member will become the organization owner.",
+				"pickerLabel": "New owner",
+				"pickerPlaceholder": "Select a member",
+				"subtitle": "Transfer this organization to another member.",
+				"title": "Transfer ownership",
+				"toastError": "Failed to transfer ownership",
+				"toastSuccess": "Ownership transferred",
+				"transferring": "Transferring…"
+			},
+			"slugLabel": "Organization slug",
+			"slugAdminHint": "Used in ticket URLs. Changing it preserves the previous slug as an alias.",
+			"slugReadOnlyHint": "Used in ticket URLs. Only a system administrator can change it.",
+			"slugUpdated": "Organization slug updated",
+			"slugUpdateError": "Failed to update organization slug",
+			"slugSave": "Save",
+			"slugSaving": "Saving…",
+			"activeAliasesTitle": "Active aliases",
+			"activeAliasesHint": "Historical aliases continue resolving and cannot be reassigned.",
+			"organizationSlugAliases": "Organization slug",
+			"ticketPrefixAliases": "Ticket prefixes",
+			"currentAlias": "current"
+		},
+		"giteaIntegration": {
+			"verify": "Verify",
+			"repoNameHint": "Repository name only (no owner)",
+			"importSectionHint": "Import open issues and pull requests from the repository",
+			"notConnectedHint": "No Gitea repository connected",
+			"webhookSecretLabel": "Secret (must match the webhook secret in Gitea)",
+			"validation": {
+				"baseUrlRequired": "Gitea base URL is required",
+				"ownerInvalid": "Invalid repository owner format",
+				"nameRequired": "Repository name is required",
+				"nameInvalid": "Invalid repository name format",
+				"ownerRequired": "Repository owner is required",
+				"baseUrlInvalid": "Enter a valid URL (e.g. https://gitea.example.com)"
+			},
+			"actionsTitle": "Actions",
+			"badgeNotConnected": "Not connected",
+			"currentToken": "stored",
+			"importIssues": "Import issues",
+			"importing": "Importing…",
+			"commentTaskLinkHint": "When enabled, Kaneo posts a comment on each new issue with a link to the ticket.",
+			"webhookCopy": "Copy",
+			"repoNameLabel": "Repository name",
+			"browse": "Browse",
+			"baseUrlLabel": "Gitea URL",
+			"repositoryHint": "Linked Gitea repository",
+			"tokenHint": "Token with repo and issues access",
+			"browseNeedsCredentials": "Enter Gitea URL and token to browse",
+			"webhookHint": "In your Gitea repository, add a webhook with this URL and secret. Enable push, pull request, issues, issue comments, and create (for labels).",
+			"badgeConnected": "Connected",
+			"webhookTitle": "Webhook",
+			"loadingRepos": "Loading repositories…",
+			"toast": {
+				"repoNotFound": "Repository not found or not accessible",
+				"importError": "Failed to import issues",
+				"unableToCopySecret": "Unable to copy secret",
+				"verifyFirst": "Verify access failed — check URL, token, and repository",
+				"updateError": "Failed to save Gitea integration",
+				"updated": "Gitea integration saved",
+				"removeError": "Failed to remove Gitea integration",
+				"commentOnEnabled": "Kaneo will comment with a ticket link on new issues",
+				"settingsUpdateError": "Failed to update Gitea integration",
+				"verifyWarning": "Check token permissions or repository access",
+				"commentOnDisabled": "Ticket link comments on new issues are turned off",
+				"tokenRequiredVerify": "Enter a token to verify",
+				"secretCopied": "Copied",
+				"tokenRequired": "Personal access token is required",
+				"verifyError": "Failed to verify Gitea access",
+				"removed": "Gitea integration removed",
+				"issuesImported": "Issues imported successfully",
+				"verifyOk": "Gitea token can access this repository",
+				"notGiteaInstance": "The URL does not point to a Gitea instance",
+				"redirected": "Gitea URL redirected (usually to HTTPS). Use the final URL directly."
+			},
+			"commentTaskLinkTitle": "Comment Kaneo link on new issues",
+			"connect": "Connect",
+			"tokenLabel": "Personal access token",
+			"importSectionTitle": "Import Gitea issues",
+			"browseModalTitle": "Your repositories",
+			"baseUrlHint": "Root URL of your Gitea instance",
+			"tokenPlaceholderUpdate": "Paste new token to rotate",
+			"repository": "Repository",
+			"importDisabledHint": "Verify the repository above to enable importing",
+			"connectionStatus": "Connection status",
+			"update": "Update",
+			"browseModalHint": "Repositories your token can access",
+			"webhookShow": "Show",
+			"disconnect": "Disconnect",
+			"ownerHint": "User or organization name",
+			"actionsHint": "Verify access and connect",
+			"tokenPlaceholder": "Paste token",
+			"connectedActive": "Repository connected and active",
+			"webhookHide": "Hide",
+			"retry": "Retry",
+			"ownerLabel": "Owner",
+			"searchRepos": "Search…"
+		},
+		"information": "Информации",
+		"genericWebhookIntegration": {
+			"validation": {
+				"webhookInvalid": "Внеси валидна webhook URL"
+			},
+			"toast": {
+				"saved": "Општиот webhook е успешно зачуван",
+				"enabled": "Општите webhook известувања се вклучени",
+				"removed": "Општиот webhook е успешно отстранет",
+				"saveError": "Не успеа зачувувањето на општиот webhook",
+				"disabled": "Општите webhook известувања се паузирани",
+				"removeError": "Не успеа отстранувањето на општиот webhook",
+				"updateError": "Не успеа ажурирањето на општиот webhook"
+			},
+			"connect": "Поврзи webhook",
+			"secretPlaceholder": "Опционална заедничка тајна",
+			"secretHintConfigured": "Тајна за потпис веќе е конфигурирана ({{secret}}). Внеси нова за да ја замениш.",
+			"connected": "Поврзано",
+			"secretLabel": "Тајна за потпис",
+			"events": {
+				"taskStatusChanged": "Промени на статус",
+				"taskMoved": "Преместена задача",
+				"taskDeleted": "Избришана задача",
+				"taskDescriptionChanged": "Промени на опис",
+				"taskDueDateChanged": "Променет краен рок",
+				"taskCommentCreated": "Нови коментари",
+				"dueDateReminder": "Потсетници за краен рок",
+				"taskCreated": "Нови задачи",
+				"taskAssigneeChanged": "Променето доделување",
+				"taskPriorityChanged": "Промени на приоритет",
+				"taskUnassigned": "Одземено доделување",
+				"taskTitleChanged": "Промени на наслов"
+			},
+			"eventsTitle": "Известувања за настани",
+			"secretHint": "Опционално. Ако е поставена, Kaneo го потпишува телото на барањето и го испраќа hex-от во X-Kaneo-Signature.",
+			"paused": "Паузирано",
+			"disconnect": "Откачи",
+			"reminderLeadTimeLabel": "Колку часа претходно да се испрати webhook-от",
+			"connectionHint": "Испрати настани за задачи како JSON до твојот endpoint. Кога е поставена тајна, се испраќа потпис X-Kaneo-Signature.",
+			"webhookLabel": "URL на endpoint",
+			"webhookPlaceholder": "https://example.com/webhooks/kaneo",
+			"eventsHint": "Избери кои промени на проектот да го активираат излезниот webhook.",
+			"webhookHint": "Kaneo испраќа POST барања со JSON за секој овозможен настан.",
+			"saveChanges": "Зачувај промени",
+			"connectionTitle": "Излезен webhook"
+		},
+		"projectSwitcher": {
+			"selectProject": "Избери проект",
+			"noProjects": "Нема проекти"
+		},
+		"workspaceRoles": {
+			"pageTitle": "Улоги",
+			"title": "Улоги",
+			"subtitle": "Дефинирај кои акции може да ги извршуваат членовите во {{workspaceName}}.",
+			"thisWorkspace": "овој работен простор",
+			"noAccess": "Потребни ти се администраторски или сопственички дозволи за да управуваш со улогите на работниот простор.",
+			"sectionTitle": "Улоги на работниот простор",
+			"sectionSubtitle": "Уреди ги стандардните улоги или додади прилагодена. Членовите го задржуваат името на доделената улога и по измените.",
+			"newRole": "Нова улога",
+			"loading": "Се вчитува...",
+			"loadError": "Неуспешно вчитување на улогите.",
+			"emptyTitle": "Нема улоги засега",
+			"emptyDescription": "Стандардните улоги ќе се појават тука откако ќе бидат создадени за овој работен простор.",
+			"defaultBadge": "Стандардна",
+			"permissionCount_one": "{{count}} дозвола",
+			"permissionCount_other": "{{count}} дозволи",
+			"nameLabel": "Име",
+			"nameHint": "Со мали букви. Не може да се промени подоцна.",
+			"namePlaceholder": "пр. reviewer",
+			"discard": "Отфрли",
+			"createRole": "Креирај улога",
+			"deleteRole": "Избриши улога",
+			"defaultRoleHelp": "Стандардна улога: името е резервирано и редот не може да се избрише.",
+			"unsavedChanges": "Имаш незачувани промени",
+			"allChangesSaved": "Сите промени се зачувани",
+			"saveChanges": "Зачувај промени",
+			"defaultRoleDescriptions": {
+				"viewer": "Може да гледа и коментира задачи.",
+				"member": "Може да креира и управува со задачи и проекти.",
+				"admin": "Има целосен пристап до работниот простор."
+			},
+			"resources": {
+				"project": "Проекти",
+				"task": "Задачи",
+				"label": "Ознаки",
+				"workspace": "Работен простор"
+			},
+			"permissions": {
+				"project": {
+					"create": {
+						"label": "Креирање",
+						"description": "Може да креира нови проекти"
+					},
+					"read": {
+						"label": "Преглед",
+						"description": "Може да гледа проекти"
+					},
+					"update": {
+						"label": "Ажурирање",
+						"description": "Може да уредува поставки на проектот"
+					},
+					"delete": {
+						"label": "Бришење",
+						"description": "Може да брише проекти"
+					},
+					"share": {
+						"label": "Споделување",
+						"description": "Може да споделува проекти"
+					}
+				},
+				"task": {
+					"create": {
+						"label": "Креирање",
+						"description": "Може да креира задачи"
+					},
+					"read": {
+						"label": "Преглед",
+						"description": "Може да гледа задачи"
+					},
+					"update": {
+						"label": "Ажурирање",
+						"description": "Може да уредува задачи"
+					},
+					"delete": {
+						"label": "Бришење",
+						"description": "Може да брише задачи"
+					},
+					"assign": {
+						"label": "Доделување",
+						"description": "Може да доделува задачи на членови"
+					}
+				},
+				"label": {
+					"create": {
+						"label": "Креирање",
+						"description": "Може да креира ознаки"
+					},
+					"read": {
+						"label": "Преглед",
+						"description": "Може да гледа ознаки"
+					},
+					"update": {
+						"label": "Ажурирање",
+						"description": "Може да уредува ознаки"
+					},
+					"delete": {
+						"label": "Бришење",
+						"description": "Може да брише ознаки"
+					}
+				},
+				"workspace": {
+					"read": {
+						"label": "Преглед",
+						"description": "Може да гледа поставки на работниот простор"
+					},
+					"update": {
+						"label": "Ажурирање",
+						"description": "Може да ажурира поставки на работниот простор"
+					},
+					"delete": {
+						"label": "Бришење",
+						"description": "Може да го избрише работниот простор"
+					},
+					"manage_settings": {
+						"label": "Управување со поставки",
+						"description": "Може да управува со поставките на работниот простор"
+					}
+				}
+			},
+			"validation": {
+				"nameRequired": "Името на улогата е задолжително",
+				"nameExists": "Улога со ова име веќе постои",
+				"permissionRequired": "Мора да биде избрана најмалку една дозвола"
+			},
+			"toast": {
+				"created": "Улогата е креирана",
+				"createError": "Неуспешно креирање на улога",
+				"updated": "Улогата е ажурирана",
+				"updateError": "Неуспешно ажурирање на улога",
+				"deleted": "Улогата е избришана",
+				"deleteError": "Неуспешно бришење на улога"
+			},
+			"deleteDialog": {
+				"title": "Избриши улога",
+				"description": "Ова трајно ќе ја избрише улогата \"{{role}}\". Членовите со оваа улога ќе ги изгубат нејзините дозволи."
+			}
+		},
+		"projectVisibility": {
+			"pageTitle": "Видливост на проект",
+			"title": "Видливост",
+			"subtitle": "Контролирај кој може да го гледа и пристапува твојот проект.",
+			"sectionTitle": "Видливост",
+			"sectionSubtitle": "Вклучи јавен пристап и сподели го јавниот URL.",
+			"publicAccess": "Јавен пристап",
+			"publicAccessHint": "Дозволи секој со URL да го гледа овој проект",
+			"publicUrl": "Јавен URL",
+			"publicUrlHint": "Сподели го овој линк ако проектот е јавен",
+			"copy": "Копирај",
+			"copiedToast": "Копирано",
+			"toastUpdated": "Видливоста е ажурирана",
+			"toastUpdateError": "Неуспешно ажурирање на видливоста"
+		},
+		"notificationsPage": {
+			"selectedProjectsDescription": "Доставувај известувања само од избраните проекти.",
+			"toastWebhookDisconnected": "Webhook disconnected",
+			"serverUrl": "Server URL",
+			"endpointUrl": "Endpoint URL",
+			"organizationCardLabelEmail": "Email",
+			"emailTitle": "Email",
+			"gotifyTokenPlaceholder": "Gotify app token",
+			"boardScope": "Board scope",
+			"allProjects": "All projects",
+			"reminderLeadTimeInvalid": "Внеси цел број помеѓу 1 и {{max}}.",
+			"selectedProjects": "Избрани проекти",
+			"organizationRulesTitle": "Organization delivery rules",
+			"toastGotifySaved": "Gotify settings saved",
+			"selectedBoards": "Selected boards",
+			"saveEventPreferences": "Зачувај типови на известувања",
+			"reminderLeadTimeUnitHours": "Часови",
+			"gotifyTitle": "Gotify",
+			"signingSecret": "Signing secret",
+			"webhookSecretHintConfigured": "A signing secret is already configured ({{masked}}). Enter a new one to replace it.",
+			"workspaceRulesTitle": "Правила за достава по работен простор",
+			"toastRuleRemovedGeneric": "Organization notification rule removed",
+			"statusPaused": "Paused",
+			"eventPreferencesTitle": "Извести ме за",
+			"title": "Notifications",
+			"toastNtfyDisconnectFailed": "Failed to disconnect ntfy",
+			"toastPreferencesSaveFailed": "Failed to save notification preferences",
+			"reminderLeadTimeLabel": "Потсети ме пред крајниот рок",
+			"ntfyTitle": "ntfy",
+			"eventDueDateReminders": "Потсетници за краен рок",
+			"eventTaskAssignments": "Доделувања на задачи",
+			"toastNtfySaved": "ntfy settings saved",
+			"toastPreferencesSaved": "Notification preferences saved",
+			"toastNtfyDisconnected": "ntfy disconnected",
+			"toastNtfySaveFailed": "Failed to save ntfy settings",
+			"workspaceCardLabelWebhook": "Прилагоден webhook",
+			"saveChanges": "Save changes",
+			"ntfyChannelHintDisabled": "Configure and enable ntfy globally first.",
+			"emailChannelHintEnabled": "Send matching organization notifications by email.",
+			"organizationCardLabelNtfy": "ntfy",
+			"toastEmailSaveFailed": "Failed to save email settings",
+			"webhookTitle": "Custom webhook",
+			"noBoardsInOrganization": "No boards available for this organization yet.",
+			"toastWebhookSaveFailed": "Failed to save webhook settings",
+			"gotifyChannelHintDisabled": "Configure and enable Gotify globally first.",
+			"allBoards": "All boards",
+			"organizationCardHint": "Choose which channels this organization can use for account notifications.",
+			"ntfyTokenHintOptional": "Optional. Provide a token if your ntfy server requires authentication.",
+			"gotifyTokenLabel": "App token",
+			"organizationCardLabelWebhook": "Custom webhook",
+			"toastRuleSaved": "Saved notification rule for {{organizationName}}",
+			"toastRuleRemoveFailed": "Failed to remove organization notification rule",
+			"toastRuleSaveFailed": "Failed to save organization notification rule",
+			"workspaceRulesDescription": "Искористи ги твоите глобални канали, па одлучи кои работни простори и проекти смеат да испраќаат известувања за сметката.",
+			"disconnect": "Disconnect",
+			"toastRuleSavedGeneric": "Organization notification rule saved",
+			"workspaceCardHint": "Избери кои канали може да ги користи овој работен простор за известувања за сметката.",
+			"webhookSecretHintOptional": "Optional. Kaneo signs the request body when a secret is set.",
+			"reminderLeadTimeUnitDays": "Денови",
+			"gotifyTokenHintRequired": "Required. Use an application token from your Gotify server.",
+			"ntfyChannelHintEnabled": "Send matching organization notifications to ntfy.",
+			"webhookChannelHintDisabled": "Configure and enable the webhook globally first.",
+			"eventComments": "Коментари и спомнувања",
+			"workspaceCardLabelEmail": "Email",
+			"eventCommentsHint": "Вклучува нови коментари на задачи што ти се доделени и директни @спомнувања.",
+			"emailChannelHintDisabled": "Configure and enable email globally first.",
+			"workspaceEnabledLabel": "Вклучи известувања за {{workspaceName}}",
+			"accountEmailHint": "Email delivery always goes to the signed-in account email.",
+			"boardScopeDescription": "All boards are included by default. Narrow it down if this organization should only send notifications from selected boards.",
+			"statusConnected": "Connected",
+			"connectNtfy": "Connect ntfy",
+			"webhookSecretPlaceholder": "Optional shared secret",
+			"connectWebhook": "Connect webhook",
+			"toastWebhookDisconnectFailed": "Failed to disconnect webhook",
+			"ntfyTopicPlaceholder": "team-alerts",
+			"toastGotifySaveFailed": "Failed to save Gotify settings",
+			"accountEmailLabel": "Account email",
+			"organizationRulesDescription": "Reuse your global channels, then decide which organizations and boards are allowed to send account notifications.",
+			"toastGotifyDisconnectFailed": "Failed to disconnect Gotify",
+			"projectScopeDescription": "Стандардно се вклучени сите проекти. Ограничи го изборот ако овој работен простор треба да испраќа известувања само од избрани проекти.",
+			"gotifyTokenHintConfigured": "An app token is already configured ({{masked}}). Enter a new token to replace it.",
+			"allProjectsDescription": "Доставувај известувања од секој проект во овој работен простор.",
+			"toastGotifyDisconnected": "Gotify disconnected",
+			"subtitle": "Choose how Kaneo delivers your account notifications and which channels to use.",
+			"createRule": "Create rule",
+			"workspaceCardLabelNtfy": "ntfy",
+			"topic": "Topic",
+			"removeRule": "Remove rule",
+			"webhookUrlPlaceholder": "https://example.com/webhooks/kaneo",
+			"gotifyChannelHintEnabled": "Send matching organization notifications to Gotify.",
+			"ntfyTokenHintConfigured": "A token is already configured ({{masked}}). Enter a new token to replace it.",
+			"eventStatusChanges": "Промени на статус на задачи",
+			"accountEmailNoAddress": "No account email available",
+			"selectedBoardsDescription": "Only deliver notifications from chosen boards.",
+			"webhookChannelHintEnabled": "Send matching organization notifications to your webhook.",
+			"projectScope": "Опфат на проекти",
+			"ntfyDescription": "Publish account notifications to an ntfy topic.",
+			"organizationCardLabelGotify": "Gotify",
+			"connectGotify": "Connect Gotify",
+			"gotifyServerPlaceholder": "https://gotify.example.com",
+			"toastRuleRemoved": "Removed notification rule for {{organizationName}}",
+			"noProjectsInWorkspace": "Сè уште нема достапни проекти за овој работен простор.",
+			"allBoardsDescription": "Deliver notifications from every board in this organization.",
+			"reminderLeadTimeHint": "Помеѓу 1 час и 30 дена претходно. Известувањата за задоцнети задачи се испраќаат одделно.",
+			"ntfyTokenPlaceholder": "Optional bearer token",
+			"emailDescription": "Use your account email as the destination for notifications.",
+			"pageTitle": "Notifications",
+			"token": "Token",
+			"toastEmailSaved": "Email notification settings saved",
+			"ntfyServerPlaceholder": "https://ntfy.example.com",
+			"eventPreferencesDescription": "Избери кои настани за задачи создаваат известувања во апликацијата и може да се доставуваат до твоите поврзани канали.",
+			"gotifyDescription": "Send account notifications to your Gotify server.",
+			"toastWebhookSaved": "Webhook settings saved",
+			"workspaceCardLabelGotify": "Gotify",
+			"webhookDescription": "Send account notifications to your own endpoint as JSON."
+		},
+		"boardIntegrations": {
+			"pageTitle": "Интеграции на проект",
+			"title": "Интеграции на проект",
+			"subtitle": "Поврзи го твојот проект со надворешни алатки и сервиси за да го подобриш работниот тек.",
+			"githubSectionTitle": "GitHub интеграција",
+			"githubSectionSubtitle": "Синхронизирај задачи со GitHub issues и овозможи двонасочна синхронизација.",
+			"giteaSectionTitle": "Gitea интеграција",
+			"giteaSectionSubtitle": "Синхронизирај задачи со само-хостирана Gitea инстанца (issues, PRs, webhooks).",
+			"telegramSectionTitle": "Telegram интеграција",
+			"telegramSectionSubtitle": "Испраќај ажурирања за задачи од проектот во Telegram разговор или тема со бот.",
+			"discordSectionTitle": "Discord интеграција",
+			"discordSectionSubtitle": "Испрати ажурирања за задачи на проектот во Discord канал преку webhook.",
+			"genericWebhookSectionTitle": "Општи webhooks",
+			"genericWebhookSectionSubtitle": "Испрати настани за задачи на проектот до кој било HTTP endpoint како JSON.",
+			"slackSectionTitle": "Slack интеграција",
+			"slackSectionSubtitle": "Испрати ажурирања за задачи на проектот во Slack канал преку дојдовен webhook."
+		},
+		"informationPage": {
+			"sectionTitle": "Account Information",
+			"title": "Personal Information",
+			"fullNamePlaceholder": "Enter your name",
+			"emailPlaceholder": "Enter your email",
+			"subtitle": "Manage your personal details and account information.",
+			"pageTitle": "Personal Information",
+			"email": "Email",
+			"validation": {
+				"invalidEmail": "Invalid email address",
+				"nameShort": "Name must be at least 2 characters",
+				"nameRequired": "Name is required"
+			},
+			"profilePicture": "Profile picture",
+			"updateError": "Failed to update profile",
+			"updateSuccess": "Profile updated successfully",
+			"fullName": "Full name",
+			"sectionSubtitle": "Manage your profile and account details.",
+			"avatar": {
+				"hint": "Click your picture to change or remove it. Cropped to a square and resized to 256x256.",
+				"remove": "Remove avatar",
+				"updateSuccess": "Profile picture updated",
+				"updateError": "Failed to update profile picture",
+				"removeSuccess": "Profile picture removed",
+				"removeError": "Failed to remove profile picture",
+				"edit": "Change your profile picture",
+				"change": "Change avatar"
+			},
+			"deleteAccount": {
+				"sectionTitle": "Danger zone",
+				"sectionSubtitle": "Permanent actions that affect your whole account.",
+				"title": "Delete account",
+				"description": "Workspaces only you belong to are deleted with your account. Elsewhere, your tasks stay and become unassigned, and your comments are removed.",
+				"modalTitle": "Delete your account?",
+				"modalDescription": "This permanently deletes your account and cannot be undone.",
+				"confirmLabel": "Type {{email}} to confirm",
+				"confirm": "Delete account",
+				"success": "Your account has been deleted",
+				"error": "Failed to delete account",
+				"sessionTooOld": "For security, sign out and sign back in before deleting your account."
+			}
+		},
+		"workspaceLabels": {
+			"pageTitle": "Поставки за ознаки",
+			"title": "Ознаки",
+			"subtitle": "Креирај, уреди и избриши ознаки на ниво на работен простор.",
+			"cardDescription": "Управувај со ознаките што може да се доделуваат на задачи.",
+			"createLabel": "Креирај ознака",
+			"editLabel": "Уреди ознака",
+			"deleteLabel": "Избриши",
+			"saveLabel": "Зачувај",
+			"nameLabel": "Име на ознака",
+			"namePlaceholder": "Внеси име на ознака",
+			"colorLabel": "Боја",
+			"createDescription": "Креирај нова ознака што може да се користи на задачите во овој работен простор.",
+			"editDescription": "Ажурирај го името или бојата на оваа ознака.",
+			"deleteConfirmTitle": "Да се избрише оваа ознака?",
+			"deleteConfirmDescription": "Ова трајно ќе ја отстрани ознаката од сите задачи. Оваа акција не може да се врати.",
+			"empty": "Нема ознаки засега. Креирај ја твојата прва ознака за да започнеш.",
+			"createSuccess": "Ознаката е креирана",
+			"updateSuccess": "Ознаката е ажурирана",
+			"deleteSuccess": "Ознаката е избришана",
+			"createError": "Неуспешно креирање на ознака",
+			"updateError": "Неуспешно ажурирање на ознака",
+			"deleteError": "Неуспешно бришење на ознака",
+			"nameRequired": "Името на ознаката е задолжително"
+		},
+		"projectIntegrations": {
+			"pageTitle": "Интеграции на проект",
+			"title": "Интеграции на проект",
+			"subtitle": "Поврзи го твојот проект со надворешни алатки и сервиси за да го подобриш работниот тек.",
+			"githubSectionTitle": "GitHub интеграција",
+			"githubSectionSubtitle": "Синхронизирај задачи со GitHub issues и овозможи двонасочна синхронизација.",
+			"giteaSectionTitle": "Gitea интеграција",
+			"giteaSectionSubtitle": "Синхронизирај задачи со само-хостирана Gitea инстанца (issues, PRs, webhooks).",
+			"telegramSectionTitle": "Telegram интеграција",
+			"telegramSectionSubtitle": "Испраќај ажурирања за задачи од проектот во Telegram разговор или тема со бот.",
+			"discordSectionTitle": "Discord интеграција",
+			"discordSectionSubtitle": "Испрати ажурирања за задачи на проектот во Discord канал преку webhook.",
+			"genericWebhookSectionTitle": "Општи webhooks",
+			"genericWebhookSectionSubtitle": "Испрати настани за задачи на проектот до кој било HTTP endpoint како JSON.",
+			"slackSectionTitle": "Slack интеграција",
+			"slackSectionSubtitle": "Испрати ажурирања за задачи на проектот во Slack канал преку дојдовен webhook."
+		},
+		"apiKeys": "API клучеви",
+		"notifications": "Notifications",
+		"discordIntegration": {
+			"channelHint": "Опционална ознака за тебе. Discord го одредува каналот преку webhook поставките.",
+			"validation": {
+				"webhookInvalid": "Внеси валидна Discord webhook URL"
+			},
+			"toast": {
+				"saved": "Discord интеграцијата е успешно зачувана",
+				"enabled": "Discord известувањата се вклучени",
+				"removed": "Discord интеграцијата е успешно отстранета",
+				"saveError": "Не успеа зачувувањето на Discord интеграцијата",
+				"disabled": "Discord известувањата се паузирани",
+				"removeError": "Не успеа отстранувањето на Discord интеграцијата",
+				"updateError": "Не успеа ажурирањето на Discord интеграцијата"
+			},
+			"connect": "Поврзи Discord",
+			"connected": "Поврзано",
+			"events": {
+				"taskStatusChanged": "Промени на статус",
+				"taskPriorityChanged": "Промени на приоритет",
+				"taskCommentCreated": "Нови коментари",
+				"taskDescriptionChanged": "Промени на опис",
+				"taskTitleChanged": "Промени на наслов",
+				"taskCreated": "Нови задачи"
+			},
+			"eventsTitle": "Известувања за настани",
+			"update": "Ажурирај Discord",
+			"paused": "Паузирано",
+			"channelPlaceholder": "#team-updates",
+			"disconnect": "Откачи",
+			"connectionHint": "Залепи Discord webhook URL и избери кои настани за задачи да се испраќаат.",
+			"webhookLabel": "Webhook URL",
+			"webhookPlaceholder": "https://discord.com/api/webhooks/...",
+			"channelLabel": "Име на канал",
+			"eventsHint": "Избери кои промени на проектот да се испраќаат во Discord.",
+			"webhookHint": "Креирај webhook за канал во Discord и залепи ја генерираната URL тука.",
+			"saveChanges": "Зачувај промени",
+			"connectionTitle": "Discord webhook конекција"
+		},
+		"apiKey": {
+			"table": {
+				"expiredBadge": "Истечен {{label}}",
+				"deleteAriaFallback": "API клуч",
+				"deleteFallbackName": "овој API клуч",
+				"deleting": "Се брише...",
+				"columnKey": "Клуч",
+				"columnExpires": "Истекува",
+				"empty": "Нема API клучеви. Креирај еден за да започнеш.",
+				"loading": "Се вчитуваат API клучеви...",
+				"columnCreated": "Креиран",
+				"deleteConfirmDescription": "Оваа акција не може да се врати. Ова трајно ќе го избрише {{name}}.",
+				"columnName": "Име",
+				"deleteConfirmTitle": "Избриши API клуч?",
+				"deleteAria": "Избриши {{name}}",
+				"toastDeleted": "API клучот е успешно избришан",
+				"columnActions": "Акции",
+				"delete": "Избриши",
+				"unnamedKey": "Неименуван клуч",
+				"toastDeleteError": "Неуспешно бришење на API клуч"
+			},
+			"createDialog": {
+				"expiration1d": "1 ден",
+				"expiration90d": "90 дена",
+				"creating": "Се креира...",
+				"validation": {
+					"expirationRequired": "Истекувањето е задолжително",
+					"nameShort": "Името мора да има најмалку 3 знаци",
+					"nameRequired": "Името е задолжително"
+				},
+				"nameLabel": "Име",
+				"expiration7d": "7 дена",
+				"title": "Креирај API клуч",
+				"failedCreate": "Неуспешно креирање на API клуч",
+				"create": "Креирај",
+				"namePlaceholder": "Мојот API клуч",
+				"expiration30d": "30 дена",
+				"expirationDescription": "Избери колку долго овој API клуч треба да остане валиден. Никогаш ќе креира клуч без автоматско истекување.",
+				"nameDescription": "Описно име за овој API клуч",
+				"expirationLabel": "Истекување",
+				"expirationNever": "Никогаш",
+				"description": "Креирај нов API клуч за програмски пристап до Kaneo API.",
+				"expirationPlaceholder": "Избери истекување"
+			},
+			"createdModal": {
+				"title": "API клучот е креиран",
+				"copied": "Копирано",
+				"alertDescription": "Копирај го клучот сега. Нема да можеш да го видиш повторно.",
+				"yourApiKey": "Твојот API клуч",
+				"alertTitle": "Успешно! Твојот API клуч е креиран",
+				"toastCopied": "API клучот е копиран во клипборд",
+				"copy": "Копирај",
+				"description": "Твојот API клуч \"{{keyName}}\" е успешно креиран.",
+				"copyToContinue": "Копирај го клучот за да продолжиш",
+				"done": "Готово"
+			}
+		},
+		"repositoryBrowser": {
+			"footerSummary": "{{repoCount}} репозиториуми во {{installationCount}} инсталации",
+			"relativeMinutesAgo": "пред {{count}}м",
+			"loadError": "Неуспешно вчитување на репозиториуми",
+			"manageInstallations": "Управувај со инсталации",
+			"noSearchMatchTitle": "Нема репозиториуми што одговараат на пребарувањето",
+			"tryAgain": "Обиди се повторно",
+			"title": "Избери репозиториум",
+			"emptyTitle": "Не се пронајдени репозиториуми",
+			"relativeDaysAgo": "пред {{count}}д",
+			"searchPlaceholder": "Пребарај репозиториуми...",
+			"updatedPrefix": "Ажурирано",
+			"emptyHint": "Инсталирај ја GitHub апликацијата на твоите репозиториуми за да ги видиш тука.",
+			"relativeJustNow": "штотуку",
+			"description": "Избери репозиториум каде е инсталирана твојата GitHub апликација за да овозможиш синхронизација на issues.",
+			"noSearchMatchHint": "Обиди се да ги прилагодиш термините за пребарување или исчисти го пребарувањето за да ги видиш сите репозиториуми.",
+			"installGithubApp": "Инсталирај GitHub апликација",
+			"relativeHoursAgo": "пред {{count}}ч"
+		},
+		"columnEditor": {
+			"toastIconUpdated": "Column icon updated",
+			"toastCreated": "Колоната е креирана",
+			"toastRenameError": "Неуспешно ажурирање на колона",
+			"on": "Вклучено",
+			"searchIconsPlaceholder": "Search icons...",
+			"toastRenamed": "Колоната е преименувана",
+			"loading": "Се вчитуваат колони...",
+			"toastUpdateError": "Неуспешно ажурирање на колона",
+			"off": "Исклучено",
+			"newColumnPlaceholder": "Име на нова колона...",
+			"doneColumn": "Завршна колона",
+			"add": "Додади",
+			"pickIconTitle": "Pick column icon",
+			"toastDeleted": "Колоната е избришана",
+			"doneColumnTooltip": "Третирај ја како завршна колона",
+			"toastCreateError": "Неуспешно креирање на колона",
+			"toastDeleteError": "Неуспешно бришење на колона",
+			"toastFinalOff": "Колоната е одозначена како завршна",
+			"toastFinalOn": "Колоната е означена како завршна",
+			"markDoneAria": "Означи {{name}} како завршна колона"
+		},
+		"telegramIntegration": {
+			"chatIdLabel": "Chat ID",
+			"botTokenHintConfigured": "Bot token веќе е конфигуриран ({{token}}). Внеси нов за да го замениш.",
+			"saveChanges": "Зачувај промени",
+			"botTokenPlaceholder": "123456789:AAExampleBotToken",
+			"chatIdPlaceholder": "-1001234567890 или @team_updates",
+			"threadIdHint": "Опционално. Користи го ова за forum теми во Telegram групи.",
+			"validation": {
+				"botTokenInvalid": "Внеси валиден Telegram bot token",
+				"threadIdInvalid": "Внеси валиден Telegram ID за тема",
+				"chatIdRequired": "Chat ID е задолжително"
+			},
+			"toast": {
+				"saved": "Telegram интеграцијата е успешно зачувана",
+				"enabled": "Telegram известувањата се вклучени",
+				"removed": "Telegram интеграцијата е успешно отстранета",
+				"saveError": "Неуспешно зачувување на Telegram интеграцијата",
+				"disabled": "Telegram известувањата се паузирани",
+				"removeError": "Неуспешно отстранување на Telegram интеграцијата",
+				"updateError": "Неуспешно ажурирање на Telegram интеграцијата"
+			},
+			"connect": "Поврзи Telegram",
+			"connected": "Поврзан",
+			"chatLabelPlaceholder": "Engineering Updates",
+			"events": {
+				"taskStatusChanged": "Промени на статус",
+				"taskPriorityChanged": "Промени на приоритет",
+				"taskCommentCreated": "Нови коментари",
+				"taskDescriptionChanged": "Промени на опис",
+				"taskTitleChanged": "Промени на наслов",
+				"taskCreated": "Нови задачи"
+			},
+			"botTokenLabel": "Bot token",
+			"eventsTitle": "Известувања за настани",
+			"chatLabelHint": "Опционална ознака за твоја референца во Kaneo.",
+			"botTokenHint": "Креирај бот со BotFather и залепи го неговиот token тука.",
+			"paused": "Паузирано",
+			"disconnect": "Откачи",
+			"connectionHint": "Користи Telegram bot token и chat ID за да испраќаш ажурирања за проектот во разговор или тема.",
+			"chatLabelLabel": "Ознака за разговор",
+			"threadIdPlaceholder": "Опционален ID на тема",
+			"threadIdLabel": "ID на тема",
+			"eventsHint": "Избери кои промени во проектот треба да се објавуваат во Telegram.",
+			"chatIdHint": "Внеси Telegram chat ID или корисничко име на канал каде што треба да се објавуваат ажурирањата.",
+			"connectionTitle": "Конекција со Telegram бот"
+		},
+		"boardGeneral": {
+			"pageTitle": "Поставки на проект",
+			"title": "Општи поставки",
+			"subtitle": "Управувај со името, клучот, иконата и описот на проектот.",
+			"boardInfoTitle": "Информации за проектот",
+			"boardInfoSubtitle": "Конфигурирај ги деталите и преференциите на проектот.",
+			"iconLabel": "Икона",
+			"iconHint": "Се прикажува во страничната лента и на површините на проектот.",
+			"pickIconTitle": "Избери икона",
+			"searchIconsPlaceholder": "Пребарај икони...",
+			"useEmoji": "Користи ова емоџи",
+			"boardNameLabel": "Име на проект",
+			"boardNameHint": "Името на твојот проект",
+			"boardNamePlaceholder": "Внеси име на проект",
+			"keyLabel": "Клуч",
+			"keyHint": "Се користи за ID на тикети (пр. {{slug}}-123)",
+			"keyPlaceholder": "ПРО",
+			"descriptionLabel": "Опис",
+			"descriptionHint": "Краток опис на твојот проект",
+			"descriptionPlaceholder": "Внеси опис на проект",
+			"subtaskDepthLimitLabel": "Ограничување на вгнездување подзадачи",
+			"subtaskDepthLimitHint": "Максимален број дозволени вгнездени нивоа на подзадачи (1–4).",
+			"dangerZone": "Опасна зона",
+			"dangerZoneSubtitle": "Неповратни и деструктивни акции.",
+			"deleteBoard": "Избриши проект",
+			"deleteBoardDescription": "Закажи трајно бришење на проектот",
+			"deleteModalTitle": "Избриши проект?",
+			"deleteModalDescription": "Ова трајно ќе го избрише проектот \"{{name}}\" и сите негови податоци. Оваа акција не може да се врати.",
+			"deleteModalConfirm": "Избриши проект",
+			"toastUpdated": "Проектот е успешно ажуриран",
+			"toastUpdateError": "Неуспешно ажурирање на проектот",
+			"toastDeleted": "Проектот е успешно избришан",
+			"toastDeleteError": "Неуспешно бришење на проектот",
+			"validation": {
+				"nameRequired": "Името на проектот е задолжително",
+				"nameShort": "Името на проектот мора да има најмалку 2 знаци",
+				"keyRequired": "Клучот е задолжителен",
+				"keyShort": "Клучот мора да има најмалку 2 знаци",
+				"keyMax": "Клучот мора да има најмногу 8 знаци",
+				"iconRequired": "Иконата е задолжителна"
+			},
+			"importExportTasks": "Импортирање/Експортирање",
+			"importExportTasksDescription": "Импортирање/Експортирање на задачи"
+		},
+		"developer": "Програмер",
+		"account": "Сметка",
+		"boardVisibility": {
+			"pageTitle": "Видливост на проект",
+			"title": "Видливост",
+			"subtitle": "Контролирај кој може да го гледа и пристапува твојот проект.",
+			"sectionTitle": "Видливост",
+			"sectionSubtitle": "Вклучи јавен пристап и сподели го јавниот URL.",
+			"publicAccess": "Јавен пристап",
+			"publicAccessHint": "Дозволи секој со URL да го гледа овој проект",
+			"publicUrl": "Јавен URL",
+			"publicUrlHint": "Сподели го овој линк ако проектот е јавен",
+			"copy": "Копирај",
+			"copiedToast": "Копирано",
+			"toastUpdated": "Видливоста е ажурирана",
+			"toastUpdateError": "Неуспешно ажурирање на видливоста"
+		},
+		"boardWorkflow": {
+			"pageTitle": "Поставки на работен тек",
+			"title": "Работен тек",
+			"subtitle": "Конфигурирај ги колоните на таблата и правилата за автоматизација за овој проект.",
+			"columnsTitle": "Колони",
+			"columnsDescription": "Управувај со колоните што се прикажуваат на таблата. Повлечи за да ги преуредиш. Вклучи \"Завршна колона\" за фази што претставуваат завршена работа.",
+			"automationTitle": "Правила за автоматизација",
+			"automationDescription": "Поврзи настани од интеграции со колони. Кога ќе се случи настан, поврзаната задача се преместува во одредената колона."
+		},
+		"preferences": "Преференции",
+		"externalLinks": {
+			"resources": "Ресурси",
+			"branch": "Гранка",
+			"open": "Отворен",
+			"issue": "Issue",
+			"merged": "Споен",
+			"draft": "Нацрт"
+		},
+		"boardSwitcher": {
+			"selectBoard": "Избери проект",
+			"noBoards": "Нема проекти",
+			"searchBoards": "Пребарај табли..."
+		},
+		"tasksImportExport": {
+			"exportError": "Неуспешен извоз на задачи",
+			"importError": "Неуспешен увоз на задачи",
+			"exportSuccess": "Задачите се успешно извезени",
+			"dialogTitle": "Увези задачи",
+			"notJsonFile": "Прикачи JSON датотека",
+			"exporting": "Се извезуваат задачи...",
+			"expectedFormat": "Очекуван формат:",
+			"importPartialError": "Неуспешен увоз на {{count}} задачи",
+			"importTasks": "Увези задачи",
+			"dialogDescription": "Прикачи JSON датотека со задачи за увоз во овој проект.",
+			"importing": "Се увезуваат задачи...",
+			"noFileDropped": "Не е пуштена датотека",
+			"selectFile": "Избери датотека",
+			"exportTasks": "Извези задачи",
+			"dropHint": "Повлечи и пушти ја JSON датотеката тука",
+			"importSuccess": "Успешно увезени {{count}} задачи",
+			"invalidFormat": "Невалиден формат на датотека за увоз"
+		},
+		"workspaceGeneral": {
+			"pageTitle": "Општи поставки",
+			"title": "Општи поставки",
+			"subtitle": "Управувај со името и описот на работниот простор.",
+			"workspaceInfoTitle": "Информации за работниот простор",
+			"workspaceInfoSubtitle": "Конфигурирај ги деталите и преференциите на работниот простор.",
+			"nameLabel": "Име на работен простор",
+			"nameHint": "Името на твојот работен простор",
+			"namePlaceholder": "Внеси име на работен простор",
+			"descriptionLabel": "Опис",
+			"descriptionHint": "Краток опис на твојот работен простор",
+			"descriptionPlaceholder": "Внеси опис на работен простор",
+			"dangerZone": "Опасна зона",
+			"dangerZoneSubtitle": "Неповратни и деструктивни акции.",
+			"deleteWorkspace": "Избриши работен простор",
+			"deleteWorkspaceDescription": "Закажи трајно бришење на работниот простор",
+			"deleteModalTitle": "Избриши работен простор?",
+			"deleteModalDescription": "Ова трајно ќе го избрише работниот простор \"{{name}}\" и сите негови податоци. Оваа акција не може да се врати.",
+			"deleteModalConfirm": "Избриши работен простор",
+			"toastUpdated": "Работниот простор е успешно ажуриран",
+			"toastUpdateError": "Неуспешно ажурирање на работниот простор",
+			"toastDeleted": "Работниот простор е успешно избришан",
+			"toastDeleteError": "Неуспешно бришење на работниот простор",
+			"validation": {
+				"nameRequired": "Името на работниот простор е задолжително",
+				"nameShort": "Името на работниот простор мора да има најмалку 2 знаци"
+			},
+			"transferOwnership": {
+				"toastSuccess": "Сопственоста е префрлена",
+				"toastError": "Неуспешно префрлање на сопственоста",
+				"title": "Префрли сопственост",
+				"subtitle": "Предај го овој работен простор на друг член. Твојата улога ќе се смени во администратор и ќе ги изгубиш можностите резервирани за сопственикот.",
+				"pickerLabel": "Нов сопственик",
+				"noEligibleMembers": "Покани барем уште еден член пред да можеш да ја префрлиш сопственоста.",
+				"pickerHint": "Тој член станува единствен сопственик на овој работен простор.",
+				"pickerPlaceholder": "Избери член",
+				"button": "Префрли",
+				"dialogTitle": "Префрли сопственост?",
+				"dialogDescription": "{{name}} ќе стане единствен сопственик на {{workspace}}. Ќе го задржиш администраторскиот пристап, но ќе ги изгубиш можностите резервирани за сопственикот, како бришење на работниот простор или повторно префрлање.",
+				"transferring": "Се префрла…",
+				"confirm": "Префрли сопственост"
+			}
+		},
+		"organizationRoles": {
+			"permissionCount": "{{count}} permissions"
+		},
+		"repoSwitcher": {
+			"selectRepo": "Select repository"
+		},
+		"repoVisibility": {
+			"title": "Visibility"
+		}
+	},
+	"invitations": {
+		"skipForNow": "Прескокни засега",
+		"noPendingTitle": "Нема покани на чекање",
+		"continueToSetup": "Продолжи со поставување",
+		"email": {
+			"preview": "You're invited to {{organizationName}} on Kaneo",
+			"title": "Join {{organizationName}}",
+			"subtitle": "{{inviterName}} ({{inviterEmail}}) invited you to collaborate in Kaneo.",
+			"ignore": "If this wasn't expected, you can safely ignore this email.",
+			"footer": "Kaneo organization invitation",
+			"subject": "{{inviterName}} invited you to join {{organizationName}} on Kaneo",
+			"cta": "Accept invitation",
+			"sameEmail": "You can accept with the same email that received this message."
+		},
+		"pageTitle": "Покани",
+		"noPendingDescription": "Моментално немаш покани за работни простори на чекање.",
+		"toast": {
+			"rejectError": "Неуспешно одбивање на покана",
+			"rejectSuccess": "Поканата е одбиена",
+			"acceptError": "Неуспешно прифаќање на покана",
+			"acceptSuccess": "Поканата е прифатена! Добредојде во тимот."
+		},
+		"table": {
+			"workspace": "Работен простор",
+			"invitedBy": "Поканет од",
+			"organization": "Работен простор",
+			"expires": "Истекува"
+		},
+		"acceptSubtitle": "Прифати покани за приклучување кон работни простори",
+		"pendingInvitations": "Покани на чекање"
+	},
+	"workspace": {
+		"projects": {
+			"pageTitle": "Проекти",
+			"createProject": "Креирај проект",
+			"title": "Наслов",
+			"progress": "Напредок",
+			"targetDate": "Целен датум",
+			"dueDate": "Краен рок",
+			"status": "Статус",
+			"emptyTitle": "Нема проекти засега",
+			"emptyDescription": "Започни со креирање на твојот прв проект.",
+			"projectStatus": {
+				"notStarted": "Не е започнат",
+				"complete": "Завршен",
+				"inProgress": "Во тек"
+			},
+			"noDueDate": "Без краен рок",
+			"reorderHandle": "Прередување на проектот",
+			"reorderError": "Прередувањето на проектите не успеа",
+			"emptyDescriptionReadOnly": "Сè уште нема проекти во овој работен простор. Замоли администратор да креира еден."
+		},
+		"search": {
+			"pageTitle": "Пребарување",
+			"backToDashboard": "Назад кон контролна табла",
+			"placeholder": "Пребарај задачи по наслов или краток ID (пр. DEP-23)...",
+			"hint": "Пребарај низ сите проекти во овој работен простор. Користи кратки ID како DEP-23 за да најдеш конкретни задачи.",
+			"searching": "Се пребарува...",
+			"resultsFound_one": "{{count}} резултат пронајден",
+			"resultsFound_other": "{{count}} резултати пронајдени",
+			"noResultsTitle": "Нема пронајдени резултати",
+			"noResultsDescription": "Обиди се да ги прилагодиш термините за пребарување или пребарај нешто друго",
+			"startTitle": "Започни со пребарување",
+			"startDescription": "Внеси термин за пребарување за да најдеш задачи низ сите проекти",
+			"quickSearchesLabel": "Брзи пребарувања:",
+			"suggestionHighPriority": "Висок приоритет",
+			"suggestionBug": "Грешка",
+			"suggestionFeature": "Функционалност",
+			"suggestionInProgress": "Во тек",
+			"suggestionCompleted": "Завршено"
+		},
+		"create": {
+			"pageTitle": "Креирај работен простор",
+			"heading": "Креирај нов работен простор",
+			"subtitle": "Работните простори се споделени средини каде тимовите можат да работат на проекти, циклуси и задачи.",
+			"nameLabel": "Име на работен простор",
+			"namePlaceholder": "Внеси име на работен простор",
+			"descriptionLabel": "Опис (опционално)",
+			"descriptionPlaceholder": "Додади опис за твојот работен простор",
+			"required": "Задолжително",
+			"creating": "Се креира...",
+			"submit": "Креирај работен простор",
+			"success": "Работниот простор е успешно креиран",
+			"error": "Неуспешно креирање на работен простор"
+		}
+	},
+	"publicProject": {
+		"pageTitle": "Јавен приказ",
+		"badge": "Јавен",
+		"readOnly": "Само за читање",
+		"error": {
+			"title": "Проектот не е пронајден",
+			"description": "Овој проект не постои или не е јавно достапен."
+		},
+		"taskCard": {
+			"viewDetailsAria": "Погледни детали за задачата {{title}}"
+		},
+		"taskDetail": {
+			"labels": "Етикети",
+			"externalLinks": "Надворешни линкови",
+			"pullRequestFallback": "Pull Request",
+			"issueFallback": "Issue",
+			"prStatusMerged": "Споен",
+			"prStatusDraft": "Нацрт",
+			"prStatusOpen": "Отворен",
+			"dueWithDate": "Рок {{date}}",
+			"created": "Креирана",
+			"dueDateLabel": "Краен рок"
+		},
+		"theme": {
+			"switchToLight": "Префрли на светол режим",
+			"switchToDark": "Префрли на темен режим"
+		},
+		"copyUrl": {
+			"successToast": "URL е копиран",
+			"errorToast": "Неуспешно копирање на URL",
+			"copied": "Копирано",
+			"share": "Сподели"
+		},
+		"branding": {
+			"poweredBy": "Овозможено од"
+		}
+	},
+	"organization": {
+		"boards": {
+			"pageTitle": "Проекти",
+			"createBoard": "Креирај проект",
+			"title": "Наслов",
+			"progress": "Напредок",
+			"targetDate": "Целен датум",
+			"dueDate": "Краен рок",
+			"status": "Статус",
+			"emptyTitle": "Нема проекти засега",
+			"emptyDescription": "Започни со креирање на твојот прв проект.",
+			"boardStatus": {
+				"notStarted": "Не е започнат",
+				"complete": "Завршен",
+				"inProgress": "Во тек"
+			},
+			"noDueDate": "Без краен рок",
+			"timeline": {
+				"milestoneDue": "Milestone due",
+				"expandAll": "Expand all",
+				"collapseAll": "Collapse all",
+				"scheduledNoMilestone": "Scheduled without milestone"
+			}
+		},
+		"search": {
+			"pageTitle": "Пребарување",
+			"backToDashboard": "Назад кон контролна табла",
+			"placeholder": "Пребарај задачи по наслов или краток ID (пр. DEP-23)...",
+			"hint": "Пребарај низ сите проекти во овој работен простор. Користи кратки ID како DEP-23 за да најдеш конкретни задачи.",
+			"searching": "Се пребарува...",
+			"resultsFound_one": "{{count}} резултат пронајден",
+			"resultsFound_other": "{{count}} резултати пронајдени",
+			"noResultsTitle": "Нема пронајдени резултати",
+			"noResultsDescription": "Обиди се да ги прилагодиш термините за пребарување или пребарај нешто друго",
+			"startTitle": "Започни со пребарување",
+			"startDescription": "Внеси термин за пребарување за да најдеш задачи низ сите проекти",
+			"quickSearchesLabel": "Брзи пребарувања:",
+			"suggestionHighPriority": "Висок приоритет",
+			"suggestionBug": "Грешка",
+			"suggestionFeature": "Функционалност",
+			"suggestionInProgress": "Во тек",
+			"suggestionCompleted": "Завршено",
+			"resultsFound": "{{count}} results found"
+		},
+		"create": {
+			"pageTitle": "Креирај работен простор",
+			"heading": "Креирај нов работен простор",
+			"subtitle": "Работните простори се споделени средини каде тимовите можат да работат на проекти, циклуси и задачи.",
+			"nameLabel": "Име на работен простор",
+			"namePlaceholder": "Внеси име на работен простор",
+			"descriptionLabel": "Опис (опционално)",
+			"descriptionPlaceholder": "Додади опис за твојот работен простор",
+			"required": "Задолжително",
+			"creating": "Се креира...",
+			"submit": "Креирај работен простор",
+			"success": "Работниот простор е успешно креиран",
+			"error": "Неуспешно креирање на работен простор"
+		},
+		"repos": {
+			"pageTitle": "Repos",
+			"emptyTitle": "No repos yet",
+			"emptyDescription": "Connect a repository to mirror its issues and pull requests here.",
+			"neverSynced": "Never synced",
+			"resyncStarted": "Ресинхронизацијата започна — листата ќе се освежи кога огледалото ќе заврши",
+			"backToRepos": "Back to repos",
+			"table": {
+				"name": "Repository",
+				"provider": "Provider",
+				"openIssues": "Open issues",
+				"openPullRequests": "Open pull requests",
+				"lastSynced": "Last synced"
+			},
+			"state": {
+				"open": "Open",
+				"closed": "Closed",
+				"merged": "Merged",
+				"draft": "Draft"
+			},
+			"stateFilter": {
+				"open": "Open",
+				"closed": "Closed",
+				"merged": "Merged",
+				"all": "All"
+			},
+			"issues": {
+				"pageTitle": "Issues",
+				"tab": "Issues",
+				"emptyTitle": "No issues",
+				"emptyDescription": "There are no issues matching this filter."
+			},
+			"pullRequests": {
+				"pageTitle": "Pull requests",
+				"tab": "Pull requests",
+				"emptyTitle": "No pull requests",
+				"emptyDescription": "There are no pull requests matching this filter."
+			},
+			"add": {
+				"button": "Connect repo",
+				"title": "Connect repository",
+				"description": "Add an organization-level repository. Its issues and pull requests remain separate from Boards and tickets.",
+				"submit": "Connect and sync"
+			}
+		}
+	},
+	"team": {
+		"roles": {
+			"admin": "Администратор",
+			"member": "Член",
+			"viewer": "Прегледувач",
+			"owner": "Сопственик"
+		},
+		"inviteModal": {
+			"success": "Поканата е успешно испратена",
+			"createdTitle": "Поканата е креирана",
+			"sendInvitation": "Испрати покана",
+			"done": "Готово",
+			"error": "Неуспешно поканување на член на тим",
+			"title": "Покани член на тим",
+			"emailPlaceholder": "kolega@kompanija.com",
+			"shareLinkDescription": "Сподели го овој линк со {{email}} за да може да се приклучи на работниот простор.",
+			"emailLabel": "Е-пошта"
+		},
+		"members": {
+			"pageTitle": "Членови",
+			"agentsCredentialsHint": "Издавање и одземање клучеви за пристап",
+			"inviteMember": "Покани член",
+			"you": "Ти"
+		},
+		"invitations": {
+			"linkLabel": "Линк за покана",
+			"copyLink": "Копирај линк",
+			"linkCopied": "Линкот за покана е копиран",
+			"copyFailed": "Не можеше да се копира автоматски. Избери го линкот и притисни Ctrl+C.",
+			"pendingBadge": "на чекање",
+			"expires": "Истекува {{date}}"
+		},
+		"membersTable": {
+			"removeMember": "Отстрани член",
+			"roleUpdateSuccess": "Улогата е ажурирана",
+			"cancelDialogDescription": "Дали си сигурен дека сакаш да ја откажеш поканата за {{email}}? Оваа акција не може да се врати.",
+			"cancelInvitation": "Откажи покана",
+			"removeError": "Неуспешно отстранување на член на тим",
+			"ariaRemoveMember": "Отстрани член",
+			"removeDialogDescription": "Дали си сигурен дека сакаш да го отстраниш {{name}} од работниот простор? Оваа акција не може да се врати.",
+			"memberRolePending": "{{role}} (На чекање)",
+			"cancelDialogTitle": "Откажи покана?",
+			"ariaInvitationActions": "Акции за поканата",
+			"cancelInviteSuccess": "Поканата е успешно откажана",
+			"emptyTitle": "Нема членови на тим засега",
+			"columns": {
+				"joined": "Приклучен",
+				"actions": "Акции",
+				"role": "Улога",
+				"name": "Име"
+			},
+			"emptyDescription": "Покани го твојот прв член на тимот за да започнеш.",
+			"removeDialogTitle": "Отстрани член на тим?",
+			"ariaCancelInvitation": "Откажи покана",
+			"cancelInviteError": "Неуспешно откажување на покана",
+			"roleUpdateError": "Неуспешно ажурирање на улогата",
+			"removeSuccess": "Членот на тимот е успешно отстранет"
+		}
+	},
+	"inbox": {
+		"flaggedCount": "{{count}} flagged",
+		"unreadCount": "{{count}} unread",
+		"dismiss": "Dismiss",
+		"clearGroup": "Clear group"
+	}
+}

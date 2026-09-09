@@ -48,8 +48,8 @@ test("T01 snapshot/reconnect retains the mutation committed between projection a
 	expect(snapshot.status).toBe(200);
 	const snapshotMessages = await snapshot.json();
 	expect(snapshotMessages[0].value.value).toBe("before");
-	const handle = snapshot.headers.get("electric-handle")!;
-	const offset = snapshot.headers.get("electric-offset")!;
+	const handle = snapshot.headers.get("electric-handle") ?? "";
+	const offset = snapshot.headers.get("electric-offset") ?? "";
 	const continuation = await fetch(
 		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&handle=${handle}&offset=${offset}`,
 		{
@@ -98,8 +98,8 @@ test("T10 delete emits a stable-key delete and missing delete leaves the log unc
 		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&offset=-1`,
 		{ headers: { authorization: "Bearer org-a" } },
 	);
-	const handle = initial.headers.get("electric-handle")!;
-	const offset = initial.headers.get("electric-offset")!;
+	const handle = initial.headers.get("electric-handle") ?? "";
+	const offset = initial.headers.get("electric-offset") ?? "";
 	const deleted = await server.delete("org-a", "probe");
 	const tail = await fetch(
 		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&handle=${handle}&offset=${offset}`,
@@ -118,4 +118,53 @@ test("T10 delete emits a stable-key delete and missing delete leaves the log unc
 	const before = await server.eventCount("org-a");
 	await expect(server.delete("org-a", "missing")).rejects.toThrow("NotFound");
 	expect(await server.eventCount("org-a")).toBe(before);
+});
+
+test("T13 missing auth is 401 and wrong-org capability is 403 with no data leakage", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("org-a", "secret", "value");
+	const noAuth = await fetch(
+		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&offset=-1`,
+	);
+	expect(noAuth.status).toBe(401);
+	expect(await noAuth.text()).toBe("");
+	const wrongOrg = await fetch(
+		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&offset=-1`,
+		{ headers: { authorization: "Bearer org-b" } },
+	);
+	expect(wrongOrg.status).toBe(403);
+	expect(await wrongOrg.text()).toBe("");
+});
+
+test("T04 exception after event append rolls back counter, event and projection together", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await expect(
+		db.sql.begin(async (tx) => {
+			await tx`INSERT INTO org_event_counter(org) VALUES ('org-a') ON CONFLICT DO NOTHING`;
+			const [counter] =
+				await tx`UPDATE org_event_counter SET seq=seq+1 WHERE org='org-a' RETURNING seq::text`;
+			const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
+			await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+        VALUES ('org-a',${counter.seq},'foundation:probe-upserted','test-actor',${tx.json({ id: "x", value: "y" })},1,${transaction.txid})`;
+			await tx`INSERT INTO sync_probe(org,id,value,last_seq) VALUES ('org-a','x','y',${counter.seq})`;
+			throw new Error("forced rollback");
+		}),
+	).rejects.toThrow("forced rollback");
+	const [counterRow] =
+		await db.sql`SELECT seq FROM org_event_counter WHERE org='org-a'`;
+	expect(counterRow).toBeUndefined();
+	const [eventRow] = await db.sql`SELECT 1 FROM event WHERE org='org-a'`;
+	expect(eventRow).toBeUndefined();
+	const [probeRow] =
+		await db.sql`SELECT 1 FROM sync_probe WHERE org='org-a' AND id='x'`;
+	expect(probeRow).toBeUndefined();
+	// Next write on the same org still succeeds, proving no partial lock/state leaked.
+	const { writeProbe } = await import("../../packages/domain/src/index");
+	const result = await writeProbe(db.sql, "org-a", "test-actor", "x", "y");
+	expect(result.txid).toBeGreaterThan(0);
 });

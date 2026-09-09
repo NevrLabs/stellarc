@@ -24,7 +24,7 @@ export class ShapeEngine {
 			return new Response(null, { status: 400 });
 		if (q.get("table") !== "sync_probe")
 			return new Response(null, { status: 404 });
-		if (q.has("log") && !["full", "changes_only"].includes(q.get("log")!))
+		if (q.has("log") && !["full", "changes_only"].includes(q.get("log") ?? ""))
 			return new Response(null, { status: 400 });
 		const offset = q.get("offset");
 		if (!offset) return new Response(null, { status: 400 });
@@ -79,8 +79,9 @@ export class ShapeEngine {
 					: `${snapshot.boundary}_0`;
 		} else {
 			if (!/^\d+_0$/.test(offset)) return new Response(null, { status: 400 });
+			const cursorSeq = offset.split("_")[0] ?? "0";
 			const events = await this
-				.sql`SELECT seq::text,txid::text,plugin_type,payload FROM event WHERE org=${org} AND seq>${offset.split("_")[0]!} ORDER BY seq LIMIT 100`;
+				.sql`SELECT seq::text,txid::text,plugin_type,payload FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 100`;
 			next = offset;
 			for (const event of events) {
 				next = `${event.seq}_0`;
