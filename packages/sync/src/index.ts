@@ -1,4 +1,14 @@
-import { Effect, Runtime } from "effect";
+import { Cause, Effect, Exit, Runtime } from "effect";
+
+async function runEffect<A>(
+	runtime: Runtime.Runtime<never>,
+	effect: Effect.Effect<A, unknown>,
+): Promise<A> {
+	const exit = await Runtime.runPromiseExit(runtime)(effect);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
 import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
@@ -30,7 +40,7 @@ export class ShapeEngine {
 				return yield* Effect.tryPromise({
 					try: () =>
 						self.runShape(org, url, signal, (pageUrl) =>
-							Runtime.runPromise(runtime)(self.pageEffect(org, pageUrl)),
+							runEffect(runtime, self.pageEffect(org, pageUrl)),
 						),
 					catch: (cause) => cause,
 				});
@@ -38,7 +48,10 @@ export class ShapeEngine {
 		},
 	);
 	shape(org: string, url: URL, signal?: AbortSignal): Promise<Response> {
-		return Effect.runPromise(this.shapeEffect(org, url, signal));
+		return runEffect(
+			Runtime.defaultRuntime,
+			this.shapeEffect(org, url, signal),
+		);
 	}
 	private pageEffect(org: string, url: URL) {
 		const offset = url.searchParams.get("offset") ?? "-1";
