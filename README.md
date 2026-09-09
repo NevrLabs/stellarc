@@ -2,6 +2,29 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c17: recovery and tracing checkpoint (partial)
+
+- Stock-client reconnect identity accounting and restart/expiry recovery now pass;
+  recovery removes deleted snapshot rows and settles subsequent mutations.
+- HTTP denied-request spans preserve inbound trace context and safe error types.
+- Migration, event append, and snapshot/tail Effect entrypoints export spans under
+  caller traces. Appends count committed mutations. Their focused negative controls
+  failed after removing tracing and passed after restoration.
+- Promise-compatible wrappers remain: this is NOT proof of end-to-end HTTP
+  mutation-to-shape trace propagation. A full-suite regression exposed wrapped
+  shape errors; preserving the original cause restored the failure/long-poll tests.
+- Final executed gates: `bun run lint` exit 0 (938 files, two non-null assertion
+  warnings); `bun run typecheck` exit 0; `bun test` reports 4 unit and 34 integration
+  tests passed, Bun bridge `2 pass / 0 fail`; build `3 successful / 3 total`
+  (all cached). Turbo still warns about Bun lockfile version 2.
+- Remaining acceptance: complete service/runtime telemetry wiring, statement-free
+  SQL tracing, mutation-to-shape context propagation, noConsole enforcement and
+  real Grafana/Tempo export proof; synthetic sign-in/org-shell four-project E2E,
+  structural assertions, screenshot baselines and `e2e:screens`; expected-red UI
+  typecheck budget and CI; audit outstanding required negative controls and full
+  disconnect resource accounting. No UI changes or screenshot acceptance claimed.
+- PR #28 remains draft. Legacy reconciliation is N/A; zero legacy tables imported.
+
 ### Continuation c17: worker lifecycle telemetry (partial)
 
 - The shipped worker uses `Effect.fn` start/stop spans and scoped finalization;
