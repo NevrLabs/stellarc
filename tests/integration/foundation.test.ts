@@ -665,7 +665,10 @@ test("T18 requested log modes stay in server telemetry, never in schema metadata
 	expect(modes).toEqual(["full", "changes_only"]);
 });
 
-test("T12 stock collection recovers after engine restart without retaining deleted snapshot rows", async () => {
+test.each([
+	"restart",
+	"expiry",
+] as const)("T12 stock collection recovers after engine %s without retaining deleted snapshot rows", async (mode) => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { migrate } = await import("../../packages/db/src/migrate");
 	const { writeProbe, deleteProbe } = await import(
@@ -718,9 +721,15 @@ test("T12 stock collection recovers after engine restart without retaining delet
 		expect(collection.get(JSON.stringify(["restart", "old"]))?.value).toBe(
 			"before",
 		);
-		const previous = http;
-		http = foundationHandler(db.sql, new ShapeEngine(db.sql), authorize);
-		await previous.dispose();
+		if (mode === "restart") {
+			const previous = http;
+			http = foundationHandler(db.sql, new ShapeEngine(db.sql), authorize);
+			await previous.dispose();
+		} else {
+			const { vi } = await import("vitest");
+			const now = Date.now.bind(Date);
+			vi.spyOn(Date, "now").mockImplementation(() => now() + 300001);
+		}
 		await deleteProbe(db.sql, "restart", "actor", "old");
 		const mutation = await writeProbe(
 			db.sql,
@@ -758,6 +767,8 @@ test("T12 stock collection recovers after engine restart without retaining delet
 		server.stop(true);
 		await http.dispose();
 		await db.close();
+		const { vi } = await import("vitest");
+		vi.restoreAllMocks();
 	}
 });
 
