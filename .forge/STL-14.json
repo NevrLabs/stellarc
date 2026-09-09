@@ -36,6 +36,22 @@
    "at": "2026-09-09T01:14:28+00:00",
    "agent": "4e1394e3-03ba-4974-9125-ed964e1a5616",
    "reason": "agent wrote no verdict file"
+  },
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-09T01:15:41+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-09T01:18:00+00:00",
+   "agent": "e40da98b-769f-4fbe-bbda-826193ddc0f4"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-09T01:18:36+00:00"
   }
  ],
  "cycle": 0
