@@ -188,13 +188,17 @@ def logs_tail(agent_id, n=40):
 
 # ── briefs ───────────────────────────────────────────────────────────────────
 def brief_header(t, c, stage, needs):
-    return f"""You are stage **{stage}** of a gated pipeline for ticket {t} in {c['repo']} (base branch `{c['base']}`).
-GATE CHECK FIRST: read .forge/{t}.json. The stage `{needs}` MUST have status "pass". If not, STOP and reply exactly: GATE FAILED.
+    root = repo_root()
+    gate_line = (f"GATE CHECK FIRST: read {root}/.forge/{t}.json. The most recent entry for stage `{needs}` MUST have status \"pass\". If not, STOP and reply exactly: GATE FAILED."
+                 if needs else
+                 f"This is the FIRST stage; there is no predecessor gate. Do not look for one.")
+    return f"""You are stage **{stage}** of a gated pipeline for ticket {t} in {c['repo']} (base branch `{c['base']}`). Repository root: {root}
+{gate_line}
 You may write ONLY the files this brief names. Never commit, stash, checkout, or touch the tracker — the orchestrator does that.
-Persist your deliverable to disk BEFORE your final reply. Final reply under 200 words. Keep every command's output small (head -60, targeted greps)."""
+Persist your deliverable to disk BEFORE your final reply, using absolute paths exactly as given. Final reply under 200 words. Keep every command's output small (head -60, targeted greps)."""
 
 def brief_triage(t, c, iss):
-    return f"""{brief_header(t, c, "triage", "none")}
+    return f"""{brief_header(t, c, "triage", None)}
 
 TASK: triage a feature request. Read the issue and the repo's docs/ (charter, ADRs, plan). Decide ONE of:
 - ACCEPT — in scope, well-formed, ready for spec. Say which plan wave/slice it belongs to.
@@ -311,6 +315,7 @@ def ticket_id(c, n): return f"{c['ticket_prefix']}-{n}"
 
 def cmd_triage(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); iss = issue(n, c["repo"])
+    st = load_state(t); st["cycle"] = 0; save_state(t, st)
     record(t, "triage", "running")
     a = dispatch(f"forge triage {t}", brief_triage(t, c, iss), c["models"]["triage"], cwd=repo_root())
     watch(a, f"{t}-triage", t, "triage")
@@ -322,7 +327,7 @@ def cmd_triage(args):
         # transcript contains our own brief, which contains every verdict word.
         record(t, "triage", "fail", agent=a, reason="agent wrote no verdict file")
         comment(n, c["repo"], f"### forge · triage → **NO VERDICT**\n\nAgent `{a}` finished without writing `/tmp/forge-{t}-triage.md`. Re-run `forge triage {n}`.\n\n<details><summary>agent tail</summary>\n\n```\n{logs_tail(a, 25)}\n```\n</details>")
-        die(f"triage agent {a} produced no verdict file — refusing to infer one")
+        die(f"triage agent {a} produced no verdict file — refusing to infer one.\n--- agent tail ---\n{logs_tail(a, 8)}")
     text = out.read_text()
     first = text.strip().splitlines()[0].upper() if text.strip() else ""
     verdict = next((w for w in ("ACCEPT", "NEEDS-INFO", "REJECT") if w in first), None)

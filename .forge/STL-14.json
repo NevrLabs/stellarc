@@ -24,6 +24,18 @@
    "at": "2026-09-08T23:17:44+00:00",
    "agent": "e81f09c0-16b8-420a-a28f-bbd97ab06224",
    "reason": "agent wrote no verdict file"
+  },
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-09T01:13:14+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "fail",
+   "at": "2026-09-09T01:14:28+00:00",
+   "agent": "4e1394e3-03ba-4974-9125-ed964e1a5616",
+   "reason": "agent wrote no verdict file"
   }
  ],
  "cycle": 0
