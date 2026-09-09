@@ -1253,6 +1253,26 @@ This ruling closes the protocol surface for T0. No further parameter questions a
 
 **Remaining scope (authoritative, replaces the PR body's stale list):** T02, T03, T07–T09, T11, T12, T14–T23 test matrix per §7; production `Config`/`SqlLive`/`Authz` Layers with sanitized error map (§3); worker lifecycle (acquire/release/terminate only); runtime append-only grants on `event`; opaque authenticated cursors + long-poll wake/cancel; server-side log-mode telemetry (§5c ruling); Playwright config with four projects + `toHaveScreenshot` against the committed baselines; CI workflow running lint/typecheck/unit/integration/e2e. Update the PR body's Remaining list to this and keep it current.
 
+
+### 5e. Orchestrator ruling — UI typecheck boundary and the definition of T0-done (2026-09-09)
+
+c12 reported the truth: explicit UI typecheck (`tsc -p apps/stellarc-ui/tsconfig.app.json`) exits with 429 errors, dominated by TS2339 "property does not exist on type '{}'" — every one traces to `hc<AppType>` where `AppType` came from the fork's `@kaneo/api`, which does not exist here. **129 UI files import that client; 121 call sites across 88 route paths.** That surface IS the data-layer rewrite ADR 0008 names ("pixels frozen, hooks rewritten"). It is delivered slice by slice in T1–T7 as each domain's Effect API + TanStack DB collections land. **It is not T0 scope, and T0 must not fake it.**
+
+Rulings:
+
+1. **Root `typecheck` excluding `apps/stellarc-ui` is correct for T0 and stays.** The merge gate for STL-14 runs root lint/typecheck/unit/integration/build + the UI *build* (Vite) + Playwright smoke. It does not run UI tsc.
+2. **Add `apps/stellarc-ui` typecheck as a tracked, expected-red gate**: script `typecheck:ui`, wired into CI as a non-blocking job that publishes the error count. `.forge/ui-typecheck-budget.json` records `{ "count": 429, "at": "<sha>" }`. Each T1–T7 slice must lower it and update the file; the merge gate for those tickets fails if the count rose. T7's gate is `count == 0` and the job becomes blocking.
+3. **`e2e:screens` does not exist — create it** as the Playwright project runner that captures all four projects for the screens whose routes resolve on the synthetic fixture. Per 5d-Q1 it generates baselines on first run (`--update-snapshots` once) and asserts after. Screens whose fixture is not yet served by the stub API are `test.fixme` with the owning ticket named — not skipped silently.
+4. **T0 acceptance (authoritative, closes the ticket):**
+   - root lint/typecheck/unit/integration/build green; UI Vite build green
+   - `bun run e2e` green on the four projects for: `sign-in`, `org-shell` (with the stub API serving the minimum fixture), plus structural landmark assertions for those two
+   - sync engine: T01 (reconnect exactly-once with boundary-removal negative control), T04, T05, T06, T07, T10, T12, T13, T23 green; T08/T09 (stock `@electric-sql/client` round-trip incl. `awaitTxId`) green; T11 long-poll wake/cancel green
+   - worker process starts, acquires, releases, terminates cleanly (no domain behaviour)
+   - `ui-typecheck-budget.json` committed with the honest count
+   - PR body Remaining list is EMPTY or names only items explicitly deferred to a numbered ticket
+   Everything else in the T02–T23 matrix that is not listed above is **deferred to the slice that owns the domain** (see §1 OUT-of-scope owners) and must be named in that ticket's spec by the orchestrator.
+5. When (4) holds: `gh pr ready 28`. Not before.
+
 ## 6. Pixel-frozen UI surfaces
 
 Capture fork baseline and compare built Stellarc with the SAME synthetic fixture, locale en-US, timezone UTC, theme, fonts, fixed clock and disabled animations. No production account, shared server mutation, baseline captured from Stellarc, or automatic snapshot acceptance in CI. Baseline root `apps/stellarc-ui/e2e/__screenshots__/<project>/`; `maxDiffPixelRatio: 0.001`. Preserve the complete imported fork screen set, not a replacement toy shell.
