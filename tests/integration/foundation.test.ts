@@ -1,9 +1,14 @@
 import { createCollection } from "@tanstack/db";
 import { electricCollectionOptions } from "@tanstack/electric-db-collection";
-import { afterAll, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
+
+beforeEach(() => {
+	// A previous test must not leave clients polling or PostgreSQL clusters alive.
+	expect(resources).toHaveLength(0);
+});
 
 test("T01 HTTP shape spans remain inside the inbound request trace", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
@@ -1431,8 +1436,8 @@ test("T06 migrations serialize, repeat safely, and reject checksum drift", async
 	await db.sql`UPDATE stellarc_migration SET checksum='invalid'`;
 	await expect(migrate(db.sql)).rejects.toThrow("Migration checksum mismatch");
 });
-afterAll(async () => {
-	for (const close of resources.reverse()) await close();
+afterEach(async () => {
+	for (const close of resources.splice(0).reverse()) await close();
 });
 
 test("T01 stock reconnect retries the boundary page and accounts for every committed event", async () => {
