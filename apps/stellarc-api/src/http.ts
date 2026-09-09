@@ -31,35 +31,34 @@ export function foundationHandler(
 				),
 			)
 			.handleRaw("shape", ({ path, request }) =>
-				Effect.tryPromise({
-					try: async (signal) => {
-						const decision = authorize(path.org, request.headers);
-						if (decision === "unauthenticated")
-							return HttpServerResponse.empty({ status: 401 });
-						if (decision === "forbidden")
-							return HttpServerResponse.empty({ status: 403 });
-						const response = await engine.shape(
-							path.org,
-							new URL(request.url, "http://localhost"),
-							signal,
-						);
-						const resumed = authorize(path.org, request.headers);
-						if (resumed !== "ok")
-							return HttpServerResponse.empty({
-								status: resumed === "unauthenticated" ? 401 : 403,
-							});
-						if (response.status === 204)
-							return HttpServerResponse.empty({
-								status: 204,
-								headers: Object.fromEntries(response.headers),
-							});
-						return HttpServerResponse.text(await response.text(), {
-							status: response.status,
+				Effect.gen(function* () {
+					const decision = authorize(path.org, request.headers);
+					if (decision !== "ok")
+						return HttpServerResponse.empty({
+							status: decision === "unauthenticated" ? 401 : 403,
+						});
+					const response = yield* engine.shapeEffect(
+						path.org,
+						new URL(request.url, "http://localhost"),
+					);
+					const resumed = authorize(path.org, request.headers);
+					if (resumed !== "ok")
+						return HttpServerResponse.empty({
+							status: resumed === "unauthenticated" ? 401 : 403,
+						});
+					if (response.status === 204)
+						return HttpServerResponse.empty({
+							status: 204,
 							headers: Object.fromEntries(response.headers),
 						});
-					},
-					catch: errorResponse,
-				}).pipe(Effect.catchAll(Effect.succeed)),
+					const body = yield* Effect.tryPromise(() => response.text());
+					return HttpServerResponse.text(body, {
+						status: response.status,
+						headers: Object.fromEntries(response.headers),
+					});
+				}).pipe(
+					Effect.catchAll((error) => Effect.succeed(errorResponse(error))),
+				),
 			),
 	);
 	return HttpApiBuilder.toWebHandler(

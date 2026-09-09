@@ -38,8 +38,8 @@ export class ShapeEngine {
 			return Effect.gen(function* () {
 				const runtime = yield* Effect.runtime<never>();
 				return yield* Effect.tryPromise({
-					try: () =>
-						self.runShape(org, url, signal, (pageUrl) =>
+					try: (fiberSignal) =>
+						self.runShape(org, url, signal ?? fiberSignal, (pageUrl) =>
 							runEffect(runtime, self.pageEffect(org, pageUrl)),
 						),
 					catch: (cause) => cause,

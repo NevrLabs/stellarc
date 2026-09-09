@@ -5,6 +5,51 @@ import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
 
+test("T01 HTTP shape spans remain inside the inbound request trace", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	await migrate(db.sql);
+	const web = foundationHandler(
+		db.sql,
+		new ShapeEngine(db.sql),
+		() => "ok",
+		undefined,
+		telemetry.layer,
+	);
+	try {
+		const response = await web.handler(
+			new Request(
+				"http://test/orgs/trace/v1/shape?table=sync_probe&offset=-1",
+				{
+					headers: {
+						traceparent:
+							"00-11111111111111111111111111111111-2222222222222222-01",
+					},
+				},
+			),
+		);
+		expect(response.status).toBe(200);
+		await response.text();
+		const snapshots = telemetry.spans
+			.getFinishedSpans()
+			.filter((span) => span.name === "stellarc.shape.snapshot");
+		expect(snapshots).toHaveLength(1);
+		expect(snapshots[0].spanContext().traceId).toBe(
+			"11111111111111111111111111111111",
+		);
+	} finally {
+		await web.dispose();
+		await db.close();
+	}
+});
+
 test("T06 migration exports its applied version through the caller trace", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { applyMigration } = await import("../../packages/db/src/migrate");
