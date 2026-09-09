@@ -2,6 +2,30 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c18: HTTP trace, SQL privacy and cancellation (partial)
+
+- Pushed `514bd63`, `488c501`, `b3f109e`, and `791ad40`: preserve the inbound
+  HTTP shape trace, interrupt polling on client disconnect, export statement-free
+  SqlLive spans, and measure scoped live connections and wait duration.
+- Focused cancellation control (remove fiber signal) failed and restored green.
+  SQL attribute-filter control failed and restored green. Gauge decrement control:
+  `AssertionError: expected [ 1 ] to include +0`; restored `1 passed | 37 skipped`.
+- `cbb2cce` adds the expected-red UI typecheck budget and CI tracking.
+- Latest frozen install, lint, root typecheck and build exit 0; lint has two
+  non-null-assertion warnings; build reports `3 successful, 3 total`.
+- Full verification is NOT green. Repeated Bun bridge runs report `1 pass / 1 fail`.
+  Latest integration run: `3 failed | 35 passed (38)`, 30-second timeouts in T01
+  shape span boundaries, T16 shape failures and T12 cursor validation. Earlier
+  runs timed out in T16 health and T04 rollback instead. No timeout was increased.
+  Host load was 12.51 when inspected; this is correlation, not a proven cause.
+- Remaining T0: diagnose full-suite timeout instability; four-project synthetic
+  sign-in/org-shell fixtures, structural assertions, E2E scripts and baselines;
+  finish/audit service telemetry and mutation-to-shape trace propagation,
+  noConsole enforcement, required span controls and Grafana/Tempo export proof;
+  wire E2E into CI and audit remaining mandatory acceptance/control coverage.
+- No UI changes or synthetic screenshot acceptance claimed. PR #28 stays draft.
+  Legacy reconciliation remains N/A. Broader UI/domain work belongs to STL-15–21.
+
 ### Continuation c17: recovery and tracing checkpoint (partial)
 
 - Stock-client reconnect identity accounting and restart/expiry recovery now pass;
