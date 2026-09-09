@@ -1294,6 +1294,8 @@ Add to the PR: a screenshot of one T01 trace in Grafana/Tempo showing the snapsh
 
 §5e acceptance now includes items 1–9 above. Item 10 may be a follow-up commit in the same PR.
 
+**Local OTLP sink (this host):** Tempo `http://localhost:4318` (OTLP/HTTP) / `:4317` (gRPC), query API `:3200`, Grafana `http://localhost:3210` (anonymous Admin, Tempo datasource `uid=tempo` provisioned). systemd user units `tempo.service`, `grafana.service`. Smoke-verified: a span POSTed to `/v1/traces` is queryable at `/api/traces/<id>` within 4s. Use it for the §5f screenshot; tests still use `TelemetryTest` in-memory.
+
 ## 6. Pixel-frozen UI surfaces
 
 Capture fork baseline and compare built Stellarc with the SAME synthetic fixture, locale en-US, timezone UTC, theme, fonts, fixed clock and disabled animations. No production account, shared server mutation, baseline captured from Stellarc, or automatic snapshot acceptance in CI. Baseline root `apps/stellarc-ui/e2e/__screenshots__/<project>/`; `maxDiffPixelRatio: 0.001`. Preserve the complete imported fork screen set, not a replacement toy shell.

@@ -74,9 +74,13 @@ Resource attributes on every signal: `service.name` (`stellarc-api` /
 
 ## Local stack
 
-`docker-compose.otel.yml`: OTel Collector → Tempo (traces) + Prometheus (metrics)
-+ Loki (logs) + Grafana. `bun run otel:up`. Not required for tests (in-memory
-exporter), required for `bun run dev`.
+Native binaries under systemd user units (the dev host has no Docker): Tempo
+(OTLP/HTTP `:4318`, gRPC `:4317`, query `:3200`) and Grafana (`:3210`, anonymous
+Admin, Tempo datasource provisioned). `docs/otel-local.md` has the config. A
+`docker-compose.otel.yml` (Collector → Tempo + Prometheus + Loki + Grafana) is
+the portable equivalent for other machines. Neither is required for tests (in-
+memory exporter); one of them is required for `bun run dev` and for the trace
+screenshot every observability-touching PR carries.
 
 ## Rejected
 
