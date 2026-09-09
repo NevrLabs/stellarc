@@ -1051,6 +1051,84 @@ afterAll(async () => {
 	for (const close of resources.reverse()) await close();
 });
 
+test("T01 stock reconnect retries the boundary page and accounts for every committed event", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("accounting", "one", "before");
+	let raced = false;
+	server.afterProjectionRead = async () => {
+		if (raced) return;
+		raced = true;
+		await server.write("accounting", "one", "raced");
+	};
+	let lostUrl: string | undefined;
+	let retriedUrl: string | undefined;
+	const received: string[] = [];
+	const collection = createCollection(
+		electricCollectionOptions<{
+			org: string;
+			id: string;
+			value: string;
+			last_seq: string;
+		}>({
+			id: `accounting:${crypto.randomUUID()}`,
+			getKey: (row) => JSON.stringify([row.org, row.id]),
+			shapeOptions: {
+				url: `${server.url}/orgs/accounting/v1/shape`,
+				params: { table: "sync_probe" },
+				headers: { authorization: "Bearer accounting" },
+				fetchClient: Object.assign(
+					async (
+						input: Parameters<typeof fetch>[0],
+						init?: Parameters<typeof fetch>[1],
+					) => {
+						const response = await fetch(input, init);
+						if (response.status !== 200) return response;
+						const messages = await response.clone().json();
+						const changes = messages.filter(
+							(message: { headers: { txids?: number[] } }) =>
+								message.headers.txids,
+						);
+						if (changes.length && !lostUrl) {
+							lostUrl = String(input);
+							await server.write("accounting", "two", "offline");
+							await server.write("accounting", "one", "latest");
+							throw new TypeError(
+								"simulated connection loss before page acknowledgement",
+							);
+						}
+						if (changes.length && lostUrl && !retriedUrl)
+							retriedUrl = String(input);
+						for (const message of changes)
+							received.push(`${message.value.org}:${message.value.last_seq}`);
+						return response;
+					},
+					{ preconnect: fetch.preconnect },
+				),
+			},
+		}),
+	);
+	try {
+		await collection.preload();
+		await expect
+			.poll(
+				() => collection.get(JSON.stringify(["accounting", "one"]))?.value,
+				{ timeout: 10000 },
+			)
+			.toBe("latest");
+		expect(collection.get(JSON.stringify(["accounting", "two"]))?.value).toBe(
+			"offline",
+		);
+		expect(collection.size).toBe(2);
+		expect(received).toEqual(["accounting:2", "accounting:3", "accounting:4"]);
+		expect(await server.eventCount("accounting")).toBe(4);
+		expect(lostUrl).toBeDefined();
+		expect(retriedUrl).toBe(lostUrl);
+	} finally {
+		await collection.cleanup();
+	}
+});
+
 test("T01 snapshot/reconnect retains the mutation committed between projection and counter reads", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);
