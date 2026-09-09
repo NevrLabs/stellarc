@@ -39,9 +39,11 @@ Read in order:
 2. `docs/adrs/0001`–`0006` — founding ADRs (inert CP, Bun/TS + Effect-as-library, transcript schema, tunnel, templates, primitives)
 3. `docs/adrs/0007-embedded-sync-engine.md` — **decision B**: Electric-protocol shape server over our event log, in-process
 4. `docs/adrs/0008-frontend-stack.md` — Vite SPA, TanStack Router + DB, Base UI/shadcn, Tailwind v4
-5. `docs/primitives-v1.md` — structural entities vs resource kinds
-6. `docs/design/DESIGN_SYSTEM.md`, `VISION.md` — the design target (not yet applied)
-7. `LICENSING.md` — FSL core / Apache client split
+5. `docs/adrs/0009-development-workflow.md` — forge: triage → spec → implement → adversarial review → merge gate; four Playwright projects
+6. `docs/adrs/0010-opentelemetry-native.md` — **OTel-native**: Effect spans/metrics/logs via `@effect/opentelemetry`, OTLP export, span assertions in tests
+7. `docs/primitives-v1.md` — structural entities vs resource kinds
+8. `docs/design/DESIGN_SYSTEM.md`, `VISION.md` — the design target (not yet applied)
+9. `LICENSING.md` — FSL core / Apache client split
 
 `docs/adrs/v1-0037`, `v1-0038` are carried from `main` because 0007 builds on
 them.
