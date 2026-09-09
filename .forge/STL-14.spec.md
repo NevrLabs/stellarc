@@ -1214,6 +1214,30 @@ Behavioural contract unchanged: `securityLevel: "strict"`, `htmlLabels: false`, 
 
 The `.forge/STL-14.blocker.md` write was denied because `.forge/` under the main checkout is outside the worktree allowance. Corrected: blocker files go in the **worktree** as `.forge-blocker.md` at its root.
 
+
+### 5c. Orchestrator ruling — shape query contract vs stock client (2026-09-09)
+
+Implementer c3 proved from the `@electric-sql/client@1.5.27` tarball that the stock client unconditionally sends `log` (`src/client.ts:1347`) and, on recovery paths, `expired_handle`, `cache-buster`, and the live `cursor`. §3's four-parameter allowlist contradicts §§4/7's "stock client unchanged." **§§4/7 win; §3 is amended.**
+
+Permitted query parameters on `GET /orgs/:org/v1/shape`:
+
+| Param | Semantics | Validation |
+|---|---|---|
+| `table` | logical shape name (spike: `sync_probe`) | must be a registered shape for the org; else 404 (not 400 — do not disclose registry shape) |
+| `offset` | `-1` for snapshot, else the opaque cursor we issued | `-1` or a cursor we can parse; else 400 |
+| `handle` | shape handle we issued | required when `offset != -1`; unknown/rotated handle → `409` with `must-refetch` control message, per protocol |
+| `live` | `true` to long-poll the tail | boolean |
+| `log` | `full` \| `changes_only` | accept both; spike serves `full` semantics for either and records the requested mode in the response header `electric-schema` untouched. Unknown value → 400 |
+| `cursor` | live-mode cache buster from the client's previous `electric-cursor` | opaque; echo back a fresh `electric-cursor` on every live response; never used for authz |
+| `expired_handle` | the handle the client believes expired | accepted, logged, ignored for routing |
+| `cache-buster` | retry-path nonce | accepted and ignored |
+
+**Any other parameter → 400.** Specifically still rejected: `where`, `columns`, `replica`, `subset__*`, `live_sse`, `params[*]`. T0 serves whole-shape only; filtering is a later ticket. The negative-control test for this section: a request with `where=` must return 400, and a request with `log=changes_only` must return 200 — both assertions must exist and both must be shown failing before the handler exists.
+
+Response headers the stock client requires (verified against the same tarball, `src/client.ts` header constants): `electric-handle`, `electric-offset`, `electric-schema`, `electric-up-to-date` (on the last page), `electric-cursor` (live responses). Control messages: `{headers:{control:"up-to-date"}}` at tail; `{headers:{control:"must-refetch"}}` on handle rotation. Long-poll timeout returns **204** with `electric-cursor` set.
+
+This ruling closes the protocol surface for T0. No further parameter questions are open; anything not in the table above is rejected and the implementer does not need to ask.
+
 ## 6. Pixel-frozen UI surfaces
 
 Capture fork baseline and compare built Stellarc with the SAME synthetic fixture, locale en-US, timezone UTC, theme, fonts, fixed clock and disabled animations. No production account, shared server mutation, baseline captured from Stellarc, or automatic snapshot acceptance in CI. Baseline root `apps/stellarc-ui/e2e/__screenshots__/<project>/`; `maxDiffPixelRatio: 0.001`. Preserve the complete imported fork screen set, not a replacement toy shell.

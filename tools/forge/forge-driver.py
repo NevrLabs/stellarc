@@ -126,6 +126,10 @@ def tick():
         if all(is_done(b) for b in bl):
             st = next_stage(n)
             if st: ready.append((n, st))
+    # Parked questions need a human/orchestrator answer; announce them every tick until answered.
+    for qf in sorted((REPO_ROOT / ".forge").glob("*.question-*.md")):
+        af = qf.with_name(qf.name.replace(".question-", ".answer-"))
+        if not af.exists(): log("question", qf.name.split(".")[0], f"unanswered → write {af.name}")
     if not ready:
         done = sum(is_done(n) for n in nums)
         log("idle", "-", f"{done}/{len(nums)} merged; nothing runnable (waiting on agents, blockers, or escalations)")

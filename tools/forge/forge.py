@@ -173,20 +173,33 @@ def watch(agent_id, label_, ticket, stage):
     if PIPELINE.exists():
         sh([str(PIPELINE), "add", agent_id, label_, ticket, stage], check=False)
 
-def wait_idle(agent_id, timeout_s):
-    """Poll until idle/completed. A Hermes lane that requests an edit under --mode default
-    parks in status 'permission' with nobody to approve — treat that as a hard stop, not a wait."""
-    env = paseo_env(); t0 = time.time()
+def wait_idle(agent_id, timeout_s, worktree=None, on_question=None):
+    """Poll until idle/completed. Two mid-run interrupts are handled without ending the stage:
+    - status 'permission' (edit under a read-only mode): stop + die, nobody can approve.
+    - a `.forge-question.md` appearing in the worktree: the agent needs a ruling. Call on_question(text)
+      to get an answer, `paseo send` it, delete the file, keep waiting. Questions are logged to the stage."""
+    env = paseo_env(); t0 = time.time(); answered = 0
+    qfile = (Path(worktree) / ".forge-question.md") if worktree else None
     while time.time() - t0 < timeout_s:
+        if qfile and qfile.exists() and on_question:
+            q = qfile.read_text().strip()
+            ans = on_question(q, answered)
+            if ans:
+                (Path(worktree) / f".forge-answer-{answered+1}.md").write_text(ans)
+                qfile.unlink()
+                sh([str(PASEO), "send", agent_id, "--no-wait", "--prompt",
+                    f"ORCHESTRATOR ANSWER (question {answered+1}) — written to .forge-answer-{answered+1}.md in your worktree. Read it and continue; do not stop for this again.\n\n{ans}"],
+                   env=env, check=False, timeout=90)
+                answered += 1
+                print(f"answered question {answered} for {agent_id}")
         r = sh([str(PASEO), "inspect", agent_id, "--json"], env=env, check=False)
         if r.returncode == 0:
             d = json.loads(r.stdout); st = (d.get("Status") or d.get("status") or "").lower()
             if st in ("idle", "completed", "error", "failed", "stopped"):
-                return d
+                d["_answered"] = answered; return d
             if st == "permission":
                 sh([str(PASEO), "stop", agent_id], env=env, check=False)
-                die(f"agent {agent_id} is blocked on an edit-permission prompt (read-only mode). "
-                    f"The brief asked it to write outside its allowance. Stopped. `paseo logs {agent_id} | tail`")
+                die(f"agent {agent_id} is blocked on an edit-permission prompt (read-only mode). Stopped. `paseo logs {agent_id} | tail`")
         time.sleep(15)
     die(f"agent {agent_id} did not go idle within {timeout_s}s — `paseo logs {agent_id} | tail`")
 
@@ -261,6 +274,7 @@ TDD CONTRACT (non-negotiable):
    (Committing on YOUR branch in YOUR worktree is the one exception to the no-commit rule — the orchestrator merges, you never do.)
 6. Budget: {c.get('implement_budget_min', 90)} minutes. If you cannot finish, commit what is GREEN, push, open the PR as draft, and say exactly what remains.
 7. SPEC GAP PROTOCOL: if the spec omits something you need AND it changes behaviour or scope, do NOT invent. Write the gap to `.forge-blocker.md` at the ROOT OF YOUR WORKTREE (your cwd — not the main checkout, which you cannot write), and make your final reply start with the literal line `BLOCKED: spec gap`. The orchestrator amends the spec and re-dispatches.
+   QUESTION PROTOCOL (preferred over blocking): if you need a ruling but can keep working on other parts, write the question to `.forge-question.md` at your worktree root and CONTINUE with unblocked work. The orchestrator answers within minutes via a message and `.forge-answer-N.md`; read it and proceed. Only use BLOCKED when nothing at all can proceed.
    PRE-AUTHORISED (do not stop for these; log them in `.forge-deps-added.md` in your worktree with file:line evidence): adding a dependency the mirrored source imports but no manifest declares — pin to the version in the mirror's installed node_modules if present, else current npm. Missing config/alias plumbing the mirror relies on — mirror it. A missing file the mirror imports — mirror it too and note it. Stop only for gaps that would make you choose behaviour.
 
 Every UI-touching change: run `{c.get('screenshot_cmd', 'bun run e2e:screens')}` — it captures ALL Playwright projects ({', '.join(c.get('viewports', ['desktop','tablet','mobile','mobile-small']))}) — and commit the PNGs under e2e/__screenshots__/<project>/. A UI change with screenshots for only one viewport is incomplete. Mobile projects use real touch (page.tap), not mouse.
@@ -290,6 +304,34 @@ Write .forge/{t}.review-{cycle}.md: verdict line (PASS|REWORK), then the per-ite
 === SPEC ===
 {spec}
 === END SPEC ==="""
+
+
+# ── question policy ──────────────────────────────────────────────────────────
+def answer_question(t, c, spec):
+    """Return a callable(question, n) -> answer. Mechanical rulings first; unresolved → write
+    .forge/<T>.question-<n>.md, comment the issue, and answer with an explicit HOLD so the agent
+    parks rather than guesses. The orchestrator (human or Hermes) fills the answer file; the next
+    poll picks it up."""
+    root = repo_root()
+    rules = [
+        # (regex on the question, canned ruling)
+        (r"undeclared|not (declared|in).*(manifest|package\.json|lockfile)", "RULING: pre-authorised. Add the dependency pinned to the version in the mirror's installed node_modules if present, else current npm. Log it in .forge-deps-added.md with file:line. Continue."),
+        (r"\bbun\b.*(PATH|not found|missing)", "RULING: bun is at /home/rpw/.bun/bin/bun. Use the absolute path. Continue."),
+        (r"(cannot|denied|not allowed).*(write|edit).*(main checkout|\.forge/)", "RULING: write only inside your worktree. Blocker/question/deps files go at the worktree root as .forge-*.md. Continue."),
+        (r"which (version|major)|pin(ned)? version", "RULING: use the version present in /home/rpw/repos/kaneo/node_modules/.pnpm if installed, else current npm latest. Record it. Continue."),
+        (r"(alias|@i18n|@/)", "RULING: mirror the fork's alias plumbing exactly (vite.config.ts + tsconfig paths). See spec §5a. Continue."),
+        (r"(log|cursor|expired_handle|cache-buster|query param)", "RULING: see spec §5c — the permitted parameter table is closed. Anything not listed → 400. Continue."),
+    ]
+    def _answer(q, n):
+        for rx, ans in rules:
+            if re.search(rx, q, re.I): return ans
+        # Not mechanical: park it for the orchestrator.
+        qp = root / f".forge/{t}.question-{n+1}.md"; qp.write_text(q + "\n")
+        ap = root / f".forge/{t}.answer-{n+1}.md"
+        if ap.exists(): return ap.read_text()
+        comment(t.split("-")[-1], c["repo"], f"### forge · implementer question {n+1} — **needs orchestrator ruling**\n\n{q[:3000]}\n\nWrite the answer to `.forge/{t}.answer-{n+1}.md`; the driver delivers it on the next poll.")
+        return None   # keep waiting; agent stays parked on its own until answered
+    return _answer
 
 # ── stages ───────────────────────────────────────────────────────────────────
 def cmd_init(args):
@@ -374,7 +416,12 @@ def cmd_spec(args):
 def cmd_implement(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "spec")
     s = load_state(t); cycle = s.get("cycle", 0) + 1
-    if cycle > MAX_CYCLES: die(f"{t} exceeded {MAX_CYCLES} rework cycles — escalate to a human")
+    # Only REWORK cycles (review said REWORK / merge-gate failed) count against the cap. Cycles that
+    # ended in a spec gap are the orchestrator's defect, not the implementer's; they consume a branch
+    # number but not the budget.
+    rework_cycles = sum(1 for st in s["stages"] if st["stage"] == "review" and st["status"] == "rework") \
+                  + sum(1 for st in s["stages"] if st["stage"] == "merge-gate" and st["status"] == "fail")
+    if rework_cycles >= MAX_CYCLES: die(f"{t} hit {MAX_CYCLES} rework cycles — escalate to a human")
     s["cycle"] = cycle; save_state(t, s)
     spec = spec_path(t).read_text()
     defects = None
@@ -389,7 +436,13 @@ def cmd_implement(args):
                  worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
     watch(a, f"{t}-impl-c{cycle}", t, "implement")
     print(f"dispatched {a} on {branch} ({model}); waiting up to {c['stage_timeout_s']['implement']}s…")
-    wait_idle(a, c["stage_timeout_s"]["implement"])
+    wt = None
+    for _ in range(20):                                   # worktree appears a few seconds after dispatch
+        wt = next(iter(Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c{cycle}")), None)
+        if wt: break
+        time.sleep(3)
+    d = wait_idle(a, c["stage_timeout_s"]["implement"], worktree=wt, on_question=answer_question(t, c, spec))
+    if d.get("_answered"): record(t, "implement", "note", cycle=cycle, questions_answered=d["_answered"])
     prs = json.loads(gh(["pr", "list", "--head", branch, "--json", "number,url,isDraft,state"], c["repo"]).stdout)
     if not prs:
         tail = logs_tail(a, 12)
