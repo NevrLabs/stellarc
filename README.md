@@ -2,6 +2,25 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c17: worker lifecycle telemetry (partial)
+
+- The shipped worker uses `Effect.fn` start/stop spans and scoped finalization;
+  its production entrypoint provides `TelemetryLive("stellarc-worker")`.
+- A real disposable-PG test runs that worker with `TelemetryTest`, observes exactly
+  one start then stop span, interrupts it, and verifies zero remaining pool sessions.
+- Initial RED and `Effect.fnUntraced` negative control both returned:
+  `AssertionError: expected [ 'sql.execute' ] to include 'stellarc.worker.start'`.
+  Restored GREEN: `Tests 1 passed | 26 skipped (27)` (exit 0).
+- Full gates: lint `Checked 938 files ... No fixes applied`; `tsc --noEmit` exit 0;
+  Vitest `4 passed` unit / `27 passed` integration; Bun bridge `2 pass, 0 fail`;
+  build `Tasks: 3 successful, 3 total` (exit 0). Frozen install succeeded.
+- Earlier full and focused runs hit T07's 30-second timeout. No timeout/config or
+  T07 implementation was changed; the next focused run took 4.88s, and the full
+  default-timeout bridge subsequently passed. This remains intermittent evidence,
+  not a claim that the timeout's root cause was fixed.
+- No UI changes. Remaining §§5e–5f acceptance below is still open except worker
+  lifecycle instrumentation. Keep PR #28 draft; legacy reconciliation remains N/A.
+
 ### Continuation c14: HTTP settlement and scoped runtimes (partial)
 
 The latest acceptance is brief §§5e–5f; older Remaining lists below are historical.

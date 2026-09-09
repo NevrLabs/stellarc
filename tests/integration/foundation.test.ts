@@ -665,6 +665,102 @@ test("T18 requested log modes stay in server telemetry, never in schema metadata
 	expect(modes).toEqual(["full", "changes_only"]);
 });
 
+test("T12 stock collection recovers after engine restart without retaining deleted snapshot rows", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { writeProbe, deleteProbe } = await import(
+		"../../packages/domain/src/index"
+	);
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const db = await disposablePostgres();
+	await migrate(db.sql);
+	await writeProbe(db.sql, "restart", "actor", "old", "before");
+	const authorize = (org: string, headers: Readonly<Record<string, string>>) =>
+		headers.authorization === `Bearer ${org}`
+			? ("ok" as const)
+			: ("unauthenticated" as const);
+	let http = foundationHandler(db.sql, new ShapeEngine(db.sql), authorize);
+	const statuses: number[] = [];
+	const handles: string[] = [];
+	const server = Bun.serve({
+		port: 0,
+		hostname: "127.0.0.1",
+		idleTimeout: 30,
+		fetch: async (request) => {
+			const response = await http.handler(request);
+			statuses.push(response.status);
+			if (new URL(request.url).searchParams.get("offset") === "-1")
+				handles.push(response.headers.get("electric-handle") ?? "");
+			return response;
+		},
+	});
+	const collection = createCollection(
+		electricCollectionOptions<{
+			org: string;
+			id: string;
+			value: string;
+			last_seq: string;
+		}>({
+			id: `restart:${crypto.randomUUID()}`,
+			getKey: (row) => JSON.stringify([row.org, row.id]),
+			shapeOptions: {
+				url: `${server.url.origin}/orgs/restart/v1/shape`,
+				params: { table: "sync_probe" },
+				headers: { authorization: "Bearer restart" },
+			},
+		}),
+	);
+	try {
+		await collection.preload();
+		expect(collection.get(JSON.stringify(["restart", "old"]))?.value).toBe(
+			"before",
+		);
+		const previous = http;
+		http = foundationHandler(db.sql, new ShapeEngine(db.sql), authorize);
+		await previous.dispose();
+		await deleteProbe(db.sql, "restart", "actor", "old");
+		const mutation = await writeProbe(
+			db.sql,
+			"restart",
+			"actor",
+			"new",
+			"after",
+		);
+		await expect
+			.poll(() => statuses.includes(409), { timeout: 10000 })
+			.toBe(true);
+		await expect
+			.poll(() => collection.get(JSON.stringify(["restart", "new"]))?.value, {
+				timeout: 10000,
+			})
+			.toBe("after");
+		expect(collection.has(JSON.stringify(["restart", "old"]))).toBe(false);
+		expect(collection.size).toBe(1);
+		expect(handles.length).toBeGreaterThanOrEqual(2);
+		expect(handles.at(-1)).not.toBe(handles[0]);
+		const next = await writeProbe(
+			db.sql,
+			"restart",
+			"actor",
+			"new",
+			"live again",
+		);
+		expect(next.txid).toBeGreaterThan(mutation.txid);
+		await collection.utils.awaitTxId(next.txid, 5000);
+		expect(collection.get(JSON.stringify(["restart", "new"]))?.value).toBe(
+			"live again",
+		);
+	} finally {
+		await collection.cleanup();
+		server.stop(true);
+		await http.dispose();
+		await db.close();
+	}
+});
+
 test("T12 cursors are issued per handle and reject forged or cross-handle continuations", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);
