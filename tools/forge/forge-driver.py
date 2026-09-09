@@ -95,7 +95,14 @@ def next_stage(n):
     return None                                                         # blocked / rejected / running
 
 def failures(n, stage):
-    return sum(1 for st in state(n)["stages"] if st["stage"] == stage and st["status"] == "fail")
+    """Consecutive hard fails since the last progress on this stage. Spec gaps ('blocked') and
+    budget stops ('partial') are progress or orchestrator cost, and reset the count."""
+    k = 0
+    for st in reversed(state(n)["stages"]):
+        if st["stage"] != stage: continue
+        if st["status"] == "fail": k += 1
+        elif st["status"] in ("pass", "partial", "blocked"): break
+    return k
 
 def in_flight_count(nums):
     return sum(1 for n in nums if last(state(n), "implement") == "running" or last(state(n), "review") == "running")

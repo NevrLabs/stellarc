@@ -23,3 +23,7 @@
 2026-09-09T03:49:08+00:00 start      STL-14   implement
 2026-09-09T03:56:37+00:00 fail       STL-14   implement rc=1: dispatched 23abddb7-a15d-47fa-972d-86aa9bb46947 on forge/stl-14-c4 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 7200s… | forge: implementer 23abddb7-a15d-47fa-972d-86aa9bb46947 pushed nothing to forge/stl-14-c4 — cycle wasted
 2026-09-09T03:56:38+00:00 escalate   STL-14   implement — human needed; delete .forge/STL-14.escalation to resume
+2026-09-09T03:58:04+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-09T03:58:12+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:00:23+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:02:32+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
