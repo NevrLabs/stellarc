@@ -95,9 +95,12 @@ def record(t, stage, status, **extra):
     save_state(t, s)
     return s
 
-def gate(t, needs):
-    """Refuse to start a stage unless its predecessor passed."""
-    st = stage_status(load_state(t), needs)
+def gate(t, needs, this=None):
+    """Refuse to start a stage unless its predecessor passed — and refuse if THIS stage is already running."""
+    s0 = load_state(t)
+    if this and stage_status(s0, this) == "running":
+        die(f"gate: {this} for {t} is already running (another forge process owns it). Refusing to double-dispatch.")
+    st = stage_status(s0, needs)
     if st != "pass":
         die(f"gate: {needs} is '{st}', not 'pass' — cannot proceed. Fix the predecessor or `forge status {t}`.")
 
@@ -414,7 +417,7 @@ def cmd_spec(args):
     print(f"{t} spec → pass")
 
 def cmd_implement(args):
-    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "spec")
+    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "spec", this="implement")
     s = load_state(t); cycle = s.get("cycle", 0) + 1
     # Only REWORK cycles (review said REWORK / merge-gate failed) count against the cap. Cycles that
     # ended in a spec gap are the orchestrator's defect, not the implementer's; they consume a branch
@@ -466,7 +469,7 @@ def cmd_implement(args):
     print(f"{t} implement c{cycle} → {pr['url']}")
 
 def cmd_review(args):
-    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "implement")
+    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "implement", this="review")
     s = load_state(t); cycle = s["cycle"]
     impl = next(st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "pass")
     # Reviewer is chosen to be a DIFFERENT family from whoever implemented this cycle.
@@ -498,7 +501,7 @@ def cmd_review(args):
 
 def cmd_merge(args):
     """Orchestrator-only. Fresh worktree at the PR head; run every gate ourselves; squash-merge."""
-    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "review")
+    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "review", this="merge-gate")
     s = load_state(t)
     impl = next(st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "pass")
     pr = json.loads(gh(["pr", "view", str(impl["pr"]), "--json", "number,url,headRefOid,headRefName,isDraft,mergeable"], c["repo"]).stdout)

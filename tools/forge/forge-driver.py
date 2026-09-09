@@ -79,6 +79,10 @@ def next_stage(n):
     """Which forge command should run next for ticket n, or None if waiting/done/escalated."""
     if (REPO_ROOT / f".forge/{tid(n)}.escalation").exists(): return None
     s = state(n)
+    # In flight? The LAST entry for any stage being 'running' means a forge process owns this ticket.
+    # Re-arming a predecessor (spec: pass) must not make the driver dispatch a second implementer.
+    if any(last(s, st) == "running" for st in ("triage", "spec", "implement", "review", "merge-gate")):
+        return None
     if last(s, "merged") == "pass": return None
     if last(s, "merge-gate") == "pass": return None                    # merged is recorded by forge merge itself
     if last(s, "review") == "pass": return "merge"
