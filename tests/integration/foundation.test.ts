@@ -1230,6 +1230,70 @@ test("T10 delete emits a stable-key delete and missing delete leaves the log unc
 	expect(await server.eventCount("org-a")).toBe(before);
 });
 
+test("T13 HTTP telemetry exports denied requests with safe error types and inbound trace context", async () => {
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const http = foundationHandler(
+		db.sql,
+		new ShapeEngine(db.sql),
+		(_org, headers) =>
+			headers.authorization ? "forbidden" : "unauthenticated",
+		undefined,
+		telemetry.layer,
+	);
+	try {
+		for (const [authorization, status, tag] of [
+			["", 401, "Unauthenticated"],
+			["Bearer private-token", 403, "Forbidden"],
+		] as const) {
+			const response = await http.handler(
+				new Request(
+					"http://test/orgs/secret-org/v1/shape?table=sync_probe&offset=-1",
+					{
+						headers: {
+							authorization,
+							traceparent:
+								"00-12345678901234567890123456789012-1234567890123456-01",
+						},
+					},
+				),
+			);
+			expect(response.status).toBe(status);
+			const spans = telemetry.spans
+				.getFinishedSpans()
+				.filter(
+					(span) =>
+						span.name === "stellarc.http.request" &&
+						span.attributes["http.response.status_code"] === status,
+				);
+			expect(spans).toHaveLength(1);
+			expect(spans[0].attributes["error.type"]).toBe(tag);
+			expect(spans[0].attributes["http.route"]).toBe("/orgs/:org/v1/shape");
+			expect(spans[0].attributes["http.request.method"]).toBe("GET");
+			expect(spans[0].spanContext().traceId).toBe(
+				"12345678901234567890123456789012",
+			);
+			expect(
+				Object.keys(spans[0].attributes).some((key) =>
+					key.includes("principal"),
+				),
+			).toBe(false);
+			expect(JSON.stringify(spans[0].attributes)).not.toContain(
+				"private-token",
+			);
+		}
+	} finally {
+		await http.dispose();
+		await db.close();
+	}
+});
+
 test("T13 missing auth is 401 and wrong-org capability is 403 with no data leakage", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);

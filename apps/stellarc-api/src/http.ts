@@ -1,6 +1,7 @@
 import {
 	HttpApiBuilder,
 	HttpServer,
+	HttpServerRequest,
 	HttpServerResponse,
 } from "@effect/platform";
 import { Effect, Layer } from "effect";
@@ -19,6 +20,7 @@ export function foundationHandler(
 		headers: Readonly<Record<string, string>>,
 	) => AuthzResult,
 	healthQuery?: Effect.Effect<unknown, unknown>,
+	telemetry: Layer.Layer<never> = Layer.empty,
 ) {
 	const group = HttpApiBuilder.group(FoundationApi, "foundation", (handlers) =>
 		handlers
@@ -64,6 +66,43 @@ export function foundationHandler(
 		Layer.mergeAll(
 			HttpApiBuilder.api(FoundationApi).pipe(Layer.provide(group)),
 			HttpServer.layerContext,
+			telemetry,
 		),
+		{
+			middleware: (app) =>
+				Effect.fn("stellarc.http.request")(function* () {
+					const request = yield* HttpServerRequest.HttpServerRequest;
+					const pathname = new URL(request.url, "http://localhost").pathname;
+					const shape = /^\/orgs\/[^/]+\/v1\/shape$/.test(pathname);
+					yield* Effect.annotateCurrentSpan({
+						"http.route": shape
+							? "/orgs/:org/v1/shape"
+							: pathname === "/health"
+								? "/health"
+								: "unmatched",
+						"http.request.method": request.method,
+					});
+					const response = yield* app;
+					yield* Effect.annotateCurrentSpan(
+						"http.response.status_code",
+						response.status,
+					);
+					const errorTypes: Record<number, string> = {
+						400: "BadRequest",
+						401: "Unauthenticated",
+						403: "Forbidden",
+						404: "NotFound",
+						409: "Conflict",
+						500: "InternalError",
+						503: "Unavailable",
+					};
+					if (response.status >= 400)
+						yield* Effect.annotateCurrentSpan(
+							"error.type",
+							errorTypes[response.status] ?? "InternalError",
+						);
+					return response;
+				})(),
+		},
 	);
 }

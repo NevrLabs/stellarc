@@ -5,6 +5,7 @@ import postgres from "postgres";
 import { SqlLive } from "../../../packages/db/src/index";
 import { Authz, AuthzLive } from "../../../packages/domain/src/authz";
 import { ShapeEngine } from "../../../packages/sync/src/index";
+import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import { AppConfig, ConfigLive } from "./config";
 import { foundationHandler } from "./http";
 
@@ -30,6 +31,7 @@ export const api = Effect.gen(function* () {
 				new ShapeEngine(sql),
 				authz.authorize,
 				pg`SELECT 1`,
+				TelemetryLive("stellarc-api"),
 			),
 		),
 		(http) => Effect.promise(() => http.dispose()),
