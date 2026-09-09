@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Metric, Runtime, Schema } from "effect";
 import type { Sql } from "postgres";
 
 export const Probe = Schema.Struct({
@@ -25,11 +25,71 @@ export type ProbeMutation =
 	| { operation: "upsert"; id: string; value: string }
 	| { operation: "delete"; id: string };
 
-export async function mutateProbes(
+const appendEvent = Effect.fn("stellarc.event.append")(function* (
+	write: () => PromiseLike<unknown>,
+	type: string,
+	seq: string,
+	txid: number,
+) {
+	yield* Effect.annotateCurrentSpan({
+		"stellarc.event.type": type,
+		"stellarc.event.seq": seq,
+		"stellarc.event.txid": txid,
+	});
+	yield* Effect.tryPromise({
+		try: () => Promise.resolve(write()),
+		catch: (cause) => cause,
+	});
+});
+
+export const mutateProbesEffect = Effect.fn("Domain.mutateProbes")(function* (
 	sql: Sql,
 	org: string,
 	actor: string,
 	mutations: readonly ProbeMutation[],
+) {
+	const runtime = yield* Effect.runtime<never>();
+	const result = yield* Effect.tryPromise({
+		try: () =>
+			runMutations(sql, org, actor, mutations, (write, type, seq, txid) =>
+				Runtime.runPromise(runtime)(appendEvent(write, type, seq, txid)),
+			),
+		catch: (cause) => cause,
+	});
+	for (const mutation of mutations)
+		yield* Metric.increment(
+			Metric.counter("stellarc_events_appended_total"),
+		).pipe(
+			Effect.tagMetrics(
+				"type",
+				mutation.operation === "upsert"
+					? "foundation:probe-upserted"
+					: "foundation:probe-deleted",
+			),
+		);
+	return result;
+});
+
+export function mutateProbes(
+	sql: Sql,
+	org: string,
+	actor: string,
+	mutations: readonly ProbeMutation[],
+) {
+	return Effect.runPromise(mutateProbesEffect(sql, org, actor, mutations));
+}
+
+async function runMutations(
+	sql: Sql,
+	org: string,
+	actor: string,
+	mutations: readonly ProbeMutation[],
+	append: (
+		write: () => PromiseLike<unknown>,
+		type: string,
+		seq: string,
+		txid: number,
+	) => Promise<void>,
 ) {
 	if (!org || !actor || mutations.length === 0)
 		throw new Error("Invalid principal or empty mutation");
@@ -61,8 +121,13 @@ export async function mutateProbes(
 				mutation.operation === "upsert"
 					? "foundation:probe-upserted"
 					: "foundation:probe-deleted";
-			await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
-      VALUES (${org},${seq.toString()},${pluginType},${actor},${tx.json(payload)},1,${transaction.txid})`;
+			await append(
+				() => tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+      VALUES (${org},${seq.toString()},${pluginType},${actor},${tx.json(payload)},1,${transaction.txid})`,
+				pluginType,
+				seq.toString(),
+				txid,
+			);
 			if (mutation.operation === "upsert") {
 				await tx`INSERT INTO sync_probe(org,id,value,last_seq) VALUES (${org},${id},${mutation.value},${seq.toString()})
       ON CONFLICT (org,id) DO UPDATE SET value=EXCLUDED.value,last_seq=EXCLUDED.last_seq`;

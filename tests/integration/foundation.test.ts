@@ -37,6 +37,62 @@ test("T06 migration exports its applied version through the caller trace", async
 	}
 });
 
+test("T05 append spans share the mutation trace and report committed event identities", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { mutateProbesEffect } = await import(
+		"../../packages/domain/src/index"
+	);
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { Effect, ManagedRuntime } = await import("effect");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		await migrate(db.sql);
+		const result = await runtime.runPromise(
+			mutateProbesEffect(db.sql, "trace-org", "actor", [
+				{ operation: "upsert", id: "one", value: "secret-value" },
+				{ operation: "upsert", id: "two", value: "secret-value" },
+			]).pipe(Effect.withSpan("mutation.caller")),
+		);
+		const spans = telemetry.spans.getFinishedSpans();
+		const events = spans.filter(
+			(span) => span.name === "stellarc.event.append",
+		);
+		expect(events).toHaveLength(2);
+		expect(events.map((span) => span.attributes["stellarc.event.seq"])).toEqual(
+			["1", "2"],
+		);
+		for (const span of events) {
+			expect(span.attributes["stellarc.event.txid"]).toBe(result.txid);
+			expect(span.attributes["stellarc.event.type"]).toBe(
+				"foundation:probe-upserted",
+			);
+			expect(span.spanContext().traceId).toBe(
+				spans.find((entry) => entry.name === "mutation.caller")?.spanContext()
+					.traceId,
+			);
+			expect(JSON.stringify(span.attributes)).not.toContain("secret-value");
+		}
+		await telemetry.reader.forceFlush();
+		const metrics = telemetry.metrics
+			.getMetrics()
+			.flatMap((item) => item.scopeMetrics.flatMap((scope) => scope.metrics));
+		expect(
+			metrics
+				.find(
+					(metric) =>
+						metric.descriptor.name === "stellarc_events_appended_total",
+				)
+				?.dataPoints.map((point) => point.value),
+		).toContain(2);
+	} finally {
+		await runtime.dispose();
+		await db.close();
+	}
+});
+
 test("T09 real fixture HttpApi commits mutations and stock awaitTxId settles", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);
