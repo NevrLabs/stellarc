@@ -1,0 +1,9 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
+	"files": {
+		"includes": ["apps/**", "packages/**", "tests/**", "*.json", "*.ts"],
+		"ignoreUnknown": true
+	},
+	"formatter": { "enabled": true },
+	"linter": { "enabled": true, "rules": { "recommended": true } }
+}
