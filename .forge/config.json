@@ -23,11 +23,11 @@
       "hermes:accept_edits/ocg/deepseek-v4-pro"
     ]
   },
-  "implement_budget_min": 90,
+  "implement_budget_min": 150,
   "stage_timeout_s": {
     "triage": 900,
     "spec": 1800,
-    "implement": 7200,
+    "implement": 10800,
     "review": 2400
   },
   "viewports": [

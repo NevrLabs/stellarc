@@ -442,7 +442,8 @@ def cmd_implement(args):
         head_before = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
         cont = (f"\n\nCONTINUATION: cycle {prev_partial['cycle']} ran out of budget and left draft PR #{prev_partial['pr']} on this branch "
                 f"with committed, green work. Read `git log dev..HEAD` and the PR body's 'Remaining' list FIRST. Do NOT redo done work. "
-                f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}` and push. "
+                f"You are ALREADY on branch `{prev_partial['branch']}` with the draft PR open. Do NOT create a new branch, do NOT open a new PR. Commit and `git push origin HEAD:{prev_partial['branch']}`. "
+                f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}`. "
                 f"If you run out again, update the PR body's Remaining list and leave it draft.")
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"])
         a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model,
