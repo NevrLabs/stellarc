@@ -260,6 +260,7 @@ TDD CONTRACT (non-negotiable):
 5. When green: `git add -A && git commit -m "<type>(<scope>): <summary>" -m "Closes #{t.split('-')[-1]}"` and `git push -u origin HEAD`. Then `gh pr create -R {c['repo']} --base {c['base']} --fill --body "Closes #{t.split('-')[-1]}"` and reply with the PR URL.
    (Committing on YOUR branch in YOUR worktree is the one exception to the no-commit rule — the orchestrator merges, you never do.)
 6. Budget: {c.get('implement_budget_min', 90)} minutes. If you cannot finish, commit what is GREEN, push, open the PR as draft, and say exactly what remains.
+7. SPEC GAP PROTOCOL: if the spec omits something you need (a file, a dependency, an allowance), do NOT invent or substitute. Write the gap to {repo_root()}/.forge/{t}.blocker.md, and make your final reply start with the literal line `BLOCKED: spec gap` followed by the gap. The orchestrator amends the spec and re-dispatches. Persisting a precise blocker is a successful outcome.
 
 Every UI-touching change: run `{c.get('screenshot_cmd', 'bun run e2e:screens')}` — it captures ALL Playwright projects ({', '.join(c.get('viewports', ['desktop','tablet','mobile','mobile-small']))}) — and commit the PNGs under e2e/__screenshots__/<project>/. A UI change with screenshots for only one viewport is incomplete. Mobile projects use real touch (page.tap), not mouse.
 
@@ -390,8 +391,16 @@ def cmd_implement(args):
     wait_idle(a, c["stage_timeout_s"]["implement"])
     prs = json.loads(gh(["pr", "list", "--head", branch, "--json", "number,url,isDraft,state"], c["repo"]).stdout)
     if not prs:
+        tail = logs_tail(a, 12)
+        if re.search(r"prerequisite blocker|BLOCKED:|spec (gap|omits|amendment)", tail, re.I):
+            # The implementer found the spec incomplete and stopped rather than invent. That is a SPEC
+            # defect, not an implementation failure: re-arm spec so the orchestrator can amend, keep the cycle.
+            record(t, "implement", "blocked", agent=a, cycle=cycle, reason="implementer reported spec gap")
+            s2 = load_state(t); s2["cycle"] = cycle - 1; save_state(t, s2)
+            comment(n, c["repo"], f"### forge · implement c{cycle} → **BLOCKED on spec gap**\n\nImplementer stopped rather than invent. Orchestrator must amend `.forge/{t}.spec.md`, then re-run implement.\n\n```\n{tail}\n```")
+            die(f"implementer {a} reported a spec gap — amend .forge/{t}.spec.md then re-run `forge implement {n}`")
         record(t, "implement", "fail", agent=a, cycle=cycle, reason="no PR opened")
-        die(f"no PR on {branch}. Salvage: `git -C <worktree> status`; `paseo logs {a} | tail -40`")
+        die(f"no PR on {branch}. Salvage: `git -C <worktree> status`; `paseo logs {a} | tail -40`\n{tail}")
     pr = prs[0]
     record(t, "implement", "pass", agent=a, cycle=cycle, pr=pr["number"], pr_url=pr["url"], draft=pr["isDraft"])
     comment(n, c["repo"], f"### forge · implement (cycle {cycle}, `{model}`)\n\nPR: {pr['url']}{' (DRAFT — incomplete)' if pr['isDraft'] else ''}\n\n<details><summary>agent tail</summary>\n\n```\n{logs_tail(a, 30)}\n```\n</details>")

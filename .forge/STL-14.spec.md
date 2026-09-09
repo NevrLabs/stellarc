@@ -94,7 +94,7 @@ One new experimental collection `sync_probe`, primary key `[org,id]`, uses stock
 
 No existing application file exists in dev to mirror. Infrastructure implementations are NEW designs constrained by the cited existing documents, not claimed copies of nonexistent Effect code. Concrete source mirrors below are pinned Kaneo files; semantic reference files for novel Effect code are labeled as such. Preserve attribution/licenses.
 
-CREATE inventory: **1059 files** (84 baseline PNGs included). Every entry is an exact destination with its existing source/reference; generated files are labeled.
+CREATE inventory: **1078 files** (1059 + 19 i18n per §5a) (84 baseline PNGs included). Every entry is an exact destination with its existing source/reference; generated files are labeled.
 
 | Destination | Specific mirror / existing reference |
 |---|---|
@@ -1161,6 +1161,37 @@ CREATE inventory: **1059 files** (84 baseline PNGs included). Every entry is an 
 UI lift rule: the inventory appended here enumerates committed production `apps/web/src/**`, `apps/web/public/**`, selected web configuration files, and production `packages/libs/src/**` and `packages/permissions/src/**`. Preserve relative layout; compatibility source is housed under `packages/contracts/src/legacy/{libs,permissions}` and TS/Vite aliases retain `@kaneo/libs` and `@kaneo/permissions`. Do not copy Kaneo API implementation or import its server AppType: replace the UI client's type-only API coupling with fixture-backed compatibility contracts derived from the existing fetcher calls. No blanket any or typecheck exclusions. Preserve route tree generation and all shipped route modules; tests from the old backend are not silently presented as Stellarc integration tests.
 
 MODIFY existing dev files: `.gitignore` only if present at implementation start (otherwise listed CREATE), `README.md` for exact setup/gates and limitations. Do not modify `.forge/config.json`, state JSON, ADRs, tracker, or licenses. Lifted files requiring adaptation (created by this slice, not preexisting dev modifications): UI package.json/Vite/TS config, entrypoint to support test fixtures, client type boundary, alias imports resolving old workspace packages. Keep visual components, CSS, assets, labels, navigation and responsive logic unchanged. Create a committed mirror manifest identifying source SHA, source→destination paths and actual fixture endpoint contracts before implementation review.
+
+
+### 5a. Orchestrator amendment — i18n resources (2026-09-09)
+
+Implementer c1 correctly identified that the inventory omitted the fork's root `i18n/` tree, which `apps/web/src/lib/i18n/index.ts` imports as `@i18n/resources`. Authorised destinations, mirrored 1:1 from the pinned commit (2504e64512b8):
+
+| Destination | Mirror |
+|---|---|
+| `i18n/de-DE.json` | Kaneo `i18n/de-DE.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/el-GR.json` | Kaneo `i18n/el-GR.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/en-US.json` | Kaneo `i18n/en-US.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/es-ES.json` | Kaneo `i18n/es-ES.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/fr-FR.json` | Kaneo `i18n/fr-FR.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/hi-IN.json` | Kaneo `i18n/hi-IN.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/id-ID.json` | Kaneo `i18n/id-ID.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/it-IT.json` | Kaneo `i18n/it-IT.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/ko-KR.json` | Kaneo `i18n/ko-KR.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/mk-MK.json` | Kaneo `i18n/mk-MK.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/nl-NL.json` | Kaneo `i18n/nl-NL.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/pt-BR.json` | Kaneo `i18n/pt-BR.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/resources.ts` | Kaneo `i18n/resources.ts` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/ru-RU.json` | Kaneo `i18n/ru-RU.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/schema.json` | Kaneo `i18n/schema.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/tr-TR.json` | Kaneo `i18n/tr-TR.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/uk-UA.json` | Kaneo `i18n/uk-UA.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/vi-VN.json` | Kaneo `i18n/vi-VN.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+| `i18n/zh-CN.json` | Kaneo `i18n/zh-CN.json` (exact production-source mirror; consumed via `@i18n/resources` alias by `apps/stellarc-ui/vite.config.ts` and `tsconfig.app.json`) |
+
+Alias resolution: `apps/stellarc-ui/vite.config.ts` and `apps/stellarc-ui/tsconfig.app.json` resolve `@i18n` → `../../i18n` exactly as the fork does. Locale JSON is copied byte-exact; `schema.json` is copied byte-exact. No translation may be emptied, stubbed, or referenced from the external Kaneo checkout. CREATE inventory total becomes **1078 files**.
+
+Bun is at `/home/rpw/.bun/bin/bun` (1.4.0); if it is absent from PATH, use the absolute path — do not treat PATH as a blocker.
 
 ## 6. Pixel-frozen UI surfaces
 

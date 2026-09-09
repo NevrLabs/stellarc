@@ -59,7 +59,29 @@
    "at": "2026-09-09T01:26:27+00:00",
    "agent": "c20f139c-fb03-437e-a845-2345f834a80b",
    "artifact": ".forge/STL-14.spec.md"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T02:51:45+00:00",
+   "agent": "9bba1bc1-fea3-41cd-8eca-af6c63e0d241",
+   "cycle": 1,
+   "reason": "no PR opened"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-09T03:05:00+00:00",
+   "agent": "9bba1bc1-fea3-41cd-8eca-af6c63e0d241",
+   "cycle": 1,
+   "reason": "spec omitted i18n/ (19 files); implementer persisted blocker in worktree README instead of inventing translations \u2014 correct behaviour. Spec amended \u00a75a."
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T03:06:00+00:00",
+   "note": "re-armed after \u00a75a amendment (i18n inventory + bun absolute path)"
   }
  ],
- "cycle": 0
+ "cycle": 1
 }
