@@ -31,3 +31,9 @@
 2026-09-09T04:04:07+00:00 start      STL-14   implement
 2026-09-09T04:08:34+00:00 fail       STL-14   implement rc=1: dispatched 84b4d1da-77b3-438c-9838-6a1391831e75 on forge/stl-14-c4 (hermes:accept_edits/cx/gpt-6-astra); waiting up to 10800s… | forge: implementer 84b4d1da-77b3-438c-9838-6a1391831e75 pushed nothing to forge/stl-14-c4 — cycle wasted
 2026-09-09T04:10:44+00:00 start      STL-14   implement
+2026-09-09T04:28:58+00:00 fail       STL-14   implement rc=1: dispatched 76f4e72d-8da7-422c-8ea8-e4e6ea990192 on forge/stl-14-c4 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | forge: implementer 76f4e72d-8da7-422c-8ea8-e4e6ea990192 pushed nothing to forge/stl-14-c4 — cycle wasted
+2026-09-09T04:28:59+00:00 escalate   STL-14   implement — human needed; delete .forge/STL-14.escalation to resume
+2026-09-09T04:31:16+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:33:24+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:35:40+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-09T04:37:53+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)

@@ -199,7 +199,9 @@
    "cycle": 8,
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
    "branch": "forge/stl-14-c4",
-   "continues": 6
+   "continues": 6,
+   "agent": "090c0d02",
+   "note": "orphan duplicate 76f4e72d (worktree c8-1) killed; its fail entry removed"
   }
  ],
  "cycle": 8

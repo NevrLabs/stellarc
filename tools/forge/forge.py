@@ -20,6 +20,7 @@ Usage:
   forge implement <issue#> [--cycle N]         dispatch implementer in a Paseo worktree → PR
   forge review   <issue#>                      dispatch adversarial reviewer (different family) on the PR diff
   forge merge    <issue#>                      orchestrator merge gate: fresh worktree, full gates, squash-merge
+  forge adopt    <issue#> <agent_id>           re-attach to an orphaned running implementer
   forge status   [<issue#>]                    stage table for one or all tickets
   forge drain                                  print unread pipeline escalations
 
@@ -418,8 +419,15 @@ def cmd_spec(args):
     record(t, "spec", "pass", agent=a, artifact=f".forge/{t}.spec.md"); set_stage_label(n, c["repo"], "implement")
     print(f"{t} spec → pass")
 
+import fcntl
+def _lock(t):
+    lf = open(repo_root() / f".forge/.{t}.lock", "w")
+    try: fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError: die(f"{t}: another forge process holds the lock — refusing to run concurrently")
+    return lf
+
 def cmd_implement(args):
-    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "spec", this="implement")
+    c = cfg(); n = args[0]; t = ticket_id(c, n); _lk = _lock(t); gate(t, "spec", this="implement")
     s = load_state(t); cycle = s.get("cycle", 0) + 1
     # Only REWORK cycles (review said REWORK / merge-gate failed) count against the cap. Cycles that
     # ended in a spec gap are the orchestrator's defect, not the implementer's; they consume a branch
@@ -449,11 +457,13 @@ def cmd_implement(args):
         a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model,
                      cwd=None, extra=["--new-workspace", "worktree", "--worktree-mode", "checkout-branch", "--branch", branch,
                                       "--worktree-slug", f"{t.lower()}-c{cycle}"])
+        s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     else:
         branch = f"forge/{t.lower()}-c{cycle}"
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch)
         a = dispatch(f"forge implement {t} c{cycle}", brief_implement(t, c, spec, cycle, defects), model,
                      worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
+        s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     watch(a, f"{t}-impl-c{cycle}", t, "implement")
     print(f"dispatched {a} on {branch} ({model}); waiting up to {c['stage_timeout_s']['implement']}s…")
     wt = None
@@ -461,6 +471,11 @@ def cmd_implement(args):
         wt = next(iter(Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c{cycle}")), None)
         if wt: break
         time.sleep(3)
+    _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before)
+
+def _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before):
+    """Wait for implementer `a` and record the outcome. Called by cmd_implement, and by `forge adopt`
+    when a driver restart orphaned the original forge process."""
     d = wait_idle(a, c["stage_timeout_s"]["implement"], worktree=wt, on_question=answer_question(t, c, spec))
     if d.get("_answered"): record(t, "implement", "note", cycle=cycle, questions_answered=d["_answered"])
     head_after = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
@@ -499,7 +514,7 @@ def cmd_implement(args):
     print(f"{t} implement c{cycle} → {pr['url']}")
 
 def cmd_review(args):
-    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "implement", this="review")
+    c = cfg(); n = args[0]; t = ticket_id(c, n); _lk = _lock(t); gate(t, "implement", this="review")
     s = load_state(t); cycle = s["cycle"]
     impl = next(st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "pass")
     # Reviewer is chosen to be a DIFFERENT family from whoever implemented this cycle.
@@ -531,7 +546,7 @@ def cmd_review(args):
 
 def cmd_merge(args):
     """Orchestrator-only. Fresh worktree at the PR head; run every gate ourselves; squash-merge."""
-    c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "review", this="merge-gate")
+    c = cfg(); n = args[0]; t = ticket_id(c, n); _lk = _lock(t); gate(t, "review", this="merge-gate")
     s = load_state(t)
     impl = next(st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "pass")
     pr = json.loads(gh(["pr", "view", str(impl["pr"]), "--json", "number,url,headRefOid,headRefName,isDraft,mergeable"], c["repo"]).stdout)
@@ -570,6 +585,23 @@ def cmd_merge(args):
     sh(["git", "pull", "-q", "--ff-only", "origin", c["base"]], cwd=root, check=False)
     print(f"{t} MERGED → {merged['mergeCommit']['oid'][:8]}")
 
+
+def cmd_adopt(args):
+    """forge adopt <issue#> <agent_id> — re-attach to a running implementer whose forge process died."""
+    c = cfg(); n = args[0]; a = args[1]; t = ticket_id(c, n); _lk = _lock(t)
+    s = load_state(t)
+    run = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "running"), None)
+    if not run: die(f"{t}: no implement stage is 'running' — nothing to adopt")
+    cycle, model, branch = run["cycle"], run["model"], run["branch"]
+    wt = next(iter(Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c{cycle}")), None)
+    spec = spec_path(t).read_text()
+    # head_before: the head at dispatch time is unknown; use the PR's base-most commit we know = current head only if no
+    # new commits yet. Conservative: treat current remote head as "before" so a push during our watch counts as progress.
+    head_before = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
+    s["stages"][-1]["agent"] = a; s["stages"][-1]["adopted"] = True; save_state(t, s)
+    print(f"adopted {a} for {t} c{cycle} on {branch}; watching…")
+    _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before)
+
 def cmd_status(args):
     root = repo_root(); files = [state_path(args[0])] if args else sorted((root / ".forge").glob("*.json"))
     files = [f for f in files if f.name != "config.json"]
@@ -586,7 +618,7 @@ def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"): print(__doc__); return
     cmd, args = sys.argv[1], sys.argv[2:]
     fn = {"init": cmd_init, "triage": cmd_triage, "spec": cmd_spec, "implement": cmd_implement,
-          "review": cmd_review, "merge": cmd_merge, "status": cmd_status, "drain": cmd_drain}.get(cmd)
+          "review": cmd_review, "merge": cmd_merge, "adopt": cmd_adopt, "status": cmd_status, "drain": cmd_drain}.get(cmd)
     if fn is None:
         die(f"unknown command {cmd}\n{__doc__}")
         return
