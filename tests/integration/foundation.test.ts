@@ -5,6 +5,38 @@ import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
 
+test("T06 migration exports its applied version through the caller trace", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { applyMigration } = await import("../../packages/db/src/migrate");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { Effect, ManagedRuntime } = await import("effect");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		await runtime.runPromise(
+			Effect.gen(function* () {
+				yield* applyMigration(db.sql);
+			}).pipe(Effect.withSpan("migration.caller")),
+		);
+		const spans = telemetry.spans.getFinishedSpans();
+		const applied = spans.filter(
+			(span) => span.name === "stellarc.migrate.apply",
+		);
+		expect(applied).toHaveLength(1);
+		expect(applied[0].attributes["stellarc.migration.version"]).toBe(
+			"0001_foundation",
+		);
+		expect(applied[0].spanContext().traceId).toBe(
+			spans.find((span) => span.name === "migration.caller")?.spanContext()
+				.traceId,
+		);
+	} finally {
+		await runtime.dispose();
+		await db.close();
+	}
+});
+
 test("T09 real fixture HttpApi commits mutations and stock awaitTxId settles", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);

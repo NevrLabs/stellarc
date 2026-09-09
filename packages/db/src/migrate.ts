@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { Effect } from "effect";
 import type { Sql } from "postgres";
 
 /** Owner-only provisioning; the runtime principal must already exist. */
@@ -37,7 +38,24 @@ export async function grantRuntime(sql: Sql, role: string) {
 	});
 }
 
-export async function migrate(sql: Sql) {
+export const applyMigration = Effect.fn("stellarc.migrate.apply")(function* (
+	sql: Sql,
+) {
+	yield* Effect.annotateCurrentSpan(
+		"stellarc.migration.version",
+		"0001_foundation",
+	);
+	yield* Effect.tryPromise({
+		try: () => runMigration(sql),
+		catch: (cause) => cause,
+	});
+});
+
+export function migrate(sql: Sql) {
+	return Effect.runPromise(applyMigration(sql));
+}
+
+async function runMigration(sql: Sql) {
 	const source = await readFile(
 		new URL("../migrations/0001_foundation.sql", import.meta.url),
 		"utf8",
