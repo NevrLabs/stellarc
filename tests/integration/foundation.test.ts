@@ -85,6 +85,49 @@ test("T18 fixture mutations reject unauthorized and invalid bodies without write
 	expect(await server.eventCount("fixture")).toBe(0);
 });
 
+test("T17 worker emits start/stop lifecycle spans and releases SQL on interruption", async () => {
+	const { ConfigProvider, Effect, Fiber, ManagedRuntime } = await import(
+		"effect"
+	);
+	const { worker } = await import("../../apps/stellarc-worker/src/main");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	const databaseUrl = `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`;
+	const fiber = runtime.runFork(
+		worker.pipe(
+			Effect.withConfigProvider(
+				ConfigProvider.fromMap(new Map([["DATABASE_URL", databaseUrl]])),
+			),
+		),
+	);
+	try {
+		await expect
+			.poll(() => telemetry.spans.getFinishedSpans().map((span) => span.name))
+			.toContain("stellarc.worker.start");
+		expect(
+			telemetry.spans.getFinishedSpans().map((span) => span.name),
+		).not.toContain("stellarc.worker.stop");
+		await Effect.runPromise(Fiber.interrupt(fiber));
+		const lifecycle = telemetry.spans
+			.getFinishedSpans()
+			.filter((span) => span.name.startsWith("stellarc.worker."));
+		expect(lifecycle.map((span) => span.name)).toEqual([
+			"stellarc.worker.start",
+			"stellarc.worker.stop",
+		]);
+		const [row] =
+			await db.sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE application_name='stellarc'`;
+		expect(row.count).toBe(0);
+	} finally {
+		await Effect.runPromise(Fiber.interrupt(fiber));
+		await runtime.dispose();
+		await db.close();
+	}
+});
+
 test("T17 worker starts with SQL, releases and exits on SIGTERM; invalid config exits nonzero", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const db = await disposablePostgres();
