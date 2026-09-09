@@ -13,7 +13,9 @@
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
 		"typecheck:ui": "tsc --noEmit --pretty false -p apps/stellarc-ui/tsconfig.app.json",
-		"build": "turbo run build"
+		"build": "turbo run build",
+		"e2e": "playwright test",
+		"e2e:screens": "playwright test frozen.spec.ts"
 	},
 	"dependencies": {
 		"@effect/opentelemetry": "0.64.0",
@@ -33,6 +35,7 @@
 		"postgres": "3.4.7"
 	},
 	"devDependencies": {
+		"@playwright/test": "1.62.0",
 		"vitest": "4.1.10",
 		"typescript": "5.8.3",
 		"@types/bun": "1.3.10",

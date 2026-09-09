@@ -994,7 +994,10 @@ test("T13 revoked authorization is checked again after live wake without leaking
 	const response = await poll;
 	expect(response.status).toBe(403);
 	expect(response.headers.has("electric-handle")).toBe(false);
-	expect(await response.text()).toBe("");
+	expect(await response.json()).toEqual({
+		_tag: "Forbidden",
+		message: "Access denied",
+	});
 });
 
 test("T15 unsupported probe versions fail closed before any tail payload escapes", async () => {
@@ -1728,13 +1731,21 @@ test("T13 missing auth is 401 and wrong-org capability is 403 with no data leaka
 		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&offset=-1`,
 	);
 	expect(noAuth.status).toBe(401);
-	expect(await noAuth.text()).toBe("");
+	expect(await noAuth.json()).toEqual({
+		_tag: "Unauthenticated",
+		message: "Authentication required",
+	});
+	expect(noAuth.headers.has("electric-handle")).toBe(false);
 	const wrongOrg = await fetch(
 		`${server.url}/orgs/org-a/v1/shape?table=sync_probe&offset=-1`,
 		{ headers: { authorization: "Bearer org-b" } },
 	);
 	expect(wrongOrg.status).toBe(403);
-	expect(await wrongOrg.text()).toBe("");
+	expect(await wrongOrg.json()).toEqual({
+		_tag: "Forbidden",
+		message: "Access denied",
+	});
+	expect(wrongOrg.headers.has("electric-handle")).toBe(false);
 });
 
 test("T04 exception after event append rolls back counter, event and projection together", async () => {
