@@ -5,6 +5,209 @@ import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
 
+test("T09 real fixture HttpApi commits mutations and stock awaitTxId settles", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	const collection = createCollection(
+		electricCollectionOptions<{
+			org: string;
+			id: string;
+			value: string;
+			last_seq: string;
+		}>({
+			id: "http-probes",
+			getKey: (row) => JSON.stringify([row.org, row.id]),
+			shapeOptions: {
+				url: `${server.url}/orgs/http/v1/shape`,
+				params: { table: "sync_probe" },
+				headers: { authorization: "Bearer http" },
+			},
+		}),
+	);
+	resources.push(async () => {
+		await collection.cleanup();
+	});
+	await collection.preload();
+	const response = await fetch(`${server.url}/orgs/http/__test/probes`, {
+		method: "POST",
+		headers: {
+			authorization: "Bearer http",
+			"content-type": "application/json",
+		},
+		body: JSON.stringify({ id: "one", value: "committed" }),
+	});
+	expect(response.status).toBe(200);
+	const { txid } = await response.json();
+	expect(Number.isSafeInteger(txid)).toBe(true);
+	expect(txid).not.toBe(1);
+	await collection.utils.awaitTxId(txid, 5000);
+	expect(collection.get(JSON.stringify(["http", "one"]))?.value).toBe(
+		"committed",
+	);
+	expect(await server.eventCount("http")).toBe(1);
+	const removed = await fetch(`${server.url}/orgs/http/__test/probes/one`, {
+		method: "DELETE",
+		headers: { authorization: "Bearer http" },
+	});
+	expect(removed.status).toBe(200);
+	await collection.utils.awaitTxId((await removed.json()).txid, 5000);
+	expect(collection.size).toBe(0);
+	const missing = await fetch(`${server.url}/orgs/http/__test/probes/one`, {
+		method: "DELETE",
+		headers: { authorization: "Bearer http" },
+	});
+	expect(missing.status).toBe(404);
+	expect(await server.eventCount("http")).toBe(2);
+});
+
+test("T18 fixture mutations reject unauthorized and invalid bodies without writes", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	for (const [headers, body, status] of [
+		[{}, { id: "one", value: "x" }, 401],
+		[{ authorization: "Bearer wrong" }, { id: "one", value: "x" }, 403],
+		[{ authorization: "Bearer fixture" }, { id: "", value: "x" }, 400],
+		[
+			{ authorization: "Bearer fixture" },
+			{ id: "x".repeat(129), value: "x" },
+			400,
+		],
+		[{ authorization: "Bearer fixture" }, { id: "one", value: 12 }, 400],
+	] as const) {
+		const response = await fetch(`${server.url}/orgs/fixture/__test/probes`, {
+			method: "POST",
+			headers: { ...headers, "content-type": "application/json" },
+			body: JSON.stringify(body),
+		});
+		expect(response.status).toBe(status);
+		expect(await response.json()).toHaveProperty("_tag");
+	}
+	expect(await server.eventCount("fixture")).toBe(0);
+});
+
+test("T17 worker starts with SQL, releases and exits on SIGTERM; invalid config exits nonzero", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	const env = {
+		...process.env,
+		DATABASE_URL: `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+	};
+	const child = Bun.spawn(
+		[process.execPath, "apps/stellarc-worker/src/main.ts"],
+		{ env, stdout: "pipe", stderr: "pipe" },
+	);
+	try {
+		const reader = child.stdout.getReader();
+		const first = await reader.read();
+		expect(new TextDecoder().decode(first.value)).toContain("worker ready");
+		reader.releaseLock();
+		child.kill("SIGTERM");
+		expect(await child.exited).toBe(0);
+		await expect
+			.poll(async () => {
+				const [row] =
+					await db.sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE application_name='stellarc'`;
+				return row.count;
+			})
+			.toBe(0);
+	} finally {
+		if (child.exitCode === null) child.kill("SIGKILL");
+	}
+	const invalid = Bun.spawn(
+		[process.execPath, "apps/stellarc-worker/src/main.ts"],
+		{ env: { ...env, DATABASE_URL: "" }, stdout: "pipe", stderr: "pipe" },
+	);
+	expect(await invalid.exited).not.toBe(0);
+	expect(await new Response(invalid.stderr).text()).not.toContain(
+		"postgresql://",
+	);
+});
+
+test("T18 production API is fail-closed and never mounts fixture routes", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	const portProbe = Bun.serve({ port: 0, fetch: () => new Response() });
+	const port = portProbe.port;
+	portProbe.stop(true);
+	const child = Bun.spawn([process.execPath, "apps/stellarc-api/src/main.ts"], {
+		env: {
+			...process.env,
+			PORT: String(port),
+			DATABASE_URL: `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+		},
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	try {
+		await expect
+			.poll(
+				async () => {
+					try {
+						return (await fetch(`http://localhost:${port}/health`)).status;
+					} catch {
+						return 0;
+					}
+				},
+				{ timeout: 10000 },
+			)
+			.toBe(200);
+		for (const method of ["POST", "DELETE"]) {
+			const response = await fetch(
+				`http://localhost:${port}/orgs/prod/__test/probes${method === "DELETE" ? "/one" : ""}`,
+				{ method, headers: { authorization: "Bearer prod" } },
+			);
+			expect(response.status).toBe(404);
+		}
+		for (const [headers, status] of [
+			[{}, 401],
+			[{ authorization: "Bearer prod" }, 403],
+		] as const) {
+			const response = await fetch(
+				`http://localhost:${port}/orgs/prod/v1/shape?table=sync_probe&offset=-1`,
+				{ headers },
+			);
+			expect(response.status).toBe(status);
+		}
+		child.kill("SIGTERM");
+		expect(await child.exited).toBe(0);
+	} finally {
+		if (child.exitCode === null) {
+			child.kill("SIGKILL");
+			await child.exited;
+		}
+	}
+});
+
+test("T17 SqlLive owns and closes its PostgreSQL pool", async () => {
+	const { Effect, Exit, Layer, Redacted, Scope } = await import("effect");
+	const { PgClient } = await import("@effect/sql-pg");
+	const { SqlLive } = await import("../../packages/db/src/index");
+	const { AppConfig } = await import("../../apps/stellarc-api/src/config");
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	const scope = await Effect.runPromise(Scope.make());
+	const config = Layer.succeed(AppConfig, {
+		databaseUrl: Redacted.make(
+			`postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+		),
+		port: 3000,
+	});
+	const context = await Effect.runPromise(
+		Layer.buildWithScope(SqlLive.pipe(Layer.provide(config)), scope),
+	);
+	const sql = await Effect.runPromise(
+		PgClient.PgClient.pipe(Effect.provide(context)),
+	);
+	expect(await Effect.runPromise(sql`SELECT 1 AS value`)).toEqual([
+		{ value: 1 },
+	]);
+	await Effect.runPromise(Scope.close(scope, Exit.void));
+	await expect(Effect.runPromise(sql`SELECT 1`)).rejects.toThrow();
+});
+
 test("T02 same-org update/delete writers commit in reservation order without inverted locks", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { migrate } = await import("../../packages/db/src/migrate");

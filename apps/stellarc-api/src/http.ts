@@ -18,17 +18,15 @@ export function foundationHandler(
 		org: string,
 		headers: Readonly<Record<string, string>>,
 	) => AuthzResult,
+	healthQuery?: Effect.Effect<unknown, unknown>,
 ) {
 	const group = HttpApiBuilder.group(FoundationApi, "foundation", (handlers) =>
 		handlers
 			.handleRaw("health", () =>
-				Effect.tryPromise({
-					try: async () => {
-						await sql`SELECT 1`;
-						return HttpServerResponse.unsafeJson({ status: "ok" });
-					},
-					catch: errorResponse,
-				}).pipe(Effect.catchAll(Effect.succeed)),
+				(healthQuery ?? Effect.tryPromise(() => sql`SELECT 1`)).pipe(
+					Effect.as(HttpServerResponse.unsafeJson({ status: "ok" })),
+					Effect.catchAll((error) => Effect.succeed(errorResponse(error))),
+				),
 			)
 			.handleRaw("shape", ({ path, request }) =>
 				Effect.tryPromise({

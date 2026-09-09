@@ -1,7 +1,15 @@
 import { HttpServerResponse } from "@effect/platform";
 
 /** Driver diagnostics never cross the HTTP boundary. */
-export function errorResponse(error: unknown) {
+export function errorResponse(
+	error: unknown,
+): HttpServerResponse.HttpServerResponse {
+	const wrapped =
+		typeof error === "object" &&
+		error !== null &&
+		"_tag" in error &&
+		["SqlError", "UnknownException"].includes(String(error._tag));
+	if (wrapped && "cause" in error) return errorResponse(error.cause);
 	const code =
 		typeof error === "object" && error !== null && "code" in error
 			? String(error.code)

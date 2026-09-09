@@ -2,6 +2,50 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c14: HTTP settlement and scoped runtimes (partial)
+
+The latest acceptance is brief §§5e–5f; older Remaining lists below are historical.
+Root typecheck intentionally excludes the frozen legacy UI until STL-15–21.
+
+- Real test-only Effect HttpApi POST/DELETE now commit through the domain service;
+  stock collection `awaitTxId` settles both operations. Unauthorized/invalid writes
+  are rejected without events. Production fixture paths return 404.
+- ConfigLive requires DATABASE_URL and validates PORT; AuthzLive fails closed.
+  SqlLive owns an Effect PostgreSQL pool. API health uses that client. API and
+  worker startup and SIGTERM are exercised as real Bun subprocesses against
+  disposable PostgreSQL; the worker does no domain work.
+- TelemetryLive exporter factory and TelemetryTest in-memory span/metric/log
+  exporters exist. They are NOT yet wired into service runtimes. The Effect logs
+  bridge requires the tested 0.203.0 logs SDK/exporter pins; 0.222.0 emitted no
+  records in the behavioral test. This is infrastructure, not completed §5f.
+
+Execution excerpts:
+```text
+Telemetry initial RED: Cannot find module '/packages/telemetry/src/index'
+Telemetry behavioral RED: expected [] to include 'safe log'
+Telemetry GREEN: Tests 1 passed | 3 skipped (4)
+T09 headers.txids removal: TimeoutWaitingForTxIdError (exit 1); restored exit 0
+T17 invalid-port validation removal: exit 1; restored exit 0
+Final lint: Checked 938 files in 4s. No fixes applied.
+Root typecheck: tsc --noEmit (exit 0)
+Vitest: Tests 4 passed (4); Tests 26 passed (26)
+Bun bridge: 2 pass, 0 fail
+Build: Tasks: 3 successful, 3 total (API, worker, UI)
+Frozen install: Checked 754 installs across 880 packages (no changes)
+```
+
+Remaining T0 acceptance: full T01 reconnect identity accounting; stock T12
+expiry/restart recovery; required outstanding negative controls; fixture-backed
+four-project sign-in/org-shell E2E and structural assertions; e2e:screens;
+expected-red UI typecheck script/count budget and CI. OTel still needs SQL
+statement-free tracing, Effect.fn service conversion, append/shape/HTTP/worker
+instrumentation, traceparent and mutation-to-shape propagation, required span
+assertions/negative control, noConsole gate, and real Grafana/Tempo export proof.
+Collector compose is an optional follow-up within this PR. Full legacy UI typing
+and domain-specific matrix coverage are deferred to STL-15–21 per §5e, not silently
+claimed complete. No UI source or screenshot changes this cycle. Keep PR #28 draft.
+Legacy reconciliation: N/A (zero legacy tables imported).
+
 ### Continuation c13: ordering, runtime grants, upcasting and live polling
 
 - Same-org update/delete concurrency exposed inverted projection/counter locks.
