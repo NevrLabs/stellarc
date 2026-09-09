@@ -1227,7 +1227,7 @@ Permitted query parameters on `GET /orgs/:org/v1/shape`:
 | `offset` | `-1` for snapshot, else the opaque cursor we issued | `-1` or a cursor we can parse; else 400 |
 | `handle` | shape handle we issued | required when `offset != -1`; unknown/rotated handle → `409` with `must-refetch` control message, per protocol |
 | `live` | `true` to long-poll the tail | boolean |
-| `log` | `full` \| `changes_only` | accept both; spike serves `full` semantics for either and records the requested mode in the response header `electric-schema` untouched. Unknown value → 400 |
+| `log` | `full` \| `changes_only` | accept both; spike serves `full` semantics for either; requested mode is recorded in server-side telemetry only — **never on the wire**. `electric-schema` carries only the parser-defined column→ColumnInfo map. Unknown value → 400 |
 | `cursor` | live-mode cache buster from the client's previous `electric-cursor` | opaque; echo back a fresh `electric-cursor` on every live response; never used for authz |
 | `expired_handle` | the handle the client believes expired | accepted, logged, ignored for routing |
 | `cache-buster` | retry-path nonce | accepted and ignored |
