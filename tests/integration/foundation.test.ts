@@ -111,6 +111,60 @@ test("T11 HTTP disconnect interrupts live polling without further SQL queries", 
 	}
 });
 
+test("SqlLive exports query metadata without SQL text or parameter values", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { SqlLive } = await import("../../packages/db/src/index");
+	const { ConfigLive } = await import("../../apps/stellarc-api/src/config");
+	const { PgClient } = await import("@effect/sql-pg");
+	const { ConfigProvider, Effect, ManagedRuntime } = await import("effect");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		await migrate(db.sql);
+		const rows = await runtime.runPromise(
+			Effect.gen(function* () {
+				const sql = yield* PgClient.PgClient;
+				return yield* sql`SELECT org FROM sync_probe WHERE value=${"private-parameter"} AND id='private-literal'`;
+			}).pipe(
+				Effect.provide(SqlLive),
+				Effect.provide(ConfigLive),
+				Effect.withConfigProvider(
+					ConfigProvider.fromMap(
+						new Map([
+							[
+								"DATABASE_URL",
+								`postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+							],
+						]),
+					),
+				),
+			),
+		);
+		expect(rows).toEqual([]);
+		const spans = telemetry.spans.getFinishedSpans();
+		const queries = spans.filter((span) => span.name.startsWith("db."));
+		expect(queries).toHaveLength(1);
+		expect(queries[0].attributes).toMatchObject({
+			"db.system": "postgresql",
+			"db.operation": "SELECT",
+			"db.sql.table": "sync_probe",
+		});
+		for (const span of spans) {
+			expect(span.attributes).not.toHaveProperty("db.query.text");
+			expect(span.attributes).not.toHaveProperty("db.statement");
+			expect(JSON.stringify(span.attributes)).not.toMatch(
+				/private-parameter|private-literal|SELECT org/,
+			);
+		}
+	} finally {
+		await runtime.dispose();
+		await db.close();
+	}
+});
+
 test("T06 migration exports its applied version through the caller trace", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
 	const { applyMigration } = await import("../../packages/db/src/migrate");
