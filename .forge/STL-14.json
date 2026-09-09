@@ -12,6 +12,18 @@
    "at": "2026-09-08T23:20:00+00:00",
    "agent": "1cddcdf4-1a75-45ec-90b0-57de3e1830aa",
    "reason": "orchestrator invalidated: verdict inferred from transcript (contained brief text), no verdict file existed"
+  },
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-08T23:16:16+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "fail",
+   "at": "2026-09-08T23:17:44+00:00",
+   "agent": "e81f09c0-16b8-420a-a28f-bbd97ab06224",
+   "reason": "agent wrote no verdict file"
   }
  ],
  "cycle": 0

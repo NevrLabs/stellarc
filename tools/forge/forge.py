@@ -102,7 +102,7 @@ def gate(t, needs):
         die(f"gate: {needs} is '{st}', not 'pass' — cannot proceed. Fix the predecessor or `forge status {t}`.")
 
 def family(model_id):
-    m = model_id.lower()
+    m = model_id.lower().split("/", 1)[-1] if model_id.lower().startswith(("hermes", "goose/")) else model_id.lower()
     for k in ("gpt", "claude", "glm", "deepseek", "minimax", "gemini", "qwen", "kimi"):
         if k in m: return k
     return m.split("/")[0]
@@ -135,10 +135,22 @@ def set_stage_label(n, repo, stage):
     label(n, repo, add=f"forge:{stage}")
 
 # ── paseo ────────────────────────────────────────────────────────────────────
-def dispatch(title, brief, model, cwd=None, worktree=None, base=None, branch=None, extra=None):
+def split_model(spec):
+    """'hermes:accept_edits/<model>' | 'hermes/<model>' | 'goose/<model>' | '<gateway model>' (→ omp)."""
+    if spec.startswith("hermes"):
+        head, _, model = spec.partition("/")
+        mode = head.partition(":")[2] or "default"
+        return "hermes", model or None, mode
+    if spec.startswith("goose/"):
+        return "goose", spec[len("goose/"):], None
+    return "omp", spec, None
+
+def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branch=None, extra=None):
     env = paseo_env()
-    cmd = [str(PASEO), "run", "-d", "--title", title, "--provider", "goose" if model.startswith("goose") else "omp",
-           "--model", model.removeprefix("goose/"), "--json"]
+    provider, model, mode = split_model(model_spec)
+    cmd = [str(PASEO), "run", "-d", "--title", title, "--provider", provider, "--json"]
+    if model: cmd += ["--model", model]
+    if mode:  cmd += ["--mode", mode]
     if worktree:
         cmd += ["--new-workspace", "worktree", "--worktree-mode", "branch-off", "--base", base, "--new-branch", branch, "--worktree-slug", worktree]
     if cwd: cmd += ["--cwd", str(cwd)]
@@ -153,10 +165,21 @@ def watch(agent_id, label_, ticket, stage):
         sh([str(PIPELINE), "add", agent_id, label_, ticket, stage], check=False)
 
 def wait_idle(agent_id, timeout_s):
-    env = paseo_env()
-    sh([str(PASEO), "wait", agent_id, "--timeout", str(timeout_s)], env=env, check=False, timeout=timeout_s + 60)
-    r = sh([str(PASEO), "inspect", agent_id, "--json"], env=env)
-    return json.loads(r.stdout)
+    """Poll until idle/completed. A Hermes lane that requests an edit under --mode default
+    parks in status 'permission' with nobody to approve — treat that as a hard stop, not a wait."""
+    env = paseo_env(); t0 = time.time()
+    while time.time() - t0 < timeout_s:
+        r = sh([str(PASEO), "inspect", agent_id, "--json"], env=env, check=False)
+        if r.returncode == 0:
+            d = json.loads(r.stdout); st = (d.get("Status") or d.get("status") or "").lower()
+            if st in ("idle", "completed", "error", "failed", "stopped"):
+                return d
+            if st == "permission":
+                sh([str(PASEO), "stop", agent_id], env=env, check=False)
+                die(f"agent {agent_id} is blocked on an edit-permission prompt (read-only mode). "
+                    f"The brief asked it to write outside its allowance. Stopped. `paseo logs {agent_id} | tail`")
+        time.sleep(15)
+    die(f"agent {agent_id} did not go idle within {timeout_s}s — `paseo logs {agent_id} | tail`")
 
 def logs_tail(agent_id, n=40):
     r = sh([str(PASEO), "logs", agent_id], env=paseo_env(), check=False)
@@ -269,10 +292,11 @@ def cmd_init(args):
         "screenshot_cmd": "bun run e2e:screens",
         "viewports": ["desktop", "tablet", "mobile", "mobile-small"],
         "models": {
-            "triage": "goose/glm/glm-5.3-flash",
-            "spec": "glm/glm-5.3",
-            "implement": ["cx/gpt-6-astra", "glm/glm-5.3-flash"],
-            "review": "glm/glm-5.3"
+            "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode blocks ALL edits (parks in permission) - use accept_edits and constrain writes in the brief.",
+            "triage": "hermes:accept_edits/glm/glm-5.3-flash",
+            "spec": "hermes:accept_edits/glm/glm-5.3",
+            "implement": ["hermes:accept_edits/cx/gpt-6-astra", "hermes:accept_edits/glm/glm-5.3-flash"],
+            "review": ["hermes:accept_edits/glm/glm-5.3", "hermes:accept_edits/ocg/deepseek-v4-pro"]
         },
         "implement_budget_min": 90,
         "stage_timeout_s": {"triage": 900, "spec": 1800, "implement": 7200, "review": 2400}

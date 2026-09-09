@@ -11,15 +11,16 @@
   "e2e": "bun run e2e",
   "screenshot_cmd": "bun run e2e:screens",
   "models": {
-    "triage": "goose/glm/glm-5.3-flash",
-    "spec": "glm/glm-5.3",
+    "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode parks on ANY edit (no approver) - use accept_edits and constrain writes in the brief.",
+    "triage": "hermes:accept_edits/glm/glm-5.3-flash",
+    "spec": "hermes:accept_edits/glm/glm-5.3",
     "implement": [
-      "cx/gpt-6-astra",
-      "glm/glm-5.3-flash"
+      "hermes:accept_edits/cx/gpt-6-astra",
+      "hermes:accept_edits/glm/glm-5.3-flash"
     ],
     "review": [
-      "glm/glm-5.3",
-      "ocg/deepseek-v4-pro"
+      "hermes:accept_edits/glm/glm-5.3",
+      "hermes:accept_edits/ocg/deepseek-v4-pro"
     ]
   },
   "implement_budget_min": 90,
