@@ -5,6 +5,420 @@ import { startTestServer } from "./test-server";
 
 const resources: Array<() => Promise<void>> = [];
 
+test("T02 same-org update/delete writers commit in reservation order without inverted locks", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { writeProbe, deleteProbe } = await import(
+		"../../packages/domain/src/index"
+	);
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await writeProbe(db.sql, "ordered", "actor", "same", "initial");
+	await db.sql.unsafe(
+		`CREATE FUNCTION pause_writer() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.payload->>'value' = 'paused' THEN PERFORM pg_advisory_xact_lock(1402); END IF; RETURN NEW; END $$; CREATE TRIGGER pause_writer BEFORE INSERT ON event FOR EACH ROW EXECUTE FUNCTION pause_writer()`,
+	);
+	const barrier = await db.sql.reserve();
+	await barrier`SELECT pg_advisory_lock(1402)`;
+	const commits: string[] = [];
+	const a = writeProbe(db.sql, "ordered", "actor", "same", "paused").then(
+		(result) => {
+			commits.push("a");
+			return result;
+		},
+	);
+	let settled: Promise<PromiseSettledResult<{ txid: number }>[]> | undefined;
+	try {
+		await expect
+			.poll(
+				async () => {
+					const [row] =
+						await db.sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event='advisory' AND query LIKE 'INSERT INTO event%'`;
+					return row.count;
+				},
+				{ timeout: 5000 },
+			)
+			.toBe(1);
+		const b = deleteProbe(db.sql, "ordered", "actor", "same").then((result) => {
+			commits.push("b");
+			return result;
+		});
+		settled = Promise.allSettled([a, b]);
+		await expect
+			.poll(
+				async () => {
+					const [row] =
+						await db.sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type='Lock' AND (query LIKE 'UPDATE org_event_counter%' OR query LIKE 'INSERT INTO org_event_counter%')`;
+					return row.count;
+				},
+				{ timeout: 5000 },
+			)
+			.toBe(1);
+	} finally {
+		await barrier`SELECT pg_advisory_unlock(1402)`;
+		barrier.release();
+	}
+	const results = await (settled ?? Promise.allSettled([a]));
+	expect(results.map((result) => result.status)).toEqual([
+		"fulfilled",
+		"fulfilled",
+	]);
+	expect(commits).toEqual(["a", "b"]);
+	expect(
+		await db.sql`SELECT seq::text,plugin_type FROM event WHERE org='ordered' ORDER BY seq`,
+	).toEqual([
+		{ seq: "1", plugin_type: "foundation:probe-upserted" },
+		{ seq: "2", plugin_type: "foundation:probe-upserted" },
+		{ seq: "3", plugin_type: "foundation:probe-deleted" },
+	]);
+	expect(
+		await db.sql`SELECT id FROM sync_probe WHERE org='ordered'`,
+	).toHaveLength(0);
+});
+
+test("T03 different-org writers proceed while another org holds its reservation", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { writeProbe } = await import("../../packages/domain/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await db.sql.unsafe(
+		`CREATE FUNCTION pause_org() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.org = 'held' THEN PERFORM pg_advisory_xact_lock(1403); END IF; RETURN NEW; END $$; CREATE TRIGGER pause_org BEFORE INSERT ON event FOR EACH ROW EXECUTE FUNCTION pause_org()`,
+	);
+	const barrier = await db.sql.reserve();
+	await barrier`SELECT pg_advisory_lock(1403)`;
+	const a = writeProbe(db.sql, "held", "actor", "same", "a");
+	let b: Promise<{ txid: number }> | undefined;
+	try {
+		await expect
+			.poll(
+				async () => {
+					const [row] =
+						await db.sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event='advisory' AND query LIKE 'INSERT INTO event%'`;
+					return row.count;
+				},
+				{ timeout: 5000 },
+			)
+			.toBe(1);
+		let committed = false;
+		b = writeProbe(db.sql, "free", "actor", "same", "b").then((result) => {
+			committed = true;
+			return result;
+		});
+		await expect.poll(() => committed, { timeout: 3000 }).toBe(true);
+		expect(await db.sql`SELECT org,seq::text FROM event`).toEqual([
+			{ org: "free", seq: "1" },
+		]);
+	} finally {
+		await barrier`SELECT pg_advisory_unlock(1403)`;
+		barrier.release();
+		await Promise.allSettled([a, ...(b ? [b] : [])]);
+	}
+});
+
+test("T06 runtime role can append through the domain but cannot mutate event history", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate, grantRuntime } = await import(
+		"../../packages/db/src/migrate"
+	);
+	const { writeProbe } = await import("../../packages/domain/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await db.sql`CREATE ROLE stellarc_runtime LOGIN`;
+	await expect(grantRuntime(db.sql, "stellarc_owner")).rejects.toThrow(
+		"Runtime role must be unprivileged",
+	);
+	await expect(grantRuntime(db.sql, "bad;role")).rejects.toThrow(
+		"Invalid runtime role",
+	);
+	await grantRuntime(db.sql, "stellarc_runtime");
+	const postgres = (await import("postgres")).default;
+	const runtime = postgres({
+		host: db.sql.options.host[0],
+		username: "stellarc_runtime",
+		database: "postgres",
+		max: 2,
+	});
+	try {
+		await writeProbe(runtime, "grants", "actor", "probe", "allowed");
+		for (const command of [
+			"UPDATE event SET actor='forged'",
+			"DELETE FROM event",
+			"TRUNCATE event",
+			"ALTER TABLE event ADD COLUMN bad text",
+			"UPDATE stellarc_migration SET checksum='forged'",
+		]) {
+			await expect(runtime.unsafe(command)).rejects.toMatchObject({
+				code: "42501",
+			});
+		}
+		// Re-provisioning revokes an accidentally granted direct history permission.
+		await db.sql`GRANT UPDATE, DELETE ON event TO stellarc_runtime`;
+		await grantRuntime(db.sql, "stellarc_runtime");
+		await expect(
+			runtime`UPDATE event SET actor='forged'`,
+		).rejects.toMatchObject({ code: "42501" });
+		expect(await runtime`SELECT actor FROM event WHERE org='grants'`).toEqual([
+			{ actor: "actor" },
+		]);
+	} finally {
+		await runtime.end();
+	}
+});
+
+test("T16 health reports database outages without leaking driver details", async () => {
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const db = await disposablePostgres();
+	const http = foundationHandler(
+		db.sql,
+		new ShapeEngine(db.sql),
+		() => "forbidden",
+	);
+	try {
+		const healthy = await http.handler(new Request("http://test/health"));
+		expect(healthy.status).toBe(200);
+		expect(await healthy.json()).toEqual({ status: "ok" });
+		await db.close();
+		const failed = await http.handler(new Request("http://test/health"));
+		expect(failed.status).toBe(503);
+		expect(await failed.json()).toEqual({
+			_tag: "Unavailable",
+			message: "Service unavailable",
+		});
+	} finally {
+		await http.dispose();
+	}
+});
+
+test("T16 shape failures sanitize unexpected defects and database outages", async () => {
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const db = await disposablePostgres();
+	await migrate(db.sql);
+	const engine = new ShapeEngine(db.sql);
+	engine.afterProjectionRead = async () => {
+		throw new Error("private connection stack credential");
+	};
+	const http = foundationHandler(db.sql, engine, () => "ok");
+	try {
+		const response = await http.handler(
+			new Request("http://test/orgs/a/v1/shape?table=sync_probe&offset=-1"),
+		);
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({
+			_tag: "InternalError",
+			message: "Internal server error",
+		});
+		await db.close();
+		const outage = await http.handler(
+			new Request("http://test/orgs/a/v1/shape?table=sync_probe&offset=-1"),
+		);
+		expect(outage.status).toBe(503);
+		expect(await outage.json()).toEqual({
+			_tag: "Unavailable",
+			message: "Service unavailable",
+		});
+	} finally {
+		await http.dispose();
+	}
+});
+
+test("T11 live tail waits, wakes on a committed row without notification and cancels resources", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { writeProbe } = await import("../../packages/domain/src/index");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	const engine = new ShapeEngine(db.sql);
+	const initial = await engine.shape(
+		"poll",
+		new URL("http://test/?table=sync_probe&offset=-1"),
+	);
+	const url = new URL(
+		`http://test/?table=sync_probe&live=true&offset=${initial.headers.get("electric-offset")}&handle=${initial.headers.get("electric-handle")}`,
+	);
+	const controller = new AbortController();
+	const pending = engine.shape("poll", url, controller.signal);
+	const began = performance.now();
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	const result = await writeProbe(db.sql, "poll", "actor", "one", "committed");
+	const response = await pending;
+	expect(performance.now() - began).toBeGreaterThanOrEqual(100);
+	expect(response.status).toBe(200);
+	expect(response.headers.get("electric-cursor")).toBeTruthy();
+	const messages = await response.json();
+	expect(messages[0].headers.txids).toEqual([result.txid]);
+	url.searchParams.set("offset", response.headers.get("electric-offset") ?? "");
+	const abort = new AbortController();
+	const canceled = engine.shape("poll", url, abort.signal);
+	abort.abort();
+	await expect(canceled).rejects.toMatchObject({ name: "AbortError" });
+});
+
+test("T11 Bun long poll times out at 20 seconds with no body and retained cursor", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	const headers = { authorization: "Bearer org-a" };
+	const base = `${server.url}/orgs/org-a/v1/shape?table=sync_probe`;
+	const initial = await fetch(`${base}&offset=-1`, { headers });
+	const offset = initial.headers.get("electric-offset");
+	const handle = initial.headers.get("electric-handle");
+	const began = performance.now();
+	const response = await fetch(
+		`${base}&offset=${offset}&handle=${handle}&live=true`,
+		{ headers },
+	);
+	expect(response.status).toBe(204);
+	expect(performance.now() - began).toBeGreaterThanOrEqual(19500);
+	expect(performance.now() - began).toBeLessThan(25000);
+	expect(await response.text()).toBe("");
+	expect(response.headers.get("electric-offset")).toBe(offset);
+	expect(response.headers.get("electric-handle")).toBe(handle);
+	expect(response.headers.get("electric-cursor")).toBeTruthy();
+});
+
+test("T13 revoked authorization is checked again after live wake without leaking a handle", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { writeProbe } = await import("../../packages/domain/src/index");
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	let allowed = true;
+	let calls = 0;
+	const http = foundationHandler(db.sql, new ShapeEngine(db.sql), () => {
+		calls++;
+		return allowed ? "ok" : "forbidden";
+	});
+	resources.push(http.dispose);
+	const initial = await http.handler(
+		new Request("http://test/orgs/a/v1/shape?table=sync_probe&offset=-1"),
+	);
+	const before = calls;
+	const poll = http.handler(
+		new Request(
+			`http://test/orgs/a/v1/shape?table=sync_probe&live=true&offset=${initial.headers.get("electric-offset")}&handle=${initial.headers.get("electric-handle")}`,
+		),
+	);
+	await expect.poll(() => calls).toBeGreaterThan(before);
+	allowed = false;
+	await writeProbe(db.sql, "a", "actor", "secret", "private");
+	const response = await poll;
+	expect(response.status).toBe(403);
+	expect(response.headers.has("electric-handle")).toBe(false);
+	expect(await response.text()).toBe("");
+});
+
+test("T15 unsupported probe versions fail closed before any tail payload escapes", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	const engine = new ShapeEngine(db.sql);
+	const initial = await engine.shape(
+		"versions",
+		new URL("http://test/?table=sync_probe&offset=-1"),
+	);
+	await db.sql`INSERT INTO org_event_counter(org,seq) VALUES ('versions',1)`;
+	await db.sql`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid) VALUES ('versions',1,'foundation:probe-upserted','actor','{"id":"probe","value":"must-not-escape"}',2,pg_current_xact_id()::text::bigint)`;
+	const response = await engine.shape(
+		"versions",
+		new URL(
+			`http://test/?table=sync_probe&offset=${initial.headers.get("electric-offset")}&handle=${initial.headers.get("electric-handle")}`,
+		),
+	);
+	expect(response.status).toBe(503);
+	expect(await response.json()).toEqual({
+		_tag: "Unavailable",
+		message: "Unsupported event schema",
+	});
+	expect(response.headers.has("electric-offset")).toBe(false);
+});
+
+test("T15 test-only v0 conversion runs before emission and malformed v1 cannot escape", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { UpcasterRegistry } = await import(
+		"../../packages/sync/src/upcasters"
+	);
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	// Only this disposable fixture permits the historical version; production stays >0.
+	await db.sql`ALTER TABLE event DROP CONSTRAINT event_schema_version_check`;
+	const registry = new UpcasterRegistry();
+	registry.register("foundation:probe-upserted", 0, () => ({
+		id: "converted-id",
+		value: "converted-value",
+	}));
+	const engine = new ShapeEngine(db.sql, registry);
+	const initial = await engine.shape(
+		"versions",
+		new URL("http://test/?table=sync_probe&offset=-1"),
+	);
+	await db.sql`INSERT INTO org_event_counter(org,seq) VALUES ('versions',1)`;
+	await db.sql`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid) VALUES ('versions',1,'foundation:probe-upserted','actor','{"legacy":"old"}',0,pg_current_xact_id()::text::bigint)`;
+	const url = new URL(
+		`http://test/?table=sync_probe&offset=${initial.headers.get("electric-offset")}&handle=${initial.headers.get("electric-handle")}`,
+	);
+	const response = await engine.shape("versions", url);
+	expect(response.status).toBe(200);
+	const messages = await response.json();
+	expect(messages[0].key).toBe(JSON.stringify(["versions", "converted-id"]));
+	expect(messages[0].value).toEqual({
+		org: "versions",
+		id: "converted-id",
+		value: "converted-value",
+		last_seq: "1",
+	});
+	await db.sql`UPDATE event SET schema_version=1,payload='{"id":"invalid","value":42}' WHERE org='versions'`;
+	const invalid = await engine.shape("versions", url);
+	expect(invalid.status).toBe(503);
+});
+
+test("T18 requested log modes stay in server telemetry, never in schema metadata", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	const modes: string[] = [];
+	const engine = new ShapeEngine(db.sql, undefined, (entry) =>
+		modes.push(entry.log),
+	);
+	for (const log of ["full", "changes_only"]) {
+		const response = await engine.shape(
+			"logs",
+			new URL(`http://test/?table=sync_probe&offset=-1&log=${log}`),
+		);
+		expect(response.status).toBe(200);
+		expect(
+			Object.keys(JSON.parse(response.headers.get("electric-schema") ?? "{}")),
+		).toEqual(["org", "id", "value", "last_seq"]);
+	}
+	expect(modes).toEqual(["full", "changes_only"]);
+});
+
 test("T12 cursors are issued per handle and reject forged or cross-handle continuations", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);

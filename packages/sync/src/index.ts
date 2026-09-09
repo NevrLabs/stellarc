@@ -1,5 +1,6 @@
 import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
+import { type ProbePayload, UpcasterRegistry } from "./upcasters";
 
 export class ShapeEngine {
 	afterProjectionRead?: () => Promise<void>;
@@ -13,8 +14,55 @@ export class ShapeEngine {
 			cursors: Map<string, string>;
 		}
 	>();
-	constructor(private sql: Sql) {}
-	async shape(org: string, url: URL): Promise<Response> {
+	constructor(
+		private sql: Sql,
+		private upcasters = new UpcasterRegistry(),
+		private telemetry: (entry: { org: string; log: string }) => void = (
+			entry,
+		) => console.info("shape request", entry),
+	) {}
+	async shape(org: string, url: URL, signal?: AbortSignal): Promise<Response> {
+		const q = url.searchParams;
+		if (q.has("log")) this.telemetry({ org, log: q.get("log") ?? "full" });
+		if (q.has("live") && !["true", "false"].includes(q.get("live") ?? ""))
+			return new Response(null, { status: 400 });
+		if (q.get("live") !== "true") return this.page(org, url);
+		if (!q.get("handle") || !q.get("offset") || q.get("offset") === "-1")
+			return new Response(null, { status: 400 });
+		const deadline = Date.now() + 20000;
+		while (true) {
+			signal?.throwIfAborted();
+			const response = await this.page(org, url);
+			response.headers.set("electric-cursor", crypto.randomUUID());
+			if (response.status !== 200) return response;
+			const messages = (await response.clone().json()) as Array<{
+				headers: { operation?: string };
+			}>;
+			if (
+				messages.some((message) => message.headers.operation) ||
+				response.headers.get("electric-offset") !== q.get("offset")
+			)
+				return response;
+			if (Date.now() >= deadline)
+				return new Response(null, { status: 204, headers: response.headers });
+			await new Promise<void>((resolve, reject) => {
+				const finish = () => {
+					signal?.removeEventListener("abort", abort);
+					resolve();
+				};
+				const timer = setTimeout(finish, Math.min(100, deadline - Date.now()));
+				const abort = () => {
+					clearTimeout(timer);
+					signal?.removeEventListener("abort", abort);
+					reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+				};
+				signal?.addEventListener("abort", abort, { once: true });
+				if (signal?.aborted) abort();
+			});
+		}
+	}
+
+	private async page(org: string, url: URL): Promise<Response> {
 		const q = url.searchParams;
 		const allowed = new Set([
 			"table",
@@ -101,7 +149,7 @@ export class ShapeEngine {
 			if (!/^\d+_0$/.test(offset)) return new Response(null, { status: 400 });
 			const cursorSeq = offset.split("_")[0] ?? "0";
 			const events = await this
-				.sql`SELECT seq::text,txid::text,plugin_type,payload FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 101`;
+				.sql`SELECT seq::text,txid::text,plugin_type,payload,schema_version FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 101`;
 			caughtUp = events.length <= 100;
 			next = offset;
 			for (const event of events.slice(0, 100)) {
@@ -112,12 +160,25 @@ export class ShapeEngine {
 					)
 				)
 					continue;
+				let payload: ProbePayload;
+				try {
+					payload = this.upcasters.decode(
+						event.plugin_type,
+						event.schema_version,
+						event.payload,
+					);
+				} catch {
+					return Response.json(
+						{ _tag: "Unavailable", message: "Unsupported event schema" },
+						{ status: 503, headers: { "cache-control": "no-store" } },
+					);
+				}
 				const deleted = event.plugin_type === "foundation:probe-deleted";
 				messages.push({
-					key: key(org, event.payload.id),
+					key: key(org, payload.id),
 					value: deleted
-						? { org, id: event.payload.id }
-						: { org, ...event.payload, last_seq: event.seq },
+						? { org, id: payload.id }
+						: { org, ...payload, last_seq: event.seq },
 					headers: {
 						operation: deleted ? "delete" : "update",
 						relation: ["public", "sync_probe"],

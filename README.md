@@ -2,6 +2,60 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c13: ordering, runtime grants, upcasting and live polling
+
+- Same-org update/delete concurrency exposed inverted projection/counter locks.
+  Single delete now uses `mutateProbes`; ordered writers and different-org
+  progress pass with actual PostgreSQL barriers. Independent counter allocation
+  and global advisory-lock controls each failed and were restored.
+- `grantRuntime` provisions a separate unprivileged principal with event INSERT/
+  SELECT only, refusing owner/privileged/member roles. Domain writes succeed as
+  that principal; event UPDATE/DELETE fail. Granting UPDATE/DELETE killed the test.
+- Upcaster registry validates v1 payloads, supports registered test-only v0
+  conversion, and fails closed on unsupported probe versions before emitting a
+  partial page. Unit and real-PG emit coverage pass.
+- Shape live polling requeries committed events without NOTIFY, times out at 20s
+  with bodyless 204 and retained headers, cancels its wait timer on abort, and
+  rechecks authorization after wake. Bun socket timeout test passes. Full socket
+  disconnect/SQL cancellation accounting remains unproven.
+- Health and shape failures now use a sanitized error mapper. Database shutdown
+  gives 503; injected private driver/stack details produce sanitized 500 JSON.
+  Production Config/SqlLive/Authz Layers and runnable entrypoints still remain.
+- Explicit requested log modes go to server telemetry, not electric-schema.
+
+Real execution excerpts (all controls restored):
+
+```text
+T16 health hardcoded-ok control: expected 200 to be 503 (exit 1)
+T16 shape RED: SyntaxError: Unexpected end of JSON input (exit 1)
+T16 restored: Tests 2 passed | 15 skipped (exit 0)
+T11 initial RED: expected null to be truthy [electric-cursor] (exit 1)
+T11 no-requery control: expected 204 to be 200 (exit 1)
+T11/T13 wake, timeout, revoke: Tests 3 passed | 17 skipped (exit 0)
+T18 telemetry RED: expected [] to deeply equal [ 'full', 'changes_only' ]
+T18 telemetry GREEN: Tests 1 passed | 20 skipped (exit 0)
+Full gate before telemetry addition: Checked 932 files. No fixes applied.
+Root tsc --noEmit: exit 0
+Vitest unit: Tests 2 passed (2); integration: Tests 20 passed (20)
+Bun bridge: 2 pass, 0 fail
+Build: Tasks: 2 successful, 2 total (UI cache hit)
+Final frozen install: Checked 717 installs across 843 packages (no changes)
+Final lint: Checked 932 files. No fixes applied; root typecheck exit 0
+Final Vitest: 2 unit / 21 integration passed; Bun bridge: 2 pass, 0 fail
+Final build: 2 successful, 2 total (2 cached); combined command exit 0
+```
+
+Partial acceptance only. Remaining: full T01 identity/reconnect accounting;
+T08/T09 stock protocol and HTTP mutation settlement; T12 expired/restarted stock
+client recovery; T14 collection disposal; T16-T18 production Layers, complete
+shared error/validation schemas, API/worker lifecycle, fixture HTTP routes and
+production exclusion; T11 disconnect resource accounting; outstanding controls,
+including unrelated-only T23 advancement and T22 bridge/CI. T19-T21 still need
+legacy compatibility contracts, full UI typecheck, synthetic fixtures/baselines,
+four-project Playwright parity/touch/breakpoint/keyboard coverage, all-route
+built-artifact smoke, and the real Mermaid sanitization test. No UI changes or
+screenshot acceptance in c13. Legacy reconciliation remains N/A.
+
 ### Continuation: cursor/page integrity and frozen-lift build repair
 
 - T12 issued opaque offsets are bound to a snapshot handle; malformed syntax is
