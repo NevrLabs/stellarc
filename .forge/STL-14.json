@@ -81,7 +81,29 @@
    "status": "pass",
    "at": "2026-09-09T03:06:00+00:00",
    "note": "re-armed after \u00a75a amendment (i18n inventory + bun absolute path)"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-09T02:58:06+00:00",
+   "agent": "e1ab31b8-a743-4691-b366-819148208c5a",
+   "cycle": 2,
+   "reason": "implementer reported spec gap"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-09T03:20:00+00:00",
+   "agent": "e1ab31b8-a743-4691-b366-819148208c5a",
+   "cycle": 2,
+   "reason": "fork imports mermaid + dompurify with no manifest entry (fork defect); spec \u00a75b pre-authorises undeclared-dep additions"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T03:21:00+00:00",
+   "note": "re-armed after \u00a75b"
   }
  ],
- "cycle": 1
+ "cycle": 2
 }

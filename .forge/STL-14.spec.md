@@ -1193,6 +1193,27 @@ Alias resolution: `apps/stellarc-ui/vite.config.ts` and `apps/stellarc-ui/tsconf
 
 Bun is at `/home/rpw/.bun/bin/bun` (1.4.0); if it is absent from PATH, use the absolute path — do not treat PATH as a blocker.
 
+
+### 5b. Orchestrator amendment — undeclared fork dependencies (2026-09-09)
+
+Implementer c2 found `apps/web/src/components/task/extensions/mermaid-block.ts` imports `mermaid` (dynamic, line 72) and `dompurify` (static, line 6); **neither is declared in any fork manifest or lockfile at the pinned commit.** The fork builds only because Vite defers the dynamic import and the fork's installed tree happened to satisfy it. This is a latent defect in the frozen surface, not a spec choice.
+
+Ruling — authorised additions to `apps/stellarc-ui/package.json` `dependencies`:
+
+| Package | Pin | Rationale |
+|---|---|---|
+| `mermaid` | `11.17.2` | not installed anywhere in the fork; current npm release |
+| `dompurify` | `3.4.15` | not installed anywhere in the fork; current npm release |
+| `@types/dompurify` | latest compatible | typecheck only, devDependency |
+
+Behavioural contract unchanged: `securityLevel: "strict"`, `htmlLabels: false`, SVG sanitised with `USE_PROFILES: {svg: true, svgFilters: true}`. Add a unit test that renders one flowchart through `renderMermaid` and asserts the output is sanitised SVG — this is the one place the lift adds a test the fork lacks, because the fork never exercised this path in CI.
+
+**Exhaustive sweep (orchestrator, 1122 source files, 59 packages):** `mermaid` and `dompurify` are the ONLY undeclared imports at the pinned commit. No further dependency blockers exist.
+
+**General rule for the remainder of T0:** any other import in the pinned `apps/web/src/**` that resolves to no manifest entry is a **fork defect**. Add the dependency at the version present in `/home/rpw/repos/kaneo/node_modules/.pnpm` if installed there, else current npm; log each in `.forge/STL-14.deps-added.md` with file:line evidence. Do not stop for these — this ruling pre-authorises them. Stop only for gaps that change behaviour or scope.
+
+The `.forge/STL-14.blocker.md` write was denied because `.forge/` under the main checkout is outside the worktree allowance. Corrected: blocker files go in the **worktree** as `.forge-blocker.md` at its root.
+
 ## 6. Pixel-frozen UI surfaces
 
 Capture fork baseline and compare built Stellarc with the SAME synthetic fixture, locale en-US, timezone UTC, theme, fonts, fixed clock and disabled animations. No production account, shared server mutation, baseline captured from Stellarc, or automatic snapshot acceptance in CI. Baseline root `apps/stellarc-ui/e2e/__screenshots__/<project>/`; `maxDiffPixelRatio: 0.001`. Preserve the complete imported fork screen set, not a replacement toy shell.

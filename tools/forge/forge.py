@@ -260,7 +260,8 @@ TDD CONTRACT (non-negotiable):
 5. When green: `git add -A && git commit -m "<type>(<scope>): <summary>" -m "Closes #{t.split('-')[-1]}"` and `git push -u origin HEAD`. Then `gh pr create -R {c['repo']} --base {c['base']} --fill --body "Closes #{t.split('-')[-1]}"` and reply with the PR URL.
    (Committing on YOUR branch in YOUR worktree is the one exception to the no-commit rule — the orchestrator merges, you never do.)
 6. Budget: {c.get('implement_budget_min', 90)} minutes. If you cannot finish, commit what is GREEN, push, open the PR as draft, and say exactly what remains.
-7. SPEC GAP PROTOCOL: if the spec omits something you need (a file, a dependency, an allowance), do NOT invent or substitute. Write the gap to {repo_root()}/.forge/{t}.blocker.md, and make your final reply start with the literal line `BLOCKED: spec gap` followed by the gap. The orchestrator amends the spec and re-dispatches. Persisting a precise blocker is a successful outcome.
+7. SPEC GAP PROTOCOL: if the spec omits something you need AND it changes behaviour or scope, do NOT invent. Write the gap to `.forge-blocker.md` at the ROOT OF YOUR WORKTREE (your cwd — not the main checkout, which you cannot write), and make your final reply start with the literal line `BLOCKED: spec gap`. The orchestrator amends the spec and re-dispatches.
+   PRE-AUTHORISED (do not stop for these; log them in `.forge-deps-added.md` in your worktree with file:line evidence): adding a dependency the mirrored source imports but no manifest declares — pin to the version in the mirror's installed node_modules if present, else current npm. Missing config/alias plumbing the mirror relies on — mirror it. A missing file the mirror imports — mirror it too and note it. Stop only for gaps that would make you choose behaviour.
 
 Every UI-touching change: run `{c.get('screenshot_cmd', 'bun run e2e:screens')}` — it captures ALL Playwright projects ({', '.join(c.get('viewports', ['desktop','tablet','mobile','mobile-small']))}) — and commit the PNGs under e2e/__screenshots__/<project>/. A UI change with screenshots for only one viewport is incomplete. Mobile projects use real touch (page.tap), not mouse.
 
@@ -392,12 +393,16 @@ def cmd_implement(args):
     prs = json.loads(gh(["pr", "list", "--head", branch, "--json", "number,url,isDraft,state"], c["repo"]).stdout)
     if not prs:
         tail = logs_tail(a, 12)
-        if re.search(r"prerequisite blocker|BLOCKED:|spec (gap|omits|amendment)", tail, re.I):
+        wt = next(iter(Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c{cycle}")), None)
+        blocker = (wt / ".forge-blocker.md") if wt else None
+        if (blocker and blocker.exists()) or re.search(r"prerequisite blocker|BLOCKED:|spec (gap|omits|amendment)", tail, re.I):
+            btxt = blocker.read_text() if blocker and blocker.exists() else tail
+            (repo_root() / f".forge/{t}.blocker-c{cycle}.md").write_text(btxt)
             # The implementer found the spec incomplete and stopped rather than invent. That is a SPEC
             # defect, not an implementation failure: re-arm spec so the orchestrator can amend, keep the cycle.
             record(t, "implement", "blocked", agent=a, cycle=cycle, reason="implementer reported spec gap")
             s2 = load_state(t); s2["cycle"] = cycle - 1; save_state(t, s2)
-            comment(n, c["repo"], f"### forge · implement c{cycle} → **BLOCKED on spec gap**\n\nImplementer stopped rather than invent. Orchestrator must amend `.forge/{t}.spec.md`, then re-run implement.\n\n```\n{tail}\n```")
+            comment(n, c["repo"], f"### forge · implement c{cycle} → **BLOCKED on spec gap**\n\nImplementer stopped rather than invent. Orchestrator must amend `.forge/{t}.spec.md`, then re-run implement.\n\n```\n{btxt[:3000]}\n```")
             die(f"implementer {a} reported a spec gap — amend .forge/{t}.spec.md then re-run `forge implement {n}`")
         record(t, "implement", "fail", agent=a, cycle=cycle, reason="no PR opened")
         die(f"no PR on {branch}. Salvage: `git -C <worktree> status`; `paseo logs {a} | tail -40`\n{tail}")

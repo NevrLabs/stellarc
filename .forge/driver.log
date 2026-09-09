@@ -3,3 +3,7 @@
 2026-09-09T02:49:06+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
 2026-09-09T02:49:15+00:00 start      STL-14   implement
 2026-09-09T02:51:45+00:00 fail       STL-14   implement rc=1: dispatched 9bba1bc1-fea3-41cd-8eca-af6c63e0d241 on forge/stl-14-c1 (hermes:accept_edits/cx/gpt-6-astra); waiting up to 7200s… | forge: no PR on forge/stl-14-c1. Salvage: `git -C <worktree> status`; `paseo logs 9bba1bc1-fea3-41cd-8eca-af6c63e0d241 | tail -40`
+2026-09-09T02:53:43+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-09T02:53:52+00:00 start      STL-14   implement
+2026-09-09T02:58:07+00:00 fail       STL-14   implement rc=1: dispatched e1ab31b8-a743-4691-b366-819148208c5a on forge/stl-14-c2 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 7200s… | forge: implementer e1ab31b8-a743-4691-b366-819148208c5a reported a spec gap — amend .forge/STL-14.spec.md then re-run `forge implement 14`
+2026-09-09T03:00:18+00:00 start      STL-14   implement
