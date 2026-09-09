@@ -412,3 +412,4 @@
 2026-09-09T11:47:45+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
 2026-09-09T11:47:54+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
 2026-09-09T11:47:54+00:00 start      STL-14   implement
+11:49 c12 dispatched on correct head
