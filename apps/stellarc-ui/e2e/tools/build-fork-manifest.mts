@@ -450,14 +450,34 @@ const mirrors: Array<[string, string, "exact" | "adapted" | "generated"]> = [
   ],
   ["apps/stellarc-ui/src/index.css", "apps/web/src/index.css", "exact"],
   ["apps/stellarc-ui/src/main.tsx", "apps/web/src/main.tsx", "exact"],
-  ["apps/stellarc-ui/src/routeTree.gen.ts", "apps/web/src/routeTree.gen.ts", "exact"],
+  [
+    "apps/stellarc-ui/src/routeTree.gen.ts",
+    "apps/web/src/routeTree.gen.ts",
+    "exact",
+  ],
   ["apps/stellarc-ui/src/vite-env.d.ts", "apps/web/src/vite-env.d.ts", "exact"],
-  ["apps/stellarc-ui/src/query-client/index.ts", "apps/web/src/query-client/index.ts", "exact"],
+  [
+    "apps/stellarc-ui/src/query-client/index.ts",
+    "apps/web/src/query-client/index.ts",
+    "exact",
+  ],
   ["apps/stellarc-ui/src/test/setup.ts", "apps/web/src/test/setup.ts", "exact"],
-  ["apps/stellarc-ui/src/tanstack/router.tsx", "apps/web/src/tanstack/router.tsx", "exact"],
-  ["apps/stellarc-ui/tsconfig.app.json", "apps/web/tsconfig.app.json", "adapted"],
+  [
+    "apps/stellarc-ui/src/tanstack/router.tsx",
+    "apps/web/src/tanstack/router.tsx",
+    "exact",
+  ],
+  [
+    "apps/stellarc-ui/tsconfig.app.json",
+    "apps/web/tsconfig.app.json",
+    "adapted",
+  ],
   ["apps/stellarc-ui/tsconfig.json", "apps/web/tsconfig.json", "adapted"],
-  ["apps/stellarc-ui/tsconfig.node.json", "apps/web/tsconfig.node.json", "adapted"],
+  [
+    "apps/stellarc-ui/tsconfig.node.json",
+    "apps/web/tsconfig.node.json",
+    "adapted",
+  ],
   ["apps/stellarc-ui/vite.config.ts", "apps/web/vite.config.ts", "adapted"],
   ["apps/stellarc-ui/vitest.config.ts", "apps/web/vitest.config.ts", "adapted"],
   ["biome.json", "biome.json", "adapted"],
@@ -517,12 +537,14 @@ const fixtureEndpoints = {
     method: "GET",
     path: "/api/config",
     consumer: "src/fetchers/config/get-config.ts",
-    fixture: "{hasGoogleSignIn, hasGithubSignIn, hasDiscordSignIn, hasCustomOAuth, customOAuthAutoLogin, hasGuestAccess, disableLoginForm, hasSmtp, disableEmailOtpSignIn, disableRegistration, disablePasswordRegistration}",
+    fixture:
+      "{hasGoogleSignIn, hasGithubSignIn, hasDiscordSignIn, hasCustomOAuth, customOAuthAutoLogin, hasGuestAccess, disableLoginForm, hasSmtp, disableEmailOtpSignIn, disableRegistration, disablePasswordRegistration}",
   },
   organizationList: {
     method: "GET",
     path: "/api/auth/organization/list",
-    consumer: "authClient.useListOrganizations (better-auth organizationClient)",
+    consumer:
+      "authClient.useListOrganizations (better-auth organizationClient)",
     fixture: "[organization]",
   },
   fullOrganization: {
@@ -613,7 +635,8 @@ const fixtureEndpoints = {
     method: "GET",
     path: "/api/ai/organization/:orgId/settings",
     consumer: "src/fetchers/ai/get-ai-settings.ts",
-    fixture: "{enabled, configured, effectiveTokenLimit, effectiveCharacterLimit}",
+    fixture:
+      "{enabled, configured, effectiveTokenLimit, effectiveCharacterLimit}",
   },
   repos: {
     method: "GET",
@@ -727,7 +750,7 @@ const fixtureEndpoints = {
     method: "WS",
     path: "/user?*",
     consumer: "src/hooks/use-user-websocket.ts",
-    fixture: "echoes {\"type\":\"ping\"} → {\"type\":\"pong\"}",
+    fixture: 'echoes {"type":"ping"} → {"type":"pong"}',
   },
 } as const;
 
@@ -756,12 +779,14 @@ const lintAdapted = new Set([
 ]);
 const adaptedLintReason =
   "unused biome-ignore removal + mechanical format/import order (brief §5d lint-gate ruling; diff-only vs pinned source)";
-const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
+const sha256 = (data: Uint8Array) =>
+  createHash("sha256").update(data).digest("hex");
 const failures: string[] = [];
 let verifiedExact = 0;
 const files = [];
 const isBinary = (dest: string) =>
-  /\.(png|ico|woff2?|jpg|jpeg|gif|webp|svgz)$/.test(dest) || dest.endsWith(".ico");
+  /\.(png|ico|woff2?|jpg|jpeg|gif|webp|svgz)$/.test(dest) ||
+  dest.endsWith(".ico");
 for (const [destination, source, kind] of mirrors) {
   const committed = isBinary(destination)
     ? gitBinary(["show", `${SHA}:${source}`])
@@ -807,12 +832,14 @@ for (const [destination, source, kind] of mirrors) {
 // And no drifted duplicates: every destination must appear once.
 const seen = new Set<string>();
 for (const { destination } of files) {
-  if (seen.has(destination)) failures.push(`duplicate mirror entry: ${destination}`);
+  if (seen.has(destination))
+    failures.push(`duplicate mirror entry: ${destination}`);
   seen.add(destination);
 }
 
 const manifest = {
-  source: "https://github.com/kaneo-forks/kaneo (fork lift; local mirror /home/rpw/repos/kaneo)",
+  source:
+    "https://github.com/kaneo-forks/kaneo (fork lift; local mirror /home/rpw/repos/kaneo)",
   sha: SHA,
   generatedAt: new Date().toISOString(),
   generatedBy: "apps/stellarc-ui/e2e/tools/build-fork-manifest.mts",
