@@ -607,6 +607,13 @@
    "head": "83d69e2d",
    "pr": 28,
    "reason": "agent idle after `gh pr ready 28`; watcher lost (Paseo upgrade earlier killed pid tracking on cont. path); adopted by orchestrator"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-10T20:34:41+00:00",
+   "cycle": 29,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro"
   }
  ],
  "cycle": 29
