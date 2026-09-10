@@ -2,6 +2,36 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c22: populated shell, responsive controls and CI (partial)
+
+- `5a1fa36` enforces service noConsole while preserving frozen UI/test overrides.
+  Full-gate verification exposed a Node shebang dependency in the regression test
+  (`expected 127 to be 1`). `d8a3e8d` runs Biome through the active runtime;
+  restored unit suite: `7 passed (7)`.
+- `8060fed` adds synthetic populated organization navigation and four org-shell
+  baselines. Removing the board response made the shell assertion fail; restored
+  screenshot comparison: eight passes. Fixtures contain two members, a board,
+  four statuses and three tickets plus repository counts; they do NOT yet contain
+  the required project or actual issue/PR entities.
+- `fc3e801` proves touch Sheet open/outside-tap close, absent closed mobile rail,
+  strict 767/768 behavior in both mobile projects, and desktop/tablet keyboard
+  focus order. Initial desktop failure targeted a nonfocusable div (test defect,
+  not product RED). Behavioral control changed `< 768` to `<= 768`, rebuilt,
+  and failed both mobile tests: `Expected: visible; element(s) not found` at 768.
+  Restored original source, rebuilt: `12 passed (30.7s)`; screenshot comparison
+  `8 passed (21.6s)`. No production UI source changes remain.
+- `d8a3e8d` wires pinned Chromium installation and `bun run e2e` into CI after
+  build, with failure artifacts. Local command exercised; remote CI not claimed.
+- Final frozen install, lint (three warnings), root typecheck, Bun bridge and
+  build all exit 0. Bridge: `2 pass / 0 fail`; standalone unit suite 7 passed;
+  real-PG integration suite 39 passed in the earlier gate run. Final build cached;
+  fresh UI builds were exercised for the responsive control/restoration.
+- Remaining T0: fixture project/issue/PR entities and source-to-destination/
+  endpoint manifest; telemetry service coverage, successful-principal HTTP attrs,
+  mutation-to-shape trace propagation audit, Grafana/Tempo export screenshot;
+  final mandatory acceptance/control audit. PR #28 remains draft. Broader domain
+  UI fixtures/typing remain deferred to STL-15–21. Legacy reconciliation N/A.
+
 ### Continuation c21: sanitized denials and sign-in baselines (partial)
 
 - `3d1cf11` routes initial and resumed authorization denials through the shared
