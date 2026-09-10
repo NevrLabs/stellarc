@@ -144,6 +144,12 @@ def split_model(spec):
     if spec.startswith("hermes"):
         head, _, model = spec.partition("/")
         mode = head.partition(":")[2] or "default"
+        # Paseo validates --model against the Hermes ACP catalog, whose ids are ENCODED as
+        # `custom:<provider-slug>:<model>` for named endpoints. A bare `glm/glm-5.3-flash` fails that
+        # check, Paseo logs a warning and silently runs the session on Hermes's DEFAULT model. Every
+        # cycle before this fix ran on the default (which was `gpt` = astra) regardless of the roster.
+        if model and not model.startswith(("custom:", "openai-codex:", "zai:", "moa:")):
+            model = f"custom:9router:{model}"
         return "hermes", model or None, mode
     if spec.startswith("goose/"):
         return "goose", spec[len("goose/"):], None
@@ -163,7 +169,7 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
                f"then follow it exactly. Do not begin any other action before reading it.")
     cmd = [str(PASEO), "run", "-d", "--title", title, "--provider", provider, "--json"]
     if model:
-        bare = model.split("/", 1)[-1] if model.startswith("hermes:") else model
+        bare = model.split("custom:9router:", 1)[-1]
         if bare.startswith("cx/") or bare in ("gpt", "gpt-mini") or "astra" in bare or "sol" in bare or "spark" in bare:
             raise SystemExit(f"forge: refusing to dispatch a subagent on {model!r} — operator ruling: no gpt/cx models for subagents (only cx/gpt-5.6-luna is permitted, and only by hand)")
         cmd += ["--model", model]

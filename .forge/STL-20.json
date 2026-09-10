@@ -1,0 +1,17 @@
+{
+ "ticket": "STL-20",
+ "stages": [
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-10T02:48:50+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-10T02:49:53+00:00",
+   "agent": "ae6928ab-5d46-4a21-b76f-754ceff38637"
+  }
+ ],
+ "cycle": 0
+}

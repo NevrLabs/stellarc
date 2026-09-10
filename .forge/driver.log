@@ -955,3 +955,16 @@
 2026-09-10T02:43:18+00:00 throttle   STL-27   triage deferred; 3 light in flight
 2026-09-10T02:43:18+00:00 throttle   STL-30   triage deferred; 3 light in flight
 2026-09-10T02:45:28+00:00 start      STL-18   spec
+2026-09-10T02:46:17+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-10T02:46:26+00:00 start      STL-19   triage
+2026-09-10T02:48:49+00:00 ok         STL-19   triage: dispatched 7cb2e25f-5ffd-4c12-aba1-7c9ec0879066; waiting… | STL-19 triage → ACCEPT
+2026-09-10T02:48:50+00:00 start      STL-20   triage
+2026-09-10T02:50:09+00:00 ok         STL-20   triage: dispatched ae6928ab-5d46-4a21-b76f-754ceff38637; waiting… | STL-20 triage → ACCEPT
+2026-09-10T02:50:10+00:00 throttle   STL-21   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-22   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T02:50:10+00:00 throttle   STL-30   triage deferred; 3 light in flight
