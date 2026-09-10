@@ -19,22 +19,8 @@
   },
   {
    "stage": "spec",
-   "status": "fail",
-   "at": "2026-09-10T03:06:22+00:00",
-   "agent": "0f83af10-5f82-4afd-931a-24cb0120874e",
-   "reason": "no spec file written"
-  },
-  {
-   "stage": "spec",
    "status": "running",
    "at": "2026-09-10T03:32:03+00:00"
-  },
-  {
-   "stage": "spec",
-   "status": "fail",
-   "at": "2026-09-10T03:51:03+00:00",
-   "agent": "877ed675-6741-419a-a1be-0fdeb44b5c4a",
-   "reason": "no spec file written"
   }
  ],
  "cycle": 0
