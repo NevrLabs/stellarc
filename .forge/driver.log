@@ -1224,3 +1224,9 @@
 2026-09-10T12:46:39+00:00 throttle   STL-27   triage deferred; 3 light in flight
 2026-09-10T12:46:39+00:00 throttle   STL-30   triage deferred; 3 light in flight
 2026-09-10T12:48:52+00:00 start      STL-24   spec
+2026-09-10T12:54:58+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-10T12:55:16+00:00 start      STL-14   implement
+2026-09-10T12:55:18+00:00 fail       STL-14   implement rc=1: forge: implement STL-14: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 4s)"}} | forge: implement STL-14: skipping hermes:accept_edits/glm/glm-5.3-flash — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3-flash] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 4s)"}} | forge: implement STL-14: no model available (all preflights failed)
+2026-09-10T12:55:19+00:00 start      STL-25   triage
+2026-09-10T12:55:23+00:00 fail       STL-25   triage rc=1: forge: triage STL-25: skipping hermes:accept_edits/glm/glm-5.3-flash — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3-flash] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 4s)"}} | forge: triage STL-25: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 3s)"}} | forge: triage STL-25: no model available
+2026-09-10T12:58:02+00:00 start      STL-14   implement
