@@ -1,3 +1,13 @@
+import { spawnSync } from "node:child_process";
+import {
+	copyFileSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { ConfigProvider, Effect } from "effect";
 import { expect, test } from "vitest";
 
@@ -161,6 +171,34 @@ test("shape log modes reach the OTel logger without leaking request values", asy
 	} finally {
 		await runtime.dispose();
 		await sql.end();
+	}
+});
+
+test("Biome forbids console in services but preserves frozen UI and test overrides", () => {
+	for (const [path, denied] of [
+		["apps/stellarc-api/src/http.ts", true],
+		["apps/stellarc-worker/src/main.ts", true],
+		["packages/telemetry/src/index.ts", true],
+		["apps/stellarc-ui/src/main.tsx", false],
+		["tests/unit/foundation.test.ts", false],
+	] as const) {
+		const root = mkdtempSync(join(tmpdir(), "stellarc-biome-"));
+		try {
+			copyFileSync("biome.json", join(root, "biome.json"));
+			const file = join(root, path);
+			mkdirSync(dirname(file), { recursive: true });
+			writeFileSync(file, 'console.info("probe");\n');
+			const result = spawnSync(
+				resolve("node_modules/.bin/biome"),
+				["lint", path],
+				{ cwd: root, encoding: "utf8" },
+			);
+			expect(result.error).toBeUndefined();
+			expect(result.status, path).toBe(denied ? 1 : 0);
+			if (denied) expect(result.stderr).toContain("lint/suspicious/noConsole");
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	}
 });
 

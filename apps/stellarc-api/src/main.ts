@@ -60,6 +60,7 @@ if (import.meta.main)
 		api.pipe(
 			Effect.catchAll(() =>
 				Effect.sync(() => {
+					// biome-ignore lint/suspicious/noConsole: fatal startup handler cannot depend on telemetry
 					console.error("API startup failed");
 					process.exitCode = 1;
 				}),

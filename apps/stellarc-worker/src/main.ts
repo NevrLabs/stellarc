@@ -26,6 +26,7 @@ if (import.meta.main)
 			Effect.provide(TelemetryLive("stellarc-worker")),
 			Effect.catchAll(() =>
 				Effect.sync(() => {
+					// biome-ignore lint/suspicious/noConsole: fatal startup handler cannot depend on telemetry
 					console.error("Worker startup failed");
 					process.exitCode = 1;
 				}),
