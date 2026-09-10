@@ -1199,3 +1199,10 @@
 2026-09-10T10:23:36+00:00 throttle   STL-26   triage deferred; 3 light in flight
 2026-09-10T10:23:36+00:00 throttle   STL-27   triage deferred; 3 light in flight
 2026-09-10T10:23:36+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T10:24:16+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-10T10:24:26+00:00 start      STL-14   implement
+2026-09-10T10:24:27+00:00 fail       STL-14   implement rc=1:     s = load_state(t); s["stages"].append({"stage": stage, "status": "note", "at": now_iso(), "note": f"preflight skip {spec}: {why[:140]}"}); save_state(t, s) |                                                                                    ^^^^^^^ | NameError: name 'now_iso' is not defined
+2026-09-10T10:24:28+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T10:24:28+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T10:24:28+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T10:24:28+00:00 throttle   STL-30   triage deferred; 3 light in flight

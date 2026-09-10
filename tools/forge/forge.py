@@ -173,7 +173,8 @@ def model_preflight(model_spec, timeout=60):
     if not key: return True, "no key to preflight with"
     body = json.dumps({"model": bare, "messages": [{"role": "user", "content": "Reply: ok"}], "max_tokens": 6}).encode()
     req = urllib.request.Request("https://aiproxy.entelechia.cloud/v1/chat/completions", data=body,
-                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                                          "User-Agent": "forge-preflight/1 (curl-compatible)"})  # CF 1010 blocks urllib's default UA
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             txt = r.read().decode(errors="ignore")
