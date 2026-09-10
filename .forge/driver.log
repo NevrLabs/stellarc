@@ -1156,3 +1156,25 @@
 2026-09-10T09:51:32+00:00 paused     -        driver.pause present
 2026-09-10T09:53:32+00:00 paused     -        driver.pause present
 2026-09-10T09:55:32+00:00 paused     -        driver.pause present
+2026-09-10T09:57:13+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-10T09:57:23+00:00 start      STL-14   implement
+2026-09-10T09:59:14+00:00 fail       STL-14   implement rc=1: dispatched 1da984c9-7a86-4bc1-aff4-ee54183c5914 on forge/stl-14-c4 (hermes:accept_edits/ocg/deepseek-v4-pro); waiting up to 10800s… | forge: implementer 1da984c9-7a86-4bc1-aff4-ee54183c5914 pushed nothing to forge/stl-14-c4 — cycle wasted
+2026-09-10T09:59:15+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T09:59:15+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T09:59:15+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T09:59:15+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T10:01:25+00:00 start      STL-14   implement
+2026-09-10T10:09:09+00:00 fail       STL-14   implement rc=1: dispatched 1a9d7222-710c-4105-a8c0-588288107b5e on forge/stl-14-c4 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | forge: implementer 1a9d7222-710c-4105-a8c0-588288107b5e pushed nothing to forge/stl-14-c4 — cycle wasted
+2026-09-10T10:09:09+00:00 escalate   STL-14   implement — human needed; delete .forge/STL-14.escalation to resume
+2026-09-10T10:09:12+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T10:09:12+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T10:09:12+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T10:09:12+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T10:11:22+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T10:11:22+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T10:11:22+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T10:11:22+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T10:13:32+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T10:13:32+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T10:13:32+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T10:13:32+00:00 throttle   STL-30   triage deferred; 3 light in flight

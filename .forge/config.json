@@ -16,14 +16,13 @@
   "spec": "hermes:accept_edits/glm/glm-5.3",
   "implement": [
    "hermes:accept_edits/glm/glm-5.3-flash",
-   "hermes:accept_edits/ocg/deepseek-v4-pro",
    "hermes:accept_edits/glm/glm-5.3"
   ],
   "review": [
-   "hermes:accept_edits/glm/glm-5.3",
-   "hermes:accept_edits/ocg/deepseek-v4-pro"
+   "hermes:accept_edits/glm/glm-5.3"
   ],
-  "_roster_note": "2026-09-09 operator ruling: NO cx/* (gpt) models for subagents \u2014 not astra, sol, spark, or the bare `gpt` alias. The only permitted gpt is cx/gpt-5.6-luna (= 9router `gpt-mini`), and it is not in any forge lane. Lanes: glm-5.3(-flash) + ocg/deepseek-v4-pro. ocg/* needs x-opencode-session (Hermes sends it)."
+  "_roster_note": "2026-09-09 operator ruling: NO cx/* (gpt) models for subagents \u2014 not astra, sol, spark, or the bare `gpt` alias. The only permitted gpt is cx/gpt-5.6-luna (= 9router `gpt-mini`), and it is not in any forge lane. Lanes: glm-5.3(-flash) + ocg/deepseek-v4-pro. ocg/* needs x-opencode-session (Hermes sends it).",
+  "_ocg_note": "ocg/* (OpenCode Go via 9router) is BROKEN as of 2026-09-10 09:12 WIB: Console Go now requires x-opencode-session; this 9router build's opencode-go transport has headers:{} and the generic buildHeaders does not forward client headers, so the Hermes-side header never reaches OpenCode. 1236 MissingSessionID in 9router's journal. Fix belongs in 9router on terminus (patch transport.headers or forward x-opencode-*). Re-add ocg/deepseek-v4-pro to lanes when `curl -H 'x-opencode-session: x' .../chat/completions -d model=ocg/deepseek-v4-flash` returns 200."
  },
  "implement_budget_min": 150,
  "stage_timeout_s": {
