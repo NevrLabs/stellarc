@@ -920,3 +920,38 @@
 2026-09-10T01:41:54+00:00 question   STL-14   unanswered → write STL-14.answer-1.md
 2026-09-10T01:41:54+00:00 idle       -        0/14 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-10T01:44:03+00:00 start      STL-14   implement
+2026-09-10T02:15:49+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-10T02:16:01+00:00 start      STL-15   triage
+2026-09-10T02:18:15+00:00 ok         STL-15   triage: dispatched b5387a76-948e-4e8a-a0e0-3e0273c9957b; waiting… | STL-15 triage → ACCEPT
+2026-09-10T02:18:16+00:00 start      STL-16   triage
+2026-09-10T02:20:34+00:00 ok         STL-16   triage: dispatched 91fc805b-a86d-41e7-a7dc-bb6c874910cc; waiting… | STL-16 triage → NEEDS-INFO
+2026-09-10T02:20:35+00:00 start      STL-17   triage
+2026-09-10T02:22:29+00:00 ok         STL-17   triage: dispatched 36269e09-4334-4980-9a67-e6fec1e4bf80; waiting… | STL-17 triage → ACCEPT
+2026-09-10T02:22:30+00:00 throttle   STL-18   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-19   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-20   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-21   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-22   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T02:22:30+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T02:24:40+00:00 start      STL-15   spec
+2026-09-10T02:32:49+00:00 ok         STL-15   spec: dispatched 44042dfb-1e99-43e0-b344-ae68d312f681; waiting… | STL-15 spec → pass
+2026-09-10T02:32:51+00:00 start      STL-17   spec
+2026-09-10T02:40:20+00:00 ok         STL-17   spec: dispatched 84c413f2-5f40-40c0-9b44-55132ec2694d; waiting… | STL-17 spec → pass
+2026-09-10T02:40:22+00:00 start      STL-18   triage
+2026-09-10T02:43:17+00:00 ok         STL-18   triage: dispatched 2277209b-a75d-4b65-a668-85c0e7574be9; waiting… | STL-18 triage → ACCEPT
+2026-09-10T02:43:18+00:00 throttle   STL-19   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-20   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-21   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-22   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T02:43:18+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T02:45:28+00:00 start      STL-18   spec

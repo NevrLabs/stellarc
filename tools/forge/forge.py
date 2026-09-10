@@ -162,7 +162,11 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
     pointer = (f"Your full brief is in the file {bpath} — read it FIRST with your file-reading tool, in full, "
                f"then follow it exactly. Do not begin any other action before reading it.")
     cmd = [str(PASEO), "run", "-d", "--title", title, "--provider", provider, "--json"]
-    if model: cmd += ["--model", model]
+    if model:
+        bare = model.split("/", 1)[-1] if model.startswith("hermes:") else model
+        if bare.startswith("cx/") or bare in ("gpt", "gpt-mini") or "astra" in bare or "sol" in bare or "spark" in bare:
+            raise SystemExit(f"forge: refusing to dispatch a subagent on {model!r} — operator ruling: no gpt/cx models for subagents (only cx/gpt-5.6-luna is permitted, and only by hand)")
+        cmd += ["--model", model]
     if mode:  cmd += ["--mode", mode]
     if worktree:
         cmd += ["--new-workspace", "worktree", "--worktree-mode", "branch-off", "--base", base, "--new-branch", branch, "--worktree-slug", worktree]
@@ -360,7 +364,7 @@ def cmd_init(args):
             "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode blocks ALL edits (parks in permission) - use accept_edits and constrain writes in the brief.",
             "triage": "hermes:accept_edits/glm/glm-5.3-flash",
             "spec": "hermes:accept_edits/glm/glm-5.3",
-            "implement": ["hermes:accept_edits/cx/gpt-6-astra", "hermes:accept_edits/glm/glm-5.3-flash"],
+            "implement": ["hermes:accept_edits/glm/glm-5.3-flash", "hermes:accept_edits/ocg/deepseek-v4-pro", "hermes:accept_edits/glm/glm-5.3"],
             "review": ["hermes:accept_edits/glm/glm-5.3", "hermes:accept_edits/ocg/deepseek-v4-pro"]
         },
         "implement_budget_min": 90,
