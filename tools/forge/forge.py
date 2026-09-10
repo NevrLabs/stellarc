@@ -553,7 +553,7 @@ def cmd_implement(args):
                 f"You are ALREADY on branch `{prev_partial['branch']}` with the draft PR open. Do NOT create a new branch, do NOT open a new PR. Commit and `git push origin HEAD:{prev_partial['branch']}`. "
                 f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}`. "
                 f"If you run out again, update the PR body's Remaining list and leave it draft.")
-        record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"])
+        record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"], pid=os.getpid())
         # Continuation: our own git worktree checked out on the EXISTING branch (synced to origin above).
         wt = repo_root() / ".forge/worktrees" / f"{t.lower()}-c{cycle}"
         sh(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
@@ -561,7 +561,7 @@ def cmd_implement(args):
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     else:
         branch = f"forge/{t.lower()}-c{cycle}"
-        record(t, "implement", "running", cycle=cycle, model=model, branch=branch)
+        record(t, "implement", "running", cycle=cycle, model=model, branch=branch, pid=os.getpid())
         a = dispatch(f"forge implement {t} c{cycle}", brief_implement(t, c, spec, cycle, defects), model,
                      worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)

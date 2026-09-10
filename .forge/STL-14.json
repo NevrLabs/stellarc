@@ -597,13 +597,16 @@
   },
   {
    "stage": "implement",
-   "status": "running",
+   "status": "pass",
    "at": "2026-09-10T12:58:05+00:00",
    "cycle": 29,
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
    "branch": "forge/stl-14-c4",
    "continues": 27,
-   "agent": "543b8dd7-3ec3-4432-8fd2-a6364a6be04b"
+   "agent": "543b8dd7-3ec3-4432-8fd2-a6364a6be04b",
+   "head": "83d69e2d",
+   "pr": 28,
+   "reason": "agent idle after `gh pr ready 28`; watcher lost (Paseo upgrade earlier killed pid tracking on cont. path); adopted by orchestrator"
   }
  ],
  "cycle": 29
