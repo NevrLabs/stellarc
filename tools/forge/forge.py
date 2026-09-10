@@ -192,7 +192,7 @@ def pick_model(candidates, stage, t):
         ok, why = model_preflight(spec)
         if ok: return spec
         print(f"forge: {stage} {t}: skipping {spec} — preflight failed: {why}", file=sys.stderr)
-        s = load_state(t); s["stages"].append({"stage": stage, "status": "note", "at": now_iso(), "note": f"preflight skip {spec}: {why[:140]}"}); save_state(t, s)
+        s = load_state(t); s["stages"].append({"stage": stage, "status": "note", "at": now(), "note": f"preflight skip {spec}: {why[:140]}"}); save_state(t, s)
     return None
 
 def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branch=None, extra=None):
