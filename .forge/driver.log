@@ -1210,3 +1210,17 @@
 2026-09-10T10:24:54+00:00 start      STL-14   implement
 2026-09-10T10:27:39+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
 2026-09-10T10:27:49+00:00 start      STL-14   implement
+2026-09-10T12:25:12+00:00 fail       STL-14   implement rc=1:   File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child |     raise child_exception_type(errno_num, err_msg, err_filename) | FileNotFoundError: [Errno 2] No such file or directory: '/home/rpw/.local/node/bin/paseo'
+2026-09-10T12:25:13+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T12:25:13+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T12:25:13+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T12:25:13+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T12:27:24+00:00 start      STL-16   spec
+2026-09-10T12:46:33+00:00 ok         STL-16   spec: dispatched d627bf2f-a95d-47c8-83a2-31e8014153ee; waiting… | STL-16 spec → pass
+2026-09-10T12:46:35+00:00 start      STL-24   spec
+2026-09-10T12:46:38+00:00 fail       STL-24   spec rc=1: forge: spec STL-24: skipping hermes:accept_edits/glm/glm-5.3-flash — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3-flash] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 4s)"}} | forge: spec STL-24: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 4s)"}} | forge: spec STL-24: no model available
+2026-09-10T12:46:39+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T12:46:39+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T12:46:39+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T12:46:39+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T12:48:52+00:00 start      STL-24   spec

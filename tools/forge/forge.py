@@ -33,7 +33,16 @@ import json, os, re, shlex, subprocess, sys, time, datetime as dt
 from pathlib import Path
 
 HOME = Path.home()
-PASEO = HOME / ".local/node/bin/paseo"
+class _Paseo:
+    """Resolve the paseo binary per call. An npm global upgrade replaces the symlink; a watcher that cached
+    the path at import time died mid-cycle (c27) with FileNotFoundError while the agent kept working."""
+    def __str__(self):
+        import shutil
+        for cand in (HOME / ".local/node/bin/paseo", Path(shutil.which("paseo") or "")):
+            if cand and cand.exists(): return str(cand)
+        return str(HOME / ".local/node/bin/paseo")
+    __fspath__ = __str__
+PASEO = _Paseo()
 PASEO_ENV = HOME / ".paseo-env"
 PIPELINE = HOME / ".local/bin/kaneo-pipeline"
 
@@ -47,8 +56,19 @@ def die(msg, code=1):
 def now(): return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 def sh(cmd, cwd=None, env=None, check=True, capture=True, timeout=600):
-    r = subprocess.run(cmd, cwd=cwd, env=env, shell=isinstance(cmd, str),
-                       capture_output=capture, text=True, timeout=timeout)
+    # paseo calls are retried through transient daemon/binary hiccups (npm upgrade swapping the symlink,
+    # daemon restart, 'Connection timed out'): a watcher must outlive a 30s blip, not lose the cycle to it.
+    is_paseo = not isinstance(cmd, str) and cmd and str(cmd[0]).endswith("/paseo")
+    for attempt in range(6 if is_paseo else 1):
+        try:
+            r = subprocess.run(cmd, cwd=cwd, env=env, shell=isinstance(cmd, str),
+                               capture_output=capture, text=True, timeout=timeout)
+        except FileNotFoundError:
+            if is_paseo and attempt < 5: time.sleep(10); cmd = [str(PASEO), *cmd[1:]]; continue
+            raise
+        if is_paseo and r.returncode and attempt < 5 and ("Cannot connect to daemon" in (r.stderr or "") or "ECONNREFUSED" in (r.stderr or "")):
+            time.sleep(10); continue
+        break
     if check and r.returncode:
         die(f"command failed ({r.returncode}): {cmd if isinstance(cmd,str) else ' '.join(cmd)}\n{(r.stderr or r.stdout)[-1500:]}")
     return r

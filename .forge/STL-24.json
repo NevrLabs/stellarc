@@ -17,6 +17,34 @@
    "status": "fail",
    "at": "2026-09-10T05:53:06+00:00",
    "reason": "orphan running (watcher killed in workspace sweep); spec file absent"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T12:46:36+00:00"
+  },
+  {
+   "stage": "spec",
+   "status": "note",
+   "at": "2026-09-10T12:46:37+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "spec",
+   "status": "note",
+   "at": "2026-09-10T12:46:37+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
+  },
+  {
+   "stage": "spec",
+   "status": "note",
+   "at": "2026-09-10T12:46:37+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T12:48:53+00:00"
   }
  ],
  "cycle": 0

@@ -566,13 +566,22 @@
   },
   {
    "stage": "implement",
-   "status": "running",
+   "status": "partial",
    "at": "2026-09-10T10:27:53+00:00",
    "cycle": 27,
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
    "branch": "forge/stl-14-c4",
    "continues": 22,
-   "agent": "456b06c5-6ebf-46b0-a842-9a393c033323"
+   "agent": "456b06c5-6ebf-46b0-a842-9a393c033323",
+   "head": "74e754c",
+   "pr": 28,
+   "reason": "watcher died in Paseo npm upgrade; worktree salvaged and committed by orchestrator (24 e2e green)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T13:05:00+00:00",
+   "note": "continue #28 from 74e754c; remaining: Tempo screenshot proof, final \u00a75e/\u00a75f negative-control audit, PR Remaining list \u2192 empty or ticketed"
   }
  ],
  "cycle": 27
