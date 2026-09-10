@@ -159,6 +159,41 @@ def split_model(spec):
         return "goose", spec[len("goose/"):], None
     return "omp", spec, None
 
+def model_preflight(model_spec, timeout=60):
+    """One 6-token completion through 9router for the lane's model. Returns (ok, reason). A quota 429, an
+    upstream 5xx, or a 400 like OpenCode's MissingSessionID means the whole cycle would burn with zero
+    model calls — c23 (ocg) and c24 (glm 5h quota) both did exactly that. Cheap to check first."""
+    import urllib.request, urllib.error
+    _, model, _ = split_model(model_spec)
+    bare = (model or "").split("custom:9router:", 1)[-1]
+    if not bare: return True, "no model"
+    key = None
+    for line in (Path.home() / ".hermes/.env").read_text().splitlines():
+        if line.startswith(("AIPROXY_API_KEY=", "export AIPROXY_API_KEY=")): key = line.split("=", 1)[1].strip().strip('"')
+    if not key: return True, "no key to preflight with"
+    body = json.dumps({"model": bare, "messages": [{"role": "user", "content": "Reply: ok"}], "max_tokens": 6}).encode()
+    req = urllib.request.Request("https://aiproxy.entelechia.cloud/v1/chat/completions", data=body,
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            txt = r.read().decode(errors="ignore")
+            if '"error"' in txt[:200]: return False, txt[:160]
+            return True, "ok"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code}: {e.read().decode(errors='ignore')[:160]}"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+def pick_model(candidates, stage, t):
+    """First roster entry whose model answers a preflight. Records skipped ones in the ticket state."""
+    if isinstance(candidates, str): candidates = [candidates]
+    for spec in candidates:
+        ok, why = model_preflight(spec)
+        if ok: return spec
+        print(f"forge: {stage} {t}: skipping {spec} — preflight failed: {why}", file=sys.stderr)
+        s = load_state(t); s["stages"].append({"stage": stage, "status": "note", "at": now_iso(), "note": f"preflight skip {spec}: {why[:140]}"}); save_state(t, s)
+    return None
+
 def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branch=None, extra=None):
     """Briefs can exceed ARG_MAX (a 1200-line spec did). Write the brief to a file and hand the agent
     a short pointer prompt; the agent's first action is to read it. The file lives under the repo's
@@ -401,7 +436,9 @@ def cmd_triage(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); iss = issue(n, c["repo"])
     st = load_state(t); st["cycle"] = 0; save_state(t, st)
     record(t, "triage", "running")
-    a = dispatch(f"forge triage {t}", brief_triage(t, c, iss), c["models"]["triage"], cwd=repo_root())
+    tm = pick_model(c["models"]["triage"], "triage", t) or pick_model(c["models"]["implement"], "triage", t)
+    if not tm: raise SystemExit(f"forge: triage {t}: no model available")
+    a = dispatch(f"forge triage {t}", brief_triage(t, c, iss), tm, cwd=repo_root())
     watch(a, f"{t}-triage", t, "triage")
     print(f"dispatched {a}; waiting…")
     wait_idle(a, c["stage_timeout_s"]["triage"])
@@ -430,7 +467,9 @@ def cmd_triage(args):
 def cmd_spec(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "triage"); iss = issue(n, c["repo"])
     record(t, "spec", "running")
-    a = dispatch(f"forge spec {t}", brief_spec(t, c, iss), c["models"]["spec"], cwd=repo_root())
+    sm = pick_model(c["models"]["spec"], "spec", t) or pick_model(c["models"]["implement"], "spec", t)
+    if not sm: raise SystemExit(f"forge: spec {t}: no model available")
+    a = dispatch(f"forge spec {t}", brief_spec(t, c, iss), sm, cwd=repo_root())
     watch(a, f"{t}-spec", t, "spec")
     print(f"dispatched {a}; waiting…")
     wait_idle(a, c["stage_timeout_s"]["spec"])
@@ -467,7 +506,12 @@ def cmd_implement(args):
         prev = review_path(t, cycle - 1)
         if prev.exists():
             body = prev.read_text(); i = body.upper().find("DEFECTS"); defects = body[i:] if i >= 0 else body
-    model = c["models"]["implement"][(cycle - 1) % len(c["models"]["implement"])]
+    roster = c["models"]["implement"]
+    start = (cycle - 1) % len(roster)
+    model = pick_model(roster[start:] + roster[:start], "implement", t)
+    if not model:
+        record(t, "implement", "blocked", cycle=cycle, reason="every roster model failed preflight (quota/upstream); nothing dispatched — retry next tick")
+        raise SystemExit(f"forge: implement {t}: no model available (all preflights failed)")
     head_before = None
     prev_partial = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "partial"), None)
     if prev_partial:

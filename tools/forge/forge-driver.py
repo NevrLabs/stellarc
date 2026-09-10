@@ -122,6 +122,9 @@ def next_stage(n):
     if last(s, "review") == "rework": return "implement"                # forge re-armed spec; cycle bumps inside
     if last(s, "implement") == "pass": return "review"
     if last(s, "spec") == "pass": return "implement"
+    if last(s, "implement") == "blocked":
+        li = next(x for x in reversed(s["stages"]) if x["stage"] == "implement")
+        if "preflight" in str(li.get("reason", "")): return "implement"      # infra, not a spec gap: retry next tick
     if last(s, "triage") == "pass": return "spec"
     tri = last(s, "triage")
     if tri in (None, "fail"): return "triage"

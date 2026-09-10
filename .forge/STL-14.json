@@ -528,11 +528,11 @@
   },
   {
    "stage": "implement",
-   "status": "fail",
+   "status": "blocked",
    "at": "2026-09-10T09:59:09+00:00",
    "agent": "1da984c9-7a86-4bc1-aff4-ee54183c5914",
    "cycle": 23,
-   "reason": "ocg/deepseek-v4-pro unusable: 9router does not send x-opencode-session (upstream 400 MissingSessionID); zero model calls succeeded"
+   "reason": "ocg/deepseek-v4-pro unusable: 9router does not send x-opencode-session (upstream 400 MissingSessionID); zero model calls succeeded [infra: zero successful model calls; reclassified]"
   },
   {
    "stage": "implement",
@@ -546,17 +546,23 @@
   },
   {
    "stage": "implement",
-   "status": "fail",
+   "status": "blocked",
    "at": "2026-09-10T10:09:04+00:00",
    "agent": "1a9d7222-710c-4105-a8c0-588288107b5e",
    "cycle": 24,
-   "reason": "draft PR unchanged: no commits pushed this cycle"
+   "reason": "draft PR unchanged: no commits pushed this cycle [infra: zero successful model calls; reclassified]"
   },
   {
    "stage": "spec",
    "status": "pass",
    "at": "2026-09-10T02:10:00+00:00",
    "note": "re-armed on glm-only roster; continue #28 from 259a0a1"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T10:30:00+00:00",
+   "note": "re-armed with model preflight; continue #28 from 259a0a1"
   }
  ],
  "cycle": 24
