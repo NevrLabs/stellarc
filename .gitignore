@@ -8,3 +8,5 @@ test-results/
 playwright-report/
 .forge-question.md
 .forge-answer-*.md
+__pycache__/
+*.pyc
