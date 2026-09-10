@@ -1801,9 +1801,12 @@ test("successful shape requests export principal context on the server span", as
 	);
 	try {
 		const response = await web.handler(
-			new Request("http://test/orgs/audited/v1/shape?table=sync_probe&offset=-1", {
-				headers: { authorization: "Bearer audited actor-7" },
-			}),
+			new Request(
+				"http://test/orgs/audited/v1/shape?table=sync_probe&offset=-1",
+				{
+					headers: { authorization: "Bearer audited actor-7" },
+				},
+			),
 		);
 		expect(response.status).toBe(200);
 		await response.text();
@@ -1818,9 +1821,12 @@ test("successful shape requests export principal context on the server span", as
 		expect(attributes["stellarc.org"]).toBe("audited");
 		expect(attributes["stellarc.principal.kind"]).toBe("actor");
 		const denied = await web.handler(
-			new Request("http://test/orgs/audited/v1/shape?table=sync_probe&offset=-1", {
-				headers: { authorization: "Bearer audited other" },
-			}),
+			new Request(
+				"http://test/orgs/audited/v1/shape?table=sync_probe&offset=-1",
+				{
+					headers: { authorization: "Bearer audited other" },
+				},
+			),
 		);
 		expect(denied.status).toBe(403);
 		await denied.text();

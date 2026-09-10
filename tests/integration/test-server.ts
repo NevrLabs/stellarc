@@ -13,8 +13,8 @@ import {
 	deleteProbeEffect,
 	writeProbeEffect,
 } from "../../packages/domain/src/index";
-import { TelemetryTest } from "../../packages/telemetry/src/index";
 import { ShapeEngine } from "../../packages/sync/src/index";
+import { TelemetryTest } from "../../packages/telemetry/src/index";
 import { disposablePostgres } from "../helpers/postgres";
 export async function startTestServer() {
 	const db = await disposablePostgres();

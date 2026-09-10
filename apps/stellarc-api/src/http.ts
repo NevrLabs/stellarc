@@ -1,6 +1,6 @@
 import {
 	HttpApiBuilder,
-	HttpApp,
+	type HttpApp,
 	HttpServer,
 	HttpServerRequest,
 	HttpServerResponse,
@@ -23,8 +23,9 @@ export type Authorize = (
 // the test-only mutation routes — carries a server span in one trace.
 // Receives the inner application as an Effect yielding the response, per
 // HttpApiBuilder.toWebHandler's middleware contract.
-export const requestTelemetry =
-	(httpApp: HttpApp.Default<never, never>): HttpApp.Default<never, never> =>
+export const requestTelemetry = (
+	httpApp: HttpApp.Default<never, never>,
+): HttpApp.Default<never, never> =>
 	Effect.fn("stellarc.http.request")(function* () {
 		const request = yield* HttpServerRequest.HttpServerRequest;
 		const pathname = new URL(request.url, "http://localhost").pathname;
