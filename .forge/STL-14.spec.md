@@ -1292,6 +1292,8 @@ Deliverables:
 
 Add to the PR: a screenshot of one T01 trace in Grafana/Tempo showing the snapshot→tail spans under one request. That is the "it actually exports" proof.
 
+**5f-Q2 ruling:** `noConsole` enforced on api/worker/packages; `apps/stellarc-ui/**` has an explicit override (frozen lift; 18 sites owned by STL-15–21, tracked as `console_sites` in `ui-typecheck-budget.json`; browser OTel web SDK is a T1 item). No UI source edits in T0.
+
 §5e acceptance now includes items 1–9 above. Item 10 may be a follow-up commit in the same PR.
 
 **Local OTLP sink (this host):** Tempo `http://localhost:4318` (OTLP/HTTP) / `:4317` (gRPC), query API `:3200`, Grafana `http://localhost:3210` (anonymous Admin, Tempo datasource `uid=tempo` provisioned). systemd user units `tempo.service`, `grafana.service`. Smoke-verified: a span POSTed to `/v1/traces` is queryable at `/api/traces/<id>` within 4s. Use it for the §5f screenshot; tests still use `TelemetryTest` in-memory.
