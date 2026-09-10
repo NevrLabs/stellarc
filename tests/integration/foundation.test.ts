@@ -1788,6 +1788,7 @@ test("successful shape requests export principal context on the server span", as
 		"../../apps/stellarc-api/src/http"
 	);
 	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { testPrincipalFrom } = await import("./test-server");
 	const db = await disposablePostgres();
 	const telemetry = TelemetryTest();
 	await migrate(db.sql);
@@ -1798,6 +1799,9 @@ test("successful shape requests export principal context on the server span", as
 			org === "audited" && principal === "actor-7" ? "ok" : "forbidden",
 		undefined,
 		telemetry.layer,
+		undefined,
+		// §3: the test-principal grammar is injected by the test composition.
+		testPrincipalFrom,
 	);
 	try {
 		const response = await web.handler(
@@ -1846,6 +1850,50 @@ test("successful shape requests export principal context on the server span", as
 				"stellarc.principal.kind"
 			],
 		).toBeUndefined();
+	} finally {
+		await web.dispose();
+		await db.close();
+	}
+});
+
+test("T18 production server serves no fixture route and parses no test principal", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const db = await disposablePostgres();
+	await migrate(db.sql);
+	// Production authorization (AuthzLive) denies everything; §3 forbids the
+	// production entrypoint from knowing the test-principal token grammar
+	// ("Bearer <org> <id>"), so production cannot mint principal identity even
+	// if a future authz layer mis-accepts a token.
+	const web = foundationHandler(
+		db.sql,
+		new ShapeEngine(db.sql),
+		() => "forbidden",
+	);
+	try {
+		// The test principal grammar ("Bearer <org> <id>") must not be reachable
+		// from production code (§3): re-adding an export like principalFrom to
+		// the production module trips this guard.
+		const httpModule = await import("../../apps/stellarc-api/src/http");
+		expect("principalFrom" in httpModule).toBe(false);
+		// The fixture route is not mounted by the production handler: §3 test
+		// principals and fixture endpoints exist only in the test-composed server.
+		const fixture = await web.handler(
+			new Request("http://test/orgs/audited/__test/probes", {
+				method: "POST",
+				headers: {
+					authorization: "Bearer audited actor-7",
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ id: "one", value: "x" }),
+			}),
+		);
+		expect(fixture.status).toBe(404);
+		await fixture.text();
 	} finally {
 		await web.dispose();
 		await db.close();

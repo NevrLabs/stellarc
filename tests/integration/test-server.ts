@@ -16,6 +16,16 @@ import {
 import { ShapeEngine } from "../../packages/sync/src/index";
 import { TelemetryTest } from "../../packages/telemetry/src/index";
 import { disposablePostgres } from "../helpers/postgres";
+
+/** The test principal grammar ("Bearer <org> <id>"). Test-only (§3). */
+export const testPrincipalFrom = (
+	org: string,
+	authorization: string | undefined,
+): string => {
+	const token = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
+	return token.startsWith(`${org} `) ? token.slice(org.length + 1) : "";
+};
+
 export async function startTestServer() {
 	const db = await disposablePostgres();
 	await migrate(db.sql);
@@ -42,6 +52,9 @@ export async function startTestServer() {
 		undefined,
 		telemetry.layer,
 		memoMap,
+		// The test principal grammar ("Bearer <org> <id>") exists only in the
+		// test-composed server (§3): the production module must not know it.
+		testPrincipalFrom,
 	);
 	const id = Schema.NonEmptyString.pipe(Schema.maxLength(128));
 	const api = HttpApi.make("fixtures").add(

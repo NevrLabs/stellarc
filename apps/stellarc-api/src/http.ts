@@ -82,6 +82,12 @@ export function foundationHandler(
 	// Share one memo map across every build of `telemetry` (handler + fixture
 	// server runtime): OTel metric readers reject a second MeterProvider bind.
 	memoMap?: Layer.MemoMap,
+	// Test-principal extraction ("Bearer <org> <id>") is injected by the
+	// test-composed server; production passes nothing and parses no tokens (§3).
+	principalFrom: (
+		org: string,
+		authorization: string | undefined,
+	) => string = () => "",
 ) {
 	const group = HttpApiBuilder.group(FoundationApi, "foundation", (handlers) =>
 		handlers
@@ -153,11 +159,8 @@ export function foundationHandler(
 }
 
 // The bearer token doubles as the test principal ("Bearer <org> <id>"); real
-// identity arrives with STL-15.
-const principalFrom = (org: string, authorization?: string): string => {
-	const token = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
-	return token.startsWith(`${org} `) ? token.slice(org.length + 1) : "";
-};
+// identity arrives with STL-15. The grammar lives in the test-composed server
+// only — production parses no tokens (§3).
 
 const principalHeaders = (
 	headers: Record<string, string>,
