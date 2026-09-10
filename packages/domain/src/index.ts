@@ -21,6 +21,32 @@ export async function writeProbe(
 	return mutateProbes(sql, org, actor, [{ operation: "upsert", id, value }]);
 }
 
+// Effect-native variants: callers already running inside a telemetry runtime
+// (test server, future workers) must use these so event-append spans join that
+// runtime's tracer instead of the no-op default runtime a nested
+// Effect.runPromise would create.
+export const writeProbeEffect = (
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+	value: string,
+) => mutateProbesEffect(sql, org, actor, [{ operation: "upsert", id, value }]);
+
+export const deleteProbeEffect = (
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) =>
+	mutateProbesEffect(sql, org, actor, [{ operation: "delete", id }]).pipe(
+		Effect.mapError((error) =>
+			error instanceof Error && error.message === "Probe not found"
+				? new Error("NotFound")
+				: error,
+		),
+	);
+
 export type ProbeMutation =
 	| { operation: "upsert"; id: string; value: string }
 	| { operation: "delete"; id: string };

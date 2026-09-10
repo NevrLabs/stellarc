@@ -1779,3 +1779,99 @@ test("T04 exception after event append rolls back counter, event and projection 
 	const result = await writeProbe(db.sql, "org-a", "test-actor", "x", "y");
 	expect(result.txid).toBeGreaterThan(0);
 });
+
+test("successful shape requests export principal context on the server span", async () => {
+	const { disposablePostgres } = await import("../helpers/postgres");
+	const { migrate } = await import("../../packages/db/src/migrate");
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { foundationHandler } = await import(
+		"../../apps/stellarc-api/src/http"
+	);
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const db = await disposablePostgres();
+	const telemetry = TelemetryTest();
+	await migrate(db.sql);
+	const web = foundationHandler(
+		db.sql,
+		new ShapeEngine(db.sql),
+		(org, _headers, principal) =>
+			org === "audited" && principal === "actor-7" ? "ok" : "forbidden",
+		undefined,
+		telemetry.layer,
+	);
+	try {
+		const response = await web.handler(
+			new Request("http://test/orgs/audited/v1/shape?table=sync_probe&offset=-1", {
+				headers: { authorization: "Bearer audited actor-7" },
+			}),
+		);
+		expect(response.status).toBe(200);
+		await response.text();
+		const requests = telemetry.spans
+			.getFinishedSpans()
+			.filter((span) => span.name === "stellarc.http.request");
+		expect(requests).toHaveLength(1);
+		const attributes = requests[0].attributes as Record<string, unknown>;
+		expect(attributes["http.route"]).toBe("/orgs/:org/v1/shape");
+		expect(attributes["http.request.method"]).toBe("GET");
+		expect(attributes["http.response.status_code"]).toBe(200);
+		expect(attributes["stellarc.org"]).toBe("audited");
+		expect(attributes["stellarc.principal.kind"]).toBe("actor");
+		const denied = await web.handler(
+			new Request("http://test/orgs/audited/v1/shape?table=sync_probe&offset=-1", {
+				headers: { authorization: "Bearer audited other" },
+			}),
+		);
+		expect(denied.status).toBe(403);
+		await denied.text();
+		const deniedSpans = telemetry.spans
+			.getFinishedSpans()
+			.filter((span) => span.name === "stellarc.http.request");
+		expect(deniedSpans).toHaveLength(2);
+		expect(
+			(deniedSpans[1].attributes as Record<string, unknown>)["error.type"],
+		).toBe("Forbidden");
+		// Denied requests must not carry principal identity attributes.
+		expect(
+			(deniedSpans[1].attributes as Record<string, unknown>)[
+				"stellarc.principal.kind"
+			],
+		).toBeUndefined();
+	} finally {
+		await web.dispose();
+		await db.close();
+	}
+});
+
+test("mutation, event appends and shape emission share one trace", async () => {
+	const server = await startTestServer();
+	const telemetry = server.telemetry;
+	try {
+		const { txid } = await server.write("traced", "one", "v1");
+		expect(txid).toBeGreaterThan(0);
+		const traceparent = `00-${"3".repeat(32)}-${"4".repeat(16)}-01`;
+		const response = await fetch(
+			`${server.url}/orgs/traced/v1/shape?table=sync_probe&offset=-1`,
+			{ headers: { authorization: "Bearer traced", traceparent } },
+		);
+		expect(response.status).toBe(200);
+		await response.text();
+		await telemetry.reader.forceFlush();
+		const spans = telemetry.spans.getFinishedSpans();
+		const appends = spans.filter((s) => s.name === "stellarc.event.append");
+		expect(appends.length).toBeGreaterThanOrEqual(1);
+		const snapshot = spans.find((s) => s.name === "stellarc.shape.snapshot");
+		expect(snapshot).toBeDefined();
+		// Inbound traceparent on the shape request keeps the snapshot span inside
+		// the caller's trace; the mutation's appends share the mutation trace.
+		expect(snapshot?.spanContext().traceId).toBe("3".repeat(32));
+		const traceIds = new Set(appends.map((s) => s.spanContext().traceId));
+		expect(traceIds.size).toBe(1);
+		const mutating = appends[0].attributes as Record<string, unknown>;
+		expect(mutating["stellarc.event.type"]).toBe("foundation:probe-upserted");
+		expect(Number(mutating["stellarc.event.seq"])).toBe(1);
+		expect(Number(mutating["stellarc.event.txid"])).toBe(txid);
+	} finally {
+		await server.close();
+	}
+});

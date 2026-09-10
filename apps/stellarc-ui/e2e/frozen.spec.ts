@@ -41,3 +41,68 @@ test("org-shell renders populated frozen navigation", async ({
   await expect(page).toHaveScreenshot("org-shell.png");
   expect(unexpected).toEqual([]);
 });
+
+test("repo issues and pull request entities render from the fixture", async ({
+  page,
+}, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const unexpected = await stubOrgShell(page);
+  await page.goto("/dashboard/organization/foundation/repo/fixture-repo/issues");
+  await expect(
+    page.getByText("Gateway timeouts on /v1/shape").first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Preserve bigint cursors across reconnects").first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("foundation/probe", { exact: true }).first(),
+  ).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("repo-issues.png");
+  expect(errors).toEqual([]);
+  expect(unexpected).toEqual([]);
+});
+
+test("repo pull request detail renders checks, commits and files", async ({
+  page,
+}, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const unexpected = await stubOrgShell(page);
+  await page.goto(
+    "/dashboard/organization/foundation/repo/fixture-repo/pulls/1",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Preserve bigint cursors across reconnects" }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: /commits/i }).tap();
+  await expect(page.getByText("c1ffee")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("repo-pull-detail.png");
+  expect(errors).toEqual([]);
+  expect(unexpected).toEqual([]);
+});
+
+test("projects list and project detail render from the fixture", async ({
+  page,
+}, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const unexpected = await stubOrgShell(page);
+  await page.goto("/dashboard/organization/foundation/projects");
+  await expect(
+    page.getByRole("link", { name: /Sync Foundation/ }).first(),
+  ).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("projects.png");
+  await page.goto(
+    "/dashboard/organization/foundation/projects/foundation-lab",
+  );
+  await expect(page.getByTestId("project-overview")).toBeVisible();
+  await expect(page.getByText("Ship the sync foundation")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("project-detail.png");
+  expect(errors).toEqual([]);
+  expect(unexpected).toEqual([]);
+});

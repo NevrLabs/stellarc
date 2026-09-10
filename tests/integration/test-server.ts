@@ -6,23 +6,43 @@ import {
 	HttpServer,
 	HttpServerResponse,
 } from "@effect/platform";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { errorResponse } from "../../apps/stellarc-api/src/errors";
 import { migrate } from "../../packages/db/src/migrate";
-import { deleteProbe, writeProbe } from "../../packages/domain/src/index";
+import {
+	deleteProbeEffect,
+	writeProbeEffect,
+} from "../../packages/domain/src/index";
+import { TelemetryTest } from "../../packages/telemetry/src/index";
 import { ShapeEngine } from "../../packages/sync/src/index";
 import { disposablePostgres } from "../helpers/postgres";
 export async function startTestServer() {
 	const db = await disposablePostgres();
 	await migrate(db.sql);
 	const engine = new ShapeEngine(db.sql);
+	// Fixture mutations run through a telemetry runtime so the append spans the
+	// domain service emits actually export — the same trace accounting tests
+	// assert on. The foundation server receives this layer too, so handler-run
+	// mutations share it. A single memo map is shared by every build of the
+	// layer (runtime + both web handlers): OTel metric readers refuse a second
+	// MeterProvider binding, so each build must reuse one instance.
+	const telemetry = TelemetryTest();
+	const memoMap = await Effect.runPromise(Layer.makeMemoMap);
+	const runtime = ManagedRuntime.make(telemetry.layer, memoMap);
 	const { foundationHandler } = await import(
 		"../../apps/stellarc-api/src/http"
 	);
-	const http = foundationHandler(db.sql, engine, (org, headers) => {
-		if (!headers.authorization) return "unauthenticated";
-		return headers.authorization === `Bearer ${org}` ? "ok" : "forbidden";
-	});
+	const http = foundationHandler(
+		db.sql,
+		engine,
+		(org, headers) => {
+			if (!headers.authorization) return "unauthenticated";
+			return headers.authorization === `Bearer ${org}` ? "ok" : "forbidden";
+		},
+		undefined,
+		telemetry.layer,
+		memoMap,
+	);
 	const id = Schema.NonEmptyString.pipe(Schema.maxLength(128));
 	const api = HttpApi.make("fixtures").add(
 		HttpApiGroup.make("probes")
@@ -57,12 +77,14 @@ export async function startTestServer() {
 						if (decoded._tag === "None")
 							return reply(400, "BadRequest", "Invalid request");
 						return HttpServerResponse.unsafeJson(
-							await writeProbe(
-								db.sql,
-								path.org,
-								"test-actor",
-								decoded.value.id,
-								decoded.value.value,
+							await runtime.runPromise(
+								writeProbeEffect(
+									db.sql,
+									path.org,
+									"test-actor",
+									decoded.value.id,
+									decoded.value.value,
+								),
 							),
 						);
 					},
@@ -78,7 +100,9 @@ export async function startTestServer() {
 							return reply(403, "Forbidden", "Access denied");
 						try {
 							return HttpServerResponse.unsafeJson(
-								await deleteProbe(db.sql, path.org, "test-actor", path.id),
+								await runtime.runPromise(
+									deleteProbeEffect(db.sql, path.org, "test-actor", path.id),
+								),
 							);
 						} catch (error) {
 							if (error instanceof Error && error.message === "NotFound")
@@ -94,7 +118,9 @@ export async function startTestServer() {
 		Layer.mergeAll(
 			HttpApiBuilder.api(api).pipe(Layer.provide(fixtureGroup)),
 			HttpServer.layerContext,
+			telemetry.layer,
 		),
+		{ memoMap },
 	);
 	const server = Bun.serve({
 		port: 0,
@@ -107,6 +133,7 @@ export async function startTestServer() {
 	});
 	return {
 		url: server.url.origin,
+		telemetry,
 		get afterProjectionRead() {
 			return engine.afterProjectionRead;
 		},
@@ -114,9 +141,11 @@ export async function startTestServer() {
 			engine.afterProjectionRead = value;
 		},
 		write: (org: string, id: string, value: string) =>
-			writeProbe(db.sql, org, "test-actor", id, value),
+			runtime.runPromise(
+				writeProbeEffect(db.sql, org, "test-actor", id, value),
+			),
 		delete: (org: string, id: string) =>
-			deleteProbe(db.sql, org, "test-actor", id),
+			runtime.runPromise(deleteProbeEffect(db.sql, org, "test-actor", id)),
 		async eventCount(org: string) {
 			const [row] =
 				await db.sql`SELECT count(*)::int AS count FROM event WHERE org=${org}`;
@@ -126,6 +155,7 @@ export async function startTestServer() {
 			server.stop(true);
 			await fixtures.dispose();
 			await http.dispose();
+			await runtime.dispose();
 			await db.close();
 		},
 	};
