@@ -968,3 +968,191 @@
 2026-09-10T02:50:10+00:00 throttle   STL-26   triage deferred; 3 light in flight
 2026-09-10T02:50:10+00:00 throttle   STL-27   triage deferred; 3 light in flight
 2026-09-10T02:50:10+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T02:52:19+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-10T02:52:29+00:00 start      STL-19   spec
+2026-09-10T03:06:22+00:00 fail       STL-19   spec rc=1: dispatched 0f83af10-5f82-4afd-931a-24cb0120874e; waiting… | forge: spec agent produced no .forge/STL-19.spec.md — see `paseo logs 0f83af10-5f82-4afd-931a-24cb0120874e`
+2026-09-10T03:06:23+00:00 start      STL-20   spec
+2026-09-10T03:29:52+00:00 fail       STL-20   spec rc=1: dispatched 7cf526c6-4daf-48bd-befe-fc81fc4e2f1e; waiting… | forge: spec agent produced no .forge/STL-20.spec.md — see `paseo logs 7cf526c6-4daf-48bd-befe-fc81fc4e2f1e`
+2026-09-10T03:29:53+00:00 throttle   STL-21   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-22   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T03:29:53+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T03:32:02+00:00 start      STL-19   spec
+2026-09-10T03:51:03+00:00 fail       STL-19   spec rc=1: dispatched 877ed675-6741-419a-a1be-0fdeb44b5c4a; waiting… | forge: spec agent produced no .forge/STL-19.spec.md — see `paseo logs 877ed675-6741-419a-a1be-0fdeb44b5c4a`
+2026-09-10T03:51:03+00:00 escalate   STL-19   spec — human needed; delete .forge/STL-19.escalation to resume
+2026-09-10T03:51:06+00:00 start      STL-20   spec
+2026-09-10T04:04:39+00:00 ok         STL-20   spec: dispatched 2b5546c4-7735-4bc0-abe9-45b8dbcd205d; waiting… | STL-20 spec → pass
+2026-09-10T04:04:41+00:00 throttle   STL-21   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-22   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T04:04:41+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T04:06:51+00:00 start      STL-21   triage
+2026-09-10T04:09:24+00:00 ok         STL-21   triage: dispatched 95832080-8090-4737-bd15-49e1e1913182; waiting… | STL-21 triage → ACCEPT
+2026-09-10T04:09:25+00:00 start      STL-22   triage
+2026-09-10T04:13:02+00:00 ok         STL-22   triage: dispatched 8747d2c7-50bd-415e-a737-a040dd1de904; waiting… | STL-22 triage → ACCEPT
+2026-09-10T04:13:03+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T04:13:03+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T04:13:03+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T04:13:03+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T04:13:03+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T04:13:03+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T04:15:13+00:00 start      STL-21   spec
+2026-09-10T04:37:13+00:00 fail       STL-21   spec rc=1: dispatched ff405c38-d9f4-4665-a672-1217a8a910b0; waiting… | forge: spec agent produced no .forge/STL-21.spec.md — see `paseo logs ff405c38-d9f4-4665-a672-1217a8a910b0`
+2026-09-10T04:37:14+00:00 start      STL-22   spec
+2026-09-10T04:38:54+00:00 fail       STL-22   spec rc=1: dispatched b82ff5e7-6d97-4c7c-83f2-475cc291a63b; waiting… | forge: spec agent produced no .forge/STL-22.spec.md — see `paseo logs b82ff5e7-6d97-4c7c-83f2-475cc291a63b`
+2026-09-10T04:38:55+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T04:38:55+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T04:38:55+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T04:38:55+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T04:38:55+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T04:38:55+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T04:41:05+00:00 start      STL-21   spec
+2026-09-10T05:11:39+00:00 fail       STL-21   spec rc=1: dispatched ecb73232-e16f-409a-9258-c4304a89d1ea; waiting… | forge: agent ecb73232-e16f-409a-9258-c4304a89d1ea did not go idle within 1800s — `paseo logs ecb73232-e16f-409a-9258-c4304a89d1ea | tail`
+2026-09-10T05:11:40+00:00 start      STL-22   spec
+2026-09-10T05:24:43+00:00 ok         STL-22   spec: dispatched 8839ce01-cace-4782-a599-909db6f95182; waiting… | STL-22 spec → pass
+2026-09-10T05:24:45+00:00 throttle   STL-23   triage deferred; 3 light in flight
+2026-09-10T05:24:45+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T05:24:45+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T05:24:45+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T05:24:45+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T05:24:45+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T05:26:54+00:00 start      STL-23   triage
+2026-09-10T05:29:33+00:00 ok         STL-23   triage: dispatched 00b4d982-8ecd-4a8e-b241-f54a10c2d363; waiting… | STL-23 triage → ACCEPT
+2026-09-10T05:29:34+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T05:29:34+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T05:29:34+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T05:29:34+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T05:29:34+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T05:31:44+00:00 start      STL-23   spec
+2026-09-10T05:46:01+00:00 ok         STL-23   spec: dispatched 892c5814-ab87-4645-9587-0ad1ad537b6e; waiting… | STL-23 spec → pass
+2026-09-10T05:46:03+00:00 throttle   STL-24   triage deferred; 3 light in flight
+2026-09-10T05:46:03+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T05:46:03+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T05:46:03+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T05:46:03+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T05:48:14+00:00 start      STL-24   triage
+2026-09-10T05:50:54+00:00 ok         STL-24   triage: dispatched a8eaf9a8-37e1-4ade-b86d-9366d1fa8bf8; waiting… | STL-24 triage → ACCEPT
+2026-09-10T05:50:55+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T05:50:55+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T05:50:55+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T05:50:55+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T05:53:05+00:00 start      STL-24   spec
+2026-09-10T06:23:31+00:00 fail       STL-24   spec rc=1: dispatched 9eb08b7c-daf0-488b-b517-ede25665f07c; waiting… | forge: agent 9eb08b7c-daf0-488b-b517-ede25665f07c did not go idle within 1800s — `paseo logs 9eb08b7c-daf0-488b-b517-ede25665f07c | tail`
+2026-09-10T06:23:32+00:00 throttle   STL-25   triage deferred; 3 light in flight
+2026-09-10T06:23:32+00:00 throttle   STL-26   triage deferred; 3 light in flight
+2026-09-10T06:23:32+00:00 throttle   STL-27   triage deferred; 3 light in flight
+2026-09-10T06:23:32+00:00 throttle   STL-30   triage deferred; 3 light in flight
+2026-09-10T06:25:32+00:00 paused     -        driver.pause present
+2026-09-10T06:27:32+00:00 paused     -        driver.pause present
+2026-09-10T06:29:32+00:00 paused     -        driver.pause present
+2026-09-10T06:31:32+00:00 paused     -        driver.pause present
+2026-09-10T06:33:32+00:00 paused     -        driver.pause present
+2026-09-10T06:35:32+00:00 paused     -        driver.pause present
+2026-09-10T06:37:32+00:00 paused     -        driver.pause present
+2026-09-10T06:39:32+00:00 paused     -        driver.pause present
+2026-09-10T06:41:32+00:00 paused     -        driver.pause present
+2026-09-10T06:43:32+00:00 paused     -        driver.pause present
+2026-09-10T06:45:32+00:00 paused     -        driver.pause present
+2026-09-10T06:47:32+00:00 paused     -        driver.pause present
+2026-09-10T06:49:32+00:00 paused     -        driver.pause present
+2026-09-10T06:51:32+00:00 paused     -        driver.pause present
+2026-09-10T06:53:32+00:00 paused     -        driver.pause present
+2026-09-10T06:55:32+00:00 paused     -        driver.pause present
+2026-09-10T06:57:32+00:00 paused     -        driver.pause present
+2026-09-10T06:59:32+00:00 paused     -        driver.pause present
+2026-09-10T07:01:32+00:00 paused     -        driver.pause present
+2026-09-10T07:03:32+00:00 paused     -        driver.pause present
+2026-09-10T07:05:32+00:00 paused     -        driver.pause present
+2026-09-10T07:07:32+00:00 paused     -        driver.pause present
+2026-09-10T07:09:32+00:00 paused     -        driver.pause present
+2026-09-10T07:11:32+00:00 paused     -        driver.pause present
+2026-09-10T07:13:32+00:00 paused     -        driver.pause present
+2026-09-10T07:15:32+00:00 paused     -        driver.pause present
+2026-09-10T07:17:32+00:00 paused     -        driver.pause present
+2026-09-10T07:19:32+00:00 paused     -        driver.pause present
+2026-09-10T07:21:32+00:00 paused     -        driver.pause present
+2026-09-10T07:23:32+00:00 paused     -        driver.pause present
+2026-09-10T07:25:32+00:00 paused     -        driver.pause present
+2026-09-10T07:27:32+00:00 paused     -        driver.pause present
+2026-09-10T07:29:32+00:00 paused     -        driver.pause present
+2026-09-10T07:31:32+00:00 paused     -        driver.pause present
+2026-09-10T07:33:32+00:00 paused     -        driver.pause present
+2026-09-10T07:35:32+00:00 paused     -        driver.pause present
+2026-09-10T07:37:32+00:00 paused     -        driver.pause present
+2026-09-10T07:39:32+00:00 paused     -        driver.pause present
+2026-09-10T07:41:32+00:00 paused     -        driver.pause present
+2026-09-10T07:43:32+00:00 paused     -        driver.pause present
+2026-09-10T07:45:32+00:00 paused     -        driver.pause present
+2026-09-10T07:47:32+00:00 paused     -        driver.pause present
+2026-09-10T07:49:32+00:00 paused     -        driver.pause present
+2026-09-10T07:51:32+00:00 paused     -        driver.pause present
+2026-09-10T07:53:32+00:00 paused     -        driver.pause present
+2026-09-10T07:55:32+00:00 paused     -        driver.pause present
+2026-09-10T07:57:32+00:00 paused     -        driver.pause present
+2026-09-10T07:59:32+00:00 paused     -        driver.pause present
+2026-09-10T08:01:32+00:00 paused     -        driver.pause present
+2026-09-10T08:03:32+00:00 paused     -        driver.pause present
+2026-09-10T08:05:32+00:00 paused     -        driver.pause present
+2026-09-10T08:07:32+00:00 paused     -        driver.pause present
+2026-09-10T08:09:32+00:00 paused     -        driver.pause present
+2026-09-10T08:11:32+00:00 paused     -        driver.pause present
+2026-09-10T08:13:32+00:00 paused     -        driver.pause present
+2026-09-10T08:15:32+00:00 paused     -        driver.pause present
+2026-09-10T08:17:32+00:00 paused     -        driver.pause present
+2026-09-10T08:19:32+00:00 paused     -        driver.pause present
+2026-09-10T08:21:32+00:00 paused     -        driver.pause present
+2026-09-10T08:23:32+00:00 paused     -        driver.pause present
+2026-09-10T08:25:32+00:00 paused     -        driver.pause present
+2026-09-10T08:27:32+00:00 paused     -        driver.pause present
+2026-09-10T08:29:32+00:00 paused     -        driver.pause present
+2026-09-10T08:31:32+00:00 paused     -        driver.pause present
+2026-09-10T08:33:32+00:00 paused     -        driver.pause present
+2026-09-10T08:35:32+00:00 paused     -        driver.pause present
+2026-09-10T08:37:32+00:00 paused     -        driver.pause present
+2026-09-10T08:39:32+00:00 paused     -        driver.pause present
+2026-09-10T08:41:32+00:00 paused     -        driver.pause present
+2026-09-10T08:43:32+00:00 paused     -        driver.pause present
+2026-09-10T08:45:32+00:00 paused     -        driver.pause present
+2026-09-10T08:47:32+00:00 paused     -        driver.pause present
+2026-09-10T08:49:32+00:00 paused     -        driver.pause present
+2026-09-10T08:51:32+00:00 paused     -        driver.pause present
+2026-09-10T08:53:32+00:00 paused     -        driver.pause present
+2026-09-10T08:55:32+00:00 paused     -        driver.pause present
+2026-09-10T08:57:32+00:00 paused     -        driver.pause present
+2026-09-10T08:59:32+00:00 paused     -        driver.pause present
+2026-09-10T09:01:32+00:00 paused     -        driver.pause present
+2026-09-10T09:03:32+00:00 paused     -        driver.pause present
+2026-09-10T09:05:32+00:00 paused     -        driver.pause present
+2026-09-10T09:07:32+00:00 paused     -        driver.pause present
+2026-09-10T09:09:32+00:00 paused     -        driver.pause present
+2026-09-10T09:11:32+00:00 paused     -        driver.pause present
+2026-09-10T09:13:32+00:00 paused     -        driver.pause present
+2026-09-10T09:15:32+00:00 paused     -        driver.pause present
+2026-09-10T09:17:32+00:00 paused     -        driver.pause present
+2026-09-10T09:19:32+00:00 paused     -        driver.pause present
+2026-09-10T09:21:32+00:00 paused     -        driver.pause present
+2026-09-10T09:23:32+00:00 paused     -        driver.pause present
+2026-09-10T09:25:32+00:00 paused     -        driver.pause present
+2026-09-10T09:27:32+00:00 paused     -        driver.pause present
+2026-09-10T09:29:32+00:00 paused     -        driver.pause present
+2026-09-10T09:31:32+00:00 paused     -        driver.pause present
+2026-09-10T09:33:32+00:00 paused     -        driver.pause present
+2026-09-10T09:35:32+00:00 paused     -        driver.pause present
+2026-09-10T09:37:32+00:00 paused     -        driver.pause present
+2026-09-10T09:39:32+00:00 paused     -        driver.pause present
+2026-09-10T09:41:32+00:00 paused     -        driver.pause present
+2026-09-10T09:43:32+00:00 paused     -        driver.pause present
+2026-09-10T09:45:32+00:00 paused     -        driver.pause present
+2026-09-10T09:47:32+00:00 paused     -        driver.pause present
+2026-09-10T09:49:32+00:00 paused     -        driver.pause present
+2026-09-10T09:51:32+00:00 paused     -        driver.pause present
+2026-09-10T09:53:32+00:00 paused     -        driver.pause present
+2026-09-10T09:55:32+00:00 paused     -        driver.pause present

@@ -1,0 +1,34 @@
+{
+ "ticket": "STL-21",
+ "stages": [
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-10T04:06:52+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-10T04:09:08+00:00",
+   "agent": "95832080-8090-4737-bd15-49e1e1913182"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T04:15:13+00:00"
+  },
+  {
+   "stage": "spec",
+   "status": "fail",
+   "at": "2026-09-10T04:37:13+00:00",
+   "agent": "ff405c38-d9f4-4665-a672-1217a8a910b0",
+   "reason": "no spec file written"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T04:41:06+00:00"
+  }
+ ],
+ "cycle": 0
+}

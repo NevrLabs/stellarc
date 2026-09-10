@@ -28,6 +28,13 @@
    "stage": "spec",
    "status": "running",
    "at": "2026-09-10T03:51:06+00:00"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T04:04:21+00:00",
+   "agent": "2b5546c4-7735-4bc0-abe9-45b8dbcd205d",
+   "artifact": ".forge/STL-20.spec.md"
   }
  ],
  "cycle": 0

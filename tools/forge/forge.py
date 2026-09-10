@@ -139,6 +139,10 @@ def set_stage_label(n, repo, stage):
     label(n, repo, add=f"forge:{stage}")
 
 # ── paseo ────────────────────────────────────────────────────────────────────
+def c_get(key, default=None):
+    try: return json.loads((repo_root() / ".forge/config.json").read_text()).get(key, default)
+    except Exception: return default
+
 def split_model(spec):
     """'hermes:accept_edits/<model>' | 'hermes/<model>' | 'goose/<model>' | '<gateway model>' (→ omp)."""
     if spec.startswith("hermes"):
@@ -168,6 +172,10 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
     pointer = (f"Your full brief is in the file {bpath} — read it FIRST with your file-reading tool, in full, "
                f"then follow it exactly. Do not begin any other action before reading it.")
     cmd = [str(PASEO), "run", "-d", "--title", title, "--provider", provider, "--json"]
+    # Operator rule: subagents live in the orchestrator's OWN Paseo workspace. Never --new-workspace (each
+    # one became a duplicate "dev" workspace in the operator's sidebar: 23 of them).
+    home_ws = os.environ.get("FORGE_WORKSPACE") or c_get("paseo_workspace")
+    if home_ws: cmd += ["--workspace", home_ws]
     if model:
         bare = model.split("custom:9router:", 1)[-1]
         if bare.startswith("cx/") or bare in ("gpt", "gpt-mini") or "astra" in bare or "sol" in bare or "spark" in bare:
@@ -175,7 +183,12 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
         cmd += ["--model", model]
     if mode:  cmd += ["--mode", mode]
     if worktree:
-        cmd += ["--new-workspace", "worktree", "--worktree-mode", "branch-off", "--base", base, "--new-branch", branch, "--worktree-slug", worktree]
+        # Our own git worktree (not a Paseo workspace) so the implementer has an isolated checkout.
+        wt = repo_root() / ".forge/worktrees" / worktree
+        if not wt.exists():
+            sh(["git", "fetch", "-q", "origin", base], cwd=repo_root(), check=False)
+            sh(["git", "worktree", "add", "-q", "-b", branch, str(wt), f"origin/{base}"], cwd=repo_root())
+        cwd = wt
     if cwd: cmd += ["--cwd", str(cwd)]
     if extra: cmd += extra
     cmd.append(pointer)
@@ -464,7 +477,7 @@ def cmd_implement(args):
         sh(["git", "fetch", "-q", "origin", branch], cwd=repo_root(), check=False)
         r = sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root(), check=False)
         if r.returncode:  # branch is checked out in some worktree — remove stale worktrees for this ticket first
-            for wtp in Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c*"):
+            for wtp in [*Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c*"), *(repo_root() / ".forge/worktrees").glob(f"{t.lower()}-c*")]:
                 sh(["git", "worktree", "remove", "--force", str(wtp)], cwd=repo_root(), check=False)
             sh(["git", "worktree", "prune"], cwd=repo_root(), check=False)
             sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root())
@@ -476,9 +489,10 @@ def cmd_implement(args):
                 f"Finish the remaining spec items, keep every existing test green, then `gh pr ready {prev_partial['pr']}`. "
                 f"If you run out again, update the PR body's Remaining list and leave it draft.")
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"])
-        a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model,
-                     cwd=None, extra=["--new-workspace", "worktree", "--worktree-mode", "checkout-branch", "--branch", branch,
-                                      "--worktree-slug", f"{t.lower()}-c{cycle}"])
+        # Continuation: our own git worktree checked out on the EXISTING branch (synced to origin above).
+        wt = repo_root() / ".forge/worktrees" / f"{t.lower()}-c{cycle}"
+        sh(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
+        a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model, cwd=wt)
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     else:
         branch = f"forge/{t.lower()}-c{cycle}"

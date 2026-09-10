@@ -37,5 +37,7 @@
   "tablet",
   "mobile",
   "mobile-small"
- ]
+ ],
+ "paseo_workspace": "wks_9f7b891508ef8e38",
+ "_workspace_note": "Operator rule: all forge subagents run inside the orchestrator's own Paseo workspace (Kaneo Project Feature). Never --new-workspace. Implementers get a plain git worktree under .forge/worktrees/."
 }
