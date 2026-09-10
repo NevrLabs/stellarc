@@ -11,6 +11,23 @@
    "status": "pass",
    "at": "2026-09-10T02:49:53+00:00",
    "agent": "ae6928ab-5d46-4a21-b76f-754ceff38637"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T03:06:24+00:00"
+  },
+  {
+   "stage": "spec",
+   "status": "fail",
+   "at": "2026-09-10T03:29:52+00:00",
+   "agent": "7cf526c6-4daf-48bd-befe-fc81fc4e2f1e",
+   "reason": "no spec file written"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T03:51:06+00:00"
   }
  ],
  "cycle": 0
