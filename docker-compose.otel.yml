@@ -1,0 +1,169 @@
+# §5f item 10 — local OTel sink (Collector → Tempo/Prometheus/Loki/Grafana).
+# Not required by tests: CI and unit/integration suites use TelemetryTest
+# (in-memory exporters). Run `bun run otel:up`, point the API at
+# OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 and open Grafana at
+# http://localhost:3210 (anonymous admin) to inspect stellarc.* spans.
+
+name: stellarc-otel
+
+configs:
+  tempo-config:
+    content: |
+      server:
+        http_listen_port: 3200
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+      storage:
+        trace:
+          backend: local
+          local:
+            path: /var/tempo/blocks
+      metrics_generator:
+        registry:
+          external_labels:
+            source: tempo
+      overrides:
+        defaults:
+          metrics_generator:
+            processors: [service-graphs, span-metrics]
+  loki-config:
+    content: |
+      auth_enabled: false
+      server:
+        http_listen_port: 3100
+      common:
+        path_prefix: /loki
+        storage:
+          filesystem:
+            chunks_directory: /loki/chunks
+            rules_directory: /loki/rules
+        replication_factor: 1
+        ring:
+          kvstore:
+            store: inmemory
+      schema_config:
+        configs:
+          - from: 2024-01-01
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      limits_config:
+        allow_structured_metadata: true
+  prometheus-config:
+    content: |
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        - job_name: otel-collector
+          static_configs:
+            - targets: ["otel-collector:8889"]
+        - job_name: otel-collector-self
+          static_configs:
+            - targets: ["otel-collector:8888"]
+  collector-config:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      processors:
+        batch: {}
+        resource:
+          attributes:
+            - key: deployment.environment
+              value: local
+              action: upsert
+      exporters:
+        otlp/tempo:
+          endpoint: tempo:4317
+          tls:
+            insecure: true
+        prometheus:
+          endpoint: 0.0.0.0:8889
+        loki:
+          endpoint: http://loki:3100/loki/api/v1/push
+      service:
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [resource, batch]
+            exporters: [otlp/tempo]
+          metrics:
+            receivers: [otlp]
+            processors: [resource, batch]
+            exporters: [prometheus]
+          logs:
+            receivers: [otlp]
+            processors: [resource, batch]
+            exporters: [loki]
+  grafana-datasources:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo:3200
+          isDefault: true
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://loki:3100
+
+services:
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    configs: [tempo-config]
+    ports: ["3200:3200"]
+  loki:
+    image: grafana/loki:3.5.0
+    command: ["-config.file=/etc/loki/config.yaml"]
+    configs: [loki-config]
+    ports: ["3100:3100"]
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    command:
+      - --config.file=/etc/prometheus/config.yaml
+      - --web.enable-otlp-receiver
+    configs: [prometheus-config]
+    ports: ["9090:9090"]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.127.0
+    command: ["--config=/etc/collector/config.yaml"]
+    configs: [collector-config]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on: [tempo, loki, prometheus]
+  grafana:
+    image: grafana/grafana:11.6.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_BASIC_ENABLED: "false"
+    configs:
+      - grafana-datasources
+    ports:
+      - "3210:3000"
+    depends_on: [otel-collector]

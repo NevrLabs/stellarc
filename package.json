@@ -15,7 +15,8 @@
 		"typecheck:ui": "tsc --noEmit --pretty false -p apps/stellarc-ui/tsconfig.app.json",
 		"build": "turbo run build",
 		"e2e": "playwright test",
-		"e2e:screens": "playwright test frozen.spec.ts"
+		"e2e:screens": "playwright test frozen.spec.ts",
+		"otel:up": "docker compose -f docker-compose.otel.yml up -d"
 	},
 	"dependencies": {
 		"@effect/opentelemetry": "0.64.0",
