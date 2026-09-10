@@ -1,10 +1,10 @@
-import { createCollection } from "@tanstack/db";
-import { electricCollectionOptions } from "@tanstack/electric-db-collection";
 import {
 	isChangeMessage,
 	isControlMessage,
 	ShapeStream,
 } from "@electric-sql/client";
+import { createCollection } from "@tanstack/db";
+import { electricCollectionOptions } from "@tanstack/electric-db-collection";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { startTestServer } from "./test-server";
 
@@ -126,7 +126,6 @@ test("T08 stock client ShapeStream decodes snapshot, tail and up-to-date", async
 		liveControls.filter((control) => control === "up-to-date"),
 	).toHaveLength(1);
 });
-
 
 test("T01 HTTP shape spans remain inside the inbound request trace", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
@@ -524,12 +523,12 @@ test("T01 shape spans preserve snapshot and contiguous tail boundaries", async (
 				let response = yield* engine.shapeEffect("trace", url);
 				url.searchParams.set(
 					"handle",
-					response.headers.get("electric-handle")!,
+					response.headers.get("electric-handle") ?? "",
 				);
 				for (const id of ["one", "two"]) {
 					url.searchParams.set(
 						"offset",
-						response.headers.get("electric-offset")!,
+						response.headers.get("electric-offset") ?? "",
 					);
 					yield* Effect.promise(() =>
 						writeProbe(db.sql, "trace", "actor", id, id),

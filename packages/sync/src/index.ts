@@ -115,10 +115,10 @@ export class ShapeEngine {
 		)();
 	}
 	private async runShape(
-		org: string,
+		_org: string,
 		url: URL,
 		signal: AbortSignal | undefined,
-		page: (url: URL) => Promise<Response>,
+		page: (pageUrl: URL) => Promise<Response>,
 	): Promise<Response> {
 		const q = url.searchParams;
 		if (q.has("live") && !["true", "false"].includes(q.get("live") ?? ""))

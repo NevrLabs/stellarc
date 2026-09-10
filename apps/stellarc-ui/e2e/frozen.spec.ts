@@ -1,6 +1,109 @@
 import { expect, test } from "@playwright/test";
 import { stubOrgShell, stubSignIn } from "./fixtures";
 
+// Screens mandated by §6 whose fixture surface is not yet served end to end
+// (owning slices must ship the missing stub endpoints and promote these to
+// captured baselines). §5e.3: never skip silently.
+const pendingScreens: Array<[string, string, string, string]> = [
+  [
+    "/dashboard/organization/foundation/my-tasks",
+    "my-tickets",
+    "My Tickets",
+    "STL-16",
+  ],
+  ["/dashboard/organization/foundation/inbox", "inbox", "Inbox", "STL-17"],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/board",
+    "kanban",
+    "Foundation Board",
+    "STL-16",
+  ],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/board?view=list",
+    "list",
+    "Foundation Board",
+    "STL-16",
+  ],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/backlog",
+    "backlog",
+    "Backlog",
+    "STL-16",
+  ],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/calendar",
+    "calendar",
+    "Calendar",
+    "STL-16",
+  ],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/gantt",
+    "gantt",
+    "Gantt",
+    "STL-16",
+  ],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/milestones",
+    "milestones",
+    "Milestones",
+    "STL-19",
+  ],
+  [
+    "/dashboard/organization/foundation/board/foundation-board/board?taskId=fixture-ticket-0",
+    "ticket-detail",
+    "First probe",
+    "STL-16",
+  ],
+  [
+    "/dashboard/organization/foundation/settings/organization/members",
+    "members",
+    "Members",
+    "STL-15",
+  ],
+  [
+    "/dashboard/organization/foundation/settings/organization/teams",
+    "teams",
+    "Teams",
+    "STL-15",
+  ],
+  [
+    "/dashboard/organization/foundation/settings/organization/roles",
+    "roles",
+    "Roles",
+    "STL-15",
+  ],
+  [
+    "/dashboard/organization/foundation/repo",
+    "repo-list",
+    "Repositories",
+    "STL-18",
+  ],
+  [
+    "/dashboard/organization/foundation/repo/fixture-repo/pulls",
+    "repo-pulls",
+    "Pull requests",
+    "STL-18",
+  ],
+  ["/dashboard/settings/account/developer", "developer", "API Keys", "STL-15"],
+];
+
+for (const [path, screen, title, owner] of pendingScreens) {
+  test(`evidence screen ${screen} renders its fixture surface (deferred to ${owner})`, async ({
+    page,
+  }) => {
+    test.fixme(
+      true,
+      `${screen} baseline pending ${owner} fixture endpoints (§6 mandatory screen)`,
+    );
+    const unexpected = await stubOrgShell(page);
+    await page.goto(path);
+    await expect(page).toHaveTitle(new RegExp(title));
+    await page.evaluate(() => document.fonts.ready);
+    await expect(page).toHaveScreenshot(`${screen}.png`);
+    expect(unexpected).toEqual([]);
+  });
+}
+
 test("sign-in renders the frozen form", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
