@@ -12,6 +12,11 @@
    "at": "2026-09-10T02:20:18+00:00",
    "agent": "91fc805b-a86d-41e7-a7dc-bb6c874910cc",
    "reason": "NEEDS-INFO answered by orchestrator in issue comment (board = app-owned data; T2 owns status validation, T3 owns workflow_rule)"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T12:27:24+00:00"
   }
  ],
  "cycle": 0
