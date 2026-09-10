@@ -1,0 +1,22 @@
+{
+ "ticket": "STL-27",
+ "stages": [
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-10T13:26:19+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-10T13:29:04+00:00",
+   "agent": "38a790e8-c567-4c86-b734-c315434cbfe7"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T13:32:19+00:00"
+  }
+ ],
+ "cycle": 0
+}
