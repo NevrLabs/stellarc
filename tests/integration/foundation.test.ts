@@ -1,7 +1,19 @@
 import { createCollection } from "@tanstack/db";
 import { electricCollectionOptions } from "@tanstack/electric-db-collection";
+import {
+	isChangeMessage,
+	isControlMessage,
+	ShapeStream,
+} from "@electric-sql/client";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { startTestServer } from "./test-server";
+
+type ProbeValue = {
+	org: string;
+	id: string;
+	value: string;
+	last_seq: string;
+};
 
 const resources: Array<() => Promise<void>> = [];
 
@@ -9,6 +21,112 @@ beforeEach(() => {
 	// A previous test must not leave clients polling or PostgreSQL clusters alive.
 	expect(resources).toHaveLength(0);
 });
+
+afterEach(async () => {
+	while (resources.length > 0) await resources.pop()?.();
+});
+
+test("T08 stock client ShapeStream decodes snapshot, tail and up-to-date", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	const url = `${server.url}/orgs/t08/v1/shape`;
+	const aborter = new AbortController();
+	resources.push(async () => aborter.abort());
+	// Seed the snapshot through the committed write path: seq 1 and seq 2.
+	await server.write("t08", "a-1", "alpha");
+	await server.write("t08", "b-2", "beta");
+	type ProbeMessage = {
+		key: string;
+		value: ProbeValue;
+		headers: { operation: string };
+	};
+	const collect = <T extends ProbeValue>(
+		stream: ShapeStream<T>,
+		changes: ProbeMessage[],
+		controls: string[],
+	): Promise<void> =>
+		new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(
+				() => reject(new Error("stream never reached up-to-date")),
+				15000,
+			);
+			stream.subscribe(
+				(messages) => {
+					for (const message of messages) {
+						if (isChangeMessage(message)) changes.push(message);
+						else if (isControlMessage(message))
+							controls.push(message.headers.control);
+					}
+					if (controls.includes("up-to-date")) {
+						clearTimeout(timer);
+						resolve();
+					}
+				},
+				(error) => {
+					clearTimeout(timer);
+					reject(error);
+				},
+			);
+		});
+	// --- Initial request: full snapshot through the stock parser.
+	const changes: ProbeMessage[] = [];
+	const controls: string[] = [];
+	const stream = new ShapeStream<ProbeValue>({
+		url,
+		params: { table: "sync_probe" },
+		headers: { authorization: "Bearer t08" },
+		subscribe: false,
+		signal: aborter.signal,
+	});
+	await collect(stream, changes, controls);
+	expect(changes.map((row) => row.value.value)).toEqual(["alpha", "beta"]);
+	expect(changes[0].key).toBe(JSON.stringify(["t08", "a-1"]));
+	expect(controls).toEqual(["up-to-date"]);
+	// Text and bigint electric-schema columns survive the stock parser: the wire
+	// carries bigint cursors as decimal strings, and the pinned client decodes
+	// int8 to BigInt — exact, never rounded through Number.
+	const probe = await fetch(`${url}?table=sync_probe&offset=-1`, {
+		headers: { authorization: "Bearer t08" },
+	});
+	const schema = JSON.parse(
+		probe.headers.get("electric-schema") ?? "{}",
+	) as Record<string, { type: string }>;
+	expect(schema.last_seq?.type).toBe("int8");
+	expect(schema.value?.type).toBe("text");
+	const wire = (await probe.json()) as Array<{ value?: ProbeValue }>;
+	expect(
+		wire
+			.filter((message) => message.value)
+			.map((message) => message.value?.last_seq),
+	).toEqual(["1", "2"]);
+	expect(changes.map((row) => row.value.last_seq)).toEqual([1n, 2n]);
+	const off = stream.lastOffset;
+	expect(off).toMatch(/^\d+_\d+$/);
+	expect(stream.shapeHandle).toBeTruthy();
+	// --- Continuation + live tail: resuming from the issued cursor/handle, a
+	// write committed after the boundary arrives as an update, then up-to-date.
+	await server.write("t08", "a-1", "alpha-v2");
+	const live: ProbeMessage[] = [];
+	const liveControls: string[] = [];
+	const stream2 = new ShapeStream<ProbeValue>({
+		url,
+		params: { table: "sync_probe" },
+		headers: { authorization: "Bearer t08" },
+		offset: off,
+		handle: stream.shapeHandle,
+		subscribe: true,
+		signal: aborter.signal,
+	});
+	await collect(stream2, live, liveControls);
+	const updates = live.filter((row) => row.value.value === "alpha-v2");
+	expect(updates).toHaveLength(1);
+	expect(updates[0].headers.operation).toBe("update");
+	expect(updates[0].value.last_seq).toBe(3n);
+	expect(
+		liveControls.filter((control) => control === "up-to-date"),
+	).toHaveLength(1);
+});
+
 
 test("T01 HTTP shape spans remain inside the inbound request trace", async () => {
 	const { disposablePostgres } = await import("../helpers/postgres");
@@ -325,10 +443,28 @@ test("T05 append spans share the mutation trace and report committed event ident
 		"../../packages/domain/src/index"
 	);
 	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
-	const { Effect, ManagedRuntime } = await import("effect");
+	const { Effect, ManagedRuntime, Metric } = await import("effect");
 	const db = await disposablePostgres();
 	const telemetry = TelemetryTest();
 	const runtime = ManagedRuntime.make(telemetry.layer);
+	// The Effect metric registry is process-global and cumulative, and the
+	// in-memory OTel exporter only records its first collection — so assert on
+	// the global registry directly: the delta around this mutation proves
+	// exactly the two events it appends, regardless of test order.
+	const readCounter = async () => {
+		const pairs = await runtime.runPromise(Metric.snapshot);
+		return pairs
+			.filter(
+				(pair) => pair.metricKey.name === "stellarc_events_appended_total",
+			)
+			.reduce(
+				(sum, pair) =>
+					sum +
+					Number((pair.metricState as unknown as { count: number }).count),
+				0,
+			);
+	};
+	const before = await readCounter();
 	try {
 		await migrate(db.sql);
 		const result = await runtime.runPromise(
@@ -357,17 +493,10 @@ test("T05 append spans share the mutation trace and report committed event ident
 			expect(JSON.stringify(span.attributes)).not.toContain("secret-value");
 		}
 		await telemetry.reader.forceFlush();
-		const metrics = telemetry.metrics
-			.getMetrics()
-			.flatMap((item) => item.scopeMetrics.flatMap((scope) => scope.metrics));
-		expect(
-			metrics
-				.find(
-					(metric) =>
-						metric.descriptor.name === "stellarc_events_appended_total",
-				)
-				?.dataPoints.map((point) => point.value),
-		).toContain(2);
+		const after = await readCounter();
+		// Exactly the two events appended by this transaction, as a delta against
+		// the process-global cumulative counter.
+		expect(after - before).toBe(2);
 	} finally {
 		await runtime.dispose();
 		await db.close();
