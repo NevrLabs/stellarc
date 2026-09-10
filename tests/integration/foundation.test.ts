@@ -1809,6 +1809,9 @@ test("successful shape requests export principal context on the server span", as
 			),
 		);
 		expect(response.status).toBe(200);
+		// §3: the 200 shape body is JSON — the raw engine payload, not re-encoded
+		// through a text response that would default to text/plain.
+		expect(response.headers.get("content-type")).toBe("application/json");
 		await response.text();
 		const requests = telemetry.spans
 			.getFinishedSpans()

@@ -124,7 +124,10 @@ export function foundationHandler(
 							),
 						});
 					const body = yield* Effect.tryPromise(() => response.text());
-					return HttpServerResponse.text(body, {
+					// Pass the engine payload through unmodified: the engine already
+					// declared application/json (§3) and must not be re-encoded into a
+					// text response whose content type depends on header precedence.
+					return HttpServerResponse.raw(body, {
 						status: response.status,
 						headers: principalHeaders(
 							Object.fromEntries(response.headers),
