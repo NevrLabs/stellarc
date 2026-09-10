@@ -29,7 +29,8 @@ FORGE = Path.home() / ".local/bin/forge"
 STATE_DIR = Path.home() / ".forge-driver"; STATE_DIR.mkdir(exist_ok=True)
 EVENTS = STATE_DIR / "events.jsonl"
 TICK_S = int(os.environ.get("FORGE_TICK", "120"))
-PARALLEL = int(os.environ.get("FORGE_PARALLEL", "3"))
+PARALLEL = int(os.environ.get("FORGE_PARALLEL", "3"))          # implement + review in flight
+LIGHT_PARALLEL = int(os.environ.get("FORGE_LIGHT_PARALLEL", "3"))  # triage + spec in flight (read-only, cheap)
 RETRIES = int(os.environ.get("FORGE_RETRIES", "2"))
 STAGE_ORDER = ["triage", "spec", "implement", "review", "merge"]
 
@@ -136,8 +137,8 @@ def failures(n, stage):
         elif st["status"] in ("pass", "partial", "blocked"): break
     return k
 
-def in_flight_count(nums):
-    return sum(1 for n in nums if last(state(n), "implement") == "running" or last(state(n), "review") == "running")
+def in_flight_count(nums, stages=("implement", "review")):
+    return sum(1 for n in nums if any(last(state(n), st) == "running" for st in stages))
 
 def run_stage(n, stage):
     t = tid(n); log("start", t, stage)
@@ -167,9 +168,13 @@ def tick():
         reap_orphans(n)
         bl = blockers(n, wm)
         if bl is None: continue
-        if all(is_done(b) for b in bl):
-            st = next_stage(n)
-            if st: ready.append((n, st))
+        st = next_stage(n)
+        if not st: continue
+        # triage and spec are read-only against the repo and cheap (glm lanes): run them AHEAD of the
+        # blockers so that when a predecessor merges, its dependants start implementing on the next tick.
+        # Implement/review/merge need the predecessor's code on `dev`, so they still wait.
+        if st in ("triage", "spec") or all(is_done(b) for b in bl):
+            ready.append((n, st))
     # Parked questions need a human/orchestrator answer; announce them every tick until answered.
     for qf in sorted((REPO_ROOT / ".forge").glob("*.question-*.md")):
         af = qf.with_name(qf.name.replace(".question-", ".answer-"))
@@ -180,11 +185,15 @@ def tick():
         return
     # throttle heavy stages
     heavy = in_flight_count(nums)
+    light = in_flight_count(nums, stages=("triage", "spec"))
     for n, st in ready:
-        if st in ("implement", "review") and heavy >= PARALLEL:
-            log("throttle", tid(n), f"{st} deferred; {heavy} in flight"); continue
+        if st in ("implement", "review"):
+            if heavy >= PARALLEL: log("throttle", tid(n), f"{st} deferred; {heavy} heavy in flight"); continue
+        elif light >= LIGHT_PARALLEL:
+            log("throttle", tid(n), f"{st} deferred; {light} light in flight"); continue
         ok = run_stage(n, st)
         if st in ("implement", "review"): heavy += 1
+        else: light += 1
         if not ok and st == "triage": break   # a systemic triage failure is probably infra; don't spam
 
 def main():

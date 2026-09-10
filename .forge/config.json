@@ -1,40 +1,41 @@
 {
-  "repo": "NevrLabs/stellarc",
-  "base": "dev",
-  "ticket_prefix": "STL",
-  "gates": [
-    "bun run lint",
-    "bun run typecheck",
-    "bun test",
-    "bun run build"
+ "repo": "NevrLabs/stellarc",
+ "base": "dev",
+ "ticket_prefix": "STL",
+ "gates": [
+  "bun run lint",
+  "bun run typecheck",
+  "bun test",
+  "bun run build"
+ ],
+ "e2e": "bun run e2e",
+ "screenshot_cmd": "bun run e2e:screens",
+ "models": {
+  "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode parks on ANY edit (no approver) - use accept_edits and constrain writes in the brief.",
+  "triage": "hermes:accept_edits/glm/glm-5.3-flash",
+  "spec": "hermes:accept_edits/glm/glm-5.3",
+  "implement": [
+   "hermes:accept_edits/glm/glm-5.3-flash",
+   "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "hermes:accept_edits/cx/gpt-5.3-codex-spark"
   ],
-  "e2e": "bun run e2e",
-  "screenshot_cmd": "bun run e2e:screens",
-  "models": {
-    "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode parks on ANY edit (no approver) - use accept_edits and constrain writes in the brief.",
-    "triage": "hermes:accept_edits/glm/glm-5.3-flash",
-    "spec": "hermes:accept_edits/glm/glm-5.3",
-    "implement": [
-      "hermes:accept_edits/glm/glm-5.3-flash",
-      "hermes:accept_edits/ocg/deepseek-v4-pro"
-    ],
-    "review": [
-      "hermes:accept_edits/glm/glm-5.3",
-      "hermes:accept_edits/cx/gpt-6-astra"
-    ],
-    "_roster_note": "2026-09-09: cx/gpt-6-astra demoted from implement after 4 cycles / 0 commits (2 blockers, 1 sub-dispatch, 1 idle-after-gates). Kept as reviewer: short outputs don't trip whatever stalls it."
-  },
-  "implement_budget_min": 150,
-  "stage_timeout_s": {
-    "triage": 900,
-    "spec": 1800,
-    "implement": 10800,
-    "review": 2400
-  },
-  "viewports": [
-    "desktop",
-    "tablet",
-    "mobile",
-    "mobile-small"
-  ]
+  "review": [
+   "hermes:accept_edits/glm/glm-5.3",
+   "hermes:accept_edits/ocg/deepseek-v4-pro"
+  ],
+  "_roster_note": "2026-09-09 operator ruling: minimise cx/gpt-6-astra and cx/gpt-5.6-sol. Neither is in any lane. Cheap set only: glm-5.3(-flash), ocg/deepseek-v4-pro, cx/gpt-5.3-codex-spark. Astra/sol are escalation-only, by hand. ocg/* requires the x-opencode-session header \u2014 Hermes lanes send it; raw curl probes 400 MissingSessionID."
+ },
+ "implement_budget_min": 150,
+ "stage_timeout_s": {
+  "triage": 900,
+  "spec": 1800,
+  "implement": 10800,
+  "review": 2400
+ },
+ "viewports": [
+  "desktop",
+  "tablet",
+  "mobile",
+  "mobile-small"
+ ]
 }
