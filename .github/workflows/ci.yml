@@ -26,6 +26,15 @@ jobs:
       - name: Unit and real PostgreSQL integration bridge
         run: bun test
       - run: bun run build
+      - name: Install pinned Chromium and system dependencies
+        run: bun x playwright install --with-deps chromium
+      - name: Built UI four-viewport smoke and screenshot comparison
+        run: bun run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failures
+          path: test-results/
 
   ui-typecheck-budget:
     runs-on: ubuntu-22.04

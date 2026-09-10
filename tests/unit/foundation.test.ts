@@ -189,8 +189,8 @@ test("Biome forbids console in services but preserves frozen UI and test overrid
 			mkdirSync(dirname(file), { recursive: true });
 			writeFileSync(file, 'console.info("probe");\n');
 			const result = spawnSync(
-				resolve("node_modules/.bin/biome"),
-				["lint", path],
+				process.execPath,
+				[resolve("node_modules/@biomejs/biome/bin/biome"), "lint", path],
 				{ cwd: root, encoding: "utf8" },
 			);
 			expect(result.error).toBeUndefined();
