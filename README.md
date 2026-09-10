@@ -2,6 +2,43 @@
 
 ## STL-14 implementation evidence (partial)
 
+### Continuation c28: manifests, Tempo export proof, full acceptance (complete for T0)
+
+- `68df66a` commits `apps/stellarc-ui/e2e/fork-manifest.json` — 954 mirrored
+  files (929 byte-exact sha256-verified against kaneo `2504e645`; 25 adapted:
+  16 with the §5d lint-cleanup reason, 9 config/entrypoint adaptations) plus 38
+  fixture endpoint contracts recorded against the lifted fetcher/authClient
+  call sites. The generator (`e2e/tools/build-fork-manifest.mts`) fails on
+  missing files, duplicates, or byte drift in exact mirrors. The fork's own
+  co-located unit tests are enumerated-and-excluded, not silently dropped.
+- `d461877` delivers the §5f export proof: `tools/verify-otel-export.mts` runs
+  the real stack (disposable PG + Effect HttpApi + ShapeEngine) under
+  `TelemetryLive` → local Tempo, executes mutation → snapshot → live tail, and
+  verifies IN TEMPO that the caller trace carries snapshot+tail, append spans
+  exist, and no SQL statement text is exported (5 traces, 7 span shapes).
+  `tools/shoot-grafana-trace.mts` renders the trace in Grafana and asserts the
+  span names in the live DOM before capturing `docs/evidence/
+  otel-export-tempo.png`. Telemetry audit against §5f: db spans statement-free
+  (asserted), `stellarc.event.append` one-per-event under the mutation trace
+  (T05 test), migration version spans (T06), shape snapshot/tail with offsets
+  (T01/T11), principal attrs on success and none on denials (c21/c22 tests),
+  worker start/stop spans, `noConsole` proven with runtime override — all
+  green. Mutation→shape one-trace propagation asserted in
+  "mutation, event appends and shape emission share one trace".
+- Final gate run at HEAD `d461877` + README: lint exit 0 (3 preexisting
+  warnings, unused-param in `runShape` + two `!` in the T01 test);
+  root typecheck exit 0; Bun bridge 2 pass / 0 fail (unit 7 passed, real-PG
+  integration 41 passed); `turbo run build` 3 successful / 3 total; `bun run
+  e2e` 24 passed / 0 failed over desktop/tablet/mobile/mobile-small (sign-in,
+  org-shell, repo-issues, repo-pull-detail, projects, project-detail +
+  responsive) with strict screenshot comparison. An e2e web-server timeout was
+  diagnosed to a stale Sep-04 Kaneo `vite preview` holding the port — killed,
+  rerun green.
+- PR #28 Remaining list is empty of unowned items: broader domain fixtures and
+  legacy typing are explicitly deferred to STL-15–21 per §5e; `docker-compose.
+  otel.yml` was ruled a same-PR follow-up (optional, not delivered); legacy
+  reconciliation is N/A (zero legacy tables imported). No 14/14 claim.
+
 ### Continuation c22: populated shell, responsive controls and CI (partial)
 
 - `5a1fa36` enforces service noConsole while preserving frozen UI/test overrides.
