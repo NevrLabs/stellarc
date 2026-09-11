@@ -81,23 +81,93 @@ def paseo_status(agent_id):
     except Exception: pass
     return "unknown"
 
+def paseo_ls():
+    try:
+        r = subprocess.run(["paseo", "ls", "--json", "-g"], capture_output=True, text=True, env=env(), timeout=60)
+        return json.loads(r.stdout or "[]")
+    except Exception: return []
+
+def sweep_lanes(nums):
+    """Every tick: every forge lane must be either (a) running with a live watcher, or (b) gone.
+    - idle/completed lane whose ticket state has NO running entry for it → its stage already concluded; archive it.
+    - idle lane that IS the running entry but its watcher pid is dead → reap_orphans() handles the state; archive here.
+    - lane running longer than its stage timeout ×1.5 → stop + archive; record fail so the ticket re-dispatches.
+    Nothing forge started may sit idle in the operator's sidebar."""
+    live = {}
+    for n in nums:
+        for x in state(n)["stages"]:
+            if x.get("agent") and x["status"] == "running":
+                live[x["agent"]] = (n, x)
+    stage_to = cfg().get("stage_timeout_s", {})
+    for a in paseo_ls():
+        labels = a.get("labels") or {}
+        is_forge = labels.get("forge") == "1" or str(a.get("name", "")).startswith("forge ")
+        if not is_forge or a.get("status") == "closed": continue
+        aid = a["id"]; st = a.get("status")
+        owner = live.get(aid)
+        if owner is None:
+            if st in ("idle", "completed", "error", "failed", "stopped"):
+                subprocess.run(["paseo", "archive", aid], capture_output=True, env=env(), timeout=60)
+                log("sweep", "-", f"archived concluded lane {aid[:8]} ({a.get('name','')[:40]})")
+            continue
+        n, x = owner
+        pid = x.get("pid")
+        alive = False
+        if pid:
+            try: os.kill(pid, 0); alive = True
+            except ProcessLookupError: alive = False
+            except PermissionError: alive = True
+        started = x.get("at", "")
+        try:
+            age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(started)).total_seconds()
+        except Exception: age = 0
+        limit = stage_to.get(x["stage"], 7200) * 1.5
+        if st == "running" and age > limit:
+            subprocess.run(["paseo", "stop", aid], capture_output=True, env=env(), timeout=60)
+            subprocess.run(["paseo", "archive", aid], capture_output=True, env=env(), timeout=60)
+            x["status"] = "fail"; x["reason"] = f"lane exceeded {int(limit)}s; stopped by driver sweep"
+            p = REPO_ROOT / f".forge/{tid(n)}.json"; s = state(n)
+            for y in s["stages"]:
+                if y.get("agent") == aid and y["status"] == "running": y.update(x)
+            p.write_text(json.dumps(s, indent=1) + "\n")
+            lock = REPO_ROOT / f".forge/.{tid(n)}.lock"; lock.exists() and lock.unlink()
+            log("sweep", tid(n), f"stopped overdue lane {aid[:8]} after {int(age)}s")
+
 def reap_orphans(n):
-    """A 'running' implement whose watcher pid is dead means the forge process was killed (driver restart, OOM).
-    If the agent itself is idle/completed, record its pushed head as a partial and release the ticket lock so the
-    next tick continues from there instead of blocking forever."""
+    """A 'running' stage whose watcher pid is dead: the forge process was killed (driver restart, npm upgrade,
+    OOM). Reconcile from what the agent actually left behind instead of blocking forever:
+      implement → partial (pushed head) if the agent is idle; the next tick continues the PR
+      review     → pass/rework/fail parsed from .forge/<T>.review-<cycle>.md if the agent wrote it, else fail
+      triage/spec→ pass if the artefact (spec file / triage comment) exists, else fail
+    Agents still running are left alone (adopt by hand with `forge adopt`)."""
     p = REPO_ROOT / f".forge/{tid(n)}.json"
     if not p.exists(): return
     s = json.loads(p.read_text()); changed = False
     for x in s["stages"]:
-        if x.get("stage") != "implement" or x.get("status") != "running" or not x.get("pid"): continue
-        try: os.kill(x["pid"], 0); continue          # watcher alive → leave it
+        if x.get("status") != "running" or not x.get("pid"): continue
+        try: os.kill(x["pid"], 0); continue
         except PermissionError: continue
         except ProcessLookupError: pass
         status = paseo_status(x.get("agent", ""))
-        if status in ("running", "needs_input"): continue  # agent still working; adopt manually with `forge adopt`
-        head = subprocess.run(["git", "ls-remote", "origin", f"refs/heads/{x.get('branch','')}"], capture_output=True, text=True, cwd=REPO_ROOT).stdout.split()[:1]
-        x["status"] = "partial"; x["head"] = head[0][:8] if head else ""; x["reason"] = f"orphan running: watcher pid {x['pid']} dead, agent {status or 'gone'}; recorded by driver"
-        log("orphan", tid(n), f"c{x.get('cycle')} watcher dead, agent {status or 'gone'}; partial @{x['head']}")
+        if status in ("running", "needs_input"): continue
+        stage = x.get("stage")
+        if stage == "implement":
+            head = subprocess.run(["git", "ls-remote", "origin", f"refs/heads/{x.get('branch','')}"], capture_output=True, text=True, cwd=REPO_ROOT).stdout.split()[:1]
+            x["status"] = "partial"; x["head"] = head[0][:8] if head else ""
+        elif stage == "review":
+            rf = REPO_ROOT / f".forge/{tid(n)}.review-{x.get('cycle')}.md"
+            if rf.exists():
+                head_txt = rf.read_text()[:600].upper()
+                x["status"] = "pass" if "VERDICT: PASS" in head_txt or "**PASS**" in head_txt else ("rework" if "REWORK" in head_txt else "fail")
+            else: x["status"] = "fail"
+        elif stage == "spec":
+            x["status"] = "pass" if (REPO_ROOT / f".forge/{tid(n)}.spec.md").exists() else "fail"
+        elif stage == "triage":
+            x["status"] = "pass" if any(y["stage"] == "triage" and y["status"] == "pass" for y in s["stages"]) else "fail"
+        else:
+            x["status"] = "fail"
+        x["reason"] = f"orphan running: watcher pid {x['pid']} dead, agent {status or 'gone'}; reconciled by driver → {x['status']}"
+        log("orphan", tid(n), f"{stage} c{x.get('cycle','')} watcher dead → {x['status']}")
         changed = True
     if changed:
         p.write_text(json.dumps(s, indent=1) + "\n")
@@ -171,9 +241,10 @@ def tick():
     subprocess.run(["git", "pull", "-q", "--ff-only", "origin", cfg()["base"]], cwd=REPO_ROOT, env=env(), capture_output=True)
     wm = wave_map(); nums = sorted(wm.values())
     ready = []
+    for n in nums: reap_orphans(n)
+    sweep_lanes(nums)
     for n in nums:
         if is_done(n): continue
-        reap_orphans(n)
         bl = blockers(n, wm)
         if bl is None: continue
         st = next_stage(n)

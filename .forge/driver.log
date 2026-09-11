@@ -2538,3 +2538,19 @@
 2026-09-11T20:25:56+00:00 fail       STL-14   review rc=1:     impl_fam = family(impl["model"]) |                       ~~~~^^^^^^^^^ | KeyError: 'model'
 2026-09-11T20:26:36+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
 2026-09-11T20:26:46+00:00 start      STL-14   review
+2026-09-11T20:40:25+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-11T20:40:40+00:00 start      STL-31   triage
+2026-09-11T20:45:22+00:00 ok         STL-31   triage: dispatched 08270316-7ca9-4e2f-8f14-6a024fcc2188; waiting… | STL-31 triage → ACCEPT
+2026-09-11T20:47:35+00:00 start      STL-31   spec
+2026-09-11T20:55:25+00:00 fail       STL-31   spec rc=1: dispatched 2b5c0d00-141c-4346-8259-d9d88c2ac66b; waiting… | forge: spec agent produced no .forge/STL-31.spec.md — see `paseo logs 2b5c0d00-141c-4346-8259-d9d88c2ac66b`
+2026-09-11T20:58:00+00:00 start      STL-31   spec
+2026-09-11T21:14:51+00:00 ok         STL-31   spec: dispatched 79cca9ad-61c9-4873-9f17-e8b4b61cde89; waiting… | STL-31 spec → pass
+2026-09-11T21:17:26+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:20:13+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:22:56+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:25:36+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:28:23+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:30:52+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:33:56+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:36:41+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:38:53+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)

@@ -233,6 +233,12 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
     # one became a duplicate "dev" workspace in the operator's sidebar: 23 of them).
     home_ws = os.environ.get("FORGE_WORKSPACE") or c_get("paseo_workspace")
     if home_ws: cmd += ["--workspace", home_ws]
+    # Make the lane a real Paseo SUBAGENT of the orchestrator session: Paseo nests an agent under its parent when
+    # it carries the `paseo.parent-agent-id` label (protocol/agent-labels). Without it every lane is a top-level
+    # thread in the operator's sidebar and nothing supervises it. Also stamp forge metadata for sweeps.
+    parent = os.environ.get("FORGE_PARENT_AGENT") or os.environ.get("PASEO_AGENT_ID") or c_get("paseo_parent_agent")
+    if parent: cmd += ["--label", f"paseo.parent-agent-id={parent}"]
+    cmd += ["--label", "forge=1", "--label", f"forge.title={re.sub(r'[^A-Za-z0-9._-]+', '-', title)[:60]}"]
     if model:
         bare = model.split("custom:9router:", 1)[-1]
         if bare.startswith("cx/") or bare in ("gpt", "gpt-mini") or "astra" in bare or "sol" in bare or "spark" in bare:
@@ -457,7 +463,7 @@ def ticket_id(c, n): return f"{c['ticket_prefix']}-{n}"
 def cmd_triage(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); iss = issue(n, c["repo"])
     st = load_state(t); st["cycle"] = 0; save_state(t, st)
-    record(t, "triage", "running")
+    record(t, "triage", "running", pid=os.getpid())
     tm = pick_model(c["models"]["triage"], "triage", t) or pick_model(c["models"]["implement"], "triage", t)
     if not tm: raise SystemExit(f"forge: triage {t}: no model available")
     a = dispatch(f"forge triage {t}", brief_triage(t, c, iss), tm, cwd=repo_root())
@@ -488,7 +494,7 @@ def cmd_triage(args):
 
 def cmd_spec(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); gate(t, "triage"); iss = issue(n, c["repo"])
-    record(t, "spec", "running")
+    record(t, "spec", "running", pid=os.getpid())
     sm = pick_model(c["models"]["spec"], "spec", t) or pick_model(c["models"]["implement"], "spec", t)
     if not sm: raise SystemExit(f"forge: spec {t}: no model available")
     a = dispatch(f"forge spec {t}", brief_spec(t, c, iss), sm, cwd=repo_root())
@@ -642,7 +648,7 @@ def cmd_review(args):
         die(f"no reviewer in {reviewers} is a different family from implementer {impl['model']} — refusing (rubber-stamp risk)")
     pr = json.loads(gh(["pr", "view", str(impl["pr"]), "--json", "number,url,headRefName"], c["repo"]).stdout)
     spec = spec_path(t).read_text()
-    record(t, "review", "running", cycle=cycle, model=reviewer)
+    record(t, "review", "running", cycle=cycle, model=reviewer, pid=os.getpid())
     a = dispatch(f"forge review {t} c{cycle}", brief_review(t, c, spec, pr, cycle), reviewer, cwd=repo_root())
     watch(a, f"{t}-review-c{cycle}", t, "review")
     print(f"dispatched {a}; waiting…")
@@ -673,7 +679,7 @@ def cmd_merge(args):
     if wt.exists(): sh(["git", "worktree", "remove", "--force", str(wt)], cwd=root, check=False)
     sh(["git", "fetch", "-q", "origin", pr["headRefName"]], cwd=root)
     sh(["git", "worktree", "add", "--detach", str(wt), pr["headRefOid"]], cwd=root)
-    record(t, "merge-gate", "running", pr=pr["number"], sha=pr["headRefOid"])
+    record(t, "merge-gate", "running", pr=pr["number"], sha=pr["headRefOid"], pid=os.getpid())
     results = []
     try:
         if (wt / "package.json").exists() and not (wt / "node_modules").exists():
