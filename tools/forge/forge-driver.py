@@ -119,7 +119,12 @@ def next_stage(n):
     if last(s, "merged") == "pass": return None
     if last(s, "merge-gate") == "pass": return None                    # merged is recorded by forge merge itself
     if last(s, "review") == "pass": return "merge"
-    if last(s, "review") == "rework": return "implement"                # forge re-armed spec; cycle bumps inside
+    def idx(stage, status):
+        for i in range(len(s["stages"]) - 1, -1, -1):
+            x = s["stages"][i]
+            if x["stage"] == stage and x["status"] == status: return i
+        return -1
+    if last(s, "review") == "rework" and idx("implement", "pass") < idx("review", "rework"): return "implement"
     if last(s, "implement") == "pass": return "review"
     if last(s, "spec") == "pass": return "implement"
     if last(s, "implement") == "blocked":

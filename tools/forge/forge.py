@@ -534,7 +534,12 @@ def cmd_implement(args):
         record(t, "implement", "blocked", cycle=cycle, reason="every roster model failed preflight (quota/upstream); nothing dispatched — retry next tick")
         raise SystemExit(f"forge: implement {t}: no model available (all preflights failed)")
     head_before = None
-    prev_partial = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "partial"), None)
+    last_impl = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] in ("partial", "pass", "fail", "blocked")), None)
+    prev_partial = last_impl if last_impl and last_impl["status"] == "partial" and last_impl.get("pr") else None
+    if last_impl and last_impl["status"] == "partial" and not last_impl.get("pr"):
+        # orphan reaper wrote a partial without PR metadata; inherit from the nearest earlier entry that has it
+        donor = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st.get("pr")), None)
+        if donor: prev_partial = {**donor, **{k: v for k, v in last_impl.items() if v}, "pr": donor["pr"], "branch": donor.get("branch", last_impl.get("branch"))}
     if prev_partial:
         branch = prev_partial["branch"]
         # Paseo's checkout-branch mode checks out the LOCAL ref. If it lags origin (it will — agents push from

@@ -614,7 +614,66 @@
    "at": "2026-09-10T20:34:41+00:00",
    "cycle": 29,
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-10T20:50:13+00:00",
+   "agent": "96dd727a-fdf9-477c-a4ec-21df5812fa57",
+   "cycle": 29,
+   "artifact": ".forge/STL-14.review-29.md"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T20:50:31+00:00",
+   "note": "re-armed for rework"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-10T20:52:50+00:00",
+   "cycle": 30,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 27,
+   "pid": 1046699,
+   "agent": "e06b8e35-f333-46fe-97ba-be891de2df37",
+   "head": "a4ecf59c",
+   "reason": "orphan running: watcher pid 1046699 dead, agent idle; recorded by driver"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-10T22:17:08+00:00",
+   "agent": "e06b8e35-f333-46fe-97ba-be891de2df37",
+   "cycle": 30,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-11T00:14:38+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-11T04:01:04+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-11T19:58:45+00:00",
+   "cycle": 580,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-14-c580",
+   "pid": 1246736,
+   "agent": "60512aaf-3b52-4086-ab14-fdc66f810911"
   }
  ],
- "cycle": 29
+ "cycle": 580
 }
