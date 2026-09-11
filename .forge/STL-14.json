@@ -585,18 +585,6 @@
   },
   {
    "stage": "implement",
-   "status": "note",
-   "at": "2026-09-10T12:55:17+00:00",
-   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
-  },
-  {
-   "stage": "implement",
-   "status": "note",
-   "at": "2026-09-10T12:55:18+00:00",
-   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
-  },
-  {
-   "stage": "implement",
    "status": "pass",
    "at": "2026-09-10T12:58:05+00:00",
    "cycle": 29,
@@ -651,29 +639,7 @@
    "pr": 28,
    "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
    "branch": "forge/stl-14-c4"
-  },
-  {
-   "stage": "implement",
-   "status": "note",
-   "at": "2026-09-11T00:14:38+00:00",
-   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
-  },
-  {
-   "stage": "implement",
-   "status": "note",
-   "at": "2026-09-11T04:01:04+00:00",
-   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
-  },
-  {
-   "stage": "implement",
-   "status": "running",
-   "at": "2026-09-11T19:58:45+00:00",
-   "cycle": 580,
-   "model": "hermes:accept_edits/glm/glm-5.3",
-   "branch": "forge/stl-14-c580",
-   "pid": 1246736,
-   "agent": "60512aaf-3b52-4086-ab14-fdc66f810911"
   }
  ],
- "cycle": 580
+ "cycle": 30
 }

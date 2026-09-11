@@ -2524,3 +2524,10 @@
 2026-09-11T19:53:01+00:00 fail       STL-14   implement rc=1:     cont = (f"\n\nCONTINUATION: cycle {prev_partial['cycle']} ran out of budget and left draft PR #{prev_partial['pr']} on this branch " |                                                                                                     ~~~~~~~~~~~~^^^^^^ | KeyError: 'pr'
 2026-09-11T19:56:05+00:00 idle       -        0/15 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-11T19:58:42+00:00 start      STL-14   implement
+2026-09-11T20:18:26+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=3
+2026-09-11T20:18:42+00:00 idle       -        0/15 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T20:21:04+00:00 idle       -        0/15 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T20:23:15+00:00 start      STL-14   review
+2026-09-11T20:23:15+00:00 fail       STL-14   review rc=1:     impl_fam = family(impl["model"]) |                       ~~~~^^^^^^^^^ | KeyError: 'model'
+2026-09-11T20:23:28+00:00 start      STL-14   review
+2026-09-11T20:23:28+00:00 fail       STL-14   review rc=1:     impl_fam = family(impl["model"]) |                       ~~~~^^^^^^^^^ | KeyError: 'model'

@@ -112,6 +112,7 @@ def stage_status(s, stage):
 
 def record(t, stage, status, **extra):
     s = load_state(t)
+    if stage == "implement" and status == "running" and extra.get("cycle"): s["cycle"] = extra["cycle"]
     s["stages"].append({"stage": stage, "status": status, "at": now(), **extra})
     save_state(t, s)
     return s
@@ -513,14 +514,18 @@ def _lock(t):
 
 def cmd_implement(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); _lk = _lock(t); gate(t, "spec", this="implement")
-    s = load_state(t); cycle = s.get("cycle", 0) + 1
+    s = load_state(t)
+    def _idx(stage, status):
+        return max([i for i, x in enumerate(s["stages"]) if x["stage"] == stage and x["status"] == status], default=-1)
+    if _idx("implement", "pass") > max(_idx("review", "rework"), _idx("merge-gate", "fail")):
+        die(f"{t}: latest implement already PASSED and no newer rework — next stage is review, not implement")
+    cycle = s.get("cycle", 0) + 1
     # Only REWORK cycles (review said REWORK / merge-gate failed) count against the cap. Cycles that
     # ended in a spec gap are the orchestrator's defect, not the implementer's; they consume a branch
     # number but not the budget.
     rework_cycles = sum(1 for st in s["stages"] if st["stage"] == "review" and st["status"] == "rework") \
                   + sum(1 for st in s["stages"] if st["stage"] == "merge-gate" and st["status"] == "fail")
     if rework_cycles >= MAX_CYCLES: die(f"{t} hit {MAX_CYCLES} rework cycles — escalate to a human")
-    s["cycle"] = cycle; save_state(t, s)
     spec = spec_path(t).read_text()
     defects = None
     if cycle > 1:
