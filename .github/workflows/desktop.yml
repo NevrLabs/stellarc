@@ -1,0 +1,240 @@
+name: Desktop
+
+# Tauri 2 desktop shell (Linux/Windows/macOS) around the frozen stellarc-ui
+# bundle. Standalone workflow — self-triggers on PR/push (v1 precedent had a
+# separate desktop.yml), so no edit to ci.yml is needed to run it.
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The stellarc-api deployment the shell points the frozen UI at. Override as a
+  # repo variable; the fallback is a documented placeholder (operator-owned).
+  DESKTOP_API_URL: ${{ vars.DESKTOP_API_URL || 'https://api.stellarc.dev' }}
+
+jobs:
+  # T02 — the desktop slice may not touch the pixel-frozen UI tree. Guarded
+  # first because it protects the freeze from step one.
+  ui-purity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: frozen UI tree untouched (T02)
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch --quiet origin "${{ github.base_ref }}"
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui packages; then
+            echo "T02 OK: no file under apps/stellarc-ui or packages changed"
+          else
+            echo "::error::T02: desktop slice modified the frozen UI tree (apps/stellarc-ui or packages)"
+            git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui packages
+            exit 1
+          fi
+
+  # T04 — the desktop crate must compile on every target triple we promise.
+  cargo-check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+      # generate_context! embeds the frontendDist; it must exist even for a
+      # check-only build (the real bundle is built in the `bundle` job).
+      - name: ensure frontendDist exists
+        shell: bash
+        run: mkdir -p apps/stellarc-ui/dist && touch apps/stellarc-ui/dist/index.html
+      - name: cargo check (desktop, all targets)
+        shell: bash
+        run: cargo check -p stellarc-desktop --all-targets --target ${{ matrix.target }}
+
+  # T07 + T08 — signed three-OS bundle matrix. Fails closed (named error) when
+  # the signing secrets the shell promises are absent (O2).
+  bundle:
+    needs: cargo-check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+
+      - name: linux bundle deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf mold
+
+      - name: install UI and desktop (tauri CLI) deps
+        run: |
+          bun install --frozen-lockfile
+          bun install --cwd desktop
+
+      - name: fail closed on missing Windows signing secret (T07/O2)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [[ -z "${WINDOWS_CERTIFICATE:-}" || -z "${WINDOWS_CERTIFICATE_PASSWORD:-}" ]]; then
+            echo "::error::T07: WINDOWS_CERTIFICATE/WINDOWS_CERTIFICATE_PASSWORD missing — refusing to ship an unsigned Windows bundle"
+            exit 1
+          fi
+
+      - name: fail closed on missing macOS signing secret (T07/O2)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [[ -z "${APPLE_CERTIFICATE:-}" || -z "${APPLE_CERTIFICATE_PASSWORD:-}" ]]; then
+            echo "::error::T07: APPLE_CERTIFICATE/APPLE_CERTIFICATE_PASSWORD missing — refusing to ship an unsigned macOS bundle"
+            exit 1
+          fi
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DESKTOP_API_URL: ${{ env.DESKTOP_API_URL }}
+          # macOS signing + notarization
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows code signing
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          projectPath: desktop
+          tauriScript: bun run tauri
+          args: --target ${{ matrix.target }}
+
+      - name: Linux checksums (T07)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          cd desktop/target/${{ matrix.target }}/release/bundle
+          find . -type f \( -name '*.deb' -o -name '*.AppImage' \) -print0 | xargs -0 sha256sum > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stellarc-desktop-${{ matrix.target }}
+          path: |
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.msi
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.exe
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.deb
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            desktop/target/${{ matrix.target }}/release/bundle/**/SHA256SUMS
+          if-no-files-found: warn
+
+  # T05 — thinnest launch proof: the Linux bundle starts headless, emits the
+  # window-created and health-probe lines, and exits cleanly on SIGTERM.
+  linux-smoke:
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: stellarc-desktop-x86_64-unknown-linux-gnu
+          path: bundle/
+      - name: Linux launch smoke (xvfb)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libwebkit2gtk-4.1-0
+          bin="$(find bundle -type f -name '*.AppImage' | head -1)"
+          test -n "$bin" || { echo "::error::no AppImage in bundle"; exit 1; }
+          chmod +x "$bin"
+          bash desktop/scripts/launch-smoke.sh "$bin"
+
+  # T06 — Maestro desktop smoke on the two OS with a first-class Maestro driver
+  # (macOS + Windows). Linux has no Maestro desktop driver (O1) and is covered
+  # by the xvfb launch smoke above instead.
+  maestro-desktop:
+    needs: bundle
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: stellarc-desktop-${{ matrix.target }}
+          path: bundle/
+      - name: install Maestro CLI
+        shell: bash
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: install the signed bundle
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == macos-* ]]; then
+            app="$(find bundle -type d -name '*.app' | head -1)"
+            test -n "$app" || { echo "::error::no .app in bundle"; exit 1; }
+            cp -R "$app" /Applications/
+          else
+            msi="$(find bundle -type f -name '*.msi' | head -1)"
+            test -n "$msi" || { echo "::error::no .msi in bundle"; exit 1; }
+            powershell -Command "Start-Process msiexec -ArgumentList '/i','$msi','/qn' -Wait"
+          fi
+      - name: run Maestro desktop smoke
+        shell: bash
+        run: maestro test desktop/e2e/maestro/flows/desktop-smoke.yaml
