@@ -1,0 +1,441 @@
+{
+	"source": "https://kaneo.entelechia.cloud",
+	"sha": "2504e64512b84b9b739d4d4fb0d4ceaefdb14783",
+	"capturedAt": "2026-09-09T11:32:13.169Z",
+	"resolved": {
+		"firstTask": "h6tzpvfxqm9d1jqh1p9ks0c2",
+		"repoSlug": "gnxnypspwwe4wghb19plnwtv",
+		"prNum": "202",
+		"projectSlug": "wave-verify-1788167743879"
+	},
+	"screens": {
+		"desktop": {
+			"sign-in": {
+				"route": "/auth/sign-in",
+				"url": "https://kaneo.entelechia.cloud/auth/sign-in",
+				"bytes": 37585
+			},
+			"org-shell": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 50384
+			},
+			"my-tickets": {
+				"route": "/dashboard/organization/nevrlabs/my-tasks",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/my-tasks",
+				"bytes": 157687
+			},
+			"inbox": {
+				"route": "/dashboard/organization/nevrlabs/inbox",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/inbox",
+				"bytes": 202526
+			},
+			"kanban": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 135091
+			},
+			"list": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board#viewMode=list",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 161672
+			},
+			"backlog": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"bytes": 63553
+			},
+			"calendar": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"bytes": 58552
+			},
+			"gantt": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"bytes": 142719
+			},
+			"milestones": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"bytes": 66690
+			},
+			"ticket-detail": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"bytes": 203473
+			},
+			"repo-list": {
+				"route": "/dashboard/organization/nevrlabs/repo",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo",
+				"bytes": 105409
+			},
+			"repo-issues": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues?state=open",
+				"bytes": 188119
+			},
+			"repo-pulls": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls?state=open",
+				"bytes": 170187
+			},
+			"repo-pull-detail": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202?state=open",
+				"bytes": 132239
+			},
+			"projects": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 52188
+			},
+			"project-detail": {
+				"route": "/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"bytes": 88734
+			},
+			"members": {
+				"route": "/dashboard/settings/organization/members",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/members",
+				"bytes": 116834
+			},
+			"teams": {
+				"route": "/dashboard/settings/organization/teams",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/undefined/members?tab=teams",
+				"bytes": 95872
+			},
+			"roles": {
+				"route": "/dashboard/settings/organization/roles",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/roles",
+				"bytes": 70461
+			},
+			"developer": {
+				"route": "/dashboard/settings/account/developer",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/account/developer",
+				"bytes": 59944
+			}
+		},
+		"tablet": {
+			"sign-in": {
+				"route": "/auth/sign-in",
+				"url": "https://kaneo.entelechia.cloud/auth/sign-in",
+				"bytes": 34601
+			},
+			"org-shell": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 49099
+			},
+			"my-tickets": {
+				"route": "/dashboard/organization/nevrlabs/my-tasks",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/my-tasks",
+				"bytes": 133206
+			},
+			"inbox": {
+				"route": "/dashboard/organization/nevrlabs/inbox",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/inbox",
+				"bytes": 149385
+			},
+			"kanban": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 109931
+			},
+			"list": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board#viewMode=list",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 133780
+			},
+			"backlog": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"bytes": 60564
+			},
+			"calendar": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"bytes": 55433
+			},
+			"gantt": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"bytes": 118715
+			},
+			"milestones": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"bytes": 63072
+			},
+			"ticket-detail": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"bytes": 100000
+			},
+			"repo-list": {
+				"route": "/dashboard/organization/nevrlabs/repo",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo",
+				"bytes": 85838
+			},
+			"repo-issues": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues?state=open",
+				"bytes": 154625
+			},
+			"repo-pulls": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls?state=open",
+				"bytes": 160898
+			},
+			"repo-pull-detail": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202?state=open",
+				"bytes": 126238
+			},
+			"projects": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 49099
+			},
+			"project-detail": {
+				"route": "/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"bytes": 78737
+			},
+			"members": {
+				"route": "/dashboard/settings/organization/members",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/members",
+				"bytes": 57204
+			},
+			"teams": {
+				"route": "/dashboard/settings/organization/teams",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/undefined/members?tab=teams",
+				"bytes": 84993
+			},
+			"roles": {
+				"route": "/dashboard/settings/organization/roles",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/roles",
+				"bytes": 67049
+			},
+			"developer": {
+				"route": "/dashboard/settings/account/developer",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/account/developer",
+				"bytes": 57736
+			}
+		},
+		"mobile": {
+			"sign-in": {
+				"route": "/auth/sign-in",
+				"url": "https://kaneo.entelechia.cloud/auth/sign-in",
+				"bytes": 124497
+			},
+			"org-shell": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 31241
+			},
+			"my-tickets": {
+				"route": "/dashboard/organization/nevrlabs/my-tasks",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/my-tasks",
+				"bytes": 272979
+			},
+			"inbox": {
+				"route": "/dashboard/organization/nevrlabs/inbox",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/inbox",
+				"bytes": 305404
+			},
+			"kanban": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 221077
+			},
+			"list": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board#viewMode=list",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 373304
+			},
+			"backlog": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"bytes": 119749
+			},
+			"calendar": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"bytes": 111034
+			},
+			"gantt": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"bytes": 195606
+			},
+			"milestones": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"bytes": 93457
+			},
+			"ticket-detail": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"bytes": 224106
+			},
+			"repo-list": {
+				"route": "/dashboard/organization/nevrlabs/repo",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo",
+				"bytes": 179212
+			},
+			"repo-issues": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues?state=open",
+				"bytes": 470636
+			},
+			"repo-pulls": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls?state=open",
+				"bytes": 376316
+			},
+			"repo-pull-detail": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202?state=open",
+				"bytes": 70916
+			},
+			"projects": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 38640
+			},
+			"project-detail": {
+				"route": "/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"bytes": 186468
+			},
+			"members": {
+				"route": "/dashboard/settings/organization/members",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/members",
+				"bytes": 102511
+			},
+			"teams": {
+				"route": "/dashboard/settings/organization/teams",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/undefined/members?tab=teams",
+				"bytes": 236587
+			},
+			"roles": {
+				"route": "/dashboard/settings/organization/roles",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/roles",
+				"bytes": 103282
+			},
+			"developer": {
+				"route": "/dashboard/settings/account/developer",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/account/developer",
+				"bytes": 94519
+			}
+		},
+		"mobile-small": {
+			"sign-in": {
+				"route": "/auth/sign-in",
+				"url": "https://kaneo.entelechia.cloud/auth/sign-in",
+				"bytes": 74490
+			},
+			"org-shell": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 21836
+			},
+			"my-tickets": {
+				"route": "/dashboard/organization/nevrlabs/my-tasks",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/my-tasks",
+				"bytes": 120208
+			},
+			"inbox": {
+				"route": "/dashboard/organization/nevrlabs/inbox",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/inbox",
+				"bytes": 138287
+			},
+			"kanban": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 106898
+			},
+			"list": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board#viewMode=list",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board",
+				"bytes": 163081
+			},
+			"backlog": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/backlog",
+				"bytes": 69369
+			},
+			"calendar": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/calendar",
+				"bytes": 61442
+			},
+			"gantt": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/gantt",
+				"bytes": 129318
+			},
+			"milestones": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/milestones",
+				"bytes": 60625
+			},
+			"ticket-detail": {
+				"route": "/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/board/KTEST/board?taskId=h6tzpvfxqm9d1jqh1p9ks0c2",
+				"bytes": 96090
+			},
+			"repo-list": {
+				"route": "/dashboard/organization/nevrlabs/repo",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo",
+				"bytes": 102278
+			},
+			"repo-issues": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/issues?state=open",
+				"bytes": 213830
+			},
+			"repo-pulls": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls?state=open",
+				"bytes": 207980
+			},
+			"repo-pull-detail": {
+				"route": "/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/repo/gnxnypspwwe4wghb19plnwtv/pulls/202?state=open",
+				"bytes": 42337
+			},
+			"projects": {
+				"route": "/dashboard/organization/nevrlabs/projects",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects",
+				"bytes": 21836
+			},
+			"project-detail": {
+				"route": "/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/nevrlabs/projects/wave-verify-1788167743879",
+				"bytes": 94967
+			},
+			"members": {
+				"route": "/dashboard/settings/organization/members",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/members",
+				"bytes": 58562
+			},
+			"teams": {
+				"route": "/dashboard/settings/organization/teams",
+				"url": "https://kaneo.entelechia.cloud/dashboard/organization/undefined/members?tab=teams",
+				"bytes": 115852
+			},
+			"roles": {
+				"route": "/dashboard/settings/organization/roles",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/organization/roles",
+				"bytes": 59614
+			},
+			"developer": {
+				"route": "/dashboard/settings/account/developer",
+				"url": "https://kaneo.entelechia.cloud/dashboard/settings/account/developer",
+				"bytes": 52404
+			}
+		}
+	}
+}

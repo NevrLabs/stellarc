@@ -1,0 +1,8 @@
+[test]
+root = "tests"
+# Only the Vitest bridge runs under Bun's native test runner; unit/ and
+# integration/ use vitest syntax and are executed exclusively by the spawned
+# vitest subprocesses in gates.test.ts (see tests/gates.test.ts), never
+# natively by `bun test` — otherwise both runners would race the same
+# disposable PostgreSQL clusters.
+pathIgnorePatterns = ["tests/unit/**", "tests/integration/**"]

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ticket</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #171717;
+        --muted: #737373;
+        --border: #e5e5e5;
+        --accent: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0a0a;
+          --fg: #fafafa;
+          --muted: #a3a3a3;
+          --border: #262626;
+          --accent: #60a5fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        width: 100%;
+        max-width: 30rem;
+        padding: 1.1rem 1.25rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .key {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--accent);
+      }
+      .org {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 0.15rem;
+      }
+      h1 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0.55rem 0 0;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" id="card" hidden>
+      <div class="key" id="ticketKey"></div>
+      <div class="org" id="organizationName"></div>
+      <h1 id="title"></h1>
+    </main>
+
+    <!--
+      KFL-177: public ticket embed for Teams/Discord/Telegram/Outline.
+      Standalone on purpose: no SPA, no bundle, one fetch of
+      /api/public-ticket-embed/<id>. The ticket id comes from the path
+      /embed/ticket/<id>.
+    -->
+    <script src="/embed.js"></script>
+  </body>
+</html>
