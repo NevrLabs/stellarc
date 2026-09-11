@@ -120,12 +120,501 @@
   },
   {
    "stage": "implement",
-   "status": "running",
-   "at": "2026-09-09T03:08:21+00:00",
+   "status": "partial",
+   "at": "2026-09-09T04:05:00+00:00",
+   "agent": "677540a6-2791-4230-ba60-e49b662ff591",
    "cycle": 4,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4",
+   "model": "hermes:accept_edits/glm/glm-5.3-flash"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T04:05:30+00:00",
+   "note": "re-armed: continue c4 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T04:20:00+00:00",
+   "agent": "0c746580-3802-47f7-8128-a4b2e394b973",
+   "cycle": 5,
+   "reason": "agent delegated to a sub-agent via mcp__paseo__create_agent and went idle; pushed nothing. Sub-dispatch now forbidden in brief; PARTIAL requires head movement."
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T04:20:30+00:00",
+   "note": "re-armed: continue c4 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T03:56:29+00:00",
+   "agent": "23abddb7-a15d-47fa-972d-86aa9bb46947",
+   "cycle": 6,
+   "reason": "draft PR unchanged: no commits pushed this cycle"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T05:10:00+00:00",
+   "agent": "23abddb7-a15d-47fa-972d-86aa9bb46947",
+   "cycle": 6,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4",
    "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "note": "pushed to a side branch c4-2 + PR#29; orchestrator fast-forwarded onto c4, closed #29"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T05:10:30+00:00",
+   "note": "re-armed: continue c4 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T04:04:08+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/cx/gpt-6-astra",
+   "branch": "forge/stl-14-c4",
+   "continues": 6
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T04:08:27+00:00",
+   "agent": "84b4d1da-77b3-438c-9838-6a1391831e75",
+   "cycle": 7,
+   "reason": "draft PR unchanged: no commits pushed this cycle"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T04:10:45+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 6,
+   "agent": "090c0d02-509f-4332-b6d5-ed291ceb4d83",
+   "note": "orphan duplicate 76f4e72d (worktree c8-1) killed; its fail entry removed",
+   "adopted": true
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T05:14:50+00:00",
+   "agent": "090c0d02-509f-4332-b6d5-ed291ceb4d83",
+   "cycle": 8,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
    "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T05:14:50+00:00",
+   "note": "re-armed: continue c8 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T05:16:04+00:00",
+   "cycle": 9,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 8,
+   "agent": "da5ef10a-483a-4ee4-bdfa-b491579047ed"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T05:26:29+00:00",
+   "agent": "da5ef10a-483a-4ee4-bdfa-b491579047ed",
+   "cycle": 9,
+   "reason": "stale local branch; commit 44b0daa salvaged by orchestrator as acdc1ea + fixes 4798ed1",
+   "pr": 28,
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T05:28:46+00:00",
+   "cycle": 10,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 8,
+   "agent": "648aa9b7-116b-4f53-af61-06036515ba63"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-09T05:31:02+00:00",
+   "agent": "648aa9b7-116b-4f53-af61-06036515ba63",
+   "cycle": 10,
+   "reason": "stale local branch (orchestrator bug, fixed: forge syncs local ref before continuation)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T11:50:00+00:00",
+   "note": "re-armed: continue draft PR #28 on forge/stl-14-c4 @4798ed1"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T11:47:56+00:00",
+   "cycle": 12,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 9,
+   "agent": "eb09dccb-0089-475d-9150-748c9844256e"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T12:23:24+00:00",
+   "agent": "eb09dccb-0089-475d-9150-748c9844256e",
+   "cycle": 12,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T12:23:24+00:00",
+   "note": "re-armed: continue c12 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T12:25:47+00:00",
+   "cycle": 13,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 12,
+   "agent": "fad446e9-8668-4a20-982d-9d8780884469",
+   "pr": 28,
+   "head": "5eaba22e",
+   "reason": "agent finished (pushed 5eaba22, PR body updated) but the watching forge process was killed by a driver restart; recorded by orchestrator"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T12:40:00+00:00",
+   "note": "re-armed: \u00a75e acceptance + \u00a75f OTel; continue #28 from 5eaba22"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T13:25:19+00:00",
+   "cycle": 14,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 13,
+   "agent": "2bf10f59-9198-4825-8860-7c7c5855ef1d"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T13:58:18+00:00",
+   "agent": "2bf10f59-9198-4825-8860-7c7c5855ef1d",
+   "cycle": 14,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T13:58:18+00:00",
+   "note": "re-armed: continue c14 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T14:03:41+00:00",
+   "cycle": 15,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 14,
+   "agent": "11e0db0b-f1ab-4edb-b070-c9961a4ffe5d",
+   "reason": "superseded"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-09T14:17:30+00:00",
+   "agent": "11e0db0b-f1ab-4edb-b070-c9961a4ffe5d",
+   "cycle": 15,
+   "reason": "agent reaped by Paseo with 2 uncommitted files (worker lifecycle span test + T12 stock restart) during a daemon stall; work lost \u2014 commit-early rule reinforced in brief"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T14:40:00+00:00",
+   "note": "re-armed after daemon stall; continue #28 from 6d770f8"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T14:26:14+00:00",
+   "cycle": 17,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 14,
+   "agent": "0ab534cf-44fd-43dc-846d-92cf88699db9"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T15:34:16+00:00",
+   "agent": "0ab534cf-44fd-43dc-846d-92cf88699db9",
+   "cycle": 17,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T15:34:16+00:00",
+   "note": "re-armed: continue c17 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T15:36:38+00:00",
+   "cycle": 18,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 17,
+   "agent": "cac84503-aad8-478b-aa8a-c16f40f87afe"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T16:34:03+00:00",
+   "agent": "cac84503-aad8-478b-aa8a-c16f40f87afe",
+   "cycle": 18,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T16:34:03+00:00",
+   "note": "re-armed: continue c18 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T16:36:28+00:00",
+   "cycle": 19,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 18,
+   "agent": "93dd61a7-f19b-47e9-8c5e-8b1f3b25fb93"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-09T17:01:57+00:00",
+   "cycle": 19,
+   "questions_answered": 1
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T17:01:59+00:00",
+   "agent": "93dd61a7-f19b-47e9-8c5e-8b1f3b25fb93",
+   "cycle": 19,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T17:01:59+00:00",
+   "note": "re-armed: continue c19 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-09T17:04:23+00:00",
+   "cycle": 20,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 19,
+   "agent": "b4d775ec-d662-4f19-9dca-d615df0e64c9"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-09T17:09:19+00:00",
+   "cycle": 20,
+   "questions_answered": 1
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T17:09:20+00:00",
+   "agent": "b4d775ec-d662-4f19-9dca-d615df0e64c9",
+   "cycle": 20,
+   "pr": 28,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
+   "branch": "forge/stl-14-c4"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T17:09:20+00:00",
+   "note": "re-armed: continue c20 draft PR #28 on forge/stl-14-c4"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-09T17:11:42+00:00",
+   "cycle": 21,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 20,
+   "agent": "b460c522-c845-4435-8d76-1ab89f302cec",
+   "head": "0eceb82d",
+   "pr": 28,
+   "reason": "agent idle awaiting ruling; answered in .forge/STL-14.answer-2.md"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-09T22:40:00+00:00",
+   "note": "5f-Q2 noConsole ruling; continue #28 from 0eceb82"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-10T01:44:12+00:00",
+   "cycle": 22,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 21,
+   "agent": "90243311-6c2a-4eb9-b5b8-fd606b6725ec",
+   "head": "259a0a11",
+   "pr": 28,
+   "reason": "workspace archived by orchestrator (moving all lanes into home workspace); agent was idle, tree clean, pushed"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T00:40:00+00:00",
+   "note": "re-armed in home workspace; continue #28 from 259a0a1"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-10T09:57:25+00:00",
+   "cycle": 23,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-14-c4",
+   "continues": 22,
+   "agent": "1da984c9-7a86-4bc1-aff4-ee54183c5914"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-10T09:59:09+00:00",
+   "agent": "1da984c9-7a86-4bc1-aff4-ee54183c5914",
+   "cycle": 23,
+   "reason": "ocg/deepseek-v4-pro unusable: 9router does not send x-opencode-session (upstream 400 MissingSessionID); zero model calls succeeded [infra: zero successful model calls; reclassified]"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-10T10:01:26+00:00",
+   "cycle": 24,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-14-c4",
+   "continues": 22,
+   "agent": "1a9d7222-710c-4105-a8c0-588288107b5e"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-10T10:09:04+00:00",
+   "agent": "1a9d7222-710c-4105-a8c0-588288107b5e",
+   "cycle": 24,
+   "reason": "draft PR unchanged: no commits pushed this cycle [infra: zero successful model calls; reclassified]"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T02:10:00+00:00",
+   "note": "re-armed on glm-only roster; continue #28 from 259a0a1"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T10:30:00+00:00",
+   "note": "re-armed with model preflight; continue #28 from 259a0a1"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-10T10:27:53+00:00",
+   "cycle": 27,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 22,
+   "agent": "456b06c5-6ebf-46b0-a842-9a393c033323",
+   "head": "74e754c",
+   "pr": 28,
+   "reason": "watcher died in Paseo npm upgrade; worktree salvaged and committed by orchestrator (24 e2e green)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T13:05:00+00:00",
+   "note": "continue #28 from 74e754c; remaining: Tempo screenshot proof, final \u00a75e/\u00a75f negative-control audit, PR Remaining list \u2192 empty or ticketed"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-10T12:55:17+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-10T12:55:18+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-10T12:58:05+00:00",
+   "cycle": 29,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-14-c4",
+   "continues": 27,
+   "agent": "543b8dd7-3ec3-4432-8fd2-a6364a6be04b",
+   "head": "83d69e2d",
+   "pr": 28,
+   "reason": "agent idle after `gh pr ready 28`; watcher lost (Paseo upgrade earlier killed pid tracking on cont. path); adopted by orchestrator"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-10T20:34:41+00:00",
+   "cycle": 29,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro"
   }
  ],
- "cycle": 4
+ "cycle": 29
 }

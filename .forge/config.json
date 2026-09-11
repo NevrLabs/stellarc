@@ -1,39 +1,54 @@
 {
-  "repo": "NevrLabs/stellarc",
-  "base": "dev",
-  "ticket_prefix": "STL",
-  "gates": [
-    "bun run lint",
-    "bun run typecheck",
-    "bun test",
-    "bun run build"
+ "repo": "NevrLabs/stellarc",
+ "base": "dev",
+ "ticket_prefix": "STL",
+ "gates": [
+  "bun run lint",
+  "bun run typecheck",
+  "bun test",
+  "bun run build"
+ ],
+ "e2e": "bun run e2e",
+ "screenshot_cmd": "bun run e2e:screens",
+ "models": {
+  "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode parks on ANY edit (no approver) - use accept_edits and constrain writes in the brief.",
+  "triage": [
+   "hermes:accept_edits/glm/glm-5.3-flash",
+   "hermes:accept_edits/ocg/glm-5.3-flash",
+   "hermes:accept_edits/ocg/deepseek-v4-flash"
   ],
-  "e2e": "bun run e2e",
-  "screenshot_cmd": "bun run e2e:screens",
-  "models": {
-    "_note": "prefix hermes:<mode>/ or goose/ for ACP lanes; bare id = omp. Hermes 'default' mode parks on ANY edit (no approver) - use accept_edits and constrain writes in the brief.",
-    "triage": "hermes:accept_edits/glm/glm-5.3-flash",
-    "spec": "hermes:accept_edits/glm/glm-5.3",
-    "implement": [
-      "hermes:accept_edits/cx/gpt-6-astra",
-      "hermes:accept_edits/glm/glm-5.3-flash"
-    ],
-    "review": [
-      "hermes:accept_edits/glm/glm-5.3",
-      "hermes:accept_edits/ocg/deepseek-v4-pro"
-    ]
-  },
-  "implement_budget_min": 90,
-  "stage_timeout_s": {
-    "triage": 900,
-    "spec": 1800,
-    "implement": 7200,
-    "review": 2400
-  },
-  "viewports": [
-    "desktop",
-    "tablet",
-    "mobile",
-    "mobile-small"
-  ]
+  "spec": [
+   "hermes:accept_edits/glm/glm-5.3",
+   "hermes:accept_edits/ocg/glm-5.3",
+   "hermes:accept_edits/ocg/deepseek-v4-pro"
+  ],
+  "implement": [
+   "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "hermes:accept_edits/glm/glm-5.3-flash",
+   "hermes:accept_edits/ocg/glm-5.3",
+   "hermes:accept_edits/glm/glm-5.3"
+  ],
+  "review": [
+   "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "hermes:accept_edits/glm/glm-5.3",
+   "hermes:accept_edits/ocg/glm-5.3"
+  ],
+  "_roster_note": "2026-09-09 operator ruling: NO cx/* (gpt) models for subagents \u2014 not astra, sol, spark, or the bare `gpt` alias. The only permitted gpt is cx/gpt-5.6-luna (= 9router `gpt-mini`), and it is not in any forge lane. Lanes: glm-5.3(-flash) + ocg/deepseek-v4-pro. ocg/* needs x-opencode-session (Hermes sends it).",
+  "_ocg_note": "ocg/* recovered 2026-09-10 ~20:50 WIB (MissingSessionID gone). Two independent GLM quotas: glm/* (Z.ai direct, 5h window) and ocg/glm-* (OpenCode Go). Preflight rotates across all of them."
+ },
+ "implement_budget_min": 150,
+ "stage_timeout_s": {
+  "triage": 900,
+  "spec": 1800,
+  "implement": 10800,
+  "review": 2400
+ },
+ "viewports": [
+  "desktop",
+  "tablet",
+  "mobile",
+  "mobile-small"
+ ],
+ "paseo_workspace": "wks_9f7b891508ef8e38",
+ "_workspace_note": "Operator rule: all forge subagents run inside the orchestrator's own Paseo workspace (Kaneo Project Feature). Never --new-workspace. Implementers get a plain git worktree under .forge/worktrees/."
 }

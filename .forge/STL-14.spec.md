@@ -1227,7 +1227,7 @@ Permitted query parameters on `GET /orgs/:org/v1/shape`:
 | `offset` | `-1` for snapshot, else the opaque cursor we issued | `-1` or a cursor we can parse; else 400 |
 | `handle` | shape handle we issued | required when `offset != -1`; unknown/rotated handle → `409` with `must-refetch` control message, per protocol |
 | `live` | `true` to long-poll the tail | boolean |
-| `log` | `full` \| `changes_only` | accept both; spike serves `full` semantics for either and records the requested mode in the response header `electric-schema` untouched. Unknown value → 400 |
+| `log` | `full` \| `changes_only` | accept both; spike serves `full` semantics for either; requested mode is recorded in server-side telemetry only — **never on the wire**. `electric-schema` carries only the parser-defined column→ColumnInfo map. Unknown value → 400 |
 | `cursor` | live-mode cache buster from the client's previous `electric-cursor` | opaque; echo back a fresh `electric-cursor` on every live response; never used for authz |
 | `expired_handle` | the handle the client believes expired | accepted, logged, ignored for routing |
 | `cache-buster` | retry-path nonce | accepted and ignored |
@@ -1237,6 +1237,66 @@ Permitted query parameters on `GET /orgs/:org/v1/shape`:
 Response headers the stock client requires (verified against the same tarball, `src/client.ts` header constants): `electric-handle`, `electric-offset`, `electric-schema`, `electric-up-to-date` (on the last page), `electric-cursor` (live responses). Control messages: `{headers:{control:"up-to-date"}}` at tail; `{headers:{control:"must-refetch"}}` on handle rotation. Long-poll timeout returns **204** with `electric-cursor` set.
 
 This ruling closes the protocol surface for T0. No further parameter questions are open; anything not in the table above is rejected and the implementer does not need to ask.
+
+
+### 5d. Orchestrator amendment — baselines delivered, salvage, gate facts (2026-09-09)
+
+**Fork provenance captures are committed** (84 PNGs + manifest + capture script). Per question-1 ruling (5d-Q1): they are PROVENANCE at `e2e/__screenshots__/fork-provenance/`, never a `toHaveScreenshot` target — they contain production data and the lifted UI runs on a synthetic fixture. Playwright baselines are generated ONCE by the implementer from the lifted UI + synthetic fixture (`--update-snapshots`, that cycle only) and asserted thereafter. Frozen-UI parity against the fork is proven structurally: per screen × project, the same landmark set (sidebar/Sheet per viewport, kanban column count, table headers, …) derived from the provenance manifest + lifted components. Synthetic fixture minimum: 1 org, 2 members, 1 board/4 statuses/≥3 tickets, 1 repo/≥1 issue/≥1 PR, 1 project; deterministic ids and dates; under `e2e/fixtures/`. `teams` is provenance-only (fork route depended on unseeded client state).
+
+**Branch head is `f1b2b70`** and carries: c4 thin path, c6 delete, c9's batch/rollback (salvaged as `acdc1ea`), orchestrator fixes (`4798ed1`: cluster reaping on exit, gate bridge 300s, lockfile refreshed), baselines (`f1b2b70`). Read `git log dev..HEAD` before anything.
+
+**Gate facts you must not fight:**
+- `bun install --frozen-lockfile` is what the merge gate runs. If you add a dependency, commit the regenerated `bun.lock` in the same commit.
+- `bun run lint` currently reports 17 findings in 16 lifted files (16 `suppressions/unused` + 1 format), all inherited from the fork (which has 74 under the same rules). **Fix them** — they are mechanical (`biome check --write .` for the format one; delete the unused `// biome-ignore` comments for the rest). A red lint gate blocks merge regardless of provenance.
+- Integration tests use disposable PG clusters; a timed-out test used to leak its cluster and slow every later run. Fixed in the helper. If you see T05 > 10s, look for stray `stellarc-test-*` dirs first.
+- Vitest is the real runner; `bun test` only runs `tests/gates.test.ts`, which spawns both Vitest configs and asserts exit 0.
+
+**Remaining scope (authoritative, replaces the PR body's stale list):** T02, T03, T07–T09, T11, T12, T14–T23 test matrix per §7; production `Config`/`SqlLive`/`Authz` Layers with sanitized error map (§3); worker lifecycle (acquire/release/terminate only); runtime append-only grants on `event`; opaque authenticated cursors + long-poll wake/cancel; server-side log-mode telemetry (§5c ruling); Playwright config with four projects + `toHaveScreenshot` against the committed baselines; CI workflow running lint/typecheck/unit/integration/e2e. Update the PR body's Remaining list to this and keep it current.
+
+
+### 5e. Orchestrator ruling — UI typecheck boundary and the definition of T0-done (2026-09-09)
+
+c12 reported the truth: explicit UI typecheck (`tsc -p apps/stellarc-ui/tsconfig.app.json`) exits with 429 errors, dominated by TS2339 "property does not exist on type '{}'" — every one traces to `hc<AppType>` where `AppType` came from the fork's `@kaneo/api`, which does not exist here. **129 UI files import that client; 121 call sites across 88 route paths.** That surface IS the data-layer rewrite ADR 0008 names ("pixels frozen, hooks rewritten"). It is delivered slice by slice in T1–T7 as each domain's Effect API + TanStack DB collections land. **It is not T0 scope, and T0 must not fake it.**
+
+Rulings:
+
+1. **Root `typecheck` excluding `apps/stellarc-ui` is correct for T0 and stays.** The merge gate for STL-14 runs root lint/typecheck/unit/integration/build + the UI *build* (Vite) + Playwright smoke. It does not run UI tsc.
+2. **Add `apps/stellarc-ui` typecheck as a tracked, expected-red gate**: script `typecheck:ui`, wired into CI as a non-blocking job that publishes the error count. `.forge/ui-typecheck-budget.json` records `{ "count": 429, "at": "<sha>" }`. Each T1–T7 slice must lower it and update the file; the merge gate for those tickets fails if the count rose. T7's gate is `count == 0` and the job becomes blocking.
+3. **`e2e:screens` does not exist — create it** as the Playwright project runner that captures all four projects for the screens whose routes resolve on the synthetic fixture. Per 5d-Q1 it generates baselines on first run (`--update-snapshots` once) and asserts after. Screens whose fixture is not yet served by the stub API are `test.fixme` with the owning ticket named — not skipped silently.
+4. **T0 acceptance (authoritative, closes the ticket):**
+   - root lint/typecheck/unit/integration/build green; UI Vite build green
+   - `bun run e2e` green on the four projects for: `sign-in`, `org-shell` (with the stub API serving the minimum fixture), plus structural landmark assertions for those two
+   - sync engine: T01 (reconnect exactly-once with boundary-removal negative control), T04, T05, T06, T07, T10, T12, T13, T23 green; T08/T09 (stock `@electric-sql/client` round-trip incl. `awaitTxId`) green; T11 long-poll wake/cancel green
+   - worker process starts, acquires, releases, terminates cleanly (no domain behaviour)
+   - `ui-typecheck-budget.json` committed with the honest count
+   - PR body Remaining list is EMPTY or names only items explicitly deferred to a numbered ticket
+   Everything else in the T02–T23 matrix that is not listed above is **deferred to the slice that owns the domain** (see §1 OUT-of-scope owners) and must be named in that ticket's spec by the orchestrator.
+5. When (4) holds: `gh pr ready 28`. Not before.
+
+
+### 5f. Orchestrator amendment — OpenTelemetry-native from T0 (ADR 0010, 2026-09-09)
+
+Operator ruling: Stellarc is OTel-native. **T0 delivers `TelemetryLive`** and instruments everything T0 already built. This is added to §5e acceptance.
+
+Deliverables:
+1. `packages/telemetry/src/index.ts` — `TelemetryLive` Layer built on `@effect/opentelemetry` `NodeSdk`: OTLP/HTTP trace + metric + log exporters from `OTEL_EXPORTER_OTLP_ENDPOINT` (no-op exporter when unset), resource attrs `service.name`, `service.version` (git SHA via env), `deployment.environment`, `stellarc.boot_generation`. Plus `TelemetryTest` Layer with **in-memory exporters** that tests read from.
+2. Wrap the `@effect/sql-pg` client so every query emits a `db.*` span (`db.system=postgresql`, `db.operation`, `db.sql.table`); **statement text is never an attribute**.
+3. Convert every existing service function in `packages/domain`, `packages/sync`, `packages/db` to `Effect.fn("<Module>.<name>")`. Migration runner spans: `stellarc.migrate.apply` with `stellarc.migration.version`.
+4. Event append: span `stellarc.event.append` with `stellarc.event.type`, `stellarc.event.seq`, `stellarc.event.txid`; counter `stellarc_events_appended_total{type}`.
+5. Shape server: `stellarc.shape.snapshot` / `stellarc.shape.tail` spans with `stellarc.shape.table`, `stellarc.shape.offset_from`, `stellarc.shape.events_sent`; histogram `stellarc_shape_tail_wait_seconds`; gauge `stellarc_shape_live_connections`. Inbound `traceparent` honoured on every shape request; the mutation→event→shape-emit chain is ONE trace.
+6. HTTP: server span per request with `http.route`, `http.request.method`, `http.response.status_code`, `stellarc.org`, `stellarc.principal.kind`. Errors recorded with `error.type` = tagged-error `_tag`. Sanitized messages only.
+7. Worker: `stellarc.job.<type>` span per job, span-linked to the producing mutation; `stellarc_outbox_lag_seconds` gauge. (T0 worker has no jobs — instrument the lifecycle: `stellarc.worker.start/stop`.)
+8. Effect `Logger` bridged to OTel logs; `console.*` forbidden outside `tests/` and the fatal handler — add a Biome rule (`noConsole` with those overrides) and prove it fires.
+9. **Span assertions in tests** (this is where the negative control lives): T01 asserts the reconnect trace has exactly one `stellarc.shape.snapshot` and N `stellarc.shape.tail` spans with contiguous `offset_from`; T05 asserts one `stellarc.event.append` span per event under one parent; T13 asserts the 401/403 spans carry `error.type` and NO principal attributes. Sabotage: remove `Effect.fn` from one service → its span assertion goes red.
+10. `docker-compose.otel.yml` (Collector → Tempo/Prometheus/Loki/Grafana) + `bun run otel:up`; not required by tests.
+
+Add to the PR: a screenshot of one T01 trace in Grafana/Tempo showing the snapshot→tail spans under one request. That is the "it actually exports" proof.
+
+**5f-Q2 ruling:** `noConsole` enforced on api/worker/packages; `apps/stellarc-ui/**` has an explicit override (frozen lift; 18 sites owned by STL-15–21, tracked as `console_sites` in `ui-typecheck-budget.json`; browser OTel web SDK is a T1 item). No UI source edits in T0.
+
+§5e acceptance now includes items 1–9 above. Item 10 may be a follow-up commit in the same PR.
+
+**Local OTLP sink (this host):** Tempo `http://localhost:4318` (OTLP/HTTP) / `:4317` (gRPC), query API `:3200`, Grafana `http://localhost:3210` (anonymous Admin, Tempo datasource `uid=tempo` provisioned). systemd user units `tempo.service`, `grafana.service`. Smoke-verified: a span POSTed to `/v1/traces` is queryable at `/api/traces/<id>` within 4s. Use it for the §5f screenshot; tests still use `TelemetryTest` in-memory.
 
 ## 6. Pixel-frozen UI surfaces
 

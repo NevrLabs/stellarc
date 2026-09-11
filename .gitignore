@@ -10,3 +10,5 @@ playwright-report/
 .forge-answer-*.md
 __pycache__/
 *.pyc
+.forge/worktrees/
+.forge/briefs/

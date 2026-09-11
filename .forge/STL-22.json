@@ -1,0 +1,41 @@
+{
+ "ticket": "STL-22",
+ "stages": [
+  {
+   "stage": "triage",
+   "status": "running",
+   "at": "2026-09-10T04:09:26+00:00"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-10T04:12:45+00:00",
+   "agent": "8747d2c7-50bd-415e-a737-a040dd1de904"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T04:37:15+00:00"
+  },
+  {
+   "stage": "spec",
+   "status": "fail",
+   "at": "2026-09-10T04:38:54+00:00",
+   "agent": "b82ff5e7-6d97-4c7c-83f2-475cc291a63b",
+   "reason": "no spec file written"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-10T05:11:41+00:00"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-10T05:24:25+00:00",
+   "agent": "8839ce01-cace-4782-a599-909db6f95182",
+   "artifact": ".forge/STL-22.spec.md"
+  }
+ ],
+ "cycle": 0
+}
