@@ -628,8 +628,14 @@ def cmd_review(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); _lk = _lock(t); gate(t, "implement", this="review")
     s = load_state(t); cycle = s["cycle"]
     impl = next(st for st in reversed(s["stages"]) if st["stage"] == "implement" and st["status"] == "pass")
+    # Orphan-reaped / orchestrator-recorded passes may lack model/pr: inherit from the nearest implement entry that has them.
+    for k in ("model", "pr", "branch"):
+        if not impl.get(k):
+            donor = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st.get(k)), None)
+            if donor: impl[k] = donor[k]
+    if not impl.get("pr"): die(f"{t}: no PR recorded on any implement entry — cannot review")
     # Reviewer is chosen to be a DIFFERENT family from whoever implemented this cycle.
-    impl_fam = family(impl["model"])
+    impl_fam = family(impl.get("model") or "")
     reviewers = c["models"]["review"] if isinstance(c["models"]["review"], list) else [c["models"]["review"]]
     reviewer = next((m for m in reviewers if family(m) != impl_fam), None)
     if reviewer is None:

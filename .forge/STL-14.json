@@ -598,13 +598,6 @@
   },
   {
    "stage": "review",
-   "status": "running",
-   "at": "2026-09-10T20:34:41+00:00",
-   "cycle": 29,
-   "model": "hermes:accept_edits/ocg/deepseek-v4-pro"
-  },
-  {
-   "stage": "review",
    "status": "rework",
    "at": "2026-09-10T20:50:13+00:00",
    "agent": "96dd727a-fdf9-477c-a4ec-21df5812fa57",
@@ -638,7 +631,9 @@
    "cycle": 30,
    "pr": 28,
    "pr_url": "https://github.com/NevrLabs/stellarc/pull/28",
-   "branch": "forge/stl-14-c4"
+   "branch": "forge/stl-14-c4",
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "head": "a8575a43"
   }
  ],
  "cycle": 30
