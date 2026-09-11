@@ -1,0 +1,28 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Stellarc",
+	"version": "0.1.0",
+	"identifier": "dev.stellarc.desktop",
+	"build": {
+		"beforeBuildCommand": "bash scripts/build-ui.sh",
+		"frontendDist": "../apps/stellarc-ui/dist"
+	},
+	"app": {
+		"windows": [],
+		"security": {
+			"csp": "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["msi", "nsis", "deb", "appimage", "dmg"],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/icon.ico",
+			"icons/icon.icns"
+		],
+		"shortDescription": "Stellarc — control plane for AI coding agents",
+		"longDescription": "Stellarc Desktop is a Tauri 2 shell around the pixel-frozen stellarc-ui bundle. It loads the frozen web UI over Tauri's asset protocol and points it at the stellarc-api deployment."
+	}
+}

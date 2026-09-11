@@ -14,6 +14,8 @@
 		"typecheck": "tsc --noEmit",
 		"typecheck:ui": "tsc --noEmit --pretty false -p apps/stellarc-ui/tsconfig.app.json",
 		"build": "turbo run build",
+		"desktop:build": "bun run --cwd desktop tauri build",
+		"desktop:check": "cargo check --manifest-path desktop/Cargo.toml --all-targets",
 		"e2e": "playwright test",
 		"e2e:screens": "playwright test frozen.spec.ts",
 		"otel:up": "docker compose -f docker-compose.otel.yml up -d"
