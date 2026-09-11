@@ -148,6 +148,9 @@ def reap_orphans(n):
         try: os.kill(x["pid"], 0); continue
         except PermissionError: continue
         except ProcessLookupError: pass
+        try: age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(x.get("at", ""))).total_seconds()
+        except Exception: age = 1e9
+        if age < 90: continue                       # the dying process's own handler records the outcome; don't race it
         status = paseo_status(x.get("agent", ""))
         if status in ("running", "needs_input"): continue
         stage = x.get("stage")

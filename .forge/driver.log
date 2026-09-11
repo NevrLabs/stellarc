@@ -2554,3 +2554,10 @@
 2026-09-11T21:33:56+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-11T21:36:41+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-11T21:38:53+00:00 idle       -        0/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-11T21:41:07+00:00 start      STL-14   merge
+2026-09-11T21:41:07+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-11T21:41:22+00:00 start      STL-14   merge
+2026-09-11T21:41:24+00:00 fail       STL-14   merge rc=1: forge: command failed (127): bun install --frozen-lockfile | /bin/sh: 1: bun: not found
+2026-09-11T21:43:26+00:00 orphan     STL-14   merge-gate c watcher dead → fail
+2026-09-11T21:43:40+00:00 start      STL-14   merge
+2026-09-11T21:43:42+00:00 fail       STL-14   merge rc=1: forge: command failed (127): bun install --frozen-lockfile | /bin/sh: 1: bun: not found

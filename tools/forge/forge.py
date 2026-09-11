@@ -55,7 +55,13 @@ def die(msg, code=1):
 
 def now(): return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
+def _tool_env(env):
+    e = dict(env or os.environ)
+    e["PATH"] = f"{HOME}/.bun/bin:{HOME}/.local/node/bin:{HOME}/.local/bin:" + e.get("PATH", "/usr/local/bin:/usr/bin:/bin")
+    return e
+
 def sh(cmd, cwd=None, env=None, check=True, capture=True, timeout=600):
+    env = _tool_env(env)
     # paseo calls are retried through transient daemon/binary hiccups (npm upgrade swapping the symlink,
     # daemon restart, 'Connection timed out'): a watcher must outlive a 30s blip, not lose the cycle to it.
     is_paseo = not isinstance(cmd, str) and cmd and str(cmd[0]).endswith("/paseo")
@@ -684,6 +690,9 @@ def cmd_merge(args):
     try:
         if (wt / "package.json").exists() and not (wt / "node_modules").exists():
             sh("bun install --frozen-lockfile", cwd=wt, timeout=900)
+        for pre in c.get("gate_prereqs", []):        # e.g. UI build + playwright browsers before e2e
+            r = sh(pre, cwd=wt, check=False, timeout=1800)
+            results.append((f"(prereq) {pre}", r.returncode, (r.stdout + r.stderr)[-1200:]))
         for g in c["gates"] + ([c["e2e"]] if c.get("e2e") else []):
             r = sh(g, cwd=wt, check=False, timeout=1800)
             results.append((g, r.returncode, (r.stdout + r.stderr)[-1200:]))
