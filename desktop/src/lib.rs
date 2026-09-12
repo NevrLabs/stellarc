@@ -16,7 +16,11 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 /// API origin baked at compile time. `scripts/build-ui.sh` bakes the same value
 /// into the frozen UI's `VITE_API_URL`; the shell uses it only for the
 /// launch-time `GET /health` readiness log line (best-effort, non-fatal).
-const API_URL: &str = option_env!("DESKTOP_API_URL").unwrap_or("http://localhost:1337");
+/// `Option::unwrap_or` is not a stable const fn — const `match` is the idiom.
+const API_URL: &str = match option_env!("DESKTOP_API_URL") {
+	Some(url) => url,
+	None => "http://localhost:1337",
+};
 
 /// Emit one structured startup line to stderr.
 fn log_event(event: &str) {

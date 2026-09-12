@@ -178,6 +178,7 @@ jobs:
 
       - name: bake API origin into UI build + resolved config copy (D3)
         run: bash desktop/scripts/build-ui.sh
+        shell: bash
         env:
           DESKTOP_API_URL: ${{ env.DESKTOP_API_URL }}
 
