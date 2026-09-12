@@ -112,19 +112,15 @@ echo "$VITE_API_URL" > dist/index.js
 }
 
 function runBuildUi(root: string, apiUrl: string) {
-	return spawnSync(
-		"bash",
-		[join(root, "desktop/scripts/build-ui.sh")],
-		{
-			cwd: root,
-			encoding: "utf8",
-			env: {
-				...process.env,
-				DESKTOP_API_URL: apiUrl,
-				PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}`,
-			},
+	return spawnSync("bash", [join(root, "desktop/scripts/build-ui.sh")], {
+		cwd: root,
+		encoding: "utf8",
+		env: {
+			...process.env,
+			DESKTOP_API_URL: apiUrl,
+			PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}`,
 		},
-	);
+	});
 }
 
 test("T03 build-ui.sh bakes DESKTOP_API_URL into a manifest, never the localhost fallback", () => {
@@ -167,10 +163,7 @@ test("T03 build-ui.sh bakes DESKTOP_API_URL into a manifest, never the localhost
 		expect(resolved).toContain("https://api.example.com");
 		expect(resolved).toContain("wss://api.example.com");
 		expect(resolved).not.toContain("__STELLARC_API_ORIGIN__");
-		const source = readFileSync(
-			join(root, "desktop/tauri.conf.json"),
-			"utf8",
-		);
+		const source = readFileSync(join(root, "desktop/tauri.conf.json"), "utf8");
 		expect(source).toContain("__STELLARC_API_ORIGIN__");
 		expect(source).not.toContain("https://api.example.com");
 	} finally {
@@ -195,10 +188,7 @@ test("T03b build-ui.sh is idempotent: a second run with a new origin re-resolves
 		expect(resolved).not.toContain("__STELLARC_API_ORIGIN__");
 
 		// The source conf never moved off the placeholder.
-		const source = readFileSync(
-			join(root, "desktop/tauri.conf.json"),
-			"utf8",
-		);
+		const source = readFileSync(join(root, "desktop/tauri.conf.json"), "utf8");
 		expect(source).toContain("__STELLARC_API_ORIGIN__");
 		expect(source).not.toContain("api-one.example.com");
 		expect(source).not.toContain("api-two.example.com");
@@ -232,10 +222,9 @@ test("T06 desktop Maestro smoke flow parses with the required steps", () => {
 		join(ROOT, ".github/workflows/desktop.yml"),
 		"utf8",
 	);
-	expect(
-		workflow,
-		"maestro must run from desktop/e2e/maestro",
-	).toContain("working-directory: desktop/e2e/maestro");
+	expect(workflow, "maestro must run from desktop/e2e/maestro").toContain(
+		"working-directory: desktop/e2e/maestro",
+	);
 	expect(
 		workflow,
 		"maestro test must receive --config config.yaml (D5)",
