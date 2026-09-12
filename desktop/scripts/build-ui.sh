@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Build the frozen stellarc-ui bundle with VITE_API_URL baked from
-# DESKTOP_API_URL, then record the baked origin in a build manifest so CI can
-# prove a release build never falls back to the localhost dev origin.
+# DESKTOP_API_URL, record the baked origin in a build manifest so CI can
+# prove a release build never falls back to the localhost dev origin, and
+# emit desktop/target/tauri.conf.build.json — a resolved COPY of the Tauri
+# config. The source tauri.conf.json keeps its placeholder (rework D3), so
+# repeat builds with different origins are idempotent and a local
+# desktop:build never dirties the tree.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,8 +33,13 @@ cat > "$dist/stellarc-desktop-manifest.json" <<EOF
 }
 EOF
 
-# Resolve the CSP placeholder in tauri.conf.json so the shipped webview allows
-# exactly the API origin (http + ws) and nothing else.
-sed -i "s#__STELLARC_API_ORIGIN__#${DESKTOP_API_URL} ${ws_origin}#g" "$here/tauri.conf.json"
+# Resolve the CSP placeholder into a build-time COPY under desktop/target/
+# (gitignored, mirroring v1's /target/ line). Consumers pass it to the Tauri
+# CLI via -c/--config, which merges it over the source conf; the placeholder
+# in the source file is never consumed, so the next build with a different
+# origin resolves cleanly (idempotent).
+mkdir -p "$here/target"
+sed "s#__STELLARC_API_ORIGIN__#${DESKTOP_API_URL} ${ws_origin}#g" \
+	"$here/tauri.conf.json" > "$here/target/tauri.conf.build.json"
 
-echo "baked VITE_API_URL=${DESKTOP_API_URL} into apps/stellarc-ui/dist and desktop/tauri.conf.json"
+echo "baked VITE_API_URL=${DESKTOP_API_URL} into apps/stellarc-ui/dist; CSP resolved into desktop/target/tauri.conf.build.json"

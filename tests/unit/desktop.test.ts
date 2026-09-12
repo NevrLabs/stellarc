@@ -70,6 +70,63 @@ test("T02 desktop slice leaves the frozen UI tree untouched", () => {
 	expect(changed, "frozen UI tree modified by the desktop slice").toEqual([]);
 });
 
+function makeDesktopSandbox(): string {
+	const root = mkdtempSync(join(tmpdir(), "stellarc-desktop-build-"));
+	// Reproduce the script's expected layout in a sandbox so the full bake
+	// path runs without a real Vite build: `repo/apps/stellarc-ui` plus a
+	// `desktop/tauri.conf.json` carrying the CSP placeholder.
+	const desktop = join(root, "desktop");
+	const scripts = join(desktop, "scripts");
+	mkdirSync(join(root, "apps/stellarc-ui"), { recursive: true });
+	mkdirSync(scripts, { recursive: true });
+	writeFileSync(
+		join(scripts, "build-ui.sh"),
+		readFileSync(join(ROOT, "desktop/scripts/build-ui.sh"), "utf8"),
+	);
+	chmodSync(join(scripts, "build-ui.sh"), 0o755);
+	writeFileSync(
+		join(desktop, "tauri.conf.json"),
+		JSON.stringify({
+			identifier: "dev.stellarc.desktop",
+			app: {
+				security: {
+					csp: "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__",
+				},
+			},
+		}),
+	);
+
+	// Stub `bun` so `bun run build` simulates a Vite build that bakes
+	// VITE_API_URL into the emitted bundle, like the real frozen build does.
+	const bin = join(root, "bin");
+	mkdirSync(bin, { recursive: true });
+	writeFileSync(
+		join(bin, "bun"),
+		`#!/usr/bin/env bash
+mkdir -p dist
+echo "$VITE_API_URL" > dist/index.js
+`,
+	);
+	chmodSync(join(bin, "bun"), 0o755);
+	return root;
+}
+
+function runBuildUi(root: string, apiUrl: string) {
+	return spawnSync(
+		"bash",
+		[join(root, "desktop/scripts/build-ui.sh")],
+		{
+			cwd: root,
+			encoding: "utf8",
+			env: {
+				...process.env,
+				DESKTOP_API_URL: apiUrl,
+				PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}`,
+			},
+		},
+	);
+}
+
 test("T03 build-ui.sh bakes DESKTOP_API_URL into a manifest, never the localhost fallback", () => {
 	const script = join(ROOT, "desktop/scripts/build-ui.sh");
 	expect(existsSync(script), "build-ui.sh missing").toBe(true);
@@ -77,51 +134,9 @@ test("T03 build-ui.sh bakes DESKTOP_API_URL into a manifest, never the localhost
 		0,
 	);
 
-	const root = mkdtempSync(join(tmpdir(), "stellarc-desktop-build-"));
+	const root = makeDesktopSandbox();
 	try {
-		// Reproduce the script's expected layout in a sandbox so the full bake
-		// path runs without a real Vite build: `repo/apps/stellarc-ui` plus a
-		// `desktop/tauri.conf.json` carrying the CSP placeholder.
-		const desktop = join(root, "desktop");
-		const scripts = join(desktop, "scripts");
-		mkdirSync(join(root, "apps/stellarc-ui"), { recursive: true });
-		mkdirSync(scripts, { recursive: true });
-		writeFileSync(join(scripts, "build-ui.sh"), readFileSync(script, "utf8"));
-		chmodSync(join(scripts, "build-ui.sh"), 0o755);
-		writeFileSync(
-			join(desktop, "tauri.conf.json"),
-			JSON.stringify({
-				identifier: "dev.stellarc.desktop",
-				app: {
-					security: {
-						csp: "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__",
-					},
-				},
-			}),
-		);
-
-		// Stub `bun` so `bun run build` simulates a Vite build that bakes
-		// VITE_API_URL into the emitted bundle, like the real frozen build does.
-		const bin = join(root, "bin");
-		mkdirSync(bin, { recursive: true });
-		writeFileSync(
-			join(bin, "bun"),
-			`#!/usr/bin/env bash
-mkdir -p dist
-echo "$VITE_API_URL" > dist/index.js
-`,
-		);
-		chmodSync(join(bin, "bun"), 0o755);
-
-		const result = spawnSync("bash", [join(scripts, "build-ui.sh")], {
-			cwd: root,
-			encoding: "utf8",
-			env: {
-				...process.env,
-				DESKTOP_API_URL: "https://api.example.com",
-				PATH: `${bin}:${process.env.PATH ?? ""}`,
-			},
-		});
+		const result = runBuildUi(root, "https://api.example.com");
 		expect(result.status, result.stderr).toBe(0);
 
 		const manifest = JSON.parse(
@@ -142,11 +157,51 @@ echo "$VITE_API_URL" > dist/index.js
 		expect(bundle).toContain("https://api.example.com");
 		expect(bundle).not.toContain("localhost:1337");
 
-		// The CSP placeholder resolved to http + ws origins.
-		const resolved = readFileSync(join(desktop, "tauri.conf.json"), "utf8");
+		// The CSP placeholder resolves into the BUILD-TIME copy, never the
+		// source file (review D3): repeat builds with different origins must
+		// stay correct, and a local desktop:build must not dirty the tree.
+		const resolved = readFileSync(
+			join(root, "desktop/target/tauri.conf.build.json"),
+			"utf8",
+		);
 		expect(resolved).toContain("https://api.example.com");
 		expect(resolved).toContain("wss://api.example.com");
 		expect(resolved).not.toContain("__STELLARC_API_ORIGIN__");
+		const source = readFileSync(
+			join(root, "desktop/tauri.conf.json"),
+			"utf8",
+		);
+		expect(source).toContain("__STELLARC_API_ORIGIN__");
+		expect(source).not.toContain("https://api.example.com");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("T03b build-ui.sh is idempotent: a second run with a new origin re-resolves the CSP", () => {
+	const root = makeDesktopSandbox();
+	try {
+		expect(runBuildUi(root, "https://api-one.example.com").status).toBe(0);
+		const second = runBuildUi(root, "https://api-two.example.com");
+		expect(second.status, second.stderr).toBe(0);
+
+		const resolved = readFileSync(
+			join(root, "desktop/target/tauri.conf.build.json"),
+			"utf8",
+		);
+		expect(resolved).toContain("https://api-two.example.com");
+		expect(resolved).toContain("wss://api-two.example.com");
+		expect(resolved).not.toContain("api-one.example.com");
+		expect(resolved).not.toContain("__STELLARC_API_ORIGIN__");
+
+		// The source conf never moved off the placeholder.
+		const source = readFileSync(
+			join(root, "desktop/tauri.conf.json"),
+			"utf8",
+		);
+		expect(source).toContain("__STELLARC_API_ORIGIN__");
+		expect(source).not.toContain("api-one.example.com");
+		expect(source).not.toContain("api-two.example.com");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
