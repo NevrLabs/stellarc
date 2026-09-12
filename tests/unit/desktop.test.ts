@@ -225,6 +225,21 @@ test("T06 desktop Maestro smoke flow parses with the required steps", () => {
 		"utf8",
 	);
 	expect(config).toContain("testOutputDir");
+	// Rework D5: the CLI does not auto-load config.yaml from the CWD or the
+	// flow's directory (verified against maestro 2.10.0 — only --config
+	// applies it), so the workflow must pass the config explicitly.
+	const workflow = readFileSync(
+		join(ROOT, ".github/workflows/desktop.yml"),
+		"utf8",
+	);
+	expect(
+		workflow,
+		"maestro must run from desktop/e2e/maestro",
+	).toContain("working-directory: desktop/e2e/maestro");
+	expect(
+		workflow,
+		"maestro test must receive --config config.yaml (D5)",
+	).toContain("--config config.yaml");
 });
 
 test("T10 CSP allows self + exactly the API origin and nothing else; null rejected", () => {
