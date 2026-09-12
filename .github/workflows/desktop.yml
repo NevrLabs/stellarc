@@ -264,8 +264,10 @@ jobs:
 
   # T06 — Maestro desktop smoke on the two OS with a first-class Maestro driver
   # (macOS + Windows). Linux has no Maestro desktop driver (O1) and is covered
-  # by the xvfb launch smoke above instead. Rework D5: maestro runs FROM
-  # desktop/e2e/maestro so its config.yaml (testOutputDir) actually applies.
+  # by the xvfb launch smoke above instead. Rework D5: maestro 2.x does not
+  # auto-load config.yaml from any directory (verified against 2.10.0), so the
+  # flow runs with an explicit --config; the working-directory makes that
+  # relative reference (and the flow path) unambiguous.
   maestro-desktop:
     needs: bundle-signed
     strategy:
