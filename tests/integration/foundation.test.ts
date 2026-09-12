@@ -1600,7 +1600,7 @@ test("T06 migrations serialize, repeat safely, and reject checksum drift", async
 	const db = await disposablePostgres();
 	resources.push(db.close);
 	await Promise.all([migrate(db.sql), migrate(db.sql)]);
-	expect((await db.sql`SELECT version FROM stellarc_migration`).length).toBe(1);
+	expect((await db.sql`SELECT version FROM stellarc_migration`).length).toBe(2);
 	await db.sql`UPDATE stellarc_migration SET checksum='invalid'`;
 	await expect(migrate(db.sql)).rejects.toThrow("Migration checksum mismatch");
 });
