@@ -527,8 +527,8 @@ INSERT INTO public.resource_grant (id, organization_id, resource_type, resource_
 -- org_event_counter rows for the two orgs (event log appends need them)
 INSERT INTO public.org_event_counter (org, seq) VALUES ('o1', 1), ('o2', 0);
 -- the imported domain event for activity 'act2' (status-changed), seq 1 on o1
-INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid) VALUES
-  ('o1', 1, 'activity:status-changed', 'u1', '{"id":"act2"}', 1, 1);
+INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid, created_at) VALUES
+  ('o1', 1, 'activity:status-changed', 'u1', '{"id":"act2"}', 1, 1, '2026-01-01T00:00:00Z');
 `;
 }
 

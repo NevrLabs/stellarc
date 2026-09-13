@@ -4,16 +4,14 @@
 // deterministic synthetic rows. No production data is ever committed.
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { disposablePostgres } from "../../tests/helpers/postgres.ts";
 import { LEGACY_SCHEMA_SQL, legacySeedSql, repoRoot } from "./canon.ts";
 
 const outPath = () =>
 	join(
-		repoRoot(),
-		"tests",
-		"fixtures",
-		"reconciliation",
+		process.env.RECON_FIXTURE_DIR ??
+			join(repoRoot(), "tests", "fixtures", "reconciliation"),
 		"legacy-snapshot.pgdump",
 	);
 
@@ -25,9 +23,7 @@ async function main() {
 		const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
 		const socketDir = db.sql.options.host[0];
 		const out = outPath();
-		mkdirSync(join(repoRoot(), "tests", "fixtures", "reconciliation"), {
-			recursive: true,
-		});
+		mkdirSync(dirname(out), { recursive: true });
 		execFileSync(
 			join(bin, "pg_dump"),
 			[

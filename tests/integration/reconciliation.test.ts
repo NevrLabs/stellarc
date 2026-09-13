@@ -20,6 +20,10 @@ import { disposablePostgres } from "../helpers/postgres";
 
 const manifest: Manifest = await loadManifest();
 
+function repoRootFromModule(): string {
+	return import.meta.dirname.replace(/\/tests\/integration$/, "");
+}
+
 function resultFor(results: QueryResult[], id: number): QueryResult {
 	const found = results.find((r) => r.id === id);
 	if (!found) throw new Error(`query ${id} missing from results`);
@@ -256,6 +260,112 @@ describe("R20b #14 re-issue contract strictness (review D8)", () => {
 			const result = resultFor(await verdicts(tx), 14);
 			expect(result.verdict).toBe("green");
 		});
+	});
+});
+
+describe("R03 fixture freshness and determinism", () => {
+	// Regenerate both dumps into a tmp dir via the committed generators, restore
+	// them side by side with the committed fixtures, and compare every table as a
+	// normalized multiset of rows. RED if a committed dump was mutated by hand or
+	// if a generator is nondeterministic.
+	async function logicalDump(
+		sql: Sql,
+		side: "legacy" | "public",
+		tables: readonly string[],
+	): Promise<string> {
+		const parts: string[] = [];
+		for (const t of tables) {
+			const cols = await sql`
+        SELECT string_agg(column_name, ',' ORDER BY column_name) AS cols
+          FROM information_schema.columns
+         WHERE table_schema = ${side} AND table_name = ${t}`;
+			const rows = await sql.unsafe(
+				`SELECT * FROM ${side}."${t.replace(/"/g, '""')}"`,
+			);
+			const colList = (cols[0]?.cols ?? "").split(",").filter(Boolean);
+			const normalized = rows
+				.map((r) =>
+					colList
+						.map((c) => `${c}=${JSON.stringify(r[c]) ?? "null"}`)
+						.sort()
+						.join("|"),
+				)
+				.sort();
+			parts.push(`-- ${side}.${t}\n${normalized.join("\n")}`);
+		}
+		return parts.join("\n");
+	}
+
+	test("regenerated dumps are logically equivalent to the committed fixtures", async ({}) => {
+		const { execFileSync } = await import("node:child_process");
+		const { mkdtemp, rm } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
+		const gen = await mkdtemp(join(tmpdir(), "stl27-regen-"));
+		// Run the generators with RECON_FIXTURE_DIR so they write to the tmp dir.
+		// They default to the committed path; env override keeps the tree clean.
+		const env = {
+			...process.env,
+			RECON_FIXTURE_DIR: gen,
+			PATH: process.env.PATH ?? "",
+		};
+		try {
+			execFileSync(
+				process.execPath,
+				["--bun", "tools/reconciliation/make-legacy-fixture.ts"],
+				{ cwd: repoRootFromModule(), env, stdio: "pipe" },
+			);
+			execFileSync(
+				process.execPath,
+				["--bun", "tools/reconciliation/make-destination-golden.ts"],
+				{ cwd: repoRootFromModule(), env, stdio: "pipe" },
+			);
+
+			// restore regenerated + committed into two databases and compare
+			const regen = await disposablePostgres();
+			try {
+				execFileSync(
+					join(bin, "pg_restore"),
+					[
+						"-h",
+						regen.sql.options.host[0],
+						"-U",
+						"stellarc_owner",
+						"-d",
+						"postgres",
+						"--no-owner",
+						join(gen, "legacy-snapshot.pgdump"),
+					],
+					{ stdio: "pipe" },
+				);
+				execFileSync(
+					join(bin, "pg_restore"),
+					[
+						"-h",
+						regen.sql.options.host[0],
+						"-U",
+						"stellarc_owner",
+						"-d",
+						"postgres",
+						"--no-owner",
+						join(gen, "stellarc-destination-golden.pgdump"),
+					],
+					{ stdio: "pipe" },
+				);
+				for (const [side, tables] of [
+					["legacy", Object.keys(manifest.legacy_tables)],
+					["public", Object.keys(manifest.destination_tables)],
+				] as const) {
+					const a = await logicalDump(cluster.sql, side, tables);
+					const b = await logicalDump(regen.sql, side, tables);
+					expect(b, `regenerated ${side} differs from committed`).toBe(a);
+				}
+			} finally {
+				await regen.close();
+			}
+		} finally {
+			await rm(gen, { recursive: true, force: true });
+		}
 	});
 });
 
