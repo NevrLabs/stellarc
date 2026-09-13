@@ -1,4 +1,5 @@
 import { Context, Schema } from "effect";
+import type { Sql } from "postgres";
 import { expect, test } from "vitest";
 import * as authSchemas from "../../packages/contracts/src/identity/auth-schemas";
 import {
@@ -14,9 +15,12 @@ import {
 	IdentityApiGroup,
 	IdentityError,
 	OrganizationPublic,
+	Permission,
 	UserPublic,
 } from "../../packages/contracts/src/identity/http";
 import * as rows from "../../packages/contracts/src/identity/tables";
+import { statement } from "../../packages/contracts/src/legacy/permissions";
+import { applyMigration, runMigration } from "../../packages/db/src/migrate";
 import * as domain from "../../packages/domain/src/identity";
 
 const decode = (schema: Schema.Schema.Any) => (input: unknown) =>
@@ -507,4 +511,117 @@ test("U4 request validation primitives accept valid samples and reject invalid o
 	expect(decode(UserPublic)(userPublic)).toEqual(userPublic);
 	expect(decode(OrganizationPublic)(orgPublic)).toEqual(orgPublic);
 	expect(decode(ApiKeyPublic)(apiKeyPublic)).toEqual(apiKeyPublic);
+});
+
+// --- Defect-fix regression tests (rework cycle 2) ---------------------------------------
+
+// Minimal template-tag fake for the postgres Sql surface runMigration uses.
+// Records INSERTs so tests can assert what was applied without a PG cluster.
+function makeFakeSql() {
+	const inserted: Array<{ version: string; checksum: string }> = [];
+	const registered = new Map<string, string>();
+	const tx = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+		const text = strings.join("?");
+		if (text.includes("SELECT pg_advisory_xact_lock"))
+			return Promise.resolve([]);
+		if (text.includes("CREATE TABLE IF NOT EXISTS stellarc_migration"))
+			return Promise.resolve([]);
+		if (text.includes("SELECT checksum FROM stellarc_migration")) {
+			const version = values[0] as string;
+			return Promise.resolve(
+				registered.has(version) ? [{ checksum: registered.get(version) }] : [],
+			);
+		}
+		if (text.includes("INSERT INTO stellarc_migration")) {
+			const [version, checksum] = values as [string, string];
+			registered.set(version, checksum);
+			inserted.push({ version, checksum });
+			return Promise.resolve([]);
+		}
+		return Promise.reject(new Error(`unexpected query: ${text.slice(0, 48)}`));
+	}) as unknown as Sql;
+	(tx as unknown as { unsafe: (s: string) => Promise<unknown> }).unsafe = () =>
+		Promise.resolve([]);
+	(
+		tx as unknown as { begin: (fn: (t: Sql) => Promise<void>) => Promise<void> }
+	).begin = (fn) => fn(tx);
+	return { sql: tx, inserted };
+}
+
+test("D1 runMigration returns every entry's version+checksum in order; re-run verifies without re-applying", async () => {
+	const fresh = makeFakeSql();
+	const first = await runMigration(fresh.sql);
+	expect(first.map((e) => e.version)).toEqual([
+		"0001_foundation",
+		"0002_identity",
+	]);
+	expect(fresh.inserted.map((e) => e.version)).toEqual([
+		"0001_foundation",
+		"0002_identity",
+	]);
+	// second run over the same cluster: entries verified, nothing re-applied
+	const second = await runMigration(fresh.sql);
+	expect(second.map((e) => e.version)).toEqual([
+		"0001_foundation",
+		"0002_identity",
+	]);
+	expect(fresh.inserted).toHaveLength(2);
+});
+
+test("D1 applyMigration annotates stellarc.migration.version with the run's versions", async () => {
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { ManagedRuntime } = await import("effect");
+	const fake = makeFakeSql();
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		await runtime.runPromise(applyMigration(fake.sql));
+		await telemetry.reader.forceFlush();
+		const spans = telemetry.spans.getFinishedSpans();
+		const span = spans.find((s) => s.name === "stellarc.migrate.apply");
+		expect(span, "applyMigration span").toBeDefined();
+		expect(span?.attributes["stellarc.migration.version"]).toBe(
+			"0001_foundation,0002_identity",
+		);
+	} finally {
+		await runtime.dispose();
+	}
+});
+
+test("U5 Permission is constrained to the legacy permissions vocabulary", () => {
+	const perm = decode(Permission);
+	// every vocabulary resource/action pair decodes
+	for (const [resource, actions] of Object.entries(statement)) {
+		const sample: Record<string, string[]> = {};
+		sample[resource] = [...actions];
+		expect(perm(sample), resource).toEqual(sample);
+	}
+	// empty ceiling preserved (ApiKeyPublic permissions null stays legal)
+	expect(perm({})).toEqual({});
+	// empty action array allowed (elements must be nonempty, not the array)
+	expect(perm({ board: [] })).toEqual({ board: [] });
+	// unknown resource rejected
+	expect(() => perm({ workspace: ["read"] })).toThrow();
+	// known resource, off-vocabulary action rejected
+	expect(() => perm({ board: ["fly"] })).toThrow();
+	expect(() => perm({ board: ["read", "fly"] })).toThrow();
+	expect(() => perm({ organization: ["fly"] })).toThrow();
+	// non-string action rejected
+	expect(() => perm({ board: [1] as unknown as string[] })).toThrow();
+});
+
+test("U6 user-avatar success schema is array-encoded bytes (Uint8ArrayFromArray semantics)", async () => {
+	const endpoints = Object.entries(IdentityApiGroup.endpoints) as Array<
+		[string, { successSchema: Schema.Schema<unknown, unknown, never> }]
+	>;
+	const avatar = endpoints.find(([name]) => name === "user-avatar");
+	if (!avatar) throw new Error("user-avatar endpoint missing");
+	const decodeBytes = Schema.decodeUnknownSync(avatar[1].successSchema, {
+		onExcessProperty: "error",
+	});
+	const bytes = decodeBytes([104, 105]);
+	expect(bytes).toBeInstanceOf(Uint8Array);
+	expect([...(bytes as Uint8Array)]).toEqual([104, 105]);
+	// a FromSelf-style schema would reject array-encoded input
+	expect(() => decodeBytes(new Uint8Array([104, 105]))).toThrow();
 });

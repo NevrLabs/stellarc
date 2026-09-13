@@ -49,24 +49,33 @@ export async function grantRuntime(sql: Sql, role: string) {
 export const applyMigration = Effect.fn("stellarc.migrate.apply")(function* (
 	sql: Sql,
 ) {
-	yield* Effect.annotateCurrentSpan(
-		"stellarc.migration.version",
-		"0001_foundation",
-	);
-	yield* Effect.tryPromise({
+	const applied = yield* Effect.tryPromise({
 		try: () => runMigration(sql),
 		catch: (cause) => cause,
 	});
+	yield* Effect.annotateCurrentSpan(
+		"stellarc.migration.version",
+		applied.map((entry) => entry.version).join(","),
+	);
+	return applied;
 });
 
 export function migrate(sql: Sql) {
 	return Effect.runPromise(applyMigration(sql));
 }
 
-async function runMigration(sql: Sql) {
+/** One entry per migration in MIGRATIONS, in order: applied this run or already
+ * registered (verified). Returned so callers can annotate spans per run. */
+export interface AppliedMigration {
+	readonly version: string;
+	readonly checksum: string;
+}
+
+export async function runMigration(sql: Sql): Promise<AppliedMigration[]> {
 	const sources = await Promise.all(
 		MIGRATIONS.map((m) => readFile(new URL(m.file, import.meta.url), "utf8")),
 	);
+	const results: AppliedMigration[] = [];
 	await sql.begin(async (tx) => {
 		await tx`SELECT pg_advisory_xact_lock(7414030914)`;
 		await tx`CREATE TABLE IF NOT EXISTS stellarc_migration (
@@ -82,10 +91,13 @@ async function runMigration(sql: Sql) {
 			if (existing) {
 				if (existing.checksum !== checksum)
 					throw new Error("Migration checksum mismatch");
+				results.push({ version: entry.version, checksum });
 				continue;
 			}
 			await tx.unsafe(source);
 			await tx`INSERT INTO stellarc_migration(version, checksum) VALUES (${entry.version}, ${checksum})`;
+			results.push({ version: entry.version, checksum });
 		}
 	});
+	return results;
 }
