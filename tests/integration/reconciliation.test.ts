@@ -67,6 +67,20 @@ describe("R02/R04 fixture restore and R05–R16 canon-proof green", () => {
              to_regclass('legacy.apikey') IS NOT NULL AS k,
              to_regclass('legacy.task') IS NOT NULL AS t`;
 		expect(legacy[0]).toEqual({ u: true, k: true, t: true });
+		// R02: manifest-declared row counts present after restore (both sides)
+		const mismatches: Array<Record<string, unknown>> = [];
+		for (const [side, tables] of [
+			["legacy", manifest.legacy_tables],
+			["public", manifest.destination_tables],
+		] as const) {
+			for (const [table, expected] of Object.entries(tables)) {
+				const [row] = await cluster.sql`SELECT count(*)::int AS actual
+          FROM ${cluster.sql(side)}.${cluster.sql(table)}`;
+				if (row.actual !== expected)
+					mismatches.push({ side, table, expected, actual: row.actual });
+			}
+		}
+		expect(mismatches, JSON.stringify(mismatches)).toEqual([]);
 		// R04: destination golden restored; T0 foundation present
 		const dest = await cluster.sql`
       SELECT to_regclass('public.event') IS NOT NULL AS e,
@@ -142,6 +156,41 @@ describe("R04 blocked semantics and R21 live mode", () => {
 			const result = resultFor(await verdicts(tx), 13);
 			expect(result.verdict).toBe("blocked");
 		});
+	});
+
+	test("R02 negative control: a missing row in a restored table fails the count check", async () => {
+		// The row-count assertion above must be able to fail: remove one row from a
+		// restored legacy table and confirm the count mismatch is detectable.
+		await withRollback(async (tx) => {
+			const before = await tx`SELECT count(*)::int AS n FROM legacy.task`;
+			await tx`DELETE FROM legacy.task WHERE id = 'task3'`;
+			const mismatches = await tx`
+        SELECT (SELECT count(*) FROM legacy.task)::int AS actual,
+               ${manifest.legacy_tables.task}::int AS expected`;
+			expect(mismatches[0].actual).not.toBe(mismatches[0].expected);
+			expect(before[0].n).toBe(mismatches[0].expected);
+		});
+	});
+
+	test("R04 regression: dropping a SQL-referenced table yields verdict blocked, never a crash", async () => {
+		// D4: 05-ticket.sql references legacy.board/board_key_alias and
+		// 12-isolation.sql references public.asset/public.repo; dropping any of
+		// them must flip the dependent query to blocked, not reject the harness.
+		const cases: Array<[number, string]> = [
+			[5, "legacy.board"],
+			[5, "legacy.board_key_alias"],
+			[12, "public.asset"],
+			[12, "public.repo"],
+		];
+		for (const [id, table] of cases) {
+			await withRollback(async (tx) => {
+				await tx.unsafe(`DROP TABLE ${table} CASCADE`);
+				const result = resultFor(await verdicts(tx), id);
+				expect(result.verdict, `query ${id} under dropped ${table}`).toBe(
+					"blocked",
+				);
+			});
+		}
 	});
 
 	test("live mode with no merged importer reports blocked, never green/red; all-blocked is failure", async () => {
