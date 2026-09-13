@@ -82,6 +82,7 @@ def sh(cmd, cwd=None, env=None, check=True, capture=True, timeout=600):
 def paseo_env():
     env = dict(os.environ)
     env["PATH"] = f"{HOME}/.local/node/bin:{HOME}/.local/bin:{env.get('PATH','')}"
+    env.setdefault("TMPDIR", "/mnt/deepvault/tmp")     # lanes' disposable PG clusters + bun/playwright scratch off the root disk
     if PASEO_ENV.exists():
         for line in PASEO_ENV.read_text().splitlines():
             line = line.strip().removeprefix("export ").strip()
@@ -170,6 +171,9 @@ def set_stage_label(n, repo, stage):
     label(n, repo, add=f"forge:{stage}")
 
 # ── paseo ────────────────────────────────────────────────────────────────────
+def worktree_root():
+    return Path(c_get("worktree_root") or (repo_root() / ".forge/worktrees"))
+
 def c_get(key, default=None):
     try: return json.loads((repo_root() / ".forge/config.json").read_text()).get(key, default)
     except Exception: return default
@@ -257,7 +261,8 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
     if mode:  cmd += ["--mode", mode]
     if worktree:
         # Our own git worktree (not a Paseo workspace) so the implementer has an isolated checkout.
-        wt = repo_root() / ".forge/worktrees" / worktree
+        wt = worktree_root() / worktree
+        wt.parent.mkdir(parents=True, exist_ok=True)
         if not wt.exists():
             sh(["git", "fetch", "-q", "origin", base], cwd=repo_root(), check=False)
             sh(["git", "worktree", "add", "-q", "-b", branch, str(wt), f"origin/{base}"], cwd=repo_root())
@@ -568,7 +573,7 @@ def cmd_implement(args):
         sh(["git", "fetch", "-q", "origin", branch], cwd=repo_root(), check=False)
         r = sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root(), check=False)
         if r.returncode:  # branch is checked out in some worktree — remove stale worktrees for this ticket first
-            for wtp in [*Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c*"), *(repo_root() / ".forge/worktrees").glob(f"{t.lower()}-c*")]:
+            for wtp in [*Path.home().glob(f".paseo/worktrees/*/{t.lower()}-c*"), *worktree_root().glob(f"{t.lower()}-c*")]:
                 sh(["git", "worktree", "remove", "--force", str(wtp)], cwd=repo_root(), check=False)
             sh(["git", "worktree", "prune"], cwd=repo_root(), check=False)
             sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root())
@@ -581,7 +586,7 @@ def cmd_implement(args):
                 f"If you run out again, update the PR body's Remaining list and leave it draft.")
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"], pid=os.getpid())
         # Continuation: our own git worktree checked out on the EXISTING branch (synced to origin above).
-        wt = repo_root() / ".forge/worktrees" / f"{t.lower()}-c{cycle}"
+        wt = worktree_root() / f"{t.lower()}-c{cycle}"; wt.parent.mkdir(parents=True, exist_ok=True)
         sh(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
         a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model, cwd=wt)
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
@@ -685,7 +690,7 @@ def cmd_merge(args):
     pr = json.loads(gh(["pr", "view", str(impl["pr"]), "--json", "number,url,headRefOid,headRefName,isDraft,mergeable"], c["repo"]).stdout)
     if pr["isDraft"]: die("PR is a draft — implementer declared it incomplete")
     if pr["mergeable"] == "CONFLICTING": die("PR has conflicts with base — rework required")
-    root = repo_root(); wt = Path(f"/tmp/forge-merge-{t.lower()}")
+    root = repo_root(); wt = Path(c_get("merge_root") or "/tmp") / f"forge-merge-{t.lower()}"
     if wt.exists(): sh(["git", "worktree", "remove", "--force", str(wt)], cwd=root, check=False)
     sh(["git", "fetch", "-q", "origin", pr["headRefName"]], cwd=root)
     sh(["git", "worktree", "add", "--detach", str(wt), pr["headRefOid"]], cwd=root)
