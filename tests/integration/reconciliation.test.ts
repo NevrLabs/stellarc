@@ -148,6 +148,36 @@ describe("R18/R20 query #14 apikey hash audit", () => {
 	});
 });
 
+describe("R05b fidelity arms — previously uncompared columns (review D5)", () => {
+	// One test per defect-named column group. Each first mutates the golden
+	// destination, then asserts the owning query turns red — proving the canon
+	// compares the column. Before D5 these mutations stayed green.
+	const cases: Array<[number, string, string]> = [
+		[1, "account", "UPDATE public.account SET access_token_expires_at = '2020-01-01' WHERE id = 'a1'"],
+		[2, "invitation", "UPDATE public.invitation SET expires_at = '2030-01-01' WHERE id = 'inv1'"],
+		[3, "apikey", "UPDATE public.apikey SET last_refill_at = '2025-05-05', last_request = '2025-05-06' WHERE id = 'k1'"],
+		[4, "board", "UPDATE public.board SET created_at = '2019-01-01' WHERE id = 'b1'"],
+		[7, "milestone", "UPDATE public.milestone SET completed_at = '2025-01-01' WHERE id = 'ms1'"],
+		[10, "repo", "UPDATE public.repo SET last_synced_at = '2025-06-01' WHERE id = 'repo1'"],
+		[10, "repo_issue", "UPDATE public.repo_issue SET author_avatar_url = 'https://avatars/x', external_created_at = '2025-01-01', closed_at = '2025-01-02' WHERE id = 'issue1'"],
+		[10, "repo_pull_request", "UPDATE public.repo_pull_request SET labels = '[\"bug\"]', additions = 10, deletions = 2, changed_files = 3, merged_at = '2025-01-01', closed_at = '2025-01-02', external_created_at = '2025-01-03', external_updated_at = '2025-01-04' WHERE id = 'pr1'"],
+		[10, "github_user_grant", "UPDATE public.github_user_grant SET access_token_expires_at = '2025-01-01', refresh_token = 'rt', refresh_token_expires_at = '2025-02-01', scope = 'repo' WHERE id = 'ghgrant1'"],
+		[10, "integration", "UPDATE public.integration SET created_at = '2019-01-01' WHERE id = 'integ1'"],
+		[10, "installation", "UPDATE public.organization_github_installation SET account_avatar_url = 'https://avatars/y', repository_selection = 'selected' WHERE id = 'install1'"],
+		[9, "asset", "UPDATE public.asset SET created_at = '2019-01-01' WHERE id = 'asset1'"],
+	];
+	for (const [id, tbl, mutation] of cases) {
+		test(`query ${id} compares ${tbl} columns the c1 corpus omitted`, async () => {
+			await withRollback(async (tx) => {
+				await tx.unsafe(mutation);
+				const result = resultFor(await verdicts(tx), id);
+				expect(result.verdict, mutation).toBe("red");
+				expect(result.violations, mutation).toBeGreaterThan(0);
+			});
+		});
+	}
+});
+
 describe("R04 blocked semantics and R21 live mode", () => {
 	test("hiding a ledger table flips its dependent query green -> blocked", async () => {
 		await withRollback(async (tx) => {

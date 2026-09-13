@@ -37,5 +37,7 @@ WITH checks AS (
      AND d.user_id IS NOT DISTINCT FROM s.user_id
      AND d.team_id IS NOT DISTINCT FROM s.team_id
    WHERE s.privilege IS DISTINCT FROM d.privilege
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
 )
 SELECT * FROM checks;

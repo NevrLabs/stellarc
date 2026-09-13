@@ -91,6 +91,9 @@ WITH checks AS (
       OR s.due_date IS DISTINCT FROM d.due_date
       OR s.status IS DISTINCT FROM d.status
       OR s.position IS DISTINCT FROM d.position
+      OR s.completed_at IS DISTINCT FROM d.completed_at
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- acyclicity: a cycle exists iff a task is reachable from itself
   UNION ALL
   SELECT 'relation:cycle', r.cur, 'task_relation'

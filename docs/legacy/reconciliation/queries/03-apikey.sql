@@ -32,5 +32,9 @@ WITH checks AS (
       OR s.expires_at IS DISTINCT FROM d.expires_at
       OR s.permissions IS DISTINCT FROM d.permissions
       OR s.metadata IS DISTINCT FROM d.metadata
+      OR s.last_refill_at IS DISTINCT FROM d.last_refill_at
+      OR s.last_request IS DISTINCT FROM d.last_request
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
 )
 SELECT * FROM checks;

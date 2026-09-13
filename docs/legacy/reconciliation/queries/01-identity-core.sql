@@ -25,6 +25,8 @@ WITH checks AS (
       OR s.role IS DISTINCT FROM d.role
       OR s.banned IS DISTINCT FROM d.banned
       OR s.ban_reason IS DISTINCT FROM d.ban_reason
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- account
   UNION ALL
   SELECT 'account:missing-in-dest', s.id, 'account'
@@ -43,6 +45,10 @@ WITH checks AS (
       OR s.id_token IS DISTINCT FROM d.id_token
       OR s.scope IS DISTINCT FROM d.scope
       OR s.password IS DISTINCT FROM d.password
+      OR s.access_token_expires_at IS DISTINCT FROM d.access_token_expires_at
+      OR s.refresh_token_expires_at IS DISTINCT FROM d.refresh_token_expires_at
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- organization
   UNION ALL
   SELECT 'organization:missing-in-dest', s.id, 'organization'
@@ -82,6 +88,7 @@ WITH checks AS (
       OR s.role IS DISTINCT FROM d.role
       OR s.ai_token_limit IS DISTINCT FROM d.ai_token_limit
       OR s.ai_character_limit IS DISTINCT FROM d.ai_character_limit
+      OR s.joined_at IS DISTINCT FROM d.joined_at
   -- organization_role
   UNION ALL
   SELECT 'organization_role:missing-in-dest', s.id, 'organization_role'

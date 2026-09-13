@@ -39,5 +39,7 @@ checks AS (
       OR s.start_date IS DISTINCT FROM d.start_date
       OR s.due_date IS DISTINCT FROM d.due_date
       OR s.expected_key IS DISTINCT FROM d.key
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
 )
 SELECT * FROM checks;

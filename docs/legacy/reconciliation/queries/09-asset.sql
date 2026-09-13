@@ -30,6 +30,7 @@ WITH checks AS (
       OR s.kind IS DISTINCT FROM d.kind
       OR s.surface IS DISTINCT FROM d.surface
       OR s.created_by IS DISTINCT FROM d.created_by
+      OR s.created_at IS DISTINCT FROM d.created_at
   UNION ALL
   -- object_key uniqueness: any duplicated object_key across destination rows
   SELECT 'asset:object-key-collision', d.object_key, 'asset'

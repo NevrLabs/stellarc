@@ -28,6 +28,7 @@ WITH checks AS (
       OR s.subtask_depth_limit IS DISTINCT FROM d.subtask_depth_limit
       OR s.default_assignee_id IS DISTINCT FROM d.default_assignee_id
       OR s.default_assignee_team_id IS DISTINCT FROM d.default_assignee_team_id
+      OR s.created_at IS DISTINCT FROM d.created_at
   -- board_key_alias
   UNION ALL
   SELECT 'board_key_alias:missing-in-dest', s.id, 'board_key_alias'
@@ -41,5 +42,6 @@ WITH checks AS (
    WHERE s.organization_id IS DISTINCT FROM d.organization_id
       OR s.board_id IS DISTINCT FROM d.board_id
       OR s.key IS DISTINCT FROM d.key
+      OR s.created_at IS DISTINCT FROM d.created_at
 )
 SELECT * FROM checks;

@@ -21,6 +21,8 @@ WITH checks AS (
       OR s.source IS DISTINCT FROM d.source
       OR s.icon IS DISTINCT FROM d.icon
       OR s.parent_team_id IS DISTINCT FROM d.parent_team_id
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- team_member
   UNION ALL
   SELECT 'team_member:missing-in-dest', s.id, 'team_member'
@@ -33,6 +35,7 @@ WITH checks AS (
     FROM legacy.team_member s JOIN public.team_member d ON d.id = s.id
    WHERE s.team_id IS DISTINCT FROM d.team_id
       OR s.user_id IS DISTINCT FROM d.user_id
+      OR s.created_at IS DISTINCT FROM d.created_at
   -- invitation
   UNION ALL
   SELECT 'invitation:missing-in-dest', s.id, 'invitation'
@@ -49,6 +52,8 @@ WITH checks AS (
       OR s.team_id IS DISTINCT FROM d.team_id
       OR s.status IS DISTINCT FROM d.status
       OR s.inviter_id IS DISTINCT FROM d.inviter_id
+      OR s.expires_at IS DISTINCT FROM d.expires_at
+      OR s.created_at IS DISTINCT FROM d.created_at
   -- user_avatar (bytea compared via octet-length + bytea equality)
   UNION ALL
   SELECT 'user_avatar:missing-in-dest', s.id, 'user_avatar'
@@ -63,5 +68,7 @@ WITH checks AS (
       OR s.mime_type IS DISTINCT FROM d.mime_type
       OR s.size IS DISTINCT FROM d.size
       OR s.data IS DISTINCT FROM d.data
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
 )
 SELECT * FROM checks;

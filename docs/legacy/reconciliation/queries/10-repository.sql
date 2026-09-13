@@ -27,7 +27,13 @@ WITH checks AS (
       OR s.default_branch IS DISTINCT FROM d.default_branch
       OR s.is_private IS DISTINCT FROM d.is_private
       OR s.is_active IS DISTINCT FROM d.is_active
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
       OR s.org_privilege IS DISTINCT FROM d.org_privilege
+      OR s.config IS DISTINCT FROM d.config
+      OR s.last_synced_at IS DISTINCT FROM d.last_synced_at
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- repo_issue
   UNION ALL
   SELECT 'repo_issue:missing-in-dest', s.id, 'repo_issue'
@@ -47,6 +53,14 @@ WITH checks AS (
       OR s.author_login IS DISTINCT FROM d.author_login
       OR s.comment_count IS DISTINCT FROM d.comment_count
       OR s.url IS DISTINCT FROM d.url
+      OR s.author_avatar_url IS DISTINCT FROM d.author_avatar_url
+      OR s.assignee_logins IS DISTINCT FROM d.assignee_logins
+      OR s.labels IS DISTINCT FROM d.labels
+      OR s.external_created_at IS DISTINCT FROM d.external_created_at
+      OR s.external_updated_at IS DISTINCT FROM d.external_updated_at
+      OR s.closed_at IS DISTINCT FROM d.closed_at
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- repo_pull_request
   UNION ALL
   SELECT 'repo_pull_request:missing-in-dest', s.id, 'repo_pull_request'
@@ -69,6 +83,17 @@ WITH checks AS (
       OR s.base_branch IS DISTINCT FROM d.base_branch
       OR s.comment_count IS DISTINCT FROM d.comment_count
       OR s.url IS DISTINCT FROM d.url
+      OR s.author_avatar_url IS DISTINCT FROM d.author_avatar_url
+      OR s.labels IS DISTINCT FROM d.labels
+      OR s.additions IS DISTINCT FROM d.additions
+      OR s.deletions IS DISTINCT FROM d.deletions
+      OR s.changed_files IS DISTINCT FROM d.changed_files
+      OR s.merged_at IS DISTINCT FROM d.merged_at
+      OR s.closed_at IS DISTINCT FROM d.closed_at
+      OR s.external_created_at IS DISTINCT FROM d.external_created_at
+      OR s.external_updated_at IS DISTINCT FROM d.external_updated_at
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- organization_github_installation
   UNION ALL
   SELECT 'installation:missing-in-dest', s.id, 'organization_github_installation'
@@ -87,6 +112,11 @@ WITH checks AS (
       OR s.account_id IS DISTINCT FROM d.account_id
       OR s.account_login IS DISTINCT FROM d.account_login
       OR s.account_type IS DISTINCT FROM d.account_type
+      OR s.account_avatar_url IS DISTINCT FROM d.account_avatar_url
+      OR s.repository_selection IS DISTINCT FROM d.repository_selection
+      OR s.permissions IS DISTINCT FROM d.permissions
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- github_user_grant
   UNION ALL
   SELECT 'github_user_grant:missing-in-dest', s.id, 'github_user_grant'
@@ -102,6 +132,12 @@ WITH checks AS (
       OR s.github_user_id IS DISTINCT FROM d.github_user_id
       OR s.github_login IS DISTINCT FROM d.github_login
       OR s.access_token IS DISTINCT FROM d.access_token
+      OR s.refresh_token IS DISTINCT FROM d.refresh_token
+      OR s.access_token_expires_at IS DISTINCT FROM d.access_token_expires_at
+      OR s.refresh_token_expires_at IS DISTINCT FROM d.refresh_token_expires_at
+      OR s.scope IS DISTINCT FROM d.scope
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- integration
   UNION ALL
   SELECT 'integration:missing-in-dest', s.id, 'integration'
@@ -116,5 +152,7 @@ WITH checks AS (
       OR s.type IS DISTINCT FROM d.type
       OR s.config IS DISTINCT FROM d.config
       OR s.is_active IS DISTINCT FROM d.is_active
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
 )
 SELECT * FROM checks;
