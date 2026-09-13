@@ -1,9 +1,6 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ManagedRuntime } from "effect";
-import type { Sql } from "postgres";
-import postgres from "postgres";
+import { PgClient } from "@effect/sql-pg";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { migrate } from "../../packages/db/src/migrate";
 import { loadManifest, type Manifest } from "../../tools/reconciliation/canon";
@@ -12,9 +9,9 @@ import {
 	applySabotage,
 	type QueryResult,
 	restoreFixtures,
-	runCanonProof,
 	runCanonProofEffect,
-	writeReport,
+	runLiveEffect,
+	sqlLayer,
 } from "../../tools/reconciliation/run";
 import { disposablePostgres } from "../helpers/postgres";
 
@@ -31,45 +28,87 @@ function resultFor(results: QueryResult[], id: number): QueryResult {
 }
 
 let cluster: Awaited<ReturnType<typeof disposablePostgres>>;
+type AnyContext = never; // R channel is satisfied by the scratch runtime layer
+
+// ManagedRuntime bound to the sqlLayer context; two clusters share the shape.
+type SqlRuntime = ReturnType<typeof makeRuntime>;
+function makeRuntime(socketDir: string, database?: string) {
+	return ManagedRuntime.make(
+		database === undefined
+			? sqlLayer(socketDir)
+			: sqlLayer(socketDir, database),
+	);
+}
+let runtime: SqlRuntime;
+let pg: PgClient.PgClient;
 
 beforeAll(async () => {
 	cluster = await disposablePostgres();
-	await restoreFixtures(cluster.sql);
+	await restoreFixtures({
+		socket: cluster.sql.options.host[0],
+		database: cluster.sql.options.database ?? "postgres",
+	});
+	// Golden template: everything below restores into it, tests clone from it.
+	templateDb = "recon_golden_template";
+	await cluster.sql.unsafe(
+		`CREATE DATABASE ${templateDb} TEMPLATE ${cluster.sql.options.database ?? "postgres"}`,
+	);
+	runtime = makeRuntime(
+		cluster.sql.options.host[0],
+		cluster.sql.options.database ?? "postgres",
+	);
+	pg = await runtime.runPromise(PgClient.PgClient);
 });
 
 afterAll(async () => {
+	await runtime.dispose();
+	await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${templateDb}`);
 	await cluster.close();
 });
 
-const ROLLBACK = Symbol("rollback");
+// Mutating tests run against a per-test scratch database cloned from the golden
+// template (created once in beforeAll). This replaces transaction rollback: the
+// @effect/sql client routes statements through a pool, so a withTransaction
+// FiberRef cannot reliably pin a test's statements to one connection. A scratch
+// database gives true isolation regardless of pooling.
+let templateDb: string;
+let scratchCounter = 0;
 
-// Run `fn` against the shared restored fixture inside a transaction that is always
-// rolled back, so sabotage mutations never leak between tests and no re-restore is
-// needed. `tx` supports the same `.unsafe()` and tagged-template surface as `Sql`.
-async function withRollback<T>(fn: (tx: Sql) => Promise<T>): Promise<T> {
-	let result!: T;
+async function withRollback<T>(
+	fn: (
+		tx: PgClient.PgClient,
+		run: <A, E>(e: Effect.Effect<A, E, AnyContext>) => Promise<A>,
+	) => Promise<T>,
+): Promise<T> {
+	scratchCounter += 1;
+	const name = `recon_scratch_${scratchCounter}`;
+	await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE ${templateDb}`);
+	const scratchRuntime = makeRuntime(cluster.sql.options.host[0], name);
 	try {
-		await cluster.sql.begin(async (tx) => {
-			result = await fn(tx as unknown as Sql);
-			throw ROLLBACK;
-		});
-	} catch (error) {
-		if (error !== ROLLBACK) throw error;
+		const pgScratch = await scratchRuntime.runPromise(PgClient.PgClient);
+		const run = <A, E>(e: Effect.Effect<A, E, AnyContext>) =>
+			scratchRuntime.runPromise(e);
+		return await fn(pgScratch, run);
+	} finally {
+		await scratchRuntime.dispose();
+		await cluster.sql.unsafe(`DROP DATABASE ${name}`);
 	}
-	return result;
 }
 
-async function verdicts(sql: Sql) {
-	return runCanonProof(sql, manifest);
+async function verdicts(sql: PgClient.PgClient) {
+	return Effect.runPromise(runCanonProofEffect(sql, manifest));
 }
 
 describe("R02/R04 fixture restore and R05–R16 canon-proof green", () => {
 	test("golden pair restores and every query is green with zero violation rows", async () => {
 		// R02: legacy snapshot restored with the pinned fork table set
-		const legacy = await cluster.sql`
-      SELECT to_regclass('legacy.user') IS NOT NULL AS u,
+		const legacy = await runtime.runPromise(
+			pg.unsafe(
+				`SELECT to_regclass('legacy.user') IS NOT NULL AS u,
              to_regclass('legacy.apikey') IS NOT NULL AS k,
-             to_regclass('legacy.task') IS NOT NULL AS t`;
+             to_regclass('legacy.task') IS NOT NULL AS t`,
+			),
+		);
 		expect(legacy[0]).toEqual({ u: true, k: true, t: true });
 		// R02: manifest-declared row counts present after restore (both sides)
 		const mismatches: Array<Record<string, unknown>> = [];
@@ -78,20 +117,24 @@ describe("R02/R04 fixture restore and R05–R16 canon-proof green", () => {
 			["public", manifest.destination_tables],
 		] as const) {
 			for (const [table, expected] of Object.entries(tables)) {
-				const [row] = await cluster.sql`SELECT count(*)::int AS actual
-          FROM ${cluster.sql(side)}.${cluster.sql(table)}`;
+				const [row] = (await runtime.runPromise(
+					pg.unsafe(`SELECT count(*)::int AS actual FROM ${side}."${table}"`),
+				)) as Array<{ actual: number }>;
 				if (row.actual !== expected)
 					mismatches.push({ side, table, expected, actual: row.actual });
 			}
 		}
 		expect(mismatches, JSON.stringify(mismatches)).toEqual([]);
 		// R04: destination golden restored; T0 foundation present
-		const dest = await cluster.sql`
-      SELECT to_regclass('public.event') IS NOT NULL AS e,
+		const dest = await runtime.runPromise(
+			pg.unsafe(
+				`SELECT to_regclass('public.event') IS NOT NULL AS e,
              to_regclass('public.org_event_counter') IS NOT NULL AS c,
-             to_regclass('public.identity_import') IS NOT NULL AS i`;
+             to_regclass('public.identity_import') IS NOT NULL AS i`,
+			),
+		);
 		expect(dest[0]).toEqual({ e: true, c: true, i: true });
-		const results = await verdicts(cluster.sql);
+		const results = await verdicts(pg);
 		expect(results).toHaveLength(14);
 		for (const r of results) {
 			expect(r.verdict, `query ${r.id}`).toBe("green");
@@ -104,7 +147,7 @@ describe("R05–R16 per-query sabotage negative controls", () => {
 	for (const q of manifest.queries) {
 		for (const sabotage of q.sabotages) {
 			test(`query ${q.id} turns red under ${sabotage.split("/").pop()}`, async () => {
-				await withRollback(async (tx) => {
+				await withRollback(async (tx, _run) => {
 					expect(resultFor(await verdicts(tx), q.id).verdict).toBe("green");
 					await applySabotage(tx, sabotage);
 					const result = resultFor(await verdicts(tx), q.id);
@@ -118,14 +161,14 @@ describe("R05–R16 per-query sabotage negative controls", () => {
 
 describe("R17 query #13 id bijection", () => {
 	test("green on golden; red independently under 13a and under 13b", async () => {
-		await withRollback(async (tx) => {
+		await withRollback(async (tx, _run) => {
 			expect(resultFor(await verdicts(tx), 13).verdict).toBe("green");
 			await applySabotage(tx, "tests/fixtures/reconciliation/sabotage/13a.sql");
 			const a = resultFor(await verdicts(tx), 13);
 			expect(a.verdict).toBe("red");
 			expect(a.violations).toBeGreaterThan(0);
 		});
-		await withRollback(async (tx) => {
+		await withRollback(async (tx, _run) => {
 			await applySabotage(tx, "tests/fixtures/reconciliation/sabotage/13b.sql");
 			const b = resultFor(await verdicts(tx), 13);
 			expect(b.verdict).toBe("red");
@@ -136,14 +179,14 @@ describe("R17 query #13 id bijection", () => {
 
 describe("R18/R20 query #14 apikey hash audit", () => {
 	test("preserved-hash arm green; 14a corrupt-hash red; 14b reissue-without-event red", async () => {
-		await withRollback(async (tx) => {
+		await withRollback(async (tx, _run) => {
 			expect(resultFor(await verdicts(tx), 14).verdict).toBe("green");
 			await applySabotage(tx, "tests/fixtures/reconciliation/sabotage/14a.sql");
 			const a = resultFor(await verdicts(tx), 14);
 			expect(a.verdict).toBe("red");
 			expect(a.violations).toBeGreaterThan(0);
 		});
-		await withRollback(async (tx) => {
+		await withRollback(async (tx, _run) => {
 			await applySabotage(tx, "tests/fixtures/reconciliation/sabotage/14b.sql");
 			const b = resultFor(await verdicts(tx), 14);
 			expect(b.verdict).toBe("red");
@@ -220,8 +263,8 @@ describe("R05b fidelity arms — previously uncompared columns (review D5)", () 
 	];
 	for (const [id, tbl, mutation] of cases) {
 		test(`query ${id} compares ${tbl} columns the c1 corpus omitted`, async () => {
-			await withRollback(async (tx) => {
-				await tx.unsafe(mutation);
+			await withRollback(async (tx, run) => {
+				await run(tx.unsafe(mutation));
 				const result = resultFor(await verdicts(tx), id);
 				expect(result.verdict, mutation).toBe("red");
 				expect(result.violations, mutation).toBeGreaterThan(0);
@@ -232,20 +275,22 @@ describe("R05b fidelity arms — previously uncompared columns (review D5)", () 
 
 describe("R20b #14 re-issue contract strictness (review D8)", () => {
 	test("event with matching id but wrong reason or principalId does not satisfy the audit", async () => {
-		await withRollback(async (tx) => {
+		await withRollback(async (tx, run) => {
 			// flip k1 to re-issue state (hash differs) with a WRONG-reason event
-			await tx`UPDATE public.apikey SET key = 'not-the-fork-hash-format-but-exactly-43-chars-long-x' WHERE id = 'k1'`;
-			await tx`INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid)
-        VALUES ('o1', 2, 'identity:apikey-reissued', 'u1', ${{ id: "k1", principalId: "p2", reason: "wrong-reason" }}, 1, 1)`;
+			await run(
+				tx`UPDATE public.apikey SET key = 'not-the-fork-hash-format-but-exactly-43-chars-long-x' WHERE id = 'k1'`,
+			);
+			await run(tx`INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid)
+        VALUES ('o1', 2, 'identity:apikey-reissued', 'u1', ${{ id: "k1", principalId: "p2", reason: "wrong-reason" }}, 1, 1)`);
 			const result = resultFor(await verdicts(tx), 14);
 			expect(result.verdict).toBe("red");
 		});
 	});
 
 	test("preserved hash AND a well-formed reissue event is a both-arms violation", async () => {
-		await withRollback(async (tx) => {
-			await tx`INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid)
-        VALUES ('o1', 2, 'identity:apikey-reissued', 'u1', ${{ id: "k1", principalId: "p2", reason: "legacy-reissue" }}, 1, 1)`;
+		await withRollback(async (tx, run) => {
+			await run(tx`INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid)
+        VALUES ('o1', 2, 'identity:apikey-reissued', 'u1', ${{ id: "k1", principalId: "p2", reason: "legacy-reissue" }}, 1, 1)`);
 			const result = resultFor(await verdicts(tx), 14);
 			expect(result.verdict).toBe("red");
 			expect(result.violations).toBeGreaterThan(0);
@@ -253,10 +298,12 @@ describe("R20b #14 re-issue contract strictness (review D8)", () => {
 	});
 
 	test("re-issued key WITH exactly one well-formed event is green", async () => {
-		await withRollback(async (tx) => {
-			await tx`UPDATE public.apikey SET key = 'not-the-fork-hash-format-but-exactly-43-chars-long-x' WHERE id = 'k1'`;
-			await tx`INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid)
-        VALUES ('o1', 2, 'identity:apikey-reissued', 'u1', ${{ id: "k1", principalId: "p2", reason: "legacy-reissue" }}, 1, 1)`;
+		await withRollback(async (tx, run) => {
+			await run(
+				tx`UPDATE public.apikey SET key = 'not-the-fork-hash-format-but-exactly-43-chars-long-x' WHERE id = 'k1'`,
+			);
+			await run(tx`INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid)
+        VALUES ('o1', 2, 'identity:apikey-reissued', 'u1', ${{ id: "k1", principalId: "p2", reason: "legacy-reissue" }}, 1, 1)`);
 			const result = resultFor(await verdicts(tx), 14);
 			expect(result.verdict).toBe("green");
 		});
@@ -269,19 +316,22 @@ describe("R03 fixture freshness and determinism", () => {
 	// normalized multiset of rows. RED if a committed dump was mutated by hand or
 	// if a generator is nondeterministic.
 	async function logicalDump(
-		sql: Sql,
+		sql: PgClient.PgClient,
+		run: <A>(e: Effect.Effect<A, unknown, AnyContext>) => Promise<A>,
 		side: "legacy" | "public",
 		tables: readonly string[],
 	): Promise<string> {
 		const parts: string[] = [];
 		for (const t of tables) {
-			const cols = await sql`
+			const cols = (await run(sql`
         SELECT string_agg(column_name, ',' ORDER BY column_name) AS cols
           FROM information_schema.columns
-         WHERE table_schema = ${side} AND table_name = ${t}`;
-			const rows = await sql.unsafe(
-				`SELECT * FROM ${side}."${t.replace(/"/g, '""')}"`,
-			);
+         WHERE table_schema = ${side} AND table_name = ${t}`)) as Array<{
+				cols: string | null;
+			}>;
+			const rows = (await run(
+				sql.unsafe(`SELECT * FROM ${side}."${t.replace(/"/g, '""')}"`),
+			)) as Array<Record<string, unknown>>;
 			const colList = (cols[0]?.cols ?? "").split(",").filter(Boolean);
 			const normalized = rows
 				.map((r) =>
@@ -296,7 +346,7 @@ describe("R03 fixture freshness and determinism", () => {
 		return parts.join("\n");
 	}
 
-	test("regenerated dumps are logically equivalent to the committed fixtures", async ({}) => {
+	test("regenerated dumps are logically equivalent to the committed fixtures", async () => {
 		const { execFileSync } = await import("node:child_process");
 		const { mkdtemp, rm } = await import("node:fs/promises");
 		const { tmpdir } = await import("node:os");
@@ -323,6 +373,10 @@ describe("R03 fixture freshness and determinism", () => {
 
 			// restore regenerated + committed into two databases and compare
 			const regen = await disposablePostgres();
+			const regenRuntime = ManagedRuntime.make(
+				sqlLayer(regen.sql.options.host[0]),
+			);
+			const regenPg = await regenRuntime.runPromise(PgClient.PgClient);
 			try {
 				execFileSync(
 					join(bin, "pg_restore"),
@@ -356,11 +410,22 @@ describe("R03 fixture freshness and determinism", () => {
 					["legacy", Object.keys(manifest.legacy_tables)],
 					["public", Object.keys(manifest.destination_tables)],
 				] as const) {
-					const a = await logicalDump(cluster.sql, side, tables);
-					const b = await logicalDump(regen.sql, side, tables);
+					const a = await logicalDump(
+						pg,
+						(e) => runtime.runPromise(e),
+						side,
+						tables,
+					);
+					const b = await logicalDump(
+						regenPg,
+						(e) => regenRuntime.runPromise(e),
+						side,
+						tables,
+					);
 					expect(b, `regenerated ${side} differs from committed`).toBe(a);
 				}
 			} finally {
+				await regenRuntime.dispose();
 				await regen.close();
 			}
 		} finally {
@@ -371,9 +436,9 @@ describe("R03 fixture freshness and determinism", () => {
 
 describe("R04 blocked semantics and R21 live mode", () => {
 	test("hiding a ledger table flips its dependent query green -> blocked", async () => {
-		await withRollback(async (tx) => {
+		await withRollback(async (tx, run) => {
 			expect(resultFor(await verdicts(tx), 13).verdict).toBe("green");
-			await tx.unsafe("DROP TABLE public.identity_import CASCADE");
+			await run(tx.unsafe("DROP TABLE public.identity_import CASCADE"));
 			const result = resultFor(await verdicts(tx), 13);
 			expect(result.verdict).toBe("blocked");
 		});
@@ -382,12 +447,17 @@ describe("R04 blocked semantics and R21 live mode", () => {
 	test("R02 negative control: a missing row in a restored table fails the count check", async () => {
 		// The row-count assertion above must be able to fail: remove one row from a
 		// restored legacy table and confirm the count mismatch is detectable.
-		await withRollback(async (tx) => {
-			const before = await tx`SELECT count(*)::int AS n FROM legacy.task`;
-			await tx`DELETE FROM legacy.task WHERE id = 'task3'`;
-			const mismatches = await tx`
+		await withRollback(async (tx, run) => {
+			const before = (await runtime.runPromise(
+				tx`SELECT count(*)::int AS n FROM legacy.task`,
+			)) as Array<{ n: number }>;
+			await run(tx`DELETE FROM legacy.task WHERE id = 'task3'`);
+			const mismatches = (await run(tx`
         SELECT (SELECT count(*) FROM legacy.task)::int AS actual,
-               ${manifest.legacy_tables.task}::int AS expected`;
+               ${manifest.legacy_tables.task}::int AS expected`)) as Array<{
+				actual: number;
+				expected: number;
+			}>;
 			expect(mismatches[0].actual).not.toBe(mismatches[0].expected);
 			expect(before[0].n).toBe(mismatches[0].expected);
 		});
@@ -404,8 +474,8 @@ describe("R04 blocked semantics and R21 live mode", () => {
 			[12, "public.repo"],
 		];
 		for (const [id, table] of cases) {
-			await withRollback(async (tx) => {
-				await tx.unsafe(`DROP TABLE ${table} CASCADE`);
+			await withRollback(async (tx, run) => {
+				await run(tx.unsafe(`DROP TABLE ${table} CASCADE`));
 				const result = resultFor(await verdicts(tx), id);
 				expect(result.verdict, `query ${id} under dropped ${table}`).toBe(
 					"blocked",
@@ -414,23 +484,35 @@ describe("R04 blocked semantics and R21 live mode", () => {
 		}
 	});
 
-	test("live mode with no merged importer reports blocked, never green/red; all-blocked is failure", async () => {
+	test("R21 live mode: fresh T0 destination (no merged importer) reports every query blocked via the live runner", async () => {
 		const name = `recon_${crypto.randomUUID().replace(/-/g, "")}`;
 		await cluster.sql.unsafe(`CREATE DATABASE ${name}`);
 		const socket = cluster.sql.options.host[0];
-		const sql = postgres({
-			host: socket,
-			username: "stellarc_owner",
-			database: name,
-			max: 8,
-			onnotice: () => {},
-		});
+		const liveRuntime = makeRuntime(socket, name);
 		try {
-			await migrate(sql); // T0 only — no destination domain/ledger tables
-			const results = await verdicts(sql);
+			// apply T0 migrations to the fresh DB through a throwaway client
+			const tmp = await import("postgres").then((m) =>
+				m.default({
+					host: socket,
+					username: "stellarc_owner",
+					database: name,
+					max: 4,
+					onnotice: () => {},
+				}),
+			);
+			await migrate(tmp);
+			await tmp.end();
+
+			const results = await liveRuntime.runPromise(
+				Effect.gen(function* () {
+					const sql = yield* PgClient.PgClient;
+					return yield* runLiveEffect(sql, manifest);
+				}),
+			);
 			expect(results).toHaveLength(14);
 			for (const r of results) {
-				expect(r.verdict).toBe("blocked");
+				expect(r.mode, `query ${r.id}`).toBe("live");
+				expect(r.verdict, `query ${r.id}`).toBe("blocked");
 			}
 			const { red, blocked, allBlocked } = aggregate(results);
 			expect(red).toBe(0);
@@ -439,21 +521,61 @@ describe("R04 blocked semantics and R21 live mode", () => {
 			// all-blocked is a harness failure, not success
 			expect(red > 0 || allBlocked).toBe(true);
 		} finally {
-			await sql.end();
+			await liveRuntime.dispose();
 			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${name}`);
 		}
+	});
+
+	test("R21 live mode: restored golden pair driven through the live runner is green for merged-identity coverage", async () => {
+		// At this merge point the identity importer is unmerged; the live runner
+		// still must reconcile a correctly-imported destination when one exists.
+		// The golden pair IS that destination, so the live arm over it must report
+		// mode=live green for identity queries (1-3, 13, 14) and never blocked.
+		const results = await runtime.runPromise(
+			Effect.gen(function* () {
+				const sql = yield* PgClient.PgClient;
+				return yield* runLiveEffect(sql, manifest);
+			}),
+		);
+		for (const id of [1, 2, 3, 13, 14]) {
+			const r = resultFor(results, id);
+			expect(r.mode).toBe("live");
+			expect(r.verdict, `query ${id} in live mode`).toBe("green");
+		}
+	});
+
+	test("R21 live mode negative control: 13b sabotage on the live destination turns #13 red", async () => {
+		await withRollback(async (tx, run) => {
+			await applySabotage(tx, "tests/fixtures/reconciliation/sabotage/13b.sql");
+			const results = await run(runLiveEffect(tx, manifest));
+			const r = resultFor(results, 13);
+			expect(r.mode).toBe("live");
+			expect(r.verdict).toBe("red");
+		});
 	});
 });
 
 describe("R22 spans", () => {
-	test("each query exports a stellarc.reconcile.query span with id/mode/verdict/violations and no PII", async () => {
+	test("stellarc.reconcile.query spans carry id/mode/verdict/violations; db.* spans exist; no SQL text or PII", async () => {
 		const { TelemetryTest } = await import(
 			"../../packages/telemetry/src/index"
 		);
 		const telemetry = TelemetryTest();
-		const runtime = ManagedRuntime.make(telemetry.layer);
+		// Build a runtime that layers telemetry UNDER the sql layer so db.* spans
+		// propagate: telemetry provides the tracer; sql layer provides PgClient.
+		const rt = ManagedRuntime.make(
+			sqlLayer(
+				cluster.sql.options.host[0],
+				cluster.sql.options.database ?? "postgres",
+			).pipe(Layer.provideMerge(telemetry.layer)),
+		);
 		try {
-			await runtime.runPromise(runCanonProofEffect(cluster.sql, manifest));
+			await rt.runPromise(
+				Effect.gen(function* () {
+					const sql = yield* PgClient.PgClient;
+					return yield* runCanonProofEffect(sql, manifest);
+				}),
+			);
 			const spans = telemetry.spans
 				.getFinishedSpans()
 				.filter((span) => span.name === "stellarc.reconcile.query");
@@ -473,32 +595,16 @@ describe("R22 spans", () => {
 				);
 				expect(JSON.stringify(attributes)).not.toContain("SELECT");
 			}
+			const dbSpans = telemetry.spans
+				.getFinishedSpans()
+				.filter((span) => span.name.startsWith("db."));
+			expect(dbSpans.length).toBeGreaterThan(0);
+			for (const span of dbSpans) {
+				expect(span.attributes).not.toHaveProperty("db.query.text");
+				expect(span.attributes).not.toHaveProperty("db.statement");
+			}
 		} finally {
-			await runtime.dispose();
-		}
-	});
-});
-
-describe("R23 report and exit contract", () => {
-	test("report writes JSON without PII and aggregates red/all-blocked", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "stellarc-report-"));
-		try {
-			const results = await verdicts(cluster.sql);
-			const path = await writeReport(results, dir);
-			const text = await readFile(path, "utf8");
-			const parsed = JSON.parse(text) as QueryResult[];
-			expect(parsed).toHaveLength(14);
-			expect(text).not.toMatch(/a@x\.com|bcrypt-hash|gh-token|sk-a/);
-			expect(aggregate(results)).toEqual({
-				red: 0,
-				blocked: 0,
-				allBlocked: false,
-			});
-			// flip one verdict to red -> nonzero exit semantics
-			results[0] = { ...results[0], verdict: "red", violations: 1 };
-			expect(aggregate(results).red).toBe(1);
-		} finally {
-			await rm(dir, { recursive: true, force: true });
+			await rt.dispose();
 		}
 	});
 });

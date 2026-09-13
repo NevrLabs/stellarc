@@ -545,6 +545,8 @@ export interface ManifestQuery {
 export interface Manifest {
 	canon_count: number;
 	sabotage_count: number;
+	legacy_tables: Record<string, number>;
+	destination_tables: Record<string, number>;
 	queries: ManifestQuery[];
 	known_answers: {
 		apikey_sha256_base64url: Array<{ raw: string; reference_id: string }>;
