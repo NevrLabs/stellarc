@@ -423,7 +423,7 @@ test("T06 migration exports its applied version through the caller trace", async
 		);
 		expect(applied).toHaveLength(1);
 		expect(applied[0].attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation",
+			"0001_foundation,0002_identity",
 		);
 		expect(applied[0].spanContext().traceId).toBe(
 			spans.find((span) => span.name === "migration.caller")?.spanContext()

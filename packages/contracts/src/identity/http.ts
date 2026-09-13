@@ -1,5 +1,6 @@
 import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
 import { Schema } from "effect";
+import { statement } from "../legacy/permissions";
 
 // --- §3 validation primitives -----------------------------------------------------------
 // Nonempty opaque ID ≤ 128. Reused for path params and request ID fields.
@@ -16,12 +17,33 @@ export const DateString = Schema.String.pipe(
 		/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/,
 	),
 );
-// Permission = Record(nonempty resource, Array(nonempty action)). Deep vocabulary
-// validation against the pinned permission set is T1 app work, not the contract shape.
-export const Permission = Schema.Record({
-	key: Schema.NonEmptyString,
-	value: Schema.Array(Schema.NonEmptyString),
-});
+// Permission = Record(nonempty resource, Array(nonempty action)), constrained to the
+// legacy/permissions vocabulary: keys are exactly the `statement` resources (optional —
+// Schema.partial keeps {} a valid empty ceiling for ApiKeyPublic), values are
+// per-resource action Literal unions derived from `statement` (no runtime better-auth
+// calls). The runtime filter re-checks the vocabulary so unknown resources are rejected
+// even by decoders configured to strip excess keys.
+const PermissionFields = Object.fromEntries(
+	Object.entries(statement).map(([resource, actions]) => [
+		resource,
+		Schema.Array(Schema.Literal(...actions)),
+	]),
+) as unknown as {
+	[K in keyof typeof statement]: Schema.Schema<
+		(typeof statement)[K][number][],
+		(typeof statement)[K][number][]
+	>;
+};
+export const Permission = Schema.partial(Schema.Struct(PermissionFields)).pipe(
+	Schema.filter(
+		(permission) => {
+			for (const resource of Object.keys(permission))
+				if (!(resource in statement)) return false;
+			return true;
+		},
+		{ identifier: "Permission" },
+	),
+);
 
 // --- Public rows (§3 allowlists; snake_case → camelCase, secret fields omitted) ---------
 export const UserPublic = Schema.Struct({
