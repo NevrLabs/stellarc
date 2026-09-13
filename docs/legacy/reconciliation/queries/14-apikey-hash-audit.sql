@@ -21,6 +21,11 @@ WITH k AS (
            SELECT 1 FROM public.event e
             WHERE e.plugin_type = 'identity:apikey-reissued'
               AND e.payload->>'id' = d.id
+              AND e.payload->>'reason' = 'legacy-reissue'
+              AND e.payload->>'principalId' IS NOT NULL
+              AND e.payload->>'principalId' = COALESCE(
+                    (SELECT p.id FROM public.principal p WHERE p.apikey_id = d.id),
+                    e.payload->>'principalId')
          ) AS has_event
     FROM public.apikey d
     LEFT JOIN legacy.apikey s ON s.id = d.id
