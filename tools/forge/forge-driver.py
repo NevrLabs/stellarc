@@ -34,6 +34,10 @@ LIGHT_PARALLEL = int(os.environ.get("FORGE_LIGHT_PARALLEL", "3"))  # triage + sp
 RETRIES = int(os.environ.get("FORGE_RETRIES", "2"))
 STAGE_ORDER = ["triage", "spec", "implement", "review", "merge"]
 
+def _atomic_write(path, text):
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+    tmp.write_text(text); os.replace(tmp, path)
+
 def now(): return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 def log(kind, ticket, detail=""):
     rec = {"at": now(), "kind": kind, "ticket": ticket, "detail": detail}
@@ -59,7 +63,15 @@ def wave_map(): return json.loads((REPO_ROOT / ".forge/wave-map.json").read_text
 def tid(n): return f"{cfg()['ticket_prefix']}-{n}"
 def state(n):
     p = REPO_ROOT / f".forge/{tid(n)}.json"
-    return json.loads(p.read_text()) if p.exists() else {"stages": [], "cycle": 0}
+    if not p.exists(): return {"stages": [], "cycle": 0}
+    try: return json.loads(p.read_text())
+    except json.JSONDecodeError:
+        # zero-byte or torn file: restore the last committed copy rather than stall every ticket
+        r = subprocess.run(["git", "show", f"origin/{cfg()['base']}:.forge/{tid(n)}.json"], capture_output=True, text=True, cwd=REPO_ROOT)
+        if r.returncode == 0 and r.stdout.strip():
+            _atomic_write(p, r.stdout); log("recover", tid(n), "state file was corrupt; restored from git")
+            return json.loads(r.stdout)
+        log("error", tid(n), "state file corrupt and no committed copy"); return {"stages": [], "cycle": 0}
 def last(s, stage):
     for st in reversed(s["stages"]):
         if st["stage"] == stage: return st["status"]
@@ -129,7 +141,7 @@ def sweep_lanes(nums):
             p = REPO_ROOT / f".forge/{tid(n)}.json"; s = state(n)
             for y in s["stages"]:
                 if y.get("agent") == aid and y["status"] == "running": y.update(x)
-            p.write_text(json.dumps(s, indent=1) + "\n")
+            _atomic_write(p, json.dumps(s, indent=1) + "\n")
             lock = REPO_ROOT / f".forge/.{tid(n)}.lock"; lock.exists() and lock.unlink()
             log("sweep", tid(n), f"stopped overdue lane {aid[:8]} after {int(age)}s")
 
@@ -173,7 +185,7 @@ def reap_orphans(n):
         log("orphan", tid(n), f"{stage} c{x.get('cycle','')} watcher dead → {x['status']}")
         changed = True
     if changed:
-        p.write_text(json.dumps(s, indent=1) + "\n")
+        _atomic_write(p, json.dumps(s, indent=1) + "\n")
         lock = REPO_ROOT / f".forge/.{tid(n)}.lock"
         if lock.exists(): lock.unlink()
 

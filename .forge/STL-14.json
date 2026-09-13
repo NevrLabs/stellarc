@@ -643,6 +643,27 @@
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
    "agent": "62bf9703",
    "reason": "PASS \u2014 4 non-blocking defects (contracts barrel, telemetry package.json, sync.spec location note, budget console_sites field); watcher pid lost, adopted by orchestrator"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "fail",
+   "at": "2026-09-11T21:45:01+00:00",
+   "pr": 28,
+   "sha": "a8575a43b4b5ca28c95525835bac82487330569d",
+   "pid": 1270301,
+   "reason": "orphan running: watcher pid 1270301 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "pass",
+   "at": "2026-09-11T21:50:47+00:00",
+   "pr": 28
+  },
+  {
+   "stage": "merged",
+   "status": "pass",
+   "at": "2026-09-11T21:50:47+00:00",
+   "commit": "cef9c5f92ed32a2bcc44b7e5da1a8d56462b807b"
   }
  ],
  "cycle": 30

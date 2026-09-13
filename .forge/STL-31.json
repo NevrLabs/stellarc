@@ -60,11 +60,12 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-12T01:16:58+00:00",
    "cycle": 1,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1323913
+   "pid": 1323913,
+   "reason": "orphan running: watcher pid 1323913 dead, agent gone; reconciled by driver \u2192 rework"
   }
  ],
  "cycle": 1

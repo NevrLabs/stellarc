@@ -48,12 +48,39 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-12T00:37:59+00:00",
    "cycle": 1,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1316283
+   "pid": 1316283,
+   "reason": "orphan running: watcher pid 1316283 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-12T01:16:38+00:00",
+   "agent": "1a9fa1f6-d196-4171-b19a-69b173d320e9",
+   "cycle": 1,
+   "artifact": ".forge/STL-27.review-1.md"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-12T01:16:56+00:00",
+   "note": "re-armed for rework"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-12T04:41:46+00:00",
+   "cycle": 2,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-27-c2",
+   "pid": 1378095,
+   "agent": "5e652255-943c-4368-a516-07e1c49f14ac",
+   "head": "",
+   "reason": "orphan running: watcher pid 1378095 dead, agent idle; reconciled by driver \u2192 partial"
   }
  ],
- "cycle": 1
+ "cycle": 2
 }

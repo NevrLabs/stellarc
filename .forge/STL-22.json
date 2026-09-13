@@ -60,12 +60,23 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-12T00:15:18+00:00",
    "cycle": 1,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1309335
+   "pid": 1309335,
+   "reason": "orphan running: watcher pid 1309335 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-13T15:40:18+00:00",
+   "cycle": 2,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-22-c2",
+   "pid": 1667473,
+   "agent": "fbf18f7b-c61f-477c-beb5-0ea71caa2ac5"
   }
  ],
- "cycle": 1
+ "cycle": 2
 }

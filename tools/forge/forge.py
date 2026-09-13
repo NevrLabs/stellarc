@@ -107,9 +107,13 @@ def load_state(t):
     p = state_path(t)
     return json.loads(p.read_text()) if p.exists() else {"ticket": t, "stages": [], "cycle": 0}
 
+def _atomic_write(path, text):
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+    tmp.write_text(text); os.replace(tmp, path)
+
 def save_state(t, s):
     state_path(t).parent.mkdir(exist_ok=True)
-    state_path(t).write_text(json.dumps(s, indent=1) + "\n")
+    _atomic_write(state_path(t), json.dumps(s, indent=1) + "\n")
 
 def stage_status(s, stage):
     for st in reversed(s["stages"]):
