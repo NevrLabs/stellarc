@@ -3,6 +3,14 @@ import { readFile } from "node:fs/promises";
 import { Effect } from "effect";
 import type { Sql } from "postgres";
 
+/** Ordered migration list. 0001 bytes must never change (checksum registered on
+ * migrated clusters); each entry is checksum-registered inside one advisory-lock
+ * transaction and rejected on drift. */
+const MIGRATIONS = [
+	{ version: "0001_foundation", file: "../migrations/0001_foundation.sql" },
+	{ version: "0002_identity", file: "../migrations/0002_identity.sql" },
+] as const;
+
 /** Owner-only provisioning; the runtime principal must already exist. */
 export async function grantRuntime(sql: Sql, role: string) {
 	if (!/^[a-z_][a-z0-9_]{0,62}$/.test(role))
@@ -41,40 +49,55 @@ export async function grantRuntime(sql: Sql, role: string) {
 export const applyMigration = Effect.fn("stellarc.migrate.apply")(function* (
 	sql: Sql,
 ) {
-	yield* Effect.annotateCurrentSpan(
-		"stellarc.migration.version",
-		"0001_foundation",
-	);
-	yield* Effect.tryPromise({
+	const applied = yield* Effect.tryPromise({
 		try: () => runMigration(sql),
 		catch: (cause) => cause,
 	});
+	yield* Effect.annotateCurrentSpan(
+		"stellarc.migration.version",
+		applied.map((entry) => entry.version).join(","),
+	);
+	return applied;
 });
 
 export function migrate(sql: Sql) {
 	return Effect.runPromise(applyMigration(sql));
 }
 
-async function runMigration(sql: Sql) {
-	const source = await readFile(
-		new URL("../migrations/0001_foundation.sql", import.meta.url),
-		"utf8",
+/** One entry per migration in MIGRATIONS, in order: applied this run or already
+ * registered (verified). Returned so callers can annotate spans per run. */
+export interface AppliedMigration {
+	readonly version: string;
+	readonly checksum: string;
+}
+
+export async function runMigration(sql: Sql): Promise<AppliedMigration[]> {
+	const sources = await Promise.all(
+		MIGRATIONS.map((m) => readFile(new URL(m.file, import.meta.url), "utf8")),
 	);
-	const checksum = createHash("sha256").update(source).digest("hex");
+	const results: AppliedMigration[] = [];
 	await sql.begin(async (tx) => {
 		await tx`SELECT pg_advisory_xact_lock(7414030914)`;
 		await tx`CREATE TABLE IF NOT EXISTS stellarc_migration (
       version text PRIMARY KEY, checksum text NOT NULL,
       applied_at timestamptz NOT NULL DEFAULT now()
     )`;
-		const [existing] =
-			await tx`SELECT checksum FROM stellarc_migration WHERE version = '0001_foundation'`;
-		if (existing) {
-			if (existing.checksum !== checksum)
-				throw new Error("Migration checksum mismatch");
-			return;
+		for (let i = 0; i < MIGRATIONS.length; i++) {
+			const entry = MIGRATIONS[i];
+			const source = sources[i];
+			const checksum = createHash("sha256").update(source).digest("hex");
+			const [existing] =
+				await tx`SELECT checksum FROM stellarc_migration WHERE version = ${entry.version}`;
+			if (existing) {
+				if (existing.checksum !== checksum)
+					throw new Error("Migration checksum mismatch");
+				results.push({ version: entry.version, checksum });
+				continue;
+			}
+			await tx.unsafe(source);
+			await tx`INSERT INTO stellarc_migration(version, checksum) VALUES (${entry.version}, ${checksum})`;
+			results.push({ version: entry.version, checksum });
 		}
-		await tx.unsafe(source);
-		await tx`INSERT INTO stellarc_migration(version, checksum) VALUES ('0001_foundation', ${checksum})`;
 	});
+	return results;
 }
