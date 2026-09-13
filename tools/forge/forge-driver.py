@@ -67,8 +67,11 @@ def state(n):
     try: return json.loads(p.read_text())
     except json.JSONDecodeError:
         # zero-byte or torn file: restore the last committed copy rather than stall every ticket
-        r = subprocess.run(["git", "show", f"origin/{cfg()['base']}:.forge/{tid(n)}.json"], capture_output=True, text=True, cwd=REPO_ROOT)
-        if r.returncode == 0 and r.stdout.strip():
+        r = None
+        for c in subprocess.run(["git", "log", "--format=%h", "-20", "--", f".forge/{tid(n)}.json"], capture_output=True, text=True, cwd=REPO_ROOT).stdout.split():
+            cand = subprocess.run(["git", "show", f"{c}:.forge/{tid(n)}.json"], capture_output=True, text=True, cwd=REPO_ROOT)
+            if cand.returncode == 0 and len(cand.stdout.strip()) > 20: r = cand; break
+        if r is not None:
             _atomic_write(p, r.stdout); log("recover", tid(n), "state file was corrupt; restored from git")
             return json.loads(r.stdout)
         log("error", tid(n), "state file corrupt and no committed copy"); return {"stages": [], "cycle": 0}

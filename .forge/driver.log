@@ -3507,3 +3507,6 @@
 2026-09-13T15:40:16+00:00 start      STL-22   implement
 2026-09-13T15:41:35+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
 2026-09-13T15:41:49+00:00 start      STL-27   implement
+2026-09-13T18:49:07+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-13T18:49:08+00:00 error      -        JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2026-09-13T18:51:09+00:00 error      -        JSONDecodeError: Expecting value: line 1 column 1 (char 0)
