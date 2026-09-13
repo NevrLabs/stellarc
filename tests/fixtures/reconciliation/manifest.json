@@ -1,0 +1,219 @@
+{
+	"canon_count": 14,
+	"sabotage_count": 16,
+	"schema": {
+		"source": "legacy",
+		"destination": "public",
+		"mode": "canon-proof"
+	},
+	"queries": [
+		{
+			"id": 1,
+			"file": "docs/legacy/reconciliation/queries/01-identity-core.sql",
+			"owner": "STL-15",
+			"semantics_source": "STL-15 §2/§7 T23; wave plan T1",
+			"preconditions": [
+				"legacy.user",
+				"legacy.account",
+				"legacy.organization",
+				"legacy.organization_member",
+				"legacy.organization_role",
+				"public.user",
+				"public.account",
+				"public.organization",
+				"public.organization_member",
+				"public.organization_role"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/01.sql"]
+		},
+		{
+			"id": 2,
+			"file": "docs/legacy/reconciliation/queries/02-identity-team.sql",
+			"owner": "STL-15",
+			"semantics_source": "STL-15 §2; wave plan T1",
+			"preconditions": [
+				"legacy.team",
+				"legacy.team_member",
+				"legacy.invitation",
+				"legacy.user_avatar",
+				"public.team",
+				"public.team_member",
+				"public.invitation",
+				"public.user_avatar"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/02.sql"]
+		},
+		{
+			"id": 3,
+			"file": "docs/legacy/reconciliation/queries/03-apikey.sql",
+			"owner": "STL-15",
+			"semantics_source": "STL-15 §2; wave plan T1",
+			"preconditions": ["legacy.apikey", "public.apikey"],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/03.sql"]
+		},
+		{
+			"id": 4,
+			"file": "docs/legacy/reconciliation/queries/04-board.sql",
+			"owner": "STL-16",
+			"semantics_source": "STL-16 §1; wave plan T2",
+			"preconditions": [
+				"legacy.board",
+				"legacy.board_key_alias",
+				"public.board",
+				"public.board_key_alias"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/04.sql"]
+		},
+		{
+			"id": 5,
+			"file": "docs/legacy/reconciliation/queries/05-ticket.sql",
+			"owner": "STL-16",
+			"semantics_source": "STL-16; wave plan T2",
+			"preconditions": ["legacy.task", "public.ticket"],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/05.sql"]
+		},
+		{
+			"id": 6,
+			"file": "docs/legacy/reconciliation/queries/06-status.sql",
+			"owner": "STL-16",
+			"semantics_source": "STL-16 §1 (fork SET-NULL orphan pattern); wave plan T2",
+			"preconditions": [
+				"legacy.task",
+				"legacy.column",
+				"public.ticket",
+				"public.status"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/06.sql"]
+		},
+		{
+			"id": 7,
+			"file": "docs/legacy/reconciliation/queries/07-relations.sql",
+			"owner": "STL-19",
+			"semantics_source": "wave plan T5; STL-19 (provisional — rebind on merge)",
+			"preconditions": [
+				"legacy.task_relation",
+				"legacy.task_follower",
+				"legacy.external_link",
+				"legacy.task_repo_item_link",
+				"legacy.milestone",
+				"public.entity_link",
+				"public.milestone"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/07.sql"]
+		},
+		{
+			"id": 8,
+			"file": "docs/legacy/reconciliation/queries/08-activity.sql",
+			"owner": "STL-17",
+			"semantics_source": "STL-17; wave plan T3",
+			"preconditions": [
+				"legacy.activity",
+				"legacy.comment",
+				"public.comment",
+				"public.event",
+				"public.activity_import"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/08.sql"]
+		},
+		{
+			"id": 9,
+			"file": "docs/legacy/reconciliation/queries/09-asset.sql",
+			"owner": "STL-20",
+			"semantics_source": "STL-20; wave plan T6",
+			"preconditions": ["legacy.asset", "public.asset"],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/09.sql"]
+		},
+		{
+			"id": 10,
+			"file": "docs/legacy/reconciliation/queries/10-repository.sql",
+			"owner": "STL-18",
+			"semantics_source": "STL-18; wave plan T4",
+			"preconditions": [
+				"legacy.repo",
+				"legacy.repo_issue",
+				"legacy.repo_pull_request",
+				"legacy.organization_github_installation",
+				"legacy.github_user_grant",
+				"legacy.integration",
+				"public.repo",
+				"public.repo_issue",
+				"public.repo_pull_request",
+				"public.organization_github_installation",
+				"public.github_user_grant",
+				"public.integration"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/10.sql"]
+		},
+		{
+			"id": 11,
+			"file": "docs/legacy/reconciliation/queries/11-grants.sql",
+			"owner": "STL-20",
+			"semantics_source": "STL-20; wave plan T6",
+			"preconditions": ["legacy.resource_grant", "public.resource_grant"],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/11.sql"]
+		},
+		{
+			"id": 12,
+			"file": "docs/legacy/reconciliation/queries/12-isolation.sql",
+			"owner": "STL-20",
+			"semantics_source": "STL-20; wave plan T6",
+			"preconditions": [
+				"legacy.organization",
+				"legacy.board",
+				"legacy.task",
+				"legacy.resource_grant",
+				"public.organization",
+				"public.board",
+				"public.ticket",
+				"public.resource_grant"
+			],
+			"sabotages": ["tests/fixtures/reconciliation/sabotage/12.sql"]
+		},
+		{
+			"id": 13,
+			"file": "docs/legacy/reconciliation/queries/13-id-bijection.sql",
+			"owner": "STL-27",
+			"semantics_source": "STL-27 §2; STL-15 §2 identity_import ledger contract",
+			"preconditions": [
+				"legacy.user",
+				"legacy.account",
+				"legacy.organization",
+				"legacy.organization_member",
+				"legacy.organization_role",
+				"public.identity_import",
+				"public.user",
+				"public.account",
+				"public.organization",
+				"public.organization_member",
+				"public.organization_role"
+			],
+			"sabotages": [
+				"tests/fixtures/reconciliation/sabotage/13a.sql",
+				"tests/fixtures/reconciliation/sabotage/13b.sql"
+			]
+		},
+		{
+			"id": 14,
+			"file": "docs/legacy/reconciliation/queries/14-apikey-hash-audit.sql",
+			"owner": "STL-27",
+			"semantics_source": "STL-27 §2; fork verify-api-key.ts @2504e645",
+			"preconditions": [
+				"legacy.apikey",
+				"public.apikey",
+				"public.principal",
+				"public.event",
+				"public.org_event_counter"
+			],
+			"sabotages": [
+				"tests/fixtures/reconciliation/sabotage/14a.sql",
+				"tests/fixtures/reconciliation/sabotage/14b.sql"
+			]
+		}
+	],
+	"known_answers": {
+		"apikey_sha256_base64url": [
+			{ "raw": "stl27-known-answer-key-1", "reference_id": "u1" },
+			{ "raw": "stl27-known-answer-key-2", "reference_id": "u2" }
+		]
+	}
+}
