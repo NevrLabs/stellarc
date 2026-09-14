@@ -11,13 +11,11 @@ import { disposablePostgres } from "../helpers/postgres";
 
 let sql: Sql;
 let authHandler: (request: Request) => Promise<Response>;
-let close: () => Promise<void>;
 const resources: Array<() => Promise<void>> = [];
 
 beforeEach(async () => {
 	const db = await disposablePostgres();
 	sql = db.sql;
-	close = db.close;
 	resources.push(db.close);
 	await runMigration(sql);
 	const auth = makeAuth(sql, {
@@ -42,7 +40,7 @@ async function seedUser(
 	await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at, banned)
 		VALUES (${id}, 'Test User', ${email}, true, '2026-01-01 00:00:00', '2026-01-01 00:00:00', ${extra.banned ?? false})`;
 	await sql`INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at)
-		VALUES (${"acc-" + id}, ${"acc-" + id}, 'credential', ${id}, ${hash}, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
+		VALUES (${`acc-${id}`}, ${`acc-${id}`}, 'credential', ${id}, ${hash}, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
 }
 
 async function signIn(email: string, password: string) {

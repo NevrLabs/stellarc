@@ -185,21 +185,21 @@ export async function deleteProbe(
 // the mutation/auth/router/importer surfaces so the API layer reaches them
 // through one import path.
 export {
-	humanPrincipalId,
 	agentPrincipalId,
-	authenticateApiKey,
 	apiKeyDigest,
+	authenticateApiKey,
+	humanPrincipalId,
 } from "./identity/auth";
-export { orgRouter } from "./identity/org-router";
-export type { OrgBinding, OrgRouterError } from "./identity/org-router";
+export type { ImportReport } from "./identity/import";
+export { importIdentity } from "./identity/import";
+export type {
+	CreateOrganizationInput,
+	Failure,
+	MutationResult,
+} from "./identity/mutations";
 export {
 	createOrganization,
 	removeMember,
 } from "./identity/mutations";
-export type {
-	CreateOrganizationInput,
-	MutationResult,
-	Failure,
-} from "./identity/mutations";
-export { importIdentity } from "./identity/import";
-export type { ImportReport } from "./identity/import";
+export type { OrgBinding, OrgRouterError } from "./identity/org-router";
+export { orgRouter } from "./identity/org-router";

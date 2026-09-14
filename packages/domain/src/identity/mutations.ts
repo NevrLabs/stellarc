@@ -40,7 +40,7 @@ interface EventInsert {
 	payload: Record<string, unknown>;
 }
 
-async function appendEvents(
+export async function appendEvents(
 	tx: Sql,
 	org: string,
 	actor: string,

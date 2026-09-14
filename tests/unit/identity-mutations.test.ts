@@ -198,7 +198,8 @@ test("T10 removeMember without an authenticated actor is rejected", async () => 
 		String(member?.id),
 		"",
 	).catch((error: unknown) => error);
-	expect(failure).toMatchObject({ _tag: "Conflict", code: "Unauthenticated" });
+	// §3 error union: Unauthenticated is its own tag, not a Conflict code.
+	expect(failure).toMatchObject({ _tag: "Unauthenticated" });
 	const deleted =
 		await sql`SELECT count(*)::int AS n FROM organization_member WHERE id = ${String(member?.id)}`;
 	expect(Number(deleted[0]?.n)).toBe(1);

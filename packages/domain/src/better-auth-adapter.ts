@@ -206,6 +206,7 @@ function createAdapterFactoryArgs(sql: Sql) {
 }
 
 /* eslint-disable-next-line */
+// biome-ignore lint/suspicious/noExplicitAny: better-auth adapter record shape is intentionally structural
 function makeAdapter(sql: Sql): () => any {
 	return () => ({
 		options: {},
