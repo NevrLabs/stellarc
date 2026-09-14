@@ -117,11 +117,11 @@ test("P1 public schemas round-trip canonical samples and reject excess/missing k
 	];
 	for (const [name, schema, sample] of cases) {
 		expect(decode(schema)(sample), name).toEqual(sample);
-		expect(() => decode(schema)({ ...sample, bogus: 1 }), name).toThrow();
-		const { [Object.keys(sample)[0]]: _drop, ...rest } = sample as Record<
-			string,
-			unknown
-		>;
+		const withExcess = { ...(sample as Record<string, unknown>), bogus: 1 };
+		expect(() => decode(schema)(withExcess), name).toThrow();
+		const record = sample as Record<string, unknown>;
+		const rest: Record<string, unknown> = {};
+		for (const key of Object.keys(record).slice(1)) rest[key] = record[key];
 		expect(() => decode(schema)(rest), name).toThrow();
 	}
 });
