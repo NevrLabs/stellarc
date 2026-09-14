@@ -8,6 +8,7 @@ import {
 	markNotificationRead,
 	unreadCount,
 } from "../../packages/domain/src/notifications";
+import type { InboxFixture } from "../helpers/inbox-fixture";
 import { makeInboxFixture } from "../helpers/inbox-fixture";
 
 async function boot(): Promise<InboxFixture> {
@@ -83,7 +84,9 @@ test("T16 read-all and clear-all update both clients' views atomically with even
 		expect((left[0] as { n: number }).n).toBe(0);
 		const events =
 			await f.sql`SELECT plugin_type FROM event WHERE org=${f.org} ORDER BY seq`;
-		const types = events.map((e) => e.plugin_type as string);
+		const types = events.map((e) =>
+			String((e as { plugin_type: string }).plugin_type),
+		);
 		expect(types).toContain("notification:updated");
 		expect(types).toContain("notification:deleted");
 	} finally {
@@ -100,7 +103,7 @@ test("T16 single delete removes exactly one row and emits notification:deleted",
 		expect(result.data.id).toBe(kill);
 		const left =
 			await f.sql`SELECT id::text FROM notification WHERE user_id=${f.alice}`;
-		expect(left.map((r: { id: string }) => r.id)).toEqual([keep]);
+		expect(left.map((r) => String((r as { id: string }).id))).toEqual([keep]);
 	} finally {
 		await f.close();
 	}
