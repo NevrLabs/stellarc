@@ -63,4 +63,5 @@ afterAll(() => {
 		} catch {}
 	}
 	roots.clear();
+	sql?.end({ timeout: 1 });
 });

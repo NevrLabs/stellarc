@@ -8,7 +8,7 @@ let sql: import("postgres").Sql;
 
 beforeAll(async () => {
 	({ sql } = await startUnitPostgres());
-});
+}, 60000);
 
 test("T01: migration catalogs all 8 work tables with exact column sets", async () => {
 	const expected: Record<string, string[]> = {
