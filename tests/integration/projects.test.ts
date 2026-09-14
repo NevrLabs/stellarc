@@ -97,12 +97,16 @@ afterEach(async () => {
 
 // --- STL-21 domain service tests (core subset; Q1 satellites deferred) -----------------
 import {
+	archiveProject,
 	createProject,
 	DuplicateSlug,
 	InvalidReference,
 	listProjects,
 	renameProjectSlug,
 	resolveProject,
+	unarchiveProject,
+	updateProject,
+	ValidationError,
 } from "../../packages/domain/src/projects";
 
 async function seedOrg(
@@ -211,4 +215,87 @@ test("T06 rename slug: alias row created, old slug resolves via alias", async ()
 	const canonical = await resolveProject(db.sql, "orgA", "GAMMA-RENAMED");
 	expect(canonical?.id).toBe(created.id);
 	expect(canonical?.usedSlugAlias).toBe(false);
+});
+
+test("T05/T07 update properties + archive/unarchive", async () => {
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await seedOrg(db, "orgA", "u1");
+	const created = await createProject(db.sql, {
+		organizationId: "orgA",
+		name: "Delta",
+		summary: "s",
+		leadUserId: "u1",
+		createdBy: "u1",
+	});
+	const updated = await updateProject(db.sql, {
+		id: created.id,
+		organizationId: "orgA",
+		updatedBy: "u1",
+		name: "Delta v2",
+		summary: "s2",
+		status: "started",
+		priority: "high",
+		icon: null,
+		color: "#fff",
+		description: "d",
+		successCriteria: null,
+		leadUserId: "u1",
+		leadTeamId: null,
+		startDate: "2026-01-01",
+		targetDate: null,
+		orgPrivilege: "edit",
+	});
+	expect(updated.name).toBe("Delta v2");
+	expect(updated.status).toBe("started");
+	expect(updated.orgPrivilege).toBe("edit");
+
+	// archived hidden from default list, returned with includeArchived
+	const archived = await archiveProject(db.sql, {
+		id: created.id,
+		organizationId: "orgA",
+		userId: "u1",
+	});
+	expect(archived.archivedAt).toBeTruthy();
+	expect(await listProjects(db.sql, "orgA")).toHaveLength(0);
+	expect(await listProjects(db.sql, "orgA", true)).toHaveLength(1);
+
+	// orgPrivilege picklist enforced
+	await expect(
+		updateProject(db.sql, {
+			id: created.id,
+			organizationId: "orgA",
+			updatedBy: "u1",
+			name: "x",
+			summary: "x",
+			status: "planned",
+			priority: null,
+			icon: null,
+			color: null,
+			description: null,
+			successCriteria: null,
+			leadUserId: "u1",
+			leadTeamId: null,
+			startDate: null,
+			targetDate: null,
+			orgPrivilege: "supreme",
+		}),
+	).rejects.toThrow(ValidationError);
+
+	// unarchive clears pair
+	const unarchived = await unarchiveProject(db.sql, {
+		id: created.id,
+		organizationId: "orgA",
+		userId: "u1",
+	});
+	expect(unarchived.archivedAt).toBeNull();
+	const events =
+		await db.sql`SELECT plugin_type FROM event WHERE org = ${"orgA"} ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"project:created",
+		"project:updated",
+		"project:archived",
+		"project:unarchived",
+	]);
 });

@@ -72,6 +72,35 @@ p.start_date, p.target_date, p.org_privilege,
 p.archived_at, au2.name AS archived_by_name,
 p.archived_by, p.created_at, p.updated_at, p.created_by`;
 
+function mapRow(r: Record<string, unknown>): ProjectRow {
+	return {
+		id: r.id as string,
+		organizationId: r.organization_id as string,
+		slug: r.slug as string,
+		name: r.name as string,
+		icon: (r.icon as string | null) ?? null,
+		color: (r.color as string | null) ?? null,
+		summary: r.summary as string,
+		description: (r.description as string | null) ?? null,
+		successCriteria: (r.success_criteria as string | null) ?? null,
+		status: r.status as string,
+		priority: (r.priority as string | null) ?? null,
+		leadUserId: r.lead_user_id as string,
+		leadUserName: (r.lead_user_name as string | null) ?? null,
+		leadTeamId: (r.lead_team_id as string | null) ?? null,
+		leadTeamName: (r.lead_team_name as string | null) ?? null,
+		startDate: (r.start_date as string | null) ?? null,
+		targetDate: (r.target_date as string | null) ?? null,
+		orgPrivilege: (r.org_privilege as string | null) ?? null,
+		archivedAt: (r.archived_at as Date | null) ?? null,
+		archivedBy: (r.archived_by as string | null) ?? null,
+		archivedByName: (r.archived_by_name as string | null) ?? null,
+		createdAt: r.created_at as Date,
+		updatedAt: r.updated_at as Date,
+		createdBy: r.created_by as string,
+	};
+}
+
 async function selectProjects(
 	sql: Sql,
 	org: string,
@@ -87,8 +116,8 @@ async function selectProjects(
 	WHERE p.organization_id = $1 ${extra}
 	ORDER BY p.name`,
 		[org, ...values] as never[],
-	)) as unknown as ProjectRow[];
-	return rows;
+	)) as unknown as Array<Record<string, unknown>>;
+	return rows.map(mapRow);
 }
 
 async function appendProjectEvent(
@@ -277,5 +306,159 @@ export async function renameProjectSlug(
 			[input.id],
 		);
 		return rows2[0];
+	});
+}
+
+export async function updateProject(
+	sql: Sql,
+	input: {
+		id: string;
+		organizationId: string;
+		updatedBy: string;
+		name: string;
+		summary: string;
+		status: string;
+		priority: string | null;
+		icon: string | null;
+		color: string | null;
+		description: string | null;
+		successCriteria: string | null;
+		leadUserId: string;
+		leadTeamId: string | null;
+		startDate: string | null;
+		targetDate: string | null;
+		orgPrivilege: string | null;
+	},
+): Promise<ProjectRow> {
+	if (!["planned", "started", "completed", "canceled"].includes(input.status))
+		throw new ValidationError("Invalid status");
+	if (
+		input.priority !== null &&
+		!["no-priority", "low", "medium", "high", "urgent"].includes(input.priority)
+	)
+		throw new ValidationError("Invalid priority");
+	if (
+		input.orgPrivilege !== null &&
+		!["none", "view", "edit", "manage"].includes(input.orgPrivilege)
+	)
+		throw new ValidationError("Invalid orgPrivilege");
+	return sql.begin(async (tx) => {
+		const [member] = await tx`
+			SELECT 1 FROM organization_member
+			WHERE organization_id = ${input.organizationId} AND user_id = ${input.leadUserId}`;
+		if (!member) throw new InvalidReference("Lead user not in organization");
+		if (input.leadTeamId) {
+			const [team] = await tx`
+				SELECT 1 FROM team WHERE id = ${input.leadTeamId} AND organization_id = ${input.organizationId}`;
+			if (!team) throw new InvalidReference("Lead team not in organization");
+		}
+		const rows0 = await selectProjects(
+			tx,
+			input.organizationId,
+			"AND p.id = $2",
+			[input.id],
+		);
+		if (!rows0[0]) throw new NotFound();
+		await tx`UPDATE project SET
+			name = ${input.name},
+			summary = ${input.summary},
+			status = ${input.status},
+			priority = ${input.priority},
+			icon = ${input.icon},
+			color = ${input.color},
+			description = ${input.description},
+			success_criteria = ${input.successCriteria},
+			lead_user_id = ${input.leadUserId},
+			lead_team_id = ${input.leadTeamId},
+			start_date = ${input.startDate},
+			target_date = ${input.targetDate},
+			org_privilege = ${input.orgPrivilege},
+			updated_at = now()
+		WHERE id = ${input.id} AND organization_id = ${input.organizationId}`;
+		await appendProjectEvent(
+			tx,
+			input.organizationId,
+			input.updatedBy,
+			"project:updated",
+			{
+				id: input.id,
+				organizationId: input.organizationId,
+			},
+		);
+		const rows = await selectProjects(
+			tx,
+			input.organizationId,
+			"AND p.id = $2",
+			[input.id],
+		);
+		return rows[0];
+	});
+}
+
+export async function archiveProject(
+	sql: Sql,
+	input: { id: string; organizationId: string; userId: string },
+): Promise<ProjectRow> {
+	return sql.begin(async (tx) => {
+		const rows0 = await selectProjects(
+			tx,
+			input.organizationId,
+			"AND p.id = $2",
+			[input.id],
+		);
+		if (!rows0[0]) throw new NotFound();
+		await tx`UPDATE project SET archived_at = now(), archived_by = ${input.userId}, updated_at = now()
+			WHERE id = ${input.id} AND organization_id = ${input.organizationId}`;
+		await appendProjectEvent(
+			tx,
+			input.organizationId,
+			input.userId,
+			"project:archived",
+			{
+				id: input.id,
+				organizationId: input.organizationId,
+			},
+		);
+		const rows = await selectProjects(
+			tx,
+			input.organizationId,
+			"AND p.id = $2",
+			[input.id],
+		);
+		return rows[0];
+	});
+}
+
+export async function unarchiveProject(
+	sql: Sql,
+	input: { id: string; organizationId: string; userId: string },
+): Promise<ProjectRow> {
+	return sql.begin(async (tx) => {
+		const rows0 = await selectProjects(
+			tx,
+			input.organizationId,
+			"AND p.id = $2",
+			[input.id],
+		);
+		if (!rows0[0]) throw new NotFound();
+		await tx`UPDATE project SET archived_at = NULL, archived_by = NULL, updated_at = now()
+			WHERE id = ${input.id} AND organization_id = ${input.organizationId}`;
+		await appendProjectEvent(
+			tx,
+			input.organizationId,
+			input.userId,
+			"project:unarchived",
+			{
+				id: input.id,
+				organizationId: input.organizationId,
+			},
+		);
+		const rows = await selectProjects(
+			tx,
+			input.organizationId,
+			"AND p.id = $2",
+			[input.id],
+		);
+		return rows[0];
 	});
 }
