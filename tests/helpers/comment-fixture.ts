@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, ManagedRuntime } from "effect";
+import { Cause, type Effect, Exit, ManagedRuntime } from "effect";
 import type { Sql } from "postgres";
 import { migrate } from "../../packages/db/src/migrate";
 import type { Actor } from "../../packages/domain/src/activity";

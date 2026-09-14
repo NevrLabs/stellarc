@@ -286,7 +286,7 @@ export async function assertCompositeSelectionFk(sql: Sql): Promise<void> {
 // Minimal identity seed used by integration fixtures (org + two users).
 export async function seedIdentity(
 	sql: Sql,
-	ids: { org: string; users: [string, string] },
+	ids: { org: string; users: string[] },
 ): Promise<void> {
 	await sql`
     INSERT INTO organization (id, name, slug, created_at)
