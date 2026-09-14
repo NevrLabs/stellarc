@@ -32,8 +32,6 @@ WITH checks AS (
       OR s.org_privilege IS DISTINCT FROM d.org_privilege
       OR s.config IS DISTINCT FROM d.config
       OR s.last_synced_at IS DISTINCT FROM d.last_synced_at
-      OR s.created_at IS DISTINCT FROM d.created_at
-      OR s.updated_at IS DISTINCT FROM d.updated_at
   -- repo_issue
   UNION ALL
   SELECT 'repo_issue:missing-in-dest', s.id, 'repo_issue'

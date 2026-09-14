@@ -3,7 +3,11 @@ import { PgClient } from "@effect/sql-pg";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { migrate } from "../../packages/db/src/migrate";
-import { loadManifest, type Manifest } from "../../tools/reconciliation/canon";
+import {
+	loadManifest,
+	loadQueryText,
+	type Manifest,
+} from "../../tools/reconciliation/canon";
 import {
 	aggregate,
 	applySabotage,
@@ -603,6 +607,58 @@ describe("R22 spans", () => {
 				expect(span.attributes).not.toHaveProperty("db.query.text");
 				expect(span.attributes).not.toHaveProperty("db.statement");
 			}
+		} finally {
+			await rt.dispose();
+		}
+	});
+});
+
+// R22 negative control: the span assertions above must be attributable to the
+// runner's instrumentation, not to the query machinery. Running the runner's
+// file-to-execute flow with every Effect.fn wrapper / withSpan annotation
+// removed must turn the R22 span-count assertion red — and red because no
+// stellarc.reconcile.query span exists at all, not merely fewer.
+describe("R22 negative control", () => {
+	test("with instrumentation stripped the R22 span-count assertion goes red", async () => {
+		const { TelemetryTest } = await import(
+			"../../packages/telemetry/src/index"
+		);
+		const telemetry = TelemetryTest();
+		const rt = ManagedRuntime.make(
+			sqlLayer(
+				cluster.sql.options.host[0],
+				cluster.sql.options.database ?? "postgres",
+			).pipe(Layer.provideMerge(telemetry.layer)),
+		);
+		try {
+			const results = await rt.runPromise(
+				Effect.gen(function* () {
+					const sql = yield* PgClient.PgClient;
+					const out: Array<{ id: number; violations: number }> = [];
+					for (const q of manifest.queries) {
+						const text = yield* Effect.tryPromise(() => loadQueryText(q.file));
+						const rows = yield* sql.unsafe(text);
+						out.push({
+							id: q.id,
+							violations: Array.isArray(rows) ? rows.length : 0,
+						});
+					}
+					return out;
+				}),
+			);
+			// The queries themselves still run and stay green: stripping
+			// instrumentation changes nothing about detection.
+			expect(results).toHaveLength(14);
+			for (const r of results) expect(r.violations).toBe(0);
+			// The R22 span-count assertion, applied verbatim to the stripped
+			// pipeline, must fail — this is R22's RED condition reproduced.
+			const spans = telemetry.spans
+				.getFinishedSpans()
+				.filter((span) => span.name === "stellarc.reconcile.query");
+			const assertR22SpanCount = () => expect(spans).toHaveLength(14);
+			expect(assertR22SpanCount).toThrowError();
+			// ...and it fails for the right reason: zero reconcile spans.
+			expect(spans).toHaveLength(0);
 		} finally {
 			await rt.dispose();
 		}
