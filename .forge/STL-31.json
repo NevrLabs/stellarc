@@ -163,12 +163,6 @@
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
    "pid": 1808981,
    "reason": "orphan running: watcher pid 1808981 dead, agent gone; reconciled by driver \u2192 pass"
-  },
-  {
-   "stage": "spec",
-   "status": "pass",
-   "at": "2026-09-14T01:54:56+00:00",
-   "note": "re-armed for rework"
   }
  ],
  "cycle": 4

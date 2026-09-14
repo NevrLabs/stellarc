@@ -196,6 +196,9 @@ def is_done(n):
     s = state(n)
     return last(s, "merged") == "pass" or (REPO_ROOT / f".forge/{tid(n)}.skip").exists()
 
+def idx_of(s, stage, status):
+    return max([i for i, x in enumerate(s["stages"]) if x["stage"] == stage and x["status"] == status], default=-1)
+
 def next_stage(n):
     """Which forge command should run next for ticket n, or None if waiting/done/escalated."""
     if (REPO_ROOT / f".forge/{tid(n)}.escalation").exists(): return None
@@ -206,7 +209,7 @@ def next_stage(n):
         return None
     if last(s, "merged") == "pass": return None
     if last(s, "merge-gate") == "pass": return None                    # merged is recorded by forge merge itself
-    if last(s, "review") == "pass": return "merge"
+    if last(s, "review") == "pass" and idx_of(s, "review", "pass") > max(idx_of(s, "merge-gate", "fail"), idx_of(s, "implement", "running")): return "merge"
     def idx(stage, status):
         for i in range(len(s["stages"]) - 1, -1, -1):
             x = s["stages"][i]
