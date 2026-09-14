@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import type { Sql } from "postgres";
+import { appendEventInTx } from "./activity-events";
 import { deliveryKey, notificationTypeFor } from "./notification-recipients";
 
 /**
@@ -218,11 +219,8 @@ async function appendNotificationEvent(
 	payload: unknown,
 ): Promise<void> {
 	void traceparent;
-	await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
-	const [counter] =
-		await tx`UPDATE org_event_counter SET seq=seq+1 WHERE org=${org} RETURNING seq::text AS seq`;
-	const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
-	const seq = BigInt(counter.seq);
-	await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
-    VALUES (${org},${seq.toString()},${pluginType},'worker',${tx.json(payload as never)},1,${transaction.txid})`;
+	// Same locked counter append as producers: the transaction already holds
+	// the outbox job row lock, but the counter UPDATE needs the same ordering
+	// discipline to serialize with concurrent producer transactions.
+	await appendEventInTx(tx, org, "worker", pluginType, payload);
 }

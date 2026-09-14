@@ -23,19 +23,18 @@ export async function makeWorkerFixture() {
 		users: ["user-alice", "user-bob", "user-carol"],
 	});
 
-	let seqCounter = 0n;
-
 	async function plantEvent(
 		pluginType: string,
 		payload: string,
 	): Promise<EventHandle> {
-		seqCounter += 1n;
+		// Derive the seq from the counter table (worker events advance it too).
 		await sql`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
-		await sql`UPDATE org_event_counter SET seq=${seqCounter.toString()} WHERE org=${org}`;
+		const [row] = await sql<{ seq: string }[]>`
+      UPDATE org_event_counter SET seq=seq+1 WHERE org=${org} RETURNING seq::text AS seq`;
 		const [txrow] = await sql`SELECT pg_current_xact_id()::text AS txid`;
 		await sql`INSERT INTO event (org,seq,plugin_type,actor,payload,schema_version,txid)
-      VALUES (${org},${seqCounter.toString()},${pluginType},'user-alice',${payload},1,${txrow.txid})`;
-		return { org, seq: seqCounter.toString() };
+      VALUES (${org},${row.seq},${pluginType},'user-alice',${payload},1,${txrow.txid})`;
+		return { org, seq: row.seq };
 	}
 
 	async function enqueueJob(eventHandle: EventHandle): Promise<string> {
@@ -123,18 +122,56 @@ export async function makeWorkerFixture() {
 	const sqlA: Sql = db.connect({ max: 2 });
 	const sqlB: Sql = db.connect({ max: 2 });
 
-	async function run<A>(
-		effect: import("effect").Effect.Effect<A, unknown>,
-	): Promise<A> {
-		const { Exit, Cause, ManagedRuntime } = await import("effect");
+	async function runtime() {
+		const { ManagedRuntime } = await import("effect");
 		const { Layer } = await import("effect");
 		if (!runtimeRef.current) {
 			runtimeRef.current = ManagedRuntime.make(Layer.empty);
 		}
-		const runtime = runtimeRef.current;
-		const exit = await runtime.runPromiseExit(effect);
+		return runtimeRef.current;
+	}
+
+	async function run<A>(
+		effect: import("effect").Effect.Effect<A, unknown>,
+	): Promise<A> {
+		const { Exit, Cause } = await import("effect");
+		const rt = await runtime();
+		const exit = await rt.runPromiseExit(effect);
 		if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
 		return exit.value;
+	}
+
+	/** Fork a long-running effect (consumer loop) for later interrupt. */
+	async function runFork(
+		effect: import("effect").Effect.Effect<unknown, unknown>,
+	): Promise<{ interrupt(): Promise<void> }> {
+		const { Effect } = await import("effect");
+		const rt = await runtime();
+		const fiber = rt.runFork(effect);
+		return {
+			interrupt: async () => {
+				const { Fiber, FiberId } = await import("effect");
+				await Effect.runPromise(
+					Fiber.interruptAsFork(FiberId.none)(fiber as never),
+				).catch(() => undefined);
+			},
+		};
+	}
+
+	async function sleep(ms: number): Promise<void> {
+		await new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	async function waitFor(
+		predicate: () => Promise<boolean>,
+		timeoutMs: number,
+	): Promise<void> {
+		const deadline = Date.now() + timeoutMs;
+		for (;;) {
+			if (await predicate()) return;
+			if (Date.now() >= deadline) throw new Error("waitFor timed out");
+			await sleep(25);
+		}
 	}
 	const runtimeRef: {
 		current:
@@ -163,5 +200,8 @@ export async function makeWorkerFixture() {
 		countNotifications,
 		simulateCrashDuringProcessing,
 		run,
+		runFork,
+		sleep,
+		waitFor,
 	};
 }

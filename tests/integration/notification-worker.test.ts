@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { runConsumerLoop } from "../../packages/domain/src/notification-consumer";
 import {
 	processOneJob,
 	recordJobError,
@@ -130,6 +131,34 @@ test("T10 revoked (non-member) recipient gets no content at delivery time", asyn
 		await fx.run(processOneJob({ sql: fx.sql }));
 		const recipients = await fx.sql`SELECT user_id::text FROM notification`;
 		expect(recipients.map((r) => r.user_id)).toEqual(["user-bob"]);
+	} finally {
+		await fx.close();
+	}
+});
+
+test("T07 LISTEN-before-catch-up, lost wakeup and retry deadline all drain durable jobs", async () => {
+	const fx = await makeWorkerFixture();
+	try {
+		// Enqueued BEFORE the loop starts: only startup catch-up can drain it.
+		const j1 = await fx.enqueueCommentCreatedJob({ recipients: ["user-bob"] });
+		const fiber = await fx.runFork(
+			runConsumerLoop({ sql: fx.sql, idleWaitMs: 50 }),
+		);
+		await fx.waitFor(async () => (await fx.jobState(j1)) === "complete", 5000);
+		// Enqueued while running: the loop's notify wakeup drains it.
+		const j2 = await fx.enqueueCommentCreatedJob({
+			recipients: ["user-carol"],
+		});
+		await fx.sql`SELECT pg_notify('stellarc_outbox', 'wakeup')`;
+		await fx.waitFor(async () => (await fx.jobState(j2)) === "complete", 5000);
+		// Retry deadline: a future job is not run early, then drains on the
+		// deadline wake (no pg_notify is involved in this transition).
+		const j3 = await fx.enqueueCommentCreatedJob({ recipients: ["user-bob"] });
+		await fx.sql`UPDATE notification_outbox SET available_at = now() + interval '300 milliseconds' WHERE id=${j3}`;
+		await fx.sleep(60);
+		expect(await fx.jobState(j3)).toBe("pending");
+		await fx.waitFor(async () => (await fx.jobState(j3)) === "complete", 5000);
+		await fiber.interrupt();
 	} finally {
 		await fx.close();
 	}
