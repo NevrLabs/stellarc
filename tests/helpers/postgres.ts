@@ -76,12 +76,16 @@ export async function disposablePostgres() {
 		async close() {
 			live.delete(data);
 			await sql.end();
-			execFileSync(
-				join(bin, "pg_ctl"),
-				["-D", data, "-m", "immediate", "-w", "stop"],
-				{ stdio: "pipe" },
-			);
-			await rm(root, { recursive: true });
+			try {
+				execFileSync(
+					join(bin, "pg_ctl"),
+					["-D", data, "-m", "immediate", "-w", "stop"],
+					{ stdio: "pipe" },
+				);
+			} catch {
+				// already stopped (idempotent close)
+			}
+			await rm(root, { recursive: true, force: true });
 		},
 	};
 }
