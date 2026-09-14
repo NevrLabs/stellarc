@@ -78,9 +78,13 @@ test("T01b desktop:build pre-bakes the tauri config before the CLI parses -c (re
 });
 
 test("T02 desktop slice leaves the frozen UI tree untouched", () => {
+	// Diff the PR range (merge-base origin/dev...HEAD), not HEAD: in a CI
+	// clean checkout `git diff HEAD` is empty and the guard is decorative.
+	// origin/dev is fetched even in shallow clones before the suite runs
+	// (ui-purity job fetch-depth: 0; ci.yml full clone).
 	const result = spawnSync(
 		"git",
-		["diff", "--name-only", "HEAD", "--", "apps/stellarc-ui", "packages"],
+		["diff", "--name-only", "origin/dev...HEAD", "--", "apps/stellarc-ui", "packages"],
 		{ cwd: ROOT, encoding: "utf8" },
 	);
 	const changed = result.stdout
