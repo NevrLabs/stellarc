@@ -8,6 +8,11 @@ import { afterAll } from "vitest";
 // no socket; same shape as tests/helpers/postgres.ts but lean for unit scope).
 const roots = new Set<string>();
 const BIN = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
+const openPools = new Set<{ end: (opts: { timeout: number }) => Promise<void> }>();
+
+export function trackPool(pool: { end: (opts: { timeout: number }) => Promise<void> }) {
+	openPools.add(pool);
+}
 
 export async function startUnitPostgres() {
 	const root = mkdtempSync(join(tmpdir(), "stellarc-unit-"));
@@ -42,11 +47,12 @@ export async function startUnitPostgres() {
 		max: 8,
 		onnotice: () => {},
 	});
+	trackPool(sql as never);
 	await migrate(sql);
 	return { sql, root, data };
 }
 
-afterAll(() => {
+afterAll(async () => {
 	for (const root of roots) {
 		try {
 			execFileSync(join(BIN, "pg_ctl"), [
@@ -62,6 +68,10 @@ afterAll(() => {
 			rmSync(root, { recursive: true, force: true });
 		} catch {}
 	}
+	for (const pool of openPools)
+		try {
+			await pool.end({ timeout: 1 });
+		} catch {}
+	openPools.clear();
 	roots.clear();
-	sql?.end({ timeout: 1 });
 });

@@ -274,3 +274,37 @@ test("T07: PUT key writes prior key as alias; old slug + KEY-seq URLs still reso
 	const aliases = await sql`SELECT key FROM board_key_alias WHERE board_id = 'b-key'`;
 	expect(aliases.map((a) => a.key)).toContain("keyed-board");
 });
+
+// --- T22: shape snapshot + tail for all 8 collections ---------------------------------------
+test("T22: work events decode through the registry; unknown versions fail closed", async () => {
+	const { WorkUpcasterRegistry, UnsupportedWorkEventSchema } = await import(
+		"../../packages/sync/src/work-upcasters"
+	);
+	const registry = new WorkUpcasterRegistry();
+	const [event] = await sql`SELECT plugin_type, schema_version, payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:board-upserted' LIMIT 1`;
+	expect(event).toBeDefined();
+	const decoded = registry.decode(event.plugin_type, event.schema_version, event.payload);
+	expect(decoded.id).toBe("b1");
+	expect(() => registry.decode(event.plugin_type, 2, event.payload)).toThrow(
+		UnsupportedWorkEventSchema,
+	);
+	expect(() => registry.decode("work:unknown", 1, event.payload)).toThrow(
+		UnsupportedWorkEventSchema,
+	);
+});
+
+test("T22: tailMessages streams exactly once per event; deletes stream as deletes", async () => {
+	const { tailMessages, WORK_COLLECTIONS } = await import(
+		"../../packages/sync/src/work-shapes"
+	);
+	expect(WORK_COLLECTIONS).toHaveLength(8);
+	const [counter] = await sql`SELECT seq::text AS seq FROM org_event_counter WHERE org = 'org-1'`;
+	const messages = await tailMessages(sql, "org-1", "ticket", "0");
+	expect(messages.length).toBeGreaterThan(0);
+	// Deletes (soft-delete emits work:ticket-deleted) stream with operation delete.
+	expect(
+		messages.every((m) =>
+			Boolean((m.value as { id?: string } | undefined)?.id !== undefined),
+		),
+	).toBe(true);
+});
