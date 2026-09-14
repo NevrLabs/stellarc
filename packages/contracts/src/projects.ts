@@ -174,7 +174,7 @@ export const PROJECTS_SCHEMA_VERSION = 1;
 
 const Id = Schema.String;
 
-export const ProjectEventPayloadSchemas: Record<string, Schema.Schema> = {
+export const ProjectEventPayloadSchemas: Record<string, Schema.Schema.Any> = {
 	"project:created": Schema.Struct({ id: Id, organizationId: Id }),
 	"project:updated": Schema.Struct({ id: Id, organizationId: Id }),
 	"project:archived": Schema.Struct({ id: Id, organizationId: Id }),
