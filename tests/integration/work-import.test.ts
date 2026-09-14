@@ -258,7 +258,7 @@ test("T18: full 8-table import through work-fixture restores rows and emits upse
 		]);
 		const events =
 			await fixture.sql`SELECT plugin_type FROM event ORDER BY seq`;
-		const types = events.map((e: { plugin_type: string }) => e.plugin_type);
+		const types = events.map((e) => String(e.plugin_type));
 		for (const type of [
 			"work:board-upserted",
 			"work:status-upserted",

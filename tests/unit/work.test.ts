@@ -329,3 +329,30 @@ test("T01: migration file registers 0003_work with checksum-registered discovery
 	expect(migration).toContain('CREATE TABLE "board"');
 	expect(migration).toContain("CREATE TABLE task ");
 });
+
+// T28 groundwork: work-collections exposes exactly the eight §4 projections
+// with org-scoped shape handles and no singleton/global state.
+test("work-collections: eight live collection handles per org", async () => {
+	const mod = await import("../../apps/stellarc-ui/src/lib/work-collections");
+	expect(mod.WORK_COLLECTION_NAMES).toHaveLength(8);
+	expect([...mod.WORK_COLLECTION_NAMES]).toEqual(
+		expect.arrayContaining([
+			"work_board",
+			"work_board_key_alias",
+			"work_status",
+			"work_ticket",
+			"work_label",
+			"work_task_template",
+			"work_flag_type",
+			"work_task_flag",
+		]),
+	);
+	// Factory shape: two distinct orgs yield distinct handle sets (org+principal
+	// scoped; revocation invalidates handles server-side).
+	const a = mod.workCollections("org-a", "Bearer org-a user-1", "http://x");
+	const b = mod.workCollections("org-b", "Bearer org-b user-1", "http://x");
+	expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
+	expect(a.board).not.toBe(b.board);
+	await a.cleanup();
+	await b.cleanup();
+});
