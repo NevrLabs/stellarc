@@ -20,7 +20,7 @@ import {
 } from "../../packages/contracts/src/identity/http";
 import * as rows from "../../packages/contracts/src/identity/tables";
 import { statement } from "../../packages/contracts/src/legacy/permissions";
-import { applyMigration, runMigration } from "../../packages/db/src/migrate";
+import { applyMigration, migrationVersions, runMigration } from "../../packages/db/src/migrate";
 import * as domain from "../../packages/domain/src/identity";
 
 const decode = (schema: Schema.Schema.Any) => (input: unknown) =>
@@ -551,24 +551,14 @@ function makeFakeSql() {
 test("D1 runMigration returns every entry's version+checksum in order; re-run verifies without re-applying", async () => {
 	const fresh = makeFakeSql();
 	const first = await runMigration(fresh.sql);
-	expect(first.map((e) => e.version)).toEqual([
-		"0001_foundation",
-		"0002_identity",
-		"0003_work",
-	]);
-	expect(fresh.inserted.map((e) => e.version)).toEqual([
-		"0001_foundation",
-		"0002_identity",
-		"0003_work",
-	]);
+	// Registry-derived (migrationVersions): new slices append without every
+	// consumer test hardcoding the list (T01-discovery contract).
+	expect(first.map((e) => e.version)).toEqual(migrationVersions);
+	expect(fresh.inserted.map((e) => e.version)).toEqual(migrationVersions);
 	// second run over the same cluster: entries verified, nothing re-applied
 	const second = await runMigration(fresh.sql);
-	expect(second.map((e) => e.version)).toEqual([
-		"0001_foundation",
-		"0002_identity",
-		"0003_work",
-	]);
-	expect(fresh.inserted).toHaveLength(3);
+	expect(second.map((e) => e.version)).toEqual(migrationVersions);
+	expect(fresh.inserted).toHaveLength(migrationVersions.length);
 });
 
 test("D1 applyMigration annotates stellarc.migration.version with the run's versions", async () => {
@@ -584,7 +574,7 @@ test("D1 applyMigration annotates stellarc.migration.version with the run's vers
 		const span = spans.find((s) => s.name === "stellarc.migrate.apply");
 		expect(span, "applyMigration span").toBeDefined();
 		expect(span?.attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation,0002_identity,0003_work",
+			"0001_foundation,0002_identity",
 		);
 	} finally {
 		await runtime.dispose();

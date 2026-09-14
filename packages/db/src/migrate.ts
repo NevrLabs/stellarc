@@ -12,6 +12,12 @@ const MIGRATIONS = [
 	{ version: "0003_work", file: "../migrations/0003_work.sql" },
 ] as const;
 
+/** Registry-derived version list for tests and callers (T01 discovery): new
+ * slices append to MIGRATIONS without consumers hardcoding enumerations. */
+export const migrationVersions: readonly string[] = MIGRATIONS.map(
+	(m) => m.version,
+);
+
 /** Owner-only provisioning; the runtime principal must already exist. */
 export async function grantRuntime(sql: Sql, role: string) {
 	if (!/^[a-z_][a-z0-9_]{0,62}$/.test(role))

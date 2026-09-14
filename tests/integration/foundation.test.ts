@@ -6,6 +6,7 @@ import {
 import { createCollection } from "@tanstack/db";
 import { electricCollectionOptions } from "@tanstack/electric-db-collection";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { migrationVersions } from "../../packages/db/src/migrate";
 import { startTestServer } from "./test-server";
 
 type ProbeValue = {
@@ -422,8 +423,10 @@ test("T06 migration exports its applied version through the caller trace", async
 			(span) => span.name === "stellarc.migrate.apply",
 		);
 		expect(applied).toHaveLength(1);
+		// Registry-derived: new slices append to the applied-versions span
+		// without this assertion hardcoding the enumeration (T01 discovery).
 		expect(applied[0].attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation,0002_identity,0003_work",
+			migrationVersions.join(","),
 		);
 		expect(applied[0].spanContext().traceId).toBe(
 			spans.find((span) => span.name === "migration.caller")?.spanContext()
@@ -1602,7 +1605,7 @@ test("T06 migrations serialize, repeat safely, and reject checksum drift", async
 	await Promise.all([migrate(db.sql), migrate(db.sql)]);
 	expect(
 		(await db.sql`SELECT version FROM stellarc_migration`).length,
-	).toBe(3);
+	).toBe(migrationVersions.length);
 	await db.sql`UPDATE stellarc_migration SET checksum='invalid'`;
 	await expect(migrate(db.sql)).rejects.toThrow("Migration checksum mismatch");
 });
