@@ -791,6 +791,10 @@ test("T17 SqlLive owns and closes its PostgreSQL pool", async () => {
 			`postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
 		),
 		port: 3000,
+		authSecret: Redacted.make(
+			"test-secret-do-not-use-in-production-0123456789",
+		),
+		publicOrigin: "http://127.0.0.1:3000",
 	});
 	const context = await Effect.runPromise(
 		Layer.buildWithScope(SqlLive.pipe(Layer.provide(config)), scope),

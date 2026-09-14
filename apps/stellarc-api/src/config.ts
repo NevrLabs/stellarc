@@ -2,7 +2,12 @@ import { Config, Context, Layer, Redacted } from "effect";
 
 export class AppConfig extends Context.Tag("stellarc/AppConfig")<
 	AppConfig,
-	{ readonly databaseUrl: Redacted.Redacted<string>; readonly port: number }
+	{
+		readonly databaseUrl: Redacted.Redacted<string>;
+		readonly port: number;
+		readonly authSecret: Redacted.Redacted<string>;
+		readonly publicOrigin: string;
+	}
 >() {}
 
 export const ConfigLive = Layer.effect(
@@ -23,6 +28,15 @@ export const ConfigLive = Layer.effect(
 					}
 				},
 			}),
+		),
+		authSecret: Config.redacted("AUTH_SECRET").pipe(
+			Config.validate({
+				message: "AUTH_SECRET must be at least 32 chars",
+				validation: (value) => Redacted.value(value).length >= 32,
+			}),
+		),
+		publicOrigin: Config.string("PUBLIC_ORIGIN").pipe(
+			Config.withDefault("http://127.0.0.1:3000"),
 		),
 		port: Config.integer("PORT").pipe(
 			Config.withDefault(3000),
