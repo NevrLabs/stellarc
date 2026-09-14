@@ -168,3 +168,162 @@ test("T18: ledger rows carry per-table digests (identity_import pattern)", async
 		/^[a-f0-9]{64}$/,
 	);
 });
+
+// --- 8-table import through the shared fixture helper (T18 breadth) ---------
+
+test("T18: full 8-table import through work-fixture restores rows and emits upsert events", async () => {
+	const { workFixture } = await import("../helpers/work-fixture");
+	const { importWork } = await import("../../packages/domain/src/work-import");
+	const fixture = await workFixture();
+	try {
+		const SOURCE_PAYLOAD = {
+			boards: [
+				{
+					id: "fx-board-1",
+					organization_id: "fixture-org",
+					slug: "fx-board",
+					name: "FX Board",
+					last_task_number: 1,
+				},
+			],
+			columns: [
+				{
+					id: "fx-col-1",
+					board_id: "fx-board-1",
+					name: "Custom",
+					slug: "custom",
+					position: 4,
+					is_final: false,
+				},
+			],
+			boardKeyAliases: [
+				{
+					id: "fx-alias-1",
+					organization_id: "fixture-org",
+					board_id: "fx-board-1",
+					key: "FXB",
+				},
+			],
+			tasks: [
+				{
+					id: "fx-task-1",
+					board_id: "fx-board-1",
+					number: 1,
+					title: "FX Ticket",
+					status: "custom",
+					column_id: "fx-col-1",
+					description_history: [
+						{ content: null, editedAt: null, userId: null },
+					],
+					priority: "high",
+				},
+			],
+			labels: [
+				{
+					id: "fx-label-1",
+					name: "fx",
+					color: "#ff0000",
+					source: "kaneo",
+					task_id: "fx-task-1",
+				},
+			],
+			taskTemplates: [
+				{
+					id: "fx-tmpl-1",
+					organization_id: "fixture-org",
+					name: "FX Template",
+					data: { title: "Template title" },
+				},
+			],
+			flagTypes: [
+				{ id: "fx-ft-1", board_id: "fx-board-1", name: "blocked", position: 0 },
+			],
+			taskFlags: [
+				{
+					id: "fx-flag-1",
+					task_id: "fx-task-1",
+					flag_type_id: "fx-ft-1",
+					target_user_id: "fixture-user-2",
+				},
+			],
+		};
+		const report = await importWork(fixture.sql, "fx-source", SOURCE_PAYLOAD);
+		expect(report.aborted).toBe(false);
+		expect(report.errors).toEqual([]);
+		expect(report.imported).toBe(8);
+		const [task] =
+			await fixture.sql`SELECT description_history FROM task WHERE id = 'fx-task-1'`;
+		expect(task.description_history).toEqual([
+			{ content: null, editedAt: null, userId: null },
+		]);
+		const events =
+			await fixture.sql`SELECT plugin_type FROM event ORDER BY seq`;
+		const types = events.map((e: { plugin_type: string }) => e.plugin_type);
+		for (const type of [
+			"work:board-upserted",
+			"work:status-upserted",
+			"work:board-key-upserted",
+			"work:ticket-upserted",
+			"work:label-upserted",
+			"work:template-upserted",
+			"work:flag-type-upserted",
+			"work:task-flag-upserted",
+		])
+			expect(types).toContain(type);
+		// Identical rerun: zero new events, identical ledger
+		const before = events.length;
+		const rerun = await importWork(fixture.sql, "fx-source", SOURCE_PAYLOAD);
+		expect(rerun.imported).toBe(0);
+		const after = await fixture.sql`SELECT count(*)::int AS n FROM event`;
+		expect(after[0].n).toBe(before);
+	} finally {
+		await fixture.close();
+	}
+}, 60000);
+
+test("T20: preflight aborts on flag with zero targets before any write", async () => {
+	const { workFixture } = await import("../helpers/work-fixture");
+	const { importWork } = await import("../../packages/domain/src/work-import");
+	const fixture = await workFixture();
+	try {
+		const report = await importWork(fixture.sql, "fx-bad", {
+			boards: [
+				{
+					id: "fx-bad-board",
+					organization_id: "fixture-org",
+					slug: "fx-bad",
+					name: "Bad",
+					last_task_number: 0,
+				},
+			],
+			tasks: [
+				{
+					id: "fx-bad-task",
+					board_id: "fx-bad-board",
+					number: 1,
+					title: "T",
+					status: "to-do",
+				},
+			],
+			flagTypes: [
+				{ id: "fx-bad-ft", board_id: "fx-bad-board", name: "x", position: 0 },
+			],
+			taskFlags: [
+				{
+					id: "fx-bad-flag",
+					task_id: "fx-bad-task",
+					flag_type_id: "fx-bad-ft",
+				},
+			],
+		});
+		expect(report.aborted).toBe(true);
+		expect(
+			report.errors.some((e) => e.includes("exactly one of user or team")),
+		).toBe(true);
+		const [row] =
+			await fixture.sql`SELECT count(*)::int AS n FROM "board" WHERE id = 'fx-bad-board'`;
+		expect(row.n).toBe(0);
+	} finally {
+		await fixture.close();
+	}
+}, 60000);
