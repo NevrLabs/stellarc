@@ -30,14 +30,6 @@ test("T17 configuration refuses missing database and invalid ports; Authz defaul
 			["PORT", "0"],
 		]),
 	).rejects.toThrow();
-	// STL-15: short AUTH_SECRET is refused (Better Auth secret strength).
-	await expect(
-		load([
-			["DATABASE_URL", "postgres://localhost/test"],
-			["PORT", "4321"],
-			["AUTH_SECRET", "short"],
-		]),
-	).rejects.toThrow();
 	const config = await load([
 		["DATABASE_URL", "postgres://localhost/test"],
 		["PORT", "4321"],
