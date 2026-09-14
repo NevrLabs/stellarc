@@ -94,3 +94,121 @@ test("T01b blocked satellite tables are absent pending wave-2 (Q1)", async () =>
 afterEach(async () => {
 	for (const close of resources.splice(0).reverse()) await close();
 });
+
+// --- STL-21 domain service tests (core subset; Q1 satellites deferred) -----------------
+import {
+	createProject,
+	DuplicateSlug,
+	InvalidReference,
+	listProjects,
+	renameProjectSlug,
+	resolveProject,
+} from "../../packages/domain/src/projects";
+
+async function seedOrg(
+	db: Awaited<ReturnType<typeof disposablePostgres>>,
+	org: string,
+	user: string,
+) {
+	await db.sql`INSERT INTO "user" (id, name, email) VALUES (${user}, ${user + "-name"}, ${user + "@x.test"}) ON CONFLICT DO NOTHING`;
+	await db.sql`INSERT INTO organization (id, name, slug, created_at) VALUES (${org}, ${org + "-name"}, ${org}, now()) ON CONFLICT DO NOTHING`;
+	await db.sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at) VALUES (${user + "-m"}, ${org}, ${user}, ${"'admin'"}, now()) ON CONFLICT DO NOTHING`;
+}
+
+test("T03/T04 create + list: slug normalize, default planned, event atomic, lead validation", async () => {
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await seedOrg(db, "orgA", "u1");
+	const created = await createProject(db.sql, {
+		organizationId: "orgA",
+		name: "Alpha Project",
+		summary: "First project",
+		leadUserId: "u1",
+		createdBy: "u1",
+	});
+	expect(created.slug).toBe("alpha-project");
+	expect(created.status).toBe("planned");
+	const listed = await listProjects(db.sql, "orgA");
+	expect(listed).toHaveLength(1);
+	expect(listed[0].name).toBe("Alpha Project");
+
+	// duplicate slug (canonical) -> 409
+	await expect(
+		createProject(db.sql, {
+			organizationId: "orgA",
+			name: "Alpha Project",
+			summary: "dup",
+			leadUserId: "u1",
+			createdBy: "u1",
+		}),
+	).rejects.toThrow(DuplicateSlug);
+
+	// cross-org lead -> 409 InvalidReference
+	await seedOrg(db, "orgB", "u2");
+	await expect(
+		createProject(db.sql, {
+			organizationId: "orgA",
+			name: "Beta",
+			summary: "cross-org lead",
+			leadUserId: "u2",
+			createdBy: "u1",
+		}),
+	).rejects.toThrow(InvalidReference);
+
+	// alias-namespace collision: rename alpha-project away, then reuse its old slug
+	const renamed = await renameProjectSlug(db.sql, {
+		id: created.id,
+		organizationId: "orgA",
+		slug: "alpha-project-2",
+		userId: "u1",
+	});
+	expect(renamed.slug).toBe("alpha-project-2");
+	await expect(
+		createProject(db.sql, {
+			organizationId: "orgA",
+			name: "Squatter",
+			summary: "aliases the old slug",
+			leadUserId: "u1",
+			createdBy: "u1",
+			slug: "alpha-project",
+		}),
+	).rejects.toThrow(DuplicateSlug);
+
+	// event rows appended atomically
+	const events =
+		await db.sql`SELECT plugin_type FROM event WHERE org = ${"orgA"} ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"project:created",
+		"project:updated",
+		"project:slug-alias-created",
+	]);
+});
+
+test("T06 rename slug: alias row created, old slug resolves via alias", async () => {
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await seedOrg(db, "orgA", "u1");
+	const created = await createProject(db.sql, {
+		organizationId: "orgA",
+		name: "Gamma",
+		summary: "s",
+		leadUserId: "u1",
+		createdBy: "u1",
+	});
+	expect(created.slug).toBe("gamma");
+	const renamed = await renameProjectSlug(db.sql, {
+		id: created.id,
+		organizationId: "orgA",
+		slug: "gamma-renamed",
+		userId: "u1",
+	});
+	expect(renamed.slug).toBe("gamma-renamed");
+	const resolved = await resolveProject(db.sql, "orgA", "gamma");
+	expect(resolved?.id).toBe(created.id);
+	expect(resolved?.usedSlugAlias).toBe(true);
+	const canonical = await resolveProject(db.sql, "orgA", "GAMMA-RENAMED");
+	expect(canonical?.id).toBe(created.id);
+	expect(canonical?.usedSlugAlias).toBe(false);
+});
