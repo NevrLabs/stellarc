@@ -58,6 +58,25 @@ test("T01 desktop shell config is exact: identifier, bundle targets, icons, fron
 	expect(conf.app?.security?.csp).not.toBeNull();
 });
 
+test("T01b desktop:build pre-bakes the tauri config before the CLI parses -c (rework D1)", () => {
+	const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+		scripts?: Record<string, string>;
+	};
+	const script = pkg.scripts?.["desktop:build"] ?? "";
+	// `tauri build -c target/tauri.conf.build.json` parses -c BEFORE running
+	// beforeBuildCommand, so the resolved config must already exist when the
+	// CLI starts: build-ui.sh runs first as a plain shell step.
+	expect(script, "desktop:build missing build-ui.sh pre-bake").toContain(
+		"build-ui.sh",
+	);
+	expect(script, "desktop:build missing tauri build").toContain("tauri build");
+	const bake = script.indexOf("build-ui.sh");
+	const tauri = script.indexOf("tauri build");
+	expect(bake, "build-ui.sh must run before tauri build").toBeLessThan(tauri);
+	// The -c path build-ui.sh emits is the one the CLI consumes.
+	expect(script).toContain("-c target/tauri.conf.build.json");
+});
+
 test("T02 desktop slice leaves the frozen UI tree untouched", () => {
 	const result = spawnSync(
 		"git",
