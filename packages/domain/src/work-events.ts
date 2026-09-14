@@ -1,9 +1,9 @@
 import { Schema } from "effect";
 import {
 	BoardPublic,
+	FlagTypePublic,
 	KeyAliasPublic,
 	LabelPublic,
-	FlagTypePublic,
 	StatusPublic,
 	TaskFlagPublic,
 	TemplatePublic,

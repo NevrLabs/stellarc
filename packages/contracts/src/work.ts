@@ -1,4 +1,9 @@
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "@effect/platform";
+import {
+	HttpApi,
+	HttpApiEndpoint,
+	HttpApiGroup,
+	HttpApiSchema,
+} from "@effect/platform";
 import { Schema } from "effect";
 
 // --- §3 validation primitives (shared with T1 style) ------------------------------------
@@ -182,7 +187,10 @@ export const WorkError = Schema.Union(
 	Schema.Struct({ _tag: Schema.Literal("Forbidden") }),
 	Schema.Struct({ _tag: Schema.Literal("NotFound") }),
 	Schema.Struct({ _tag: Schema.Literal("Conflict"), code: ConflictCode }),
-	Schema.Struct({ _tag: Schema.Literal("RateLimited"), retryAfterSeconds: Schema.Number }),
+	Schema.Struct({
+		_tag: Schema.Literal("RateLimited"),
+		retryAfterSeconds: Schema.Number,
+	}),
 	Schema.Struct({ _tag: Schema.Literal("Unavailable") }),
 );
 export type WorkError = Schema.Schema.Type<typeof WorkError>;
@@ -282,7 +290,9 @@ export const BulkPatchTicketsRequest = Schema.Struct({
 		teamId: Schema.optional(Schema.NullOr(ID)),
 	}),
 });
-export const PutTicketArchivedRequest = Schema.Struct({ archived: Schema.Boolean });
+export const PutTicketArchivedRequest = Schema.Struct({
+	archived: Schema.Boolean,
+});
 export const CreateLabelRequest = Schema.Struct({
 	name: Name,
 	color: Schema.NonEmptyString,
@@ -293,7 +303,9 @@ export const UpdateLabelRequest = Schema.Struct({
 	name: Schema.optional(Name),
 	color: Schema.optional(Schema.NonEmptyString),
 });
-export const PutLabelTaskRequest = Schema.Struct({ taskId: Schema.optional(ID) });
+export const PutLabelTaskRequest = Schema.Struct({
+	taskId: Schema.optional(ID),
+});
 export const CreateTemplateRequest = Schema.Struct({
 	organizationId: ID,
 	name: Name,
@@ -322,7 +334,9 @@ export const CreateTicketFlagRequest = Schema.Struct({
 	targetTeamId: Schema.optional(ID),
 	note: Schema.optional(Schema.String),
 });
-export const ResolveFlagRequest = Schema.Struct({ note: Schema.NonEmptyString });
+export const ResolveFlagRequest = Schema.Struct({
+	note: Schema.NonEmptyString,
+});
 
 // --- Minimal public board (unauthenticated; §3) ------------------------------------------
 export const PublicBoardMinimal = Schema.Struct({
@@ -350,61 +364,295 @@ const WORK_ERROR_STATUS = [400, 401, 403, 404, 409, 429, 503] as const;
 // HttpApiSchema.annotations; the response encoder applies the matched
 // member's status code.
 export const WorkErrorVariants = Schema.Union(
-	...(WorkError.members as ReadonlyArray<Schema.Schema<any>>).map(
+	// Union.of's spread inference mis-narrows; unknown keeps the members opaque.
+	...(
+		WorkError.members as unknown as ReadonlyArray<Schema.Schema<unknown>>
+	).map(
 		(member, index) =>
 			member.annotations(
 				HttpApiSchema.annotations({ status: WORK_ERROR_STATUS[index] ?? 400 }),
-			) as Schema.Schema<any>,
+			) as Schema.Schema<unknown>,
 	),
 );
 
-// --- Endpoints ----------------------------------------------------------------------------
-
-const E = WorkError;
 const M = Mutation;
+
+// --- Endpoints ----------------------------------------------------------------------------
 
 export const WorkApi = HttpApi.make("work").add(
 	HttpApiGroup.make("work")
-		.add(HttpApiEndpoint.get("listBoards", "/api/work/boards").addSuccess(Schema.Struct({ boards: Schema.Array(BoardPublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createBoard", "/api/work/boards").setPayload(CreateBoardRequest).addSuccess(M(BoardPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("getBoard", "/api/work/boards/:id").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ board: BoardPublic })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("updateBoard", "/api/work/boards/:id").setPath(Schema.Struct({ id: ID })).setPayload(UpdateBoardRequest).addSuccess(M(BoardPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.del("deleteBoard", "/api/work/boards/:id").setPath(Schema.Struct({ id: ID })).addSuccess(M(DeletedId)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("archiveBoard", "/api/work/boards/:id/archive").setPath(Schema.Struct({ id: ID })).setPayload(Empty).addSuccess(M(BoardPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("unarchiveBoard", "/api/work/boards/:id/unarchive").setPath(Schema.Struct({ id: ID })).setPayload(Empty).addSuccess(M(BoardPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.put("putBoardKey", "/api/work/boards/:id/key").setPath(Schema.Struct({ id: ID })).setPayload(PutBoardKeyRequest).addSuccess(M(BoardPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listStatuses", "/api/work/boards/:id/statuses").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ statuses: Schema.Array(StatusPublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createStatus", "/api/work/boards/:id/statuses").setPath(Schema.Struct({ id: ID })).setPayload(CreateStatusRequest).addSuccess(M(StatusPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.put("reorderStatuses", "/api/work/boards/:id/statuses/reorder").setPath(Schema.Struct({ id: ID })).setPayload(ReorderStatusesRequest).addSuccess(M(Schema.Struct({ ids: Schema.Array(Schema.String) }))).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("updateStatus", "/api/work/statuses/:id").setPath(Schema.Struct({ id: ID })).setPayload(UpdateStatusRequest).addSuccess(M(StatusPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.del("deleteStatus", "/api/work/statuses/:id").setPath(Schema.Struct({ id: ID })).addSuccess(M(DeletedId)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listTickets", "/api/work/boards/:id/tickets").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ tickets: Schema.Array(TicketPublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createTicket", "/api/work/boards/:id/tickets").setPath(Schema.Struct({ id: ID })).setPayload(CreateTicketRequest).addSuccess(M(TicketPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.put("reorderTickets", "/api/work/boards/:id/tickets/reorder").setPath(Schema.Struct({ id: ID })).setPayload(ReorderTicketsRequest).addSuccess(M(Schema.Struct({ ids: Schema.Array(Schema.String) }))).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("getTicket", "/api/work/tickets/:id").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ ticket: TicketPublic })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("updateTicket", "/api/work/tickets/:id").setPath(Schema.Struct({ id: ID })).setPayload(UpdateTicketRequest).addSuccess(M(TicketPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.put("putTicketStatus", "/api/work/tickets/:id/status").setPath(Schema.Struct({ id: ID })).setPayload(PutTicketStatusRequest).addSuccess(M(TicketPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("moveTicket", "/api/work/tickets/:id/move").setPath(Schema.Struct({ id: ID })).setPayload(MoveTicketRequest).addSuccess(M(TicketPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("bulkPatchTickets", "/api/work/tickets/bulk").setPayload(BulkPatchTicketsRequest).addSuccess(M(Schema.Struct({ ids: Schema.Array(Schema.String) }))).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.del("deleteTicket", "/api/work/tickets/:id").setPath(Schema.Struct({ id: ID })).addSuccess(M(DeletedId)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("restoreTicket", "/api/work/tickets/:id/restore").setPath(Schema.Struct({ id: ID })).setPayload(Empty).addSuccess(M(TicketPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.put("putTicketArchived", "/api/work/tickets/:id/archive").setPath(Schema.Struct({ id: ID })).setPayload(PutTicketArchivedRequest).addSuccess(M(TicketPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listLabels", "/api/work/labels").addSuccess(Schema.Struct({ labels: Schema.Array(LabelPublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createLabel", "/api/work/labels").setPayload(CreateLabelRequest).addSuccess(M(LabelPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("updateLabel", "/api/work/labels/:id").setPath(Schema.Struct({ id: ID })).setPayload(UpdateLabelRequest).addSuccess(M(LabelPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.put("putLabelTask", "/api/work/labels/:id/task").setPath(Schema.Struct({ id: ID })).setPayload(PutLabelTaskRequest).addSuccess(M(LabelPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.del("deleteLabel", "/api/work/labels/:id").setPath(Schema.Struct({ id: ID })).addSuccess(M(DeletedId)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listTicketLabels", "/api/work/tickets/:id/labels").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ labels: Schema.Array(LabelPublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listTemplates", "/api/work/templates").addSuccess(Schema.Struct({ templates: Schema.Array(TemplatePublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createTemplate", "/api/work/templates").setPayload(CreateTemplateRequest).addSuccess(M(TemplatePublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("updateTemplate", "/api/work/templates/:id").setPath(Schema.Struct({ id: ID })).setPayload(UpdateTemplateRequest).addSuccess(M(TemplatePublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.del("deleteTemplate", "/api/work/templates/:id").setPath(Schema.Struct({ id: ID })).addSuccess(M(DeletedId)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listFlagTypes", "/api/work/flag-types").addSuccess(Schema.Struct({ flagTypes: Schema.Array(FlagTypePublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createFlagType", "/api/work/flag-types").setPayload(CreateFlagTypeRequest).addSuccess(M(FlagTypePublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.patch("updateFlagType", "/api/work/flag-types/:id").setPath(Schema.Struct({ id: ID })).setPayload(UpdateFlagTypeRequest).addSuccess(M(FlagTypePublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.del("deleteFlagType", "/api/work/flag-types/:id").setPath(Schema.Struct({ id: ID })).addSuccess(M(DeletedId)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("listTicketFlags", "/api/work/tickets/:id/flags").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ flags: Schema.Array(TaskFlagPublic) })).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("createTicketFlag", "/api/work/tickets/:id/flags").setPath(Schema.Struct({ id: ID })).setPayload(CreateTicketFlagRequest).addSuccess(M(TaskFlagPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.post("resolveTicketFlag", "/api/work/flags/:id/resolve").setPath(Schema.Struct({ id: ID })).setPayload(ResolveFlagRequest).addSuccess(M(TaskFlagPublic)).addSuccess(WorkErrorVariants as never))
-		.add(HttpApiEndpoint.get("publicBoard", "/api/public/boards/:id").setPath(Schema.Struct({ id: ID })).addSuccess(Schema.Struct({ board: PublicBoardMinimal })).addSuccess(WorkErrorVariants as never))
-	);
+		.add(
+			HttpApiEndpoint.get("listBoards", "/api/work/boards")
+				.addSuccess(Schema.Struct({ boards: Schema.Array(BoardPublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createBoard", "/api/work/boards")
+				.setPayload(CreateBoardRequest)
+				.addSuccess(M(BoardPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("getBoard", "/api/work/boards/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ board: BoardPublic }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("updateBoard", "/api/work/boards/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(UpdateBoardRequest)
+				.addSuccess(M(BoardPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.del("deleteBoard", "/api/work/boards/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("archiveBoard", "/api/work/boards/:id/archive")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(Empty)
+				.addSuccess(M(BoardPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("unarchiveBoard", "/api/work/boards/:id/unarchive")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(Empty)
+				.addSuccess(M(BoardPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.put("putBoardKey", "/api/work/boards/:id/key")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(PutBoardKeyRequest)
+				.addSuccess(M(BoardPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listStatuses", "/api/work/boards/:id/statuses")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ statuses: Schema.Array(StatusPublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createStatus", "/api/work/boards/:id/statuses")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(CreateStatusRequest)
+				.addSuccess(M(StatusPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.put(
+				"reorderStatuses",
+				"/api/work/boards/:id/statuses/reorder",
+			)
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(ReorderStatusesRequest)
+				.addSuccess(M(Schema.Struct({ ids: Schema.Array(Schema.String) })))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("updateStatus", "/api/work/statuses/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(UpdateStatusRequest)
+				.addSuccess(M(StatusPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.del("deleteStatus", "/api/work/statuses/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listTickets", "/api/work/boards/:id/tickets")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ tickets: Schema.Array(TicketPublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createTicket", "/api/work/boards/:id/tickets")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(CreateTicketRequest)
+				.addSuccess(M(TicketPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.put(
+				"reorderTickets",
+				"/api/work/boards/:id/tickets/reorder",
+			)
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(ReorderTicketsRequest)
+				.addSuccess(M(Schema.Struct({ ids: Schema.Array(Schema.String) })))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("getTicket", "/api/work/tickets/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ ticket: TicketPublic }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("updateTicket", "/api/work/tickets/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(UpdateTicketRequest)
+				.addSuccess(M(TicketPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.put("putTicketStatus", "/api/work/tickets/:id/status")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(PutTicketStatusRequest)
+				.addSuccess(M(TicketPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("moveTicket", "/api/work/tickets/:id/move")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(MoveTicketRequest)
+				.addSuccess(M(TicketPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("bulkPatchTickets", "/api/work/tickets/bulk")
+				.setPayload(BulkPatchTicketsRequest)
+				.addSuccess(M(Schema.Struct({ ids: Schema.Array(Schema.String) })))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.del("deleteTicket", "/api/work/tickets/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("restoreTicket", "/api/work/tickets/:id/restore")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(Empty)
+				.addSuccess(M(TicketPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.put("putTicketArchived", "/api/work/tickets/:id/archive")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(PutTicketArchivedRequest)
+				.addSuccess(M(TicketPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listLabels", "/api/work/labels")
+				.addSuccess(Schema.Struct({ labels: Schema.Array(LabelPublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createLabel", "/api/work/labels")
+				.setPayload(CreateLabelRequest)
+				.addSuccess(M(LabelPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("updateLabel", "/api/work/labels/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(UpdateLabelRequest)
+				.addSuccess(M(LabelPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.put("putLabelTask", "/api/work/labels/:id/task")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(PutLabelTaskRequest)
+				.addSuccess(M(LabelPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.del("deleteLabel", "/api/work/labels/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listTicketLabels", "/api/work/tickets/:id/labels")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ labels: Schema.Array(LabelPublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listTemplates", "/api/work/templates")
+				.addSuccess(Schema.Struct({ templates: Schema.Array(TemplatePublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createTemplate", "/api/work/templates")
+				.setPayload(CreateTemplateRequest)
+				.addSuccess(M(TemplatePublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("updateTemplate", "/api/work/templates/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(UpdateTemplateRequest)
+				.addSuccess(M(TemplatePublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.del("deleteTemplate", "/api/work/templates/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listFlagTypes", "/api/work/flag-types")
+				.addSuccess(Schema.Struct({ flagTypes: Schema.Array(FlagTypePublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createFlagType", "/api/work/flag-types")
+				.setPayload(CreateFlagTypeRequest)
+				.addSuccess(M(FlagTypePublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.patch("updateFlagType", "/api/work/flag-types/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(UpdateFlagTypeRequest)
+				.addSuccess(M(FlagTypePublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.del("deleteFlagType", "/api/work/flag-types/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("listTicketFlags", "/api/work/tickets/:id/flags")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ flags: Schema.Array(TaskFlagPublic) }))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("createTicketFlag", "/api/work/tickets/:id/flags")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(CreateTicketFlagRequest)
+				.addSuccess(M(TaskFlagPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.post("resolveTicketFlag", "/api/work/flags/:id/resolve")
+				.setPath(Schema.Struct({ id: ID }))
+				.setPayload(ResolveFlagRequest)
+				.addSuccess(M(TaskFlagPublic))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
+			HttpApiEndpoint.get("publicBoard", "/api/public/boards/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(Schema.Struct({ board: PublicBoardMinimal }))
+				.addSuccess(WorkErrorVariants as never),
+		),
+);

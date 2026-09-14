@@ -27,20 +27,27 @@ export class WorkUpcasterRegistry {
 		pluginType: string,
 		version: number,
 		payload: unknown,
-	): { id: string; row?: unknown; from?: string; to?: string; boardId?: string } {
+	): {
+		id: string;
+		row?: unknown;
+		from?: string;
+		to?: string;
+		boardId?: string;
+	} {
 		const chain = this.known.get(pluginType);
 		if (!chain || version !== 1 || !chain.has(version))
 			throw new UnsupportedWorkEventSchema();
 		const upcast = chain.get(version);
 		if (!upcast) throw new UnsupportedWorkEventSchema();
 		const decoded = upcast(payload);
-		const schema = WorkEventPayloadSchemas[
-			pluginType as keyof typeof WorkEventPayloadSchemas
-		];
+		const schema =
+			WorkEventPayloadSchemas[
+				pluginType as keyof typeof WorkEventPayloadSchemas
+			];
 		try {
-			return Schema.decodeUnknownSync(schema as Schema.Schema<unknown, unknown>)(
-				decoded,
-			) as never;
+			return Schema.decodeUnknownSync(
+				schema as Schema.Schema<unknown, unknown>,
+			)(decoded) as never;
 		} catch {
 			throw new UnsupportedWorkEventSchema();
 		}

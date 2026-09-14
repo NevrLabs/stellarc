@@ -3,9 +3,14 @@ import { disposablePostgres } from "../helpers/postgres";
 
 let sql: import("postgres").Sql;
 let close: () => Promise<void>;
-let http: { handler: (request: Request) => Promise<Response>; dispose: () => Promise<void> };
+let http: {
+	handler: (request: Request) => Promise<Response>;
+	dispose: () => Promise<void>;
+};
 
-const H = (org: string, id = "user-1") => ({ authorization: `Bearer ${org} ${id}` });
+const H = (org: string, id = "user-1") => ({
+	authorization: `Bearer ${org} ${id}`,
+});
 
 beforeAll(async () => {
 	const db = await disposablePostgres();
@@ -23,7 +28,8 @@ beforeAll(async () => {
 		(org, headers, principal) => {
 			if (!headers.authorization) return "unauthenticated";
 			const token = headers.authorization.replace(/^Bearer\s+/i, "").trim();
-			return token.startsWith(`${org} `) && token.slice(org.length + 1) === principal
+			return token.startsWith(`${org} `) &&
+				token.slice(org.length + 1) === principal
 				? "ok"
 				: "forbidden";
 		},
@@ -47,11 +53,20 @@ test("T06-wire: POST /api/work/boards creates board + seeds 4 statuses through H
 		}),
 	);
 	expect(response.status).toBe(200);
-	const json = (await response.json()) as { data: { id: string; slug?: string }; txid: number };
+	const json = (await response.json()) as {
+		data: { id: string; slug?: string };
+		txid: number;
+	};
 	expect(json.data.slug).toBe("http-board");
 	expect(json.txid).toBeGreaterThan(0);
-	const statuses = await sql`SELECT slug FROM "column" WHERE board_id = ${json.data.id} ORDER BY position`;
-	expect(statuses.map((s) => s.slug)).toEqual(["to-do", "in-progress", "in-review", "done"]);
+	const statuses =
+		await sql`SELECT slug FROM "column" WHERE board_id = ${json.data.id} ORDER BY position`;
+	expect(statuses.map((s) => s.slug)).toEqual([
+		"to-do",
+		"in-progress",
+		"in-review",
+		"done",
+	]);
 });
 
 test("T06-wire: unauthenticated → 401 Unauthenticated; wrong org → 403 Forbidden", async () => {
@@ -89,7 +104,9 @@ test("T10-wire: PUT /status with invalid status → 400, board-less validation",
 			body: JSON.stringify({ title: "T1" }),
 		}),
 	);
-	const { data: ticketData } = (await ticket.json()) as { data: { id: string } };
+	const { data: ticketData } = (await ticket.json()) as {
+		data: { id: string };
+	};
 	const bad = await http.handler(
 		new Request(`http://x/api/work/tickets/${ticketData.id}/status`, {
 			method: "PUT",
@@ -128,7 +145,9 @@ test("T16/T17-wire: flag XOR + resolve note enforcement over HTTP", async () => 
 			body: JSON.stringify({ title: "Flagged" }),
 		}),
 	);
-	const { data: ticketData } = (await ticket.json()) as { data: { id: string } };
+	const { data: ticketData } = (await ticket.json()) as {
+		data: { id: string };
+	};
 	const ft = await http.handler(
 		new Request(`http://x/api/work/flag-types?boardId=${board.id}`, {
 			method: "POST",
@@ -171,7 +190,9 @@ test("T16/T17-wire: flag XOR + resolve note enforcement over HTTP", async () => 
 		}),
 	);
 	expect(resolve.status).toBe(200);
-	const { data: resolved } = (await resolve.json()) as { data: { resolvedBy: string; resolvedAt: string | null } };
+	const { data: resolved } = (await resolve.json()) as {
+		data: { resolvedBy: string; resolvedAt: string | null };
+	};
 	expect(resolved.resolvedBy).toBe("user-1");
 	expect(resolved.resolvedAt).not.toBeNull();
 });
@@ -185,16 +206,27 @@ test("T24: public endpoint serves is_public only, minimal fields; private → 40
 		}),
 	);
 	const { data: board } = (await create.json()) as { data: { id: string } };
-	const denied = await http.handler(new Request(`http://x/api/public/boards/${board.id}`));
+	const denied = await http.handler(
+		new Request(`http://x/api/public/boards/${board.id}`),
+	);
 	expect(denied.status).toBe(404);
 	await sql`UPDATE "board" SET is_public = true WHERE id = ${board.id}`;
-	const allowed = await http.handler(new Request(`http://x/api/public/boards/${board.id}`));
+	const allowed = await http.handler(
+		new Request(`http://x/api/public/boards/${board.id}`),
+	);
 	expect(allowed.status).toBe(200);
 	const json = (await allowed.json()) as { board: Record<string, unknown> };
 	expect(json.board.id).toBe(board.id);
 	expect(json.board.name).toBe("Public Board");
 	// minimal: no task/assignee/member fields
-	expect(Object.keys(json.board).sort()).toEqual(["createdAt", "description", "icon", "id", "name", "slug"]);
+	expect(Object.keys(json.board).sort()).toEqual([
+		"createdAt",
+		"description",
+		"icon",
+		"id",
+		"name",
+		"slug",
+	]);
 });
 
 test("T27-wire: mutations settle with txid through the HTTP envelope (awaitTxId path)", async () => {
@@ -205,11 +237,15 @@ test("T27-wire: mutations settle with txid through the HTTP envelope (awaitTxId 
 			body: JSON.stringify({ name: "Txid Board" }),
 		}),
 	);
-	const { data: board, txid } = (await create.json()) as { data: { id: string }; txid: number };
+	const { data: board, txid } = (await create.json()) as {
+		data: { id: string };
+		txid: number;
+	};
 	expect(Number.isFinite(txid)).toBe(true);
 	expect(txid).toBeGreaterThan(0);
 	// The txid must match a committed PG transaction id.
-	const [row] = await sql`SELECT count(*)::int AS count FROM "board" WHERE id = ${board.id}`;
+	const [row] =
+		await sql`SELECT count(*)::int AS count FROM "board" WHERE id = ${board.id}`;
 	expect(row.count).toBe(1);
 	void board;
 });

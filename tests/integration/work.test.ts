@@ -1,12 +1,13 @@
-import { beforeAll, afterAll, expect, test } from "vitest";
-import postgres from "postgres";
+import type postgres from "postgres";
+import { afterAll, beforeAll, expect, test } from "vitest";
 import { disposablePostgres } from "../helpers/postgres";
 
 let sql: postgres.Sql;
 let close: () => Promise<void>;
 
 async function eventCount(org: string) {
-	const [row] = await sql`SELECT count(*)::int AS count FROM event WHERE org = ${org}`;
+	const [row] =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = ${org}`;
 	return row.count;
 }
 
@@ -29,40 +30,66 @@ afterAll(async () => {
 
 test("T04: board create seeds exactly 4 statuses positionally, done isFinal, atomically", async () => {
 	const work = await import("../../packages/domain/src/work");
-	const result = await work.createBoard(sql, "org-1", "user-1", { id: "b1", name: "Alpha Board" });
+	const result = await work.createBoard(sql, "org-1", "user-1", {
+		id: "b1",
+		name: "Alpha Board",
+	});
 	expect(result.data.slug).toBe("alpha-board");
-	const statuses = await sql`SELECT slug, position, is_final FROM "column" WHERE board_id = 'b1' ORDER BY position`;
-	expect(statuses.map((s) => s.slug)).toEqual(["to-do", "in-progress", "in-review", "done"]);
+	const statuses =
+		await sql`SELECT slug, position, is_final FROM "column" WHERE board_id = 'b1' ORDER BY position`;
+	expect(statuses.map((s) => s.slug)).toEqual([
+		"to-do",
+		"in-progress",
+		"in-review",
+		"done",
+	]);
 	expect(statuses.map((s) => s.position)).toEqual([0, 1, 2, 3]);
 	expect(statuses.find((s) => s.slug === "done")?.is_final).toBe(true);
 	// Events: board-upserted + 4 status-upserted, one tx.
 	expect(await eventCount("org-1")).toBe(5);
-	const events = await sql`SELECT plugin_type FROM event WHERE org = 'org-1' ORDER BY seq`;
+	const events =
+		await sql`SELECT plugin_type FROM event WHERE org = 'org-1' ORDER BY seq`;
 	expect(events.map((e) => e.plugin_type)).toEqual([
-		"work:board-upserted", "work:status-upserted", "work:status-upserted",
-		"work:status-upserted", "work:status-upserted",
+		"work:board-upserted",
+		"work:status-upserted",
+		"work:status-upserted",
+		"work:status-upserted",
+		"work:status-upserted",
 	]);
-	const [txids] = await sql`SELECT count(DISTINCT txid)::int AS count FROM event WHERE org = 'org-1'`;
+	const [txids] =
+		await sql`SELECT count(DISTINCT txid)::int AS count FROM event WHERE org = 'org-1'`;
 	expect(txids.count).toBe(1);
 });
 
 test("T05: same-org case-insensitive duplicate slug rejected as DuplicateSlug", async () => {
 	const work = await import("../../packages/domain/src/work");
 	await expect(
-		work.createBoard(sql, "org-1", "user-1", { id: "b1-dup", name: "ALPHA BOARD" }),
+		work.createBoard(sql, "org-1", "user-1", {
+			id: "b1-dup",
+			name: "ALPHA BOARD",
+		}),
 	).rejects.toThrow();
-	const [row] = await sql`SELECT count(*)::int AS count FROM "board" WHERE id = 'b1-dup'`;
+	const [row] =
+		await sql`SELECT count(*)::int AS count FROM "board" WHERE id = 'b1-dup'`;
 	expect(row.count).toBe(0);
 });
 
 test("T06: board update/archive commits row+event under one txid; archive stamps archived_at", async () => {
 	const work = await import("../../packages/domain/src/work");
 	const before = await eventCount("org-1");
-	const updated = await work.updateBoard(sql, "org-1", "user-1", "b1", { description: "updated" });
+	const updated = await work.updateBoard(sql, "org-1", "user-1", "b1", {
+		description: "updated",
+	});
 	expect(updated.data.description).toBe("updated");
 	const archived = await work.archiveBoard(sql, "org-1", "user-1", "b1", true);
 	expect(archived.data.archivedAt).not.toBeNull();
-	const unarchived = await work.archiveBoard(sql, "org-1", "user-1", "b1", false);
+	const unarchived = await work.archiveBoard(
+		sql,
+		"org-1",
+		"user-1",
+		"b1",
+		false,
+	);
 	expect(unarchived.data.archivedAt).toBeNull();
 	expect(await eventCount("org-1")).toBe(before + 3);
 });
@@ -71,7 +98,10 @@ test("T08: number claim self-heals drifted counter (counter 12, max 13 → 14)",
 	const work = await import("../../packages/domain/src/work");
 	await sql`UPDATE "board" SET last_task_number = 12 WHERE id = 'b1'`;
 	await sql`INSERT INTO task (id, board_id, title, number, created_at, updated_at) VALUES ('t-drift', 'b1', 'Drift max', 13, now(), now())`;
-	const result = await work.createTicket(sql, "org-1", "user-1", "b1", { id: "t-heal", title: "Healed" });
+	const result = await work.createTicket(sql, "org-1", "user-1", "b1", {
+		id: "t-heal",
+		title: "Healed",
+	});
 	expect(result.data.number).toBe(14);
 });
 
@@ -79,10 +109,15 @@ test("T09: 20 concurrent creates get 20 unique consecutive numbers, no errors", 
 	const work = await import("../../packages/domain/src/work");
 	const results = await Promise.all(
 		Array.from({ length: 20 }, (_, i) =>
-			work.createTicket(sql, "org-1", "user-1", "b1", { id: `t-cc-${i}`, title: `CC ${i}` }),
+			work.createTicket(sql, "org-1", "user-1", "b1", {
+				id: `t-cc-${i}`,
+				title: `CC ${i}`,
+			}),
 		),
 	);
-	const numbers = results.map((r) => r.data.number).sort((a, b) => (a ?? 0) - (b ?? 0));
+	const numbers = results
+		.map((r) => r.data.number)
+		.sort((a, b) => (a ?? 0) - (b ?? 0));
 	expect(new Set(numbers).size).toBe(20);
 	// After the drift-heal claim (14) the next 20 are 15..34.
 	expect(numbers[0]).toBe(15);
@@ -102,27 +137,43 @@ test("T10: invalid status → ValidationError, no row/event write", async () => 
 
 test("T11: archival orthogonal to status; closed status seals history + status-changed pair", async () => {
 	const work = await import("../../packages/domain/src/work");
-	const { CLOSED_STATUS_SLUGS } = await import("../../packages/domain/src/status-taxonomy");
-	await work.updateTicket(sql, "org-1", "user-1", "t-heal", { description: "v1" });
+	const { CLOSED_STATUS_SLUGS } = await import(
+		"../../packages/domain/src/status-taxonomy"
+	);
+	await work.updateTicket(sql, "org-1", "user-1", "t-heal", {
+		description: "v1",
+	});
 	await work.setTicketArchived(sql, "org-1", "user-1", "t-heal", true);
-	let [row] = await sql`SELECT status, archived_at FROM task WHERE id = 't-heal'`;
+	let [row] =
+		await sql`SELECT status, archived_at FROM task WHERE id = 't-heal'`;
 	expect(row.status).toBe("to-do"); // status untouched
 	expect(row.archived_at).not.toBeNull();
 	await work.setTicketArchived(sql, "org-1", "user-1", "t-heal", false);
 	await work.setTicketStatus(sql, "org-1", "user-1", "t-heal", "done");
-	[row] = await sql`SELECT status, description_history, archived_at FROM task WHERE id = 't-heal'`;
+	[row] =
+		await sql`SELECT status, description_history, archived_at FROM task WHERE id = 't-heal'`;
 	expect(row.status).toBe("done");
 	expect(row.archived_at).toBeNull();
 	// Closing sealed the description history.
-	expect(row.description_history.some((e: { sealed?: boolean }) => e.sealed)).toBe(true);
+	expect(
+		row.description_history.some((e: { sealed?: boolean }) => e.sealed),
+	).toBe(true);
 	expect(CLOSED_STATUS_SLUGS).toContain("done");
-	const [event] = await sql`SELECT payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed' ORDER BY seq DESC LIMIT 1`;
-	expect(event.payload).toMatchObject({ id: "t-heal", from: "to-do", to: "done" });
+	const [event] =
+		await sql`SELECT payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed' ORDER BY seq DESC LIMIT 1`;
+	expect(event.payload).toMatchObject({
+		id: "t-heal",
+		from: "to-do",
+		to: "done",
+	});
 });
 
 test("T12: move board→board claims destination number, remaps status to first column, single tx", async () => {
 	const work = await import("../../packages/domain/src/work");
-	await work.createBoard(sql, "org-1", "user-1", { id: "b2", name: "Beta Board" });
+	await work.createBoard(sql, "org-1", "user-1", {
+		id: "b2",
+		name: "Beta Board",
+	});
 	const result = await work.moveTicket(sql, "org-1", "user-1", "t-heal", "b2");
 	expect(result.data.boardId).toBe("b2");
 	expect(result.data.number).toBe(1); // fresh counter on destination
@@ -132,9 +183,11 @@ test("T12: move board→board claims destination number, remaps status to first 
 	await work.setTicketStatus(sql, "org-1", "user-1", "t-cc-1", "planned");
 	const moved2 = await work.moveTicket(sql, "org-1", "user-1", "t-cc-1", "b2");
 	expect(moved2.data.status).toBe("planned");
-	const [source] = await sql`SELECT last_task_number FROM "board" WHERE id = 'b1'`;
+	const [source] =
+		await sql`SELECT last_task_number FROM "board" WHERE id = 'b1'`;
 	expect(source.last_task_number).toBe(34); // unchanged by the move
-	const [events] = await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND payload->>'id' = 't-heal' AND plugin_type = 'work:ticket-upserted'`;
+	const [events] =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND payload->>'id' = 't-heal' AND plugin_type = 'work:ticket-upserted'`;
 	// Exactly one upsert streamed for the move (plus create/update events before).
 	expect(events.count).toBeGreaterThanOrEqual(1);
 });
@@ -143,13 +196,21 @@ test("T13: reorder persists positions; status change through validation path", a
 	const work = await import("../../packages/domain/src/work");
 	const tickets = await work.listTickets(sql, "org-1", "b1", {});
 	const ids = tickets.tickets.slice(0, 3).map((t) => t.id);
-	await work.reorderTickets(sql, "org-1", "user-1", "b1", ids.map((id, i) => ({ id, position: 100 + i })));
+	await work.reorderTickets(
+		sql,
+		"org-1",
+		"user-1",
+		"b1",
+		ids.map((id, i) => ({ id, position: 100 + i })),
+	);
 	for (const [i, id] of ids.entries()) {
 		const [row] = await sql`SELECT position FROM task WHERE id = ${id}`;
 		expect(row.position).toBe(100 + i);
 	}
 	await expect(
-		work.reorderTickets(sql, "org-1", "user-1", "b1", [{ id: ids[0], position: 0, status: "bogus" }]),
+		work.reorderTickets(sql, "org-1", "user-1", "b1", [
+			{ id: ids[0], position: 0, status: "bogus" },
+		]),
 	).rejects.toThrow();
 });
 
@@ -157,41 +218,110 @@ test("T14: label scope rules + uniqueness", async () => {
 	const work = await import("../../packages/domain/src/work");
 	// exactly-one-scope
 	await expect(
-		work.createLabel(sql, "org-1", "user-1", { id: "l0", name: "Both", color: "#000", taskId: "t-cc-0", organizationId: "org-1" }),
+		work.createLabel(sql, "org-1", "user-1", {
+			id: "l0",
+			name: "Both",
+			color: "#000",
+			taskId: "t-cc-0",
+			organizationId: "org-1",
+		}),
 	).rejects.toThrow();
 	await expect(
-		work.createLabel(sql, "org-1", "user-1", { id: "l0b", name: "Neither", color: "#000" }),
+		work.createLabel(sql, "org-1", "user-1", {
+			id: "l0b",
+			name: "Neither",
+			color: "#000",
+		}),
 	).rejects.toThrow();
-	await work.createLabel(sql, "org-1", "user-1", { id: "l1", name: "Bug", color: "#f00", taskId: "t-cc-0" });
+	await work.createLabel(sql, "org-1", "user-1", {
+		id: "l1",
+		name: "Bug",
+		color: "#f00",
+		taskId: "t-cc-0",
+	});
 	// per-task name unique
 	await expect(
-		work.createLabel(sql, "org-1", "user-1", { id: "l2", name: "Bug", color: "#0f0", taskId: "t-cc-0" }),
+		work.createLabel(sql, "org-1", "user-1", {
+			id: "l2",
+			name: "Bug",
+			color: "#0f0",
+			taskId: "t-cc-0",
+		}),
 	).rejects.toThrow();
 	// org-global
-	await work.createLabel(sql, "org-1", "user-1", { id: "l3", name: "Global", color: "#00f", organizationId: "org-1" });
+	await work.createLabel(sql, "org-1", "user-1", {
+		id: "l3",
+		name: "Global",
+		color: "#00f",
+		organizationId: "org-1",
+	});
 	// org-global unique only when task-scoped null: same name task-scoped is fine
-	await work.createLabel(sql, "org-1", "user-1", { id: "l4", name: "Global", color: "#00f", taskId: "t-cc-1" });
+	await work.createLabel(sql, "org-1", "user-1", {
+		id: "l4",
+		name: "Global",
+		color: "#00f",
+		taskId: "t-cc-1",
+	});
 	// unassign + reassign
-	const moved = await work.assignLabelTask(sql, "org-1", "user-1", "l3", "t-cc-2");
+	const moved = await work.assignLabelTask(
+		sql,
+		"org-1",
+		"user-1",
+		"l3",
+		"t-cc-2",
+	);
 	expect(moved.data.taskId).toBe("t-cc-2");
-	const unassigned = await work.assignLabelTask(sql, "org-1", "user-1", "l3", null);
+	const unassigned = await work.assignLabelTask(
+		sql,
+		"org-1",
+		"user-1",
+		"l3",
+		null,
+	);
 	expect(unassigned.data.taskId).toBeNull();
 });
 
 test("T15: template validates data shape; apply fills defaults incl. board assignee", async () => {
 	const work = await import("../../packages/domain/src/work");
 	await expect(
-		work.createTemplate(sql, "org-1", "user-1", { id: "tmpl-bad", organizationId: "org-1", name: "Bad", data: { title: "x", priority: "cosmic" } }),
+		work.createTemplate(sql, "org-1", "user-1", {
+			id: "tmpl-bad",
+			organizationId: "org-1",
+			name: "Bad",
+			data: { title: "x", priority: "cosmic" },
+		}),
 	).rejects.toThrow();
 	await expect(
-		work.createTemplate(sql, "org-1", "user-1", { id: "tmpl-bad2", organizationId: "org-1", name: "Bad2", data: "not-an-object" }),
+		work.createTemplate(sql, "org-1", "user-1", {
+			id: "tmpl-bad2",
+			organizationId: "org-1",
+			name: "Bad2",
+			data: "not-an-object",
+		}),
 	).rejects.toThrow();
-	await work.updateBoard(sql, "org-1", "user-1", "b1", { defaultAssigneeId: "user-2" });
-	await work.createTemplate(sql, "org-1", "user-1", {
-		id: "tmpl-1", organizationId: "org-1", name: "Bug report",
-		data: { title: "Templated", description: "From template", priority: "high", startDate: "2026-09-14", dueDate: "2026-09-15", startDateOffset: "+1d", dueDateOffset: "+2d", labels: [] },
+	await work.updateBoard(sql, "org-1", "user-1", "b1", {
+		defaultAssigneeId: "user-2",
 	});
-	const result = await work.createTicket(sql, "org-1", "user-1", "b1", { id: "t-tmpl", title: "ignored", templateId: "tmpl-1" });
+	await work.createTemplate(sql, "org-1", "user-1", {
+		id: "tmpl-1",
+		organizationId: "org-1",
+		name: "Bug report",
+		data: {
+			title: "Templated",
+			description: "From template",
+			priority: "high",
+			startDate: "2026-09-14",
+			dueDate: "2026-09-15",
+			startDateOffset: "+1d",
+			dueDateOffset: "+2d",
+			labels: [],
+		},
+	});
+	const result = await work.createTicket(sql, "org-1", "user-1", "b1", {
+		id: "t-tmpl",
+		title: "ignored",
+		templateId: "tmpl-1",
+	});
 	expect(result.data.title).toBe("Templated");
 	expect(result.data.description).toBe("From template");
 	expect(result.data.priority).toBe("high");
@@ -202,14 +332,31 @@ test("T15: template validates data shape; apply fills defaults incl. board assig
 
 test("T16: flag target XOR enforced; flag-type delete blocked while referenced", async () => {
 	const work = await import("../../packages/domain/src/work");
-	await work.createFlagType(sql, "org-1", "user-1", { id: "ft-1", boardId: "b1", name: "Attention" });
+	await work.createFlagType(sql, "org-1", "user-1", {
+		id: "ft-1",
+		boardId: "b1",
+		name: "Attention",
+	});
 	await expect(
-		work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", { id: "f0", flagTypeId: "ft-1" }),
+		work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", {
+			id: "f0",
+			flagTypeId: "ft-1",
+		}),
 	).rejects.toThrow();
 	await expect(
-		work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", { id: "f0b", flagTypeId: "ft-1", targetUserId: "user-1", targetTeamId: "team-1" }),
+		work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", {
+			id: "f0b",
+			flagTypeId: "ft-1",
+			targetUserId: "user-1",
+			targetTeamId: "team-1",
+		}),
 	).rejects.toThrow();
-	const flag = await work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", { id: "f1", flagTypeId: "ft-1", targetUserId: "user-2", note: "please review" });
+	const flag = await work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", {
+		id: "f1",
+		flagTypeId: "ft-1",
+		targetUserId: "user-2",
+		note: "please review",
+	});
 	expect(flag.data.targetUserId).toBe("user-2");
 	await expect(
 		work.deleteFlagType(sql, "org-1", "user-1", "ft-1"),
@@ -224,7 +371,13 @@ test("T17: resolve requires nonempty note, stamps resolver, keeps row, idempoten
 	await expect(
 		work.resolveTicketFlag(sql, "org-1", "user-1", "f1", "   "),
 	).rejects.toThrow();
-	const resolved = await work.resolveTicketFlag(sql, "org-1", "user-1", "f1", "done reviewing");
+	const resolved = await work.resolveTicketFlag(
+		sql,
+		"org-1",
+		"user-1",
+		"f1",
+		"done reviewing",
+	);
 	expect(resolved.data.resolveNote).toBe("done reviewing");
 	expect(resolved.data.resolvedBy).toBe("user-1");
 	expect(resolved.data.resolvedAt).not.toBeNull();
@@ -238,28 +391,48 @@ test("T17: resolve requires nonempty note, stamps resolver, keeps row, idempoten
 test("T21: board delete blocked BoardNotEmpty when tickets exist; empty board cascades aliases", async () => {
 	const work = await import("../../packages/domain/src/work");
 	// Tickets block deletion (BoardNotEmpty).
-	await expect(work.deleteBoard(sql, "org-1", "user-1", "b1")).rejects.toThrow();
+	await expect(
+		work.deleteBoard(sql, "org-1", "user-1", "b1"),
+	).rejects.toThrow();
 	// Statuses are seeded structural chrome: ticket-free board deletes and
 	// cascades its statuses + aliases (fork's ticket cascade is the foot-gun;
 	// the guard protects tickets only).
 	await sql`DELETE FROM task WHERE board_id = 'b1'`;
 	await work.deleteBoard(sql, "org-1", "user-1", "b1");
-	const [cols] = await sql`SELECT count(*)::int AS count FROM "column" WHERE board_id = 'b1'`;
+	const [cols] =
+		await sql`SELECT count(*)::int AS count FROM "column" WHERE board_id = 'b1'`;
 	expect(cols.count).toBe(0);
-	await work.createBoard(sql, "org-1", "user-1", { id: "b-empty", name: "Empty" });
+	await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-empty",
+		name: "Empty",
+	});
 	await work.setBoardKey(sql, "org-1", "user-1", "b-empty", "EMPT");
-	const [alias] = await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = 'b-empty'`;
+	const [alias] =
+		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = 'b-empty'`;
 	expect(alias.count).toBe(1);
 	await work.deleteBoard(sql, "org-1", "user-1", "b-empty");
-	const [gone] = await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = 'b-empty'`;
+	const [gone] =
+		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = 'b-empty'`;
 	expect(gone.count).toBe(0);
 });
 
 test("T07: PUT key writes prior key as alias; old slug + KEY-seq URLs still resolve", async () => {
 	const work = await import("../../packages/domain/src/work");
-	await work.createBoard(sql, "org-1", "user-1", { id: "b-key", name: "Keyed Board" });
-	await work.createTicket(sql, "org-1", "user-1", "b-key", { id: "t-key-1", title: "Keyed ticket" });
-	const renamed = await work.setBoardKey(sql, "org-1", "user-1", "b-key", "PROJ");
+	await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-key",
+		name: "Keyed Board",
+	});
+	await work.createTicket(sql, "org-1", "user-1", "b-key", {
+		id: "t-key-1",
+		title: "Keyed ticket",
+	});
+	const renamed = await work.setBoardKey(
+		sql,
+		"org-1",
+		"user-1",
+		"b-key",
+		"PROJ",
+	);
 	expect(renamed.data.slug).toBe("PROJ");
 	// Old slug resolves via alias.
 	const viaOld = await work.resolveBoardRef(sql, "org-1", "keyed-board");
@@ -271,7 +444,8 @@ test("T07: PUT key writes prior key as alias; old slug + KEY-seq URLs still reso
 	const { ticketKeyOf } = await import("../../packages/domain/src/work");
 	expect(ticketKeyOf("PROJ", ticket.number)).toBe("PROJ-1");
 	// Alias row holds the prior slug.
-	const aliases = await sql`SELECT key FROM board_key_alias WHERE board_id = 'b-key'`;
+	const aliases =
+		await sql`SELECT key FROM board_key_alias WHERE board_id = 'b-key'`;
 	expect(aliases.map((a) => a.key)).toContain("keyed-board");
 });
 
@@ -281,9 +455,14 @@ test("T22: work events decode through the registry; unknown versions fail closed
 		"../../packages/sync/src/work-upcasters"
 	);
 	const registry = new WorkUpcasterRegistry();
-	const [event] = await sql`SELECT plugin_type, schema_version, payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:board-upserted' LIMIT 1`;
+	const [event] =
+		await sql`SELECT plugin_type, schema_version, payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:board-upserted' LIMIT 1`;
 	expect(event).toBeDefined();
-	const decoded = registry.decode(event.plugin_type, event.schema_version, event.payload);
+	const decoded = registry.decode(
+		event.plugin_type,
+		event.schema_version,
+		event.payload,
+	);
 	expect(decoded.id).toBe("b1");
 	expect(() => registry.decode(event.plugin_type, 2, event.payload)).toThrow(
 		UnsupportedWorkEventSchema,
@@ -298,7 +477,6 @@ test("T22: tailMessages streams exactly once per event; deletes stream as delete
 		"../../packages/sync/src/work-shapes"
 	);
 	expect(WORK_COLLECTIONS).toHaveLength(8);
-	const [counter] = await sql`SELECT seq::text AS seq FROM org_event_counter WHERE org = 'org-1'`;
 	const messages = await tailMessages(sql, "org-1", "ticket", "0");
 	expect(messages.length).toBeGreaterThan(0);
 	// Deletes (soft-delete emits work:ticket-deleted) stream with operation delete.

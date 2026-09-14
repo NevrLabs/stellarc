@@ -1,9 +1,5 @@
-import { Schema } from "effect";
+import type { Schema } from "effect";
 import type { Sql } from "postgres";
-import {
-	WorkEventPayloadSchemas,
-	WORK_SCHEMA_VERSION,
-} from "../../domain/src/work-events";
 import {
 	BoardPublic,
 	FlagTypePublic,
@@ -14,6 +10,7 @@ import {
 	TemplatePublic,
 	TicketPublic,
 } from "../../contracts/src/work";
+import { WORK_SCHEMA_VERSION } from "../../domain/src/work-events";
 import { WorkUpcasterRegistry } from "./work-upcasters";
 
 /** §4: eight explicit work projections. Virtual statuses are client-static
@@ -34,7 +31,10 @@ export type WorkCollection = (typeof WORK_COLLECTIONS)[number];
 type Projection = {
 	table: string; // streamed relation name
 	eventTypes: { upsert: string; delete: string };
-	decode: (payload: { id: string; row?: unknown }) => { id: string; row?: unknown };
+	decode: (payload: { id: string; row?: unknown }) => {
+		id: string;
+		row?: unknown;
+	};
 	where: (org: string) => string;
 };
 
@@ -56,7 +56,10 @@ const PROJECTIONS: Record<WorkCollection, Projection> = {
 	},
 	status: {
 		table: "work_status",
-		eventTypes: { upsert: "work:status-upserted", delete: "work:status-deleted" },
+		eventTypes: {
+			upsert: "work:status-upserted",
+			delete: "work:status-deleted",
+		},
 		decode: (p) => p,
 		where: (org) => `b.organization_id = '${org.replaceAll("'", "''")}'`,
 	},
@@ -132,7 +135,9 @@ export async function tailMessages(
 	org: string,
 	collection: WorkCollection,
 	afterSeq: string,
-): Promise<Array<{ key: string; value: unknown; headers: Record<string, unknown> }>> {
+): Promise<
+	Array<{ key: string; value: unknown; headers: Record<string, unknown> }>
+> {
 	const projection = PROJECTIONS[collection];
 	const events = await sql`
 		SELECT seq::text AS seq, txid::text AS txid, plugin_type, payload, schema_version
@@ -140,15 +145,30 @@ export async function tailMessages(
 		WHERE org = ${org} AND seq > ${afterSeq}
 			AND plugin_type IN (${projection.eventTypes.upsert}, ${projection.eventTypes.delete})
 		ORDER BY seq LIMIT 100`;
-	const messages: Array<{ key: string; value: unknown; headers: Record<string, unknown> }> = [];
+	const messages: Array<{
+		key: string;
+		value: unknown;
+		headers: Record<string, unknown>;
+	}> = [];
 	for (const event of events) {
-		if (!upcasters.supports(event.plugin_type) || event.schema_version !== WORK_SCHEMA_VERSION)
+		if (
+			!upcasters.supports(event.plugin_type) ||
+			event.schema_version !== WORK_SCHEMA_VERSION
+		)
 			throw new Error("Unsupported event schema");
-		const payload = upcasters.decode(event.plugin_type, event.schema_version, event.payload);
-		const isDelete = event.plugin_type === projection.eventTypes.delete && collection !== "task_flag";
+		const payload = upcasters.decode(
+			event.plugin_type,
+			event.schema_version,
+			event.payload,
+		);
+		const isDelete =
+			event.plugin_type === projection.eventTypes.delete &&
+			collection !== "task_flag";
 		messages.push({
 			key: JSON.stringify([org, payload.id]),
-			value: isDelete ? { org, id: payload.id } : { org, ...(payload.row as object), last_seq: event.seq },
+			value: isDelete
+				? { org, id: payload.id }
+				: { org, ...(payload.row as object), last_seq: event.seq },
 			headers: {
 				operation: isDelete ? "delete" : "update",
 				relation: ["public", projection.table],

@@ -1,11 +1,7 @@
-import {
-	HttpApiBuilder,
-	HttpServer,
-} from "@effect/platform";
+import { HttpApiBuilder, HttpServer } from "@effect/platform";
 import { Effect, Layer, Schema } from "effect";
 import type { Sql } from "postgres";
-import { WorkApi, WorkErrorVariants } from "../../../packages/contracts/src/work";
-import type { WorkError } from "../../../packages/contracts/src/work";
+import { WorkApi, type WorkError } from "../../../packages/contracts/src/work";
 import * as work from "../../../packages/domain/src/work";
 import type { Authorize } from "./http";
 
@@ -55,7 +51,11 @@ function session(
 	const org = token.split(" ")[0] ?? "";
 	const principal = principalFrom(org, authorization);
 	if (!org) return { _tag: "Unauthenticated" };
-	const decision = authorize(org, ctx.request.headers as Record<string, string>, principal);
+	const decision = authorize(
+		org,
+		ctx.request.headers as Record<string, string>,
+		principal,
+	);
 	if (decision === "unauthenticated") return { _tag: "Unauthenticated" };
 	if (decision === "forbidden") return { _tag: "Forbidden" };
 	return { org, principal: principal || "anonymous" };
@@ -74,7 +74,9 @@ function queryParam(url: string, key: string): string | undefined {
 async function readJson(ctx: Ctx): Promise<unknown> {
 	const jsonField: unknown = (ctx.request as unknown as { json: unknown }).json;
 	if (typeof jsonField === "function")
-		return await (jsonField as (this: unknown) => Promise<unknown>).call(ctx.request);
+		return await (jsonField as (this: unknown) => Promise<unknown>).call(
+			ctx.request,
+		);
 	return await Effect.runPromise(jsonField as Effect.Effect<unknown, unknown>);
 }
 
@@ -84,16 +86,28 @@ function isWorkError(value: unknown): value is WorkError {
 		value !== null &&
 		"_tag" in value &&
 		typeof (value as { _tag: unknown })._tag === "string" &&
-		["ValidationError", "Unauthenticated", "Forbidden", "NotFound", "Conflict", "RateLimited", "Unavailable"].includes(
-			String((value as { _tag: unknown })._tag),
-		)
+		[
+			"ValidationError",
+			"Unauthenticated",
+			"Forbidden",
+			"NotFound",
+			"Conflict",
+			"RateLimited",
+			"Unavailable",
+		].includes(String((value as { _tag: unknown })._tag))
 	);
 }
 
-async function body<T>(ctx: Ctx, schema: Schema.Schema<any, any, never>): Promise<T | WorkError> {
+async function body<T>(
+	ctx: Ctx,
+	// biome-ignore lint/suspicious/noExplicitAny: decode passthrough
+	schema: Schema.Schema<any, any, never>,
+): Promise<T | WorkError> {
 	try {
 		const raw = await readJson(ctx);
-		return Schema.decodeUnknownSync(schema, { onExcessProperty: "error" })(raw) as T;
+		return Schema.decodeUnknownSync(schema, { onExcessProperty: "error" })(
+			raw,
+		) as T;
 	} catch {
 		const invalid: WorkError = { _tag: "ValidationError", message: "body" };
 		return invalid;
@@ -108,10 +122,16 @@ const publicRateBuckets = new Map<string, number>();
 export function workHandler(
 	sql: Sql,
 	authorize: Authorize,
-	principalFrom: (org: string, authorization: string | undefined) => string = () => "",
+	principalFrom: (
+		org: string,
+		authorization: string | undefined,
+	) => string = () => "",
 	telemetry: Layer.Layer<never> = Layer.empty,
 	memoMap?: Layer.MemoMap,
-): { handler: (request: Request) => Promise<Response>; dispose: () => Promise<void> } {
+): {
+	handler: (request: Request) => Promise<Response>;
+	dispose: () => Promise<void>;
+} {
 	type Handler = (ctx: Ctx) => Promise<unknown>;
 	const auth = (ctx: Ctx) => session(ctx, authorize, principalFrom);
 
@@ -133,12 +153,18 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateBoardBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createBoard(sql, s.org, s.principal, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createBoard(sql, s.org, s.principal, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		getBoard: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			const [row] = (await sql`SELECT * FROM "board" WHERE id = ${ctx.path.id} AND organization_id = ${s.org}`) as AnyRow[];
+			const [row] =
+				(await sql`SELECT * FROM "board" WHERE id = ${ctx.path.id} AND organization_id = ${s.org}`) as AnyRow[];
 			if (!row) return { _tag: "NotFound" } as WorkError;
 			return ok({ board: work.boardPublic(row as never) });
 		},
@@ -147,7 +173,15 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, UpdateBoardBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.updateBoard(sql, s.org, s.principal, ctx.path.id, input as never));
+			return ok(
+				await work.updateBoard(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					input as never,
+				),
+			);
 		},
 		deleteBoard: async (ctx) => {
 			const s = auth(ctx);
@@ -157,19 +191,31 @@ export function workHandler(
 		archiveBoard: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			return ok(await work.archiveBoard(sql, s.org, s.principal, ctx.path.id, true));
+			return ok(
+				await work.archiveBoard(sql, s.org, s.principal, ctx.path.id, true),
+			);
 		},
 		unarchiveBoard: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			return ok(await work.archiveBoard(sql, s.org, s.principal, ctx.path.id, false));
+			return ok(
+				await work.archiveBoard(sql, s.org, s.principal, ctx.path.id, false),
+			);
 		},
 		putBoardKey: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, PutKeyBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.setBoardKey(sql, s.org, s.principal, ctx.path.id, (input as { key: string }).key));
+			return ok(
+				await work.setBoardKey(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { key: string }).key,
+				),
+			);
 		},
 		listStatuses: async (ctx) => {
 			const s = auth(ctx);
@@ -181,14 +227,27 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateStatusBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createStatus(sql, s.org, s.principal, ctx.path.id, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createStatus(sql, s.org, s.principal, ctx.path.id, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		updateStatus: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, UpdateStatusBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.updateStatus(sql, s.org, s.principal, ctx.path.id, input as never));
+			return ok(
+				await work.updateStatus(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					input as never,
+				),
+			);
 		},
 		deleteStatus: async (ctx) => {
 			const s = auth(ctx);
@@ -200,25 +259,40 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, ReorderStatusesBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.reorderStatuses(sql, s.org, s.principal, ctx.path.id, (input as { ids: string[] }).ids));
+			return ok(
+				await work.reorderStatuses(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { ids: string[] }).ids,
+				),
+			);
 		},
 		listTickets: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			return ok(await work.listTickets(sql, s.org, ctx.path.id, {
-				status: queryParam(ctx.request.url, "status"),
-				assigneeId: queryParam(ctx.request.url, "assigneeId"),
-				teamId: queryParam(ctx.request.url, "teamId"),
-				includeArchived: queryFlag(ctx.request.url, "includeArchived"),
-				includeDeleted: queryFlag(ctx.request.url, "includeDeleted"),
-			}));
+			return ok(
+				await work.listTickets(sql, s.org, ctx.path.id, {
+					status: queryParam(ctx.request.url, "status"),
+					assigneeId: queryParam(ctx.request.url, "assigneeId"),
+					teamId: queryParam(ctx.request.url, "teamId"),
+					includeArchived: queryFlag(ctx.request.url, "includeArchived"),
+					includeDeleted: queryFlag(ctx.request.url, "includeDeleted"),
+				}),
+			);
 		},
 		createTicket: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateTicketBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createTicket(sql, s.org, s.principal, ctx.path.id, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createTicket(sql, s.org, s.principal, ctx.path.id, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		getTicket: async (ctx) => {
 			const s = auth(ctx);
@@ -230,29 +304,67 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, UpdateTicketBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.updateTicket(sql, s.org, s.principal, ctx.path.id, input as never));
+			return ok(
+				await work.updateTicket(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					input as never,
+				),
+			);
 		},
 		putTicketStatus: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, PutStatusBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.setTicketStatus(sql, s.org, s.principal, ctx.path.id, (input as { status: string }).status));
+			return ok(
+				await work.setTicketStatus(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { status: string }).status,
+				),
+			);
 		},
 		moveTicket: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, MoveBody);
 			if (isWorkError(input)) return input;
-			const b = input as { boardId: string; status?: string; position?: number };
-			return ok(await work.moveTicket(sql, s.org, s.principal, ctx.path.id, b.boardId, b.status, b.position));
+			const b = input as {
+				boardId: string;
+				status?: string;
+				position?: number;
+			};
+			return ok(
+				await work.moveTicket(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					b.boardId,
+					b.status,
+					b.position,
+				),
+			);
 		},
 		reorderTickets: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, ReorderTicketsBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.reorderTickets(sql, s.org, s.principal, ctx.path.id, (input as { updates: never[] }).updates));
+			return ok(
+				await work.reorderTickets(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { updates: never[] }).updates,
+				),
+			);
 		},
 		bulkPatchTickets: async (ctx) => {
 			const s = auth(ctx);
@@ -260,12 +372,16 @@ export function workHandler(
 			const input = await body(ctx, BulkBody);
 			if (isWorkError(input)) return input;
 			const b = input as { ids: string[]; patch: never };
-			return ok(await work.bulkPatchTickets(sql, s.org, s.principal, b.ids, b.patch));
+			return ok(
+				await work.bulkPatchTickets(sql, s.org, s.principal, b.ids, b.patch),
+			);
 		},
 		deleteTicket: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			return ok(await work.softDeleteTicket(sql, s.org, s.principal, ctx.path.id));
+			return ok(
+				await work.softDeleteTicket(sql, s.org, s.principal, ctx.path.id),
+			);
 		},
 		restoreTicket: async (ctx) => {
 			const s = auth(ctx);
@@ -277,12 +393,21 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, ArchiveBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.setTicketArchived(sql, s.org, s.principal, ctx.path.id, (input as { archived: boolean }).archived));
+			return ok(
+				await work.setTicketArchived(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { archived: boolean }).archived,
+				),
+			);
 		},
 		listLabels: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			const organizationId = queryParam(ctx.request.url, "organizationId") ?? s.org;
+			const organizationId =
+				queryParam(ctx.request.url, "organizationId") ?? s.org;
 			return ok(await work.listLabels(sql, s.org, organizationId));
 		},
 		createLabel: async (ctx) => {
@@ -290,21 +415,42 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateLabelBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createLabel(sql, s.org, s.principal, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createLabel(sql, s.org, s.principal, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		updateLabel: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, UpdateLabelBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.updateLabel(sql, s.org, s.principal, ctx.path.id, input as never));
+			return ok(
+				await work.updateLabel(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					input as never,
+				),
+			);
 		},
 		putLabelTask: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, PutLabelTaskBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.assignLabelTask(sql, s.org, s.principal, ctx.path.id, (input as { taskId?: string }).taskId ?? null));
+			return ok(
+				await work.assignLabelTask(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { taskId?: string }).taskId ?? null,
+				),
+			);
 		},
 		deleteLabel: async (ctx) => {
 			const s = auth(ctx);
@@ -319,7 +465,8 @@ export function workHandler(
 		listTemplates: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			const organizationId = queryParam(ctx.request.url, "organizationId") ?? s.org;
+			const organizationId =
+				queryParam(ctx.request.url, "organizationId") ?? s.org;
 			return ok(await work.listTemplates(sql, s.org, organizationId));
 		},
 		createTemplate: async (ctx) => {
@@ -327,25 +474,41 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateTemplateBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createTemplate(sql, s.org, s.principal, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createTemplate(sql, s.org, s.principal, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		updateTemplate: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, UpdateTemplateBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.updateTemplate(sql, s.org, s.principal, ctx.path.id, input as never));
+			return ok(
+				await work.updateTemplate(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					input as never,
+				),
+			);
 		},
 		deleteTemplate: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			return ok(await work.deleteTemplate(sql, s.org, s.principal, ctx.path.id));
+			return ok(
+				await work.deleteTemplate(sql, s.org, s.principal, ctx.path.id),
+			);
 		},
 		listFlagTypes: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const boardId = queryParam(ctx.request.url, "boardId");
-			if (!boardId) return { _tag: "ValidationError", message: "boardId" } as WorkError;
+			if (!boardId)
+				return { _tag: "ValidationError", message: "boardId" } as WorkError;
 			return ok(await work.listFlagTypes(sql, s.org, boardId));
 		},
 		createFlagType: async (ctx) => {
@@ -353,19 +516,34 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateFlagTypeBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createFlagType(sql, s.org, s.principal, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createFlagType(sql, s.org, s.principal, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		updateFlagType: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, UpdateFlagTypeBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.updateFlagType(sql, s.org, s.principal, ctx.path.id, input as never));
+			return ok(
+				await work.updateFlagType(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					input as never,
+				),
+			);
 		},
 		deleteFlagType: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			return ok(await work.deleteFlagType(sql, s.org, s.principal, ctx.path.id));
+			return ok(
+				await work.deleteFlagType(sql, s.org, s.principal, ctx.path.id),
+			);
 		},
 		listTicketFlags: async (ctx) => {
 			const s = auth(ctx);
@@ -377,14 +555,27 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, CreateFlagBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.createTicketFlag(sql, s.org, s.principal, ctx.path.id, { ...(input as object), id: crypto.randomUUID() } as never));
+			return ok(
+				await work.createTicketFlag(sql, s.org, s.principal, ctx.path.id, {
+					...(input as object),
+					id: crypto.randomUUID(),
+				} as never),
+			);
 		},
 		resolveTicketFlag: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
 			const input = await body(ctx, ResolveBody);
 			if (isWorkError(input)) return input;
-			return ok(await work.resolveTicketFlag(sql, s.org, s.principal, ctx.path.id, (input as { note: string }).note));
+			return ok(
+				await work.resolveTicketFlag(
+					sql,
+					s.org,
+					s.principal,
+					ctx.path.id,
+					(input as { note: string }).note,
+				),
+			);
 		},
 		publicBoard: async (ctx) => {
 			// Unauthenticated by design (§3): is_public boards only, minimal
@@ -402,7 +593,8 @@ export function workHandler(
 				return limited;
 			}
 			publicRateBuckets.set(key, bucket + 1);
-			const [row] = (await sql`SELECT id, name, slug, description, icon, created_at, is_public FROM "board" WHERE id = ${id}`) as AnyRow[];
+			const [row] =
+				(await sql`SELECT id, name, slug, description, icon, created_at, is_public FROM "board" WHERE id = ${id}`) as AnyRow[];
 			if (!row || row.is_public !== true)
 				return { _tag: "NotFound" } as WorkError;
 			return ok({
@@ -424,12 +616,14 @@ export function workHandler(
 		let builder: unknown = g;
 		for (const name of handled) {
 			const handler = handlers[name];
-			builder = (builder as {
-				handleRaw: (
-					name: string,
-					h: (ctx: unknown) => Effect.Effect<unknown, unknown, unknown>,
-				) => unknown;
-			}).handleRaw(name, (ctx: unknown) =>
+			builder = (
+				builder as {
+					handleRaw: (
+						name: string,
+						h: (ctx: unknown) => Effect.Effect<unknown, unknown, unknown>,
+					) => unknown;
+				}
+			).handleRaw(name, (ctx: unknown) =>
 				// tryPromise's catch channel is re-failed by handleRaw (500); the
 				// error must land in the SUCCESS channel for success-variant encode.
 				Effect.tryPromise(() => handler(ctx as Ctx)).pipe(
@@ -540,7 +734,9 @@ const UpdateLabelBody = Schema.Struct({
 	name: Schema.optional(Schema.String),
 	color: Schema.optional(Schema.String),
 });
-const PutLabelTaskBody = Schema.Struct({ taskId: Schema.optional(Schema.String) });
+const PutLabelTaskBody = Schema.Struct({
+	taskId: Schema.optional(Schema.String),
+});
 const CreateTemplateBody = Schema.Struct({
 	organizationId: Schema.String,
 	name: Schema.String,

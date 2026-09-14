@@ -8,9 +8,13 @@ import { afterAll } from "vitest";
 // no socket; same shape as tests/helpers/postgres.ts but lean for unit scope).
 const roots = new Set<string>();
 const BIN = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
-const openPools = new Set<{ end: (opts: { timeout: number }) => Promise<void> }>();
+const openPools = new Set<{
+	end: (opts: { timeout: number }) => Promise<void>;
+}>();
 
-export function trackPool(pool: { end: (opts: { timeout: number }) => Promise<void> }) {
+export function trackPool(pool: {
+	end: (opts: { timeout: number }) => Promise<void>;
+}) {
 	openPools.add(pool);
 }
 

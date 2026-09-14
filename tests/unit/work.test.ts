@@ -1,7 +1,6 @@
-import { beforeAll, expect, test } from "vitest";
-import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { beforeAll, expect, test } from "vitest";
 import { startUnitPostgres } from "./work-unit-postgres";
 
 let sql: import("postgres").Sql;
@@ -13,33 +12,100 @@ beforeAll(async () => {
 test("T01: migration catalogs all 8 work tables with exact column sets", async () => {
 	const expected: Record<string, string[]> = {
 		board: [
-			"id", "organization_id", "slug", "icon", "name", "description",
-			"created_at", "is_public", "archived_at", "last_task_number",
-			"org_privilege", "task_status_order", "backlog_status_order",
-			"subtask_depth_limit", "default_assignee_id", "default_assignee_team_id",
+			"id",
+			"organization_id",
+			"slug",
+			"icon",
+			"name",
+			"description",
+			"created_at",
+			"is_public",
+			"archived_at",
+			"last_task_number",
+			"org_privilege",
+			"task_status_order",
+			"backlog_status_order",
+			"subtask_depth_limit",
+			"default_assignee_id",
+			"default_assignee_team_id",
 		],
 		board_key_alias: ["id", "organization_id", "board_id", "key", "created_at"],
 		column: [
-			"id", "board_id", "name", "slug", "position", "icon", "color",
-			"is_final", "created_at", "updated_at",
+			"id",
+			"board_id",
+			"name",
+			"slug",
+			"position",
+			"icon",
+			"color",
+			"is_final",
+			"created_at",
+			"updated_at",
 		],
 		task: [
-			"id", "board_id", "position", "number", "assignee_id",
-			"team_assignee_id", "title", "description", "description_history",
-			"status", "column_id", "priority", "milestone_id", "archived_at",
-			"archived_by", "deleted_at", "deleted_by", "start_date", "due_date",
-			"created_at", "updated_at",
+			"id",
+			"board_id",
+			"position",
+			"number",
+			"assignee_id",
+			"team_assignee_id",
+			"title",
+			"description",
+			"description_history",
+			"status",
+			"column_id",
+			"priority",
+			"milestone_id",
+			"archived_at",
+			"archived_by",
+			"deleted_at",
+			"deleted_by",
+			"start_date",
+			"due_date",
+			"created_at",
+			"updated_at",
 		],
 		label: [
-			"id", "name", "color", "source", "created_at", "updated_at",
-			"task_id", "organization_id",
+			"id",
+			"name",
+			"color",
+			"source",
+			"created_at",
+			"updated_at",
+			"task_id",
+			"organization_id",
 		],
-		task_template: ["id", "organization_id", "name", "data", "created_at", "updated_at"],
-		flag_type: ["id", "board_id", "name", "color", "icon", "position", "created_at", "updated_at"],
+		task_template: [
+			"id",
+			"organization_id",
+			"name",
+			"data",
+			"created_at",
+			"updated_at",
+		],
+		flag_type: [
+			"id",
+			"board_id",
+			"name",
+			"color",
+			"icon",
+			"position",
+			"created_at",
+			"updated_at",
+		],
 		task_flag: [
-			"id", "task_id", "flag_type_id", "flagged_by", "target_user_id",
-			"target_team_id", "note", "resolve_note", "resolved_at",
-			"resolved_by", "created_at", "updated_at",
+			"id",
+			"task_id",
+			"flag_type_id",
+			"flagged_by",
+			"target_user_id",
+			"target_team_id",
+			"note",
+			"resolve_note",
+			"resolved_at",
+			"resolved_by",
+			"created_at",
+			"updated_at",
 		],
 	};
 	let total = 0;
@@ -49,7 +115,10 @@ test("T01: migration catalogs all 8 work tables with exact column sets", async (
 			FROM information_schema.columns
 			WHERE table_schema='public' AND table_name=${table}
 			ORDER BY ordinal_position`;
-		expect(rows.map((r) => r.column_name), table).toEqual(columns);
+		expect(
+			rows.map((r) => r.column_name),
+			table,
+		).toEqual(columns);
 		total += rows.length;
 	}
 	expect(total).toBe(86);
@@ -81,7 +150,8 @@ test("T01: exact types, nullability and defaults on key columns", async () => {
 });
 
 test("T01: subtask_depth_limit CHECK 1..4 enforced", async () => {
-	const [org] = await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('o1','O','o', now()) RETURNING id`;
+	const [org] =
+		await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('o1','O','o', now()) RETURNING id`;
 	await expect(sql`
 		INSERT INTO board (id, organization_id, slug, name, subtask_depth_limit, created_at)
 		VALUES ('b-bad', ${org.id}, 'bad', 'Bad', 5, now())`).rejects.toThrow();
@@ -121,7 +191,7 @@ test("T01 negative control scaffold: dropping (board_id,number) unique makes con
 });
 
 test("T02: ticket-key parse/normalize known answers", async () => {
-	const { parseTicketKey, normalizeBoardKey, boardKeySchema } = await import(
+	const { parseTicketKey, normalizeBoardKey } = await import(
 		"../../packages/domain/src/ticket-key"
 	);
 	expect(parseTicketKey("KEY-1")).toEqual({ boardKey: "KEY", number: 1 });
@@ -144,8 +214,14 @@ test("T03: status taxonomy pin — 8 slugs, frozen order, groups, flags", async 
 	const mod = await import("../../packages/domain/src/status-taxonomy");
 	const { STATUS_DEFINITIONS, STATUS_SLUGS } = mod;
 	expect(STATUS_SLUGS).toEqual([
-		"to-do", "in-progress", "in-review", "done",
-		"triage", "planned", "canceled", "duplicate",
+		"to-do",
+		"in-progress",
+		"in-review",
+		"done",
+		"triage",
+		"planned",
+		"canceled",
+		"duplicate",
 	]);
 	expect(STATUS_DEFINITIONS.map((d) => [d.slug, d.group])).toEqual([
 		["to-do", "unstarted"],
@@ -158,20 +234,33 @@ test("T03: status taxonomy pin — 8 slugs, frozen order, groups, flags", async 
 		["duplicate", "duplicate"],
 	]);
 	expect(STATUS_DEFINITIONS.map((d) => [d.slug, d.isClosed])).toEqual([
-		["to-do", false], ["in-progress", false], ["in-review", false],
-		["done", true], ["triage", false], ["planned", false],
-		["canceled", true], ["duplicate", true],
+		["to-do", false],
+		["in-progress", false],
+		["in-review", false],
+		["done", true],
+		["triage", false],
+		["planned", false],
+		["canceled", true],
+		["duplicate", true],
 	]);
 	expect(STATUS_DEFINITIONS.map((d) => [d.slug, d.isBacklog])).toEqual([
-		["to-do", false], ["in-progress", false], ["in-review", false],
-		["done", false], ["triage", true], ["planned", true],
-		["canceled", false], ["duplicate", false],
+		["to-do", false],
+		["in-progress", false],
+		["in-review", false],
+		["done", false],
+		["triage", true],
+		["planned", true],
+		["canceled", false],
+		["duplicate", false],
 	]);
 	// 'archived' is NOT a status.
 	expect(STATUS_SLUGS).not.toContain("archived");
 	// Virtual statuses: no column rows.
 	expect(mod.NON_COLUMN_STATUS_SLUGS).toEqual([
-		"triage", "planned", "canceled", "duplicate",
+		"triage",
+		"planned",
+		"canceled",
+		"duplicate",
 	]);
 	expect(mod.BACKLOG_STATUS_SLUGS).toEqual(["triage", "planned"]);
 	expect(mod.CLOSED_STATUS_SLUGS).toEqual(["done", "canceled", "duplicate"]);
@@ -184,7 +273,10 @@ test("T03: virtual statuses have no rows in any board seed and never emit events
 		"../../packages/domain/src/status-taxonomy"
 	);
 	expect(VIRTUAL_STATUS_SLUGS).toEqual([
-		"triage", "planned", "canceled", "duplicate",
+		"triage",
+		"planned",
+		"canceled",
+		"duplicate",
 	]);
 });
 
@@ -196,20 +288,32 @@ test("T03 negative control scaffold: swapping two definition entries breaks the 
 	const swapped = [...mod.STATUS_SLUGS];
 	[swapped[0], swapped[1]] = [swapped[1], swapped[0]];
 	expect(swapped).not.toEqual([
-		"to-do", "in-progress", "in-review", "done",
-		"triage", "planned", "canceled", "duplicate",
+		"to-do",
+		"in-progress",
+		"in-review",
+		"done",
+		"triage",
+		"planned",
+		"canceled",
+		"duplicate",
 	]);
 });
 
 test("T05: board slug + alias lower-unique reject duplicates at the DB", async () => {
-	const [org] = await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('o2','O','o2', now()) RETURNING id`;
+	const [org] =
+		await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('o2','O','o2', now()) RETURNING id`;
 	await sql`INSERT INTO board (id, organization_id, slug, name, created_at) VALUES ('b1', ${org.id}, 'Alpha', 'A', now())`;
-	await expect(sql`INSERT INTO board (id, organization_id, slug, name, created_at) VALUES ('b2', ${org.id}, 'alpha', 'A2', now())`).rejects.toThrow();
+	await expect(
+		sql`INSERT INTO board (id, organization_id, slug, name, created_at) VALUES ('b2', ${org.id}, 'alpha', 'A2', now())`,
+	).rejects.toThrow();
 	// Different org, same slug: fine (unique is per-org).
-	const [org2] = await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('o3','O','o3', now()) RETURNING id`;
+	const [org2] =
+		await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('o3','O','o3', now()) RETURNING id`;
 	await sql`INSERT INTO board (id, organization_id, slug, name, created_at) VALUES ('b3', ${org2.id}, 'alpha', 'A3', now())`;
 	await sql`INSERT INTO board_key_alias (id, organization_id, board_id, key, created_at) VALUES ('k1', ${org.id}, 'b1', 'ABC', now())`;
-	await expect(sql`INSERT INTO board_key_alias (id, organization_id, board_id, key, created_at) VALUES ('k2', ${org.id}, 'b1', 'abc', now())`).rejects.toThrow();
+	await expect(
+		sql`INSERT INTO board_key_alias (id, organization_id, board_id, key, created_at) VALUES ('k2', ${org.id}, 'b1', 'abc', now())`,
+	).rejects.toThrow();
 });
 
 test("T01: migration file registers 0003_work with checksum-registered discovery", async () => {

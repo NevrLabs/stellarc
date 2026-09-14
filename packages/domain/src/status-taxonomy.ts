@@ -18,17 +18,64 @@ export type StatusDefinition = {
 };
 
 /** Canonical order. Triage sits ABOVE Planned. APPEND-ONLY. */
-export const STATUS_DEFINITIONS: readonly StatusDefinition[] =
-	Object.freeze([
-		{ slug: "to-do", name: "To Do", group: "unstarted", isClosed: false, isBacklog: false },
-		{ slug: "in-progress", name: "In Progress", group: "started", isClosed: false, isBacklog: false },
-		{ slug: "in-review", name: "In Review", group: "started", isClosed: false, isBacklog: false },
-		{ slug: "done", name: "Done", group: "finished", isClosed: true, isBacklog: false },
-		{ slug: "triage", name: "Triage", group: "backlog", isClosed: false, isBacklog: true },
-		{ slug: "planned", name: "Planned", group: "backlog", isClosed: false, isBacklog: true },
-		{ slug: "canceled", name: "Canceled", group: "cancelled", isClosed: true, isBacklog: false },
-		{ slug: "duplicate", name: "Duplicate", group: "duplicate", isClosed: true, isBacklog: false },
-	] satisfies readonly StatusDefinition[]);
+export const STATUS_DEFINITIONS: readonly StatusDefinition[] = Object.freeze([
+	{
+		slug: "to-do",
+		name: "To Do",
+		group: "unstarted",
+		isClosed: false,
+		isBacklog: false,
+	},
+	{
+		slug: "in-progress",
+		name: "In Progress",
+		group: "started",
+		isClosed: false,
+		isBacklog: false,
+	},
+	{
+		slug: "in-review",
+		name: "In Review",
+		group: "started",
+		isClosed: false,
+		isBacklog: false,
+	},
+	{
+		slug: "done",
+		name: "Done",
+		group: "finished",
+		isClosed: true,
+		isBacklog: false,
+	},
+	{
+		slug: "triage",
+		name: "Triage",
+		group: "backlog",
+		isClosed: false,
+		isBacklog: true,
+	},
+	{
+		slug: "planned",
+		name: "Planned",
+		group: "backlog",
+		isClosed: false,
+		isBacklog: true,
+	},
+	{
+		slug: "canceled",
+		name: "Canceled",
+		group: "cancelled",
+		isClosed: true,
+		isBacklog: false,
+	},
+	{
+		slug: "duplicate",
+		name: "Duplicate",
+		group: "duplicate",
+		isClosed: true,
+		isBacklog: false,
+	},
+] satisfies readonly StatusDefinition[]);
 
 export const STATUS_SLUGS: readonly string[] = Object.freeze(
 	STATUS_DEFINITIONS.map((d) => d.slug),
@@ -57,7 +104,9 @@ const DEFINITION_BY_SLUG = new Map(
 	STATUS_DEFINITIONS.map((d) => [d.slug, d] as const),
 );
 
-export function getStatusDefinition(slug: string): StatusDefinition | undefined {
+export function getStatusDefinition(
+	slug: string,
+): StatusDefinition | undefined {
 	return DEFINITION_BY_SLUG.get(slug);
 }
 

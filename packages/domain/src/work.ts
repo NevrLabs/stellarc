@@ -1,10 +1,9 @@
 import type { Sql, TransactionSql } from "postgres";
-import { Effect } from "effect";
 import {
+	applyStatusOrder,
 	CLOSED_STATUS_SLUGS,
 	STATUS_DEFINITIONS,
 	STATUS_SLUGS,
-	applyStatusOrder,
 } from "./status-taxonomy";
 import { normalizeBoardKey, parseTicketKey } from "./ticket-key";
 
@@ -45,7 +44,12 @@ export const DEFAULT_TASK_STATUS_ORDER = [
 	"duplicate",
 ];
 export const DEFAULT_BACKLOG_STATUS_ORDER = ["triage", "planned"];
-export const DEFAULT_SEED_STATUSES = ["to-do", "in-progress", "in-review", "done"];
+export const DEFAULT_SEED_STATUSES = [
+	"to-do",
+	"in-progress",
+	"in-review",
+	"done",
+];
 
 export function slugify(name: string): string {
 	return name
@@ -100,7 +104,15 @@ function runTx<A>(
 	sql: Sql,
 	org: string,
 	actor: string,
-	body: (tx: Tx, ctx: { org: string; actor: string; txid: number; emit: (type: string, payload: unknown) => Promise<void> }) => Promise<A>,
+	body: (
+		tx: Tx,
+		ctx: {
+			org: string;
+			actor: string;
+			txid: number;
+			emit: (type: string, payload: unknown) => Promise<void>;
+		},
+	) => Promise<A>,
 ) {
 	return sql.begin(async (tx) => {
 		const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
@@ -125,13 +137,17 @@ function runTx<A>(
 
 // --- Shared row helpers --------------------------------------------------------------------
 async function boardById(tx: Tx, org: string, id: string): Promise<BoardRow> {
-	const [row] = await tx<BoardRow[]>`SELECT * FROM "board" WHERE id = ${id} AND organization_id = ${org}`;
+	const [row] = await tx<
+		BoardRow[]
+	>`SELECT * FROM "board" WHERE id = ${id} AND organization_id = ${org}`;
 	if (!row) throw new WorkNotFound();
 	return row;
 }
 
 async function ticketRowById(tx: Tx, org: string, id: string) {
-	const [row] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug, b.organization_id AS org_id
+	const [row] = await tx<
+		TicketRow[]
+	>`SELECT t.*, b.slug AS board_slug, b.organization_id AS org_id
 		FROM task t JOIN "board" b ON b.id = t.board_id
 		WHERE t.id = ${id} AND b.organization_id = ${org}`;
 	if (!row) throw new WorkNotFound();
@@ -372,7 +388,13 @@ export async function createBoard(
 	sql: Sql,
 	org: string,
 	actor: string,
-	input: { id: string; name: string; slug?: string; icon?: string; description?: string },
+	input: {
+		id: string;
+		name: string;
+		slug?: string;
+		icon?: string;
+		description?: string;
+	},
 ) {
 	const slug = normalizeSlug(input.slug ?? slugify(input.name));
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
@@ -380,7 +402,11 @@ export async function createBoard(
 			VALUES (${input.id}, ${org}, ${slug}, ${input.name}, ${input.icon ?? "Layout"}, ${input.description ?? null}, now())`;
 		// Seed the four default statuses positionally, atomically with the board.
 		const seeded: StatusRow[] = [];
-		for (let position = 0; position < DEFAULT_SEED_STATUSES.length; position++) {
+		for (
+			let position = 0;
+			position < DEFAULT_SEED_STATUSES.length;
+			position++
+		) {
 			const slugStatus = DEFAULT_SEED_STATUSES[position];
 			const definition = STATUS_DEFINITIONS.find((d) => d.slug === slugStatus);
 			const row: StatusRow = {
@@ -400,9 +426,15 @@ export async function createBoard(
 			seeded.push(row);
 		}
 		const board = await boardById(tx, org, input.id);
-		await emit("work:board-upserted", { id: board.id, row: boardPublic(board) });
+		await emit("work:board-upserted", {
+			id: board.id,
+			row: boardPublic(board),
+		});
 		for (const status of seeded)
-			await emit("work:status-upserted", { id: status.id, row: statusPublic(status) });
+			await emit("work:status-upserted", {
+				id: status.id,
+				row: statusPublic(status),
+			});
 		return { data: boardPublic(board), txid };
 	});
 }
@@ -431,11 +463,13 @@ export async function updateBoard(
 			if (!STATUS_SLUGS.includes(slug))
 				throw new WorkValidationError("backlogStatusOrder");
 		if (patch.defaultAssigneeId) {
-			const [user] = await tx`SELECT id FROM "user" WHERE id = ${patch.defaultAssigneeId}`;
+			const [user] =
+				await tx`SELECT id FROM "user" WHERE id = ${patch.defaultAssigneeId}`;
 			if (!user) throw new WorkValidationError("defaultAssigneeId");
 		}
 		if (patch.defaultAssigneeTeamId) {
-			const [team] = await tx`SELECT id FROM team WHERE id = ${patch.defaultAssigneeTeamId}`;
+			const [team] =
+				await tx`SELECT id FROM team WHERE id = ${patch.defaultAssigneeTeamId}`;
 			if (!team) throw new WorkValidationError("defaultAssigneeTeamId");
 		}
 		await tx`UPDATE "board" SET
@@ -453,14 +487,20 @@ export async function updateBoard(
 	});
 }
 
-export async function deleteBoard(sql: Sql, org: string, actor: string, id: string) {
+export async function deleteBoard(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
 		const board = await boardById(tx, org, id);
 		// "Empty" counts tickets only: every board atomically seeds 4 statuses
 		// (T04), so requiring zero statuses would make deletion impossible.
 		// Statuses and aliases cascade with the board (stricter than fork's
 		// unconditional cascade, which discarded tickets).
-		const [tasks] = await tx`SELECT count(*)::int AS count FROM task WHERE board_id = ${id}`;
+		const [tasks] =
+			await tx`SELECT count(*)::int AS count FROM task WHERE board_id = ${id}`;
 		if (tasks.count > 0) throw new WorkConflict("BoardNotEmpty");
 		// Empty board: cascade deletes its aliases.
 		await tx`DELETE FROM "board" WHERE id = ${id}`;
@@ -528,7 +568,7 @@ export async function setBoardKey(
 				await tx`SELECT id FROM board_key_alias WHERE organization_id = ${org} AND board_id = ${id} AND lower(key) = ${lower}`;
 			if (!sameAlias)
 				await tx`INSERT INTO board_key_alias (id, organization_id, board_id, key, created_at)
-					VALUES (${"ka-" + crypto.randomUUID()}, ${org}, ${id}, ${board.slug}, now())`;
+					VALUES (${`ka-${crypto.randomUUID()}`}, ${org}, ${id}, ${board.slug}, now())`;
 		}
 		await tx`UPDATE "board" SET slug = ${normalized} WHERE id = ${id}`;
 		const updated = await boardById(tx, org, id);
@@ -541,7 +581,9 @@ export async function setBoardKey(
 export async function listStatuses(sql: Sql, org: string, boardId: string) {
 	return sql.begin(async (tx) => {
 		const board = await boardById(tx, org, boardId);
-		const rows = await tx<StatusRow[]>`SELECT * FROM "column" WHERE board_id = ${boardId} ORDER BY position, created_at`;
+		const rows = await tx<
+			StatusRow[]
+		>`SELECT * FROM "column" WHERE board_id = ${boardId} ORDER BY position, created_at`;
 		const ordered = applyStatusOrder(
 			rows.map((r) => r.slug),
 			board.task_status_order,
@@ -596,8 +638,13 @@ export async function createStatus(
 		if (existing) throw new WorkConflict("DuplicateSlug");
 		await tx`INSERT INTO "column" (id, board_id, name, slug, position, icon, color, is_final, created_at, updated_at)
 			VALUES (${input.id}, ${boardId}, ${input.name}, ${slug}, ${input.position ?? 0}, ${input.icon ?? null}, ${input.color ?? null}, ${input.isFinal ?? false}, now(), now())`;
-		const [row] = await tx<StatusRow[]>`SELECT * FROM "column" WHERE id = ${input.id}`;
-		await emit("work:status-upserted", { id: input.id, row: statusPublic(row) });
+		const [row] = await tx<
+			StatusRow[]
+		>`SELECT * FROM "column" WHERE id = ${input.id}`;
+		await emit("work:status-upserted", {
+			id: input.id,
+			row: statusPublic(row),
+		});
 		return { data: statusPublic(row), txid };
 	});
 }
@@ -607,7 +654,13 @@ export async function updateStatus(
 	org: string,
 	actor: string,
 	id: string,
-	patch: { name?: string; icon?: string | null; color?: string | null; position?: number; isFinal?: boolean },
+	patch: {
+		name?: string;
+		icon?: string | null;
+		color?: string | null;
+		position?: number;
+		isFinal?: boolean;
+	},
 ) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
 		const [row] = await tx<StatusRow[]>`SELECT c.* FROM "column" c
@@ -621,13 +674,20 @@ export async function updateStatus(
 			is_final = ${patch.isFinal ?? row.is_final},
 			updated_at = now()
 			WHERE id = ${id}`; // slug immutable
-		const [updated] = await tx<StatusRow[]>`SELECT * FROM "column" WHERE id = ${id}`;
+		const [updated] = await tx<
+			StatusRow[]
+		>`SELECT * FROM "column" WHERE id = ${id}`;
 		await emit("work:status-upserted", { id, row: statusPublic(updated) });
 		return { data: statusPublic(updated), txid };
 	});
 }
 
-export async function deleteStatus(sql: Sql, org: string, actor: string, id: string) {
+export async function deleteStatus(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
 		const [row] = await tx<StatusRow[]>`SELECT c.* FROM "column" c
 			JOIN "board" b ON b.id = c.board_id WHERE c.id = ${id} AND b.organization_id = ${org}`;
@@ -650,14 +710,18 @@ export async function reorderStatuses(
 ) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
 		await boardById(tx, org, boardId);
-		const rows = await tx<StatusRow[]>`SELECT * FROM "column" WHERE board_id = ${boardId}`;
+		const rows = await tx<
+			StatusRow[]
+		>`SELECT * FROM "column" WHERE board_id = ${boardId}`;
 		const current = new Set(rows.map((r) => r.id));
 		if (ids.length !== current.size || !ids.every((id) => current.has(id)))
 			throw new WorkValidationError("ids: complete permutation required");
 		for (const [position, id] of ids.entries())
 			await tx`UPDATE "column" SET position = ${position}, updated_at = now() WHERE id = ${id} AND board_id = ${boardId}`;
 		for (const id of ids) {
-			const [row] = await tx<StatusRow[]>`SELECT * FROM "column" WHERE id = ${id}`;
+			const [row] = await tx<
+				StatusRow[]
+			>`SELECT * FROM "column" WHERE id = ${id}`;
 			await emit("work:status-upserted", { id, row: statusPublic(row) });
 		}
 		return { data: { ids }, txid };
@@ -722,12 +786,15 @@ export async function createTicket(
 	if (input.priority && !priorities.includes(input.priority))
 		throw new WorkValidationError("priority");
 	if (input.templateId && input.labels)
-		throw new WorkValidationError("templateId and labels are mutually exclusive");
+		throw new WorkValidationError(
+			"templateId and labels are mutually exclusive",
+		);
 	return sql.begin(async (tx) => {
 		const board = await boardById(tx, org, boardId);
 		const status = input.status ?? "to-do";
 		const valid = await validStatusesForBoard(tx, boardId);
-		if (!valid.includes(status)) throw new WorkValidationError(`status ${status}`);
+		if (!valid.includes(status))
+			throw new WorkValidationError(`status ${status}`);
 		const columnId = await resolveColumn(tx, boardId, status);
 		let assigneeId = input.assigneeId ?? undefined;
 		let teamId = input.teamId ?? undefined;
@@ -738,7 +805,9 @@ export async function createTicket(
 		let dueDate = input.dueDate ?? null;
 		let labelIds = input.labels ?? null;
 		if (input.templateId) {
-			const [template] = await tx<{ data: TemplateDataValue; organization_id: string }[]>`
+			const [template] = await tx<
+				{ data: TemplateDataValue; organization_id: string }[]
+			>`
 				SELECT data, organization_id FROM task_template WHERE id = ${input.templateId}`;
 			if (!template || template.organization_id !== board.organization_id)
 				throw new WorkNotFound();
@@ -749,7 +818,10 @@ export async function createTicket(
 			startDate = data.startDate ?? startDate;
 			dueDate = data.dueDate ?? dueDate;
 			// Offsets shift the base dates (fork task-template-date-offset semantics).
-			const shift = (base: string | null, offset: string | null | undefined) => {
+			const shift = (
+				base: string | null,
+				offset: string | null | undefined,
+			) => {
 				if (!base || !offset) return base ?? null;
 				const parsed = /^([+-]?\d+)([d])$/.exec(offset);
 				if (!parsed) return base;
@@ -789,7 +861,9 @@ export async function createTicket(
 		if (labelIds)
 			for (const labelId of labelIds)
 				await tx`UPDATE label SET task_id = ${input.id} WHERE id = ${labelId}`;
-		const [row] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${input.id}`;
+		const [row] = await tx<
+			TicketRow[]
+		>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${input.id}`;
 		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
 			id: input.id,
 			row: ticketPublic(row),
@@ -849,7 +923,10 @@ export async function updateTicket(
 	return sql.begin(async (tx) => {
 		const row = await ticketRowById(tx, org, id);
 		const sealed = [...(row.description_history ?? [])];
-		if (patch.description !== undefined && patch.description !== row.description)
+		if (
+			patch.description !== undefined &&
+			patch.description !== row.description
+		)
 			sealed.push({
 				content: row.description,
 				editedAt: new Date().toISOString(),
@@ -867,8 +944,13 @@ export async function updateTicket(
 			description_history = ${tx.json(sealed)},
 			updated_at = now()
 			WHERE id = ${id}`;
-		const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", { id, row: ticketPublic(updated) });
+		const [updated] = await tx<
+			TicketRow[]
+		>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
+			id,
+			row: ticketPublic(updated),
+		});
 		return { data: ticketPublic(updated), txid };
 	});
 }
@@ -891,7 +973,10 @@ export async function setTicketStatus(
 			const sealedHistory = [...(row.description_history ?? [])];
 			// Closing (done/canceled/duplicate) seals the description history
 			// window exactly like the fork's update-task-status.
-			if (CLOSED_STATUS_SLUGS.includes(status) && !CLOSED_STATUS_SLUGS.includes(row.status))
+			if (
+				CLOSED_STATUS_SLUGS.includes(status) &&
+				!CLOSED_STATUS_SLUGS.includes(row.status)
+			)
 				sealedHistory.push({
 					content: row.description,
 					editedAt: new Date().toISOString(),
@@ -900,8 +985,13 @@ export async function setTicketStatus(
 				});
 			await tx`UPDATE task SET status = ${status}, column_id = ${columnId}, description_history = ${tx.json(sealedHistory)}, updated_at = now() WHERE id = ${id}`;
 		}
-		const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", { id, row: ticketPublic(updated) });
+		const [updated] = await tx<
+			TicketRow[]
+		>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
+			id,
+			row: ticketPublic(updated),
+		});
 		await emitInTx(tx, org, actor, "work:ticket-status-changed", {
 			id,
 			boardId: row.board_id,
@@ -925,9 +1015,13 @@ export async function moveTicket(
 ) {
 	return sql.begin(async (tx) => {
 		const row = await ticketRowById(tx, org, id);
-		const [destination] = await tx<BoardRow[]>`SELECT * FROM "board" WHERE id = ${destinationBoardId} AND organization_id = ${org}`;
+		const [destination] = await tx<
+			BoardRow[]
+		>`SELECT * FROM "board" WHERE id = ${destinationBoardId} AND organization_id = ${org}`;
 		if (!destination) throw new WorkNotFound();
-		const columns = await tx<{ slug: string }[]>`SELECT slug FROM "column" WHERE board_id = ${destinationBoardId} ORDER BY position, created_at`;
+		const columns = await tx<
+			{ slug: string }[]
+		>`SELECT slug FROM "column" WHERE board_id = ${destinationBoardId} ORDER BY position, created_at`;
 		if (columns.length === 0)
 			throw new WorkValidationError("destination board has no workflow");
 		// Source statuses that are virtual on the destination (e.g. 'done' with
@@ -942,12 +1036,23 @@ export async function moveTicket(
 		const nextPosition =
 			position ??
 			(
-				await tx<{ max: number }[]>`SELECT COALESCE(MAX(position), 0)::int AS max FROM task WHERE board_id = ${destinationBoardId} AND status = ${resolvedStatus}`
+				await tx<
+					{ max: number }[]
+				>`SELECT COALESCE(MAX(position), 0)::int AS max FROM task WHERE board_id = ${destinationBoardId} AND status = ${resolvedStatus}`
 			)[0].max + 1;
-		const columnId = await resolveColumn(tx, destinationBoardId, resolvedStatus);
+		const columnId = await resolveColumn(
+			tx,
+			destinationBoardId,
+			resolvedStatus,
+		);
 		await tx`UPDATE task SET board_id = ${destinationBoardId}, status = ${resolvedStatus}, column_id = ${columnId}, number = ${number}, position = ${nextPosition}, updated_at = now() WHERE id = ${id}`;
-		const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", { id, row: ticketPublic(updated) });
+		const [updated] = await tx<
+			TicketRow[]
+		>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
+			id,
+			row: ticketPublic(updated),
+		});
 		return { data: ticketPublic(updated), txid };
 	});
 }
@@ -972,7 +1077,7 @@ export async function reorderTickets(
 		if (rows.length !== updates.length)
 			throw new WorkValidationError("every task must belong to the board");
 		for (const update of updates) {
-			let status = update.status;
+			const status = update.status;
 			if (status !== undefined) {
 				const valid = await validStatusesForBoard(tx, boardId);
 				if (!valid.includes(status))
@@ -987,8 +1092,13 @@ export async function reorderTickets(
 		}
 		let txid = 0;
 		for (const id of ids) {
-			const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
-			txid = await emitInTx(tx, org, actor, "work:ticket-upserted", { id, row: ticketPublic(updated) });
+			const [updated] = await tx<
+				TicketRow[]
+			>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
+			txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
+				id,
+				row: ticketPublic(updated),
+			});
 		}
 		return { data: { ids }, txid };
 	});
@@ -1018,10 +1128,14 @@ export async function bulkPatchTickets(
 		if (rows.length !== ids.length) throw new WorkNotFound();
 		const boards = new Map<string, string[]>();
 		for (const row of rows) {
-			if ((row as unknown as { org_id: string }).org_id !== org) throw new WorkNotFound();
+			if ((row as unknown as { org_id: string }).org_id !== org)
+				throw new WorkNotFound();
 			if (patch.status !== undefined) {
 				if (!boards.has(row.board_id))
-					boards.set(row.board_id, await validStatusesForBoard(tx, row.board_id));
+					boards.set(
+						row.board_id,
+						await validStatusesForBoard(tx, row.board_id),
+					);
 				if (!boards.get(row.board_id)?.includes(patch.status))
 					throw new WorkValidationError(`status ${patch.status}`);
 			}
@@ -1038,15 +1152,25 @@ export async function bulkPatchTickets(
 				team_assignee_id = ${patch.teamId !== undefined ? patch.teamId : row.team_assignee_id},
 				updated_at = now()
 				WHERE id = ${row.id}`;
-			const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${row.id}`;
-			await emitInTx(tx, org, actor, "work:ticket-upserted", { id: row.id, row: ticketPublic(updated) });
+			const [updated] = await tx<
+				TicketRow[]
+			>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${row.id}`;
+			await emitInTx(tx, org, actor, "work:ticket-upserted", {
+				id: row.id,
+				row: ticketPublic(updated),
+			});
 		}
 		const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
 		return { data: { ids }, txid: Number(BigInt(transaction.txid)) };
 	});
 }
 
-export async function softDeleteTicket(sql: Sql, org: string, actor: string, id: string) {
+export async function softDeleteTicket(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return sql.begin(async (tx) => {
 		await ticketRowById(tx, org, id);
 		await tx`UPDATE task SET deleted_at = now(), deleted_by = ${actor} WHERE id = ${id}`;
@@ -1055,12 +1179,22 @@ export async function softDeleteTicket(sql: Sql, org: string, actor: string, id:
 	});
 }
 
-export async function restoreTicket(sql: Sql, org: string, actor: string, id: string) {
+export async function restoreTicket(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return sql.begin(async (tx) => {
 		await ticketRowById(tx, org, id);
 		await tx`UPDATE task SET deleted_at = NULL, deleted_by = NULL WHERE id = ${id}`;
-		const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", { id, row: ticketPublic(updated) });
+		const [updated] = await tx<
+			TicketRow[]
+		>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
+			id,
+			row: ticketPublic(updated),
+		});
 		return { data: ticketPublic(updated), txid };
 	});
 }
@@ -1074,24 +1208,40 @@ export async function setTicketArchived(
 	archived: boolean,
 ) {
 	return sql.begin(async (tx) => {
-		const row = await ticketRowById(tx, org, id);
+		await ticketRowById(tx, org, id);
 		await tx`UPDATE task SET archived_at = ${archived ? new Date() : null}, archived_by = ${archived ? actor : null} WHERE id = ${id}`;
-		const [updated] = await tx<TicketRow[]>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", { id, row: ticketPublic(updated) });
+		const [updated] = await tx<
+			TicketRow[]
+		>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:ticket-upserted", {
+			id,
+			row: ticketPublic(updated),
+		});
 		return { data: ticketPublic(updated), txid };
 	});
 }
 
 // --- Labels -----------------------------------------------------------------------------------
-export async function listLabels(sql: Sql, org: string, organizationId: string) {
-	const rows = await sql`SELECT * FROM label WHERE organization_id = ${organizationId} AND task_id IS NULL ORDER BY name`;
+export async function listLabels(
+	sql: Sql,
+	_org: string,
+	organizationId: string,
+) {
+	const rows =
+		await sql`SELECT * FROM label WHERE organization_id = ${organizationId} AND task_id IS NULL ORDER BY name`;
 	return { labels: rows.map((r) => labelPublic(r)) };
 }
 
-export async function listTicketLabels(sql: Sql, org: string, ticketId: string) {
+export async function listTicketLabels(
+	sql: Sql,
+	org: string,
+	ticketId: string,
+) {
 	return sql.begin(async (tx) => {
 		await ticketRowById(tx, org, ticketId);
-		const rows = await tx<AnyRow[]>`SELECT * FROM label WHERE task_id = ${ticketId} ORDER BY name`;
+		const rows = await tx<
+			AnyRow[]
+		>`SELECT * FROM label WHERE task_id = ${ticketId} ORDER BY name`;
 		return { labels: rows.map((r) => labelPublic(r)) };
 	});
 }
@@ -1100,7 +1250,13 @@ export async function createLabel(
 	sql: Sql,
 	org: string,
 	actor: string,
-	input: { id: string; name: string; color: string; taskId?: string; organizationId?: string },
+	input: {
+		id: string;
+		name: string;
+		color: string;
+		taskId?: string;
+		organizationId?: string;
+	},
 ) {
 	if (Boolean(input.taskId) === Boolean(input.organizationId))
 		throw new WorkValidationError("exactly one of taskId, organizationId");
@@ -1109,8 +1265,13 @@ export async function createLabel(
 		else if (input.organizationId !== org) throw new WorkNotFound();
 		await tx`INSERT INTO label (id, name, color, source, created_at, updated_at, task_id, organization_id)
 			VALUES (${input.id}, ${input.name}, ${input.color}, 'kaneo', now(), now(), ${input.taskId ?? null}, ${input.organizationId ?? null})`;
-		const [row] = await tx<AnyRow[]>`SELECT * FROM label WHERE id = ${input.id}`;
-		const txid = await emitInTx(tx, org, actor, "work:label-upserted", { id: input.id, row: labelPublic(row) });
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT * FROM label WHERE id = ${input.id}`;
+		const txid = await emitInTx(tx, org, actor, "work:label-upserted", {
+			id: input.id,
+			row: labelPublic(row),
+		});
 		return { data: labelPublic(row), txid };
 	});
 }
@@ -1130,7 +1291,10 @@ export async function updateLabel(
 		if (!row) throw new WorkNotFound();
 		await tx`UPDATE label SET name = ${patch.name ?? String(row.name)}, color = ${patch.color ?? String(row.color)}, updated_at = now() WHERE id = ${id}`;
 		const [updated] = await tx<AnyRow[]>`SELECT * FROM label WHERE id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:label-upserted", { id, row: labelPublic(updated) });
+		const txid = await emitInTx(tx, org, actor, "work:label-upserted", {
+			id,
+			row: labelPublic(updated),
+		});
 		return { data: labelPublic(updated), txid };
 	});
 }
@@ -1147,15 +1311,24 @@ export async function assignLabelTask(
 		if (!row) throw new WorkNotFound();
 		if (taskId) await ticketRowById(tx, org, taskId);
 		const scopeCheck = taskId ?? row.organization_id;
-		if (!scopeCheck) throw new WorkValidationError("label has no organization scope");
+		if (!scopeCheck)
+			throw new WorkValidationError("label has no organization scope");
 		await tx`UPDATE label SET task_id = ${taskId}, updated_at = now() WHERE id = ${id}`;
 		const [updated] = await tx<AnyRow[]>`SELECT * FROM label WHERE id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:label-upserted", { id, row: labelPublic(updated) });
+		const txid = await emitInTx(tx, org, actor, "work:label-upserted", {
+			id,
+			row: labelPublic(updated),
+		});
 		return { data: labelPublic(updated), txid };
 	});
 }
 
-export async function deleteLabel(sql: Sql, org: string, actor: string, id: string) {
+export async function deleteLabel(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return sql.begin(async (tx) => {
 		const [row] = await tx<AnyRow[]>`SELECT * FROM label WHERE id = ${id}`;
 		if (!row) throw new WorkNotFound();
@@ -1166,12 +1339,23 @@ export async function deleteLabel(sql: Sql, org: string, actor: string, id: stri
 }
 
 // --- Templates ---------------------------------------------------------------------------------
-export function validateTemplateData(data: unknown): asserts data is TemplateDataValue {
-	if (typeof data !== "object" || data === null) throw new WorkValidationError("data");
+export function validateTemplateData(
+	data: unknown,
+): asserts data is TemplateDataValue {
+	if (typeof data !== "object" || data === null)
+		throw new WorkValidationError("data");
 	const d = data as Record<string, unknown>;
 	if (typeof d.title !== "string" || d.title.length === 0)
 		throw new WorkValidationError("data.title");
-	for (const key of ["description", "priority", "startDate", "dueDate", "status", "startDateOffset", "dueDateOffset"])
+	for (const key of [
+		"description",
+		"priority",
+		"startDate",
+		"dueDate",
+		"status",
+		"startDateOffset",
+		"dueDateOffset",
+	])
 		if (d[key] !== undefined && d[key] !== null && typeof d[key] !== "string")
 			throw new WorkValidationError(`data.${key}`);
 	if (d.priority !== null && d.priority !== undefined) {
@@ -1179,7 +1363,11 @@ export function validateTemplateData(data: unknown): asserts data is TemplateDat
 		if (!priorities.includes(d.priority as string))
 			throw new WorkValidationError("data.priority");
 	}
-	if (d.status && typeof d.status === "string" && !STATUS_SLUGS.includes(d.status))
+	if (
+		d.status &&
+		typeof d.status === "string" &&
+		!STATUS_SLUGS.includes(d.status)
+	)
 		throw new WorkValidationError("data.status");
 	if (d.labels !== undefined) {
 		if (!Array.isArray(d.labels) || d.labels.some((l) => typeof l !== "string"))
@@ -1187,8 +1375,13 @@ export function validateTemplateData(data: unknown): asserts data is TemplateDat
 	}
 }
 
-export async function listTemplates(sql: Sql, org: string, organizationId: string) {
-	const rows = await sql`SELECT * FROM task_template WHERE organization_id = ${organizationId} ORDER BY name`;
+export async function listTemplates(
+	sql: Sql,
+	_org: string,
+	organizationId: string,
+) {
+	const rows =
+		await sql`SELECT * FROM task_template WHERE organization_id = ${organizationId} ORDER BY name`;
 	return { templates: rows.map((r) => templatePublic(r)) };
 }
 
@@ -1203,8 +1396,13 @@ export async function createTemplate(
 	return sql.begin(async (tx) => {
 		await tx`INSERT INTO task_template (id, organization_id, name, data, created_at, updated_at)
 			VALUES (${input.id}, ${org}, ${input.name}, ${tx.json(input.data as never)}, now(), now())`;
-		const [row] = await tx<AnyRow[]>`SELECT * FROM task_template WHERE id = ${input.id}`;
-		const txid = await emitInTx(tx, org, actor, "work:template-upserted", { id: input.id, row: templatePublic(row) });
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_template WHERE id = ${input.id}`;
+		const txid = await emitInTx(tx, org, actor, "work:template-upserted", {
+			id: input.id,
+			row: templatePublic(row),
+		});
 		return { data: templatePublic(row), txid };
 	});
 }
@@ -1218,25 +1416,41 @@ export async function updateTemplate(
 ) {
 	if (patch.data) validateTemplateData(patch.data);
 	return sql.begin(async (tx) => {
-		const [row] = await tx<AnyRow[]>`SELECT * FROM task_template WHERE id = ${id} AND organization_id = ${org}`;
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_template WHERE id = ${id} AND organization_id = ${org}`;
 		if (!row) throw new WorkNotFound();
 		await tx`UPDATE task_template SET
 			name = ${patch.name ?? String(row.name)},
 			data = ${patch.data ? tx.json(patch.data as never) : String(row.data)},
 			updated_at = now()
 			WHERE id = ${id}`;
-		const [updated] = await tx<AnyRow[]>`SELECT * FROM task_template WHERE id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:template-upserted", { id, row: templatePublic(updated) });
+		const [updated] = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_template WHERE id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:template-upserted", {
+			id,
+			row: templatePublic(updated),
+		});
 		return { data: templatePublic(updated), txid };
 	});
 }
 
-export async function deleteTemplate(sql: Sql, org: string, actor: string, id: string) {
+export async function deleteTemplate(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return sql.begin(async (tx) => {
-		const [row] = await tx<AnyRow[]>`SELECT * FROM task_template WHERE id = ${id} AND organization_id = ${org}`;
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_template WHERE id = ${id} AND organization_id = ${org}`;
 		if (!row) throw new WorkNotFound();
 		await tx`DELETE FROM task_template WHERE id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:template-deleted", { id });
+		const txid = await emitInTx(tx, org, actor, "work:template-deleted", {
+			id,
+		});
 		return { data: { id }, txid };
 	});
 }
@@ -1245,7 +1459,9 @@ export async function deleteTemplate(sql: Sql, org: string, actor: string, id: s
 export async function listFlagTypes(sql: Sql, org: string, boardId: string) {
 	return sql.begin(async (tx) => {
 		await boardById(tx, org, boardId);
-		const rows = await tx<AnyRow[]>`SELECT * FROM flag_type WHERE board_id = ${boardId} ORDER BY position, created_at`;
+		const rows = await tx<
+			AnyRow[]
+		>`SELECT * FROM flag_type WHERE board_id = ${boardId} ORDER BY position, created_at`;
 		return { flagTypes: rows.map((r) => flagTypePublic(r)) };
 	});
 }
@@ -1254,14 +1470,26 @@ export async function createFlagType(
 	sql: Sql,
 	org: string,
 	actor: string,
-	input: { id: string; boardId: string; name: string; color?: string; icon?: string; position?: number },
+	input: {
+		id: string;
+		boardId: string;
+		name: string;
+		color?: string;
+		icon?: string;
+		position?: number;
+	},
 ) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
 		await boardById(tx, org, input.boardId);
 		await tx`INSERT INTO flag_type (id, board_id, name, color, icon, position, created_at, updated_at)
 			VALUES (${input.id}, ${input.boardId}, ${input.name}, ${input.color ?? null}, ${input.icon ?? null}, ${input.position ?? 0}, now(), now())`;
-		const [row] = await tx<AnyRow[]>`SELECT * FROM flag_type WHERE id = ${input.id}`;
-		await emit("work:flag-type-upserted", { id: input.id, row: flagTypePublic(row) });
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT * FROM flag_type WHERE id = ${input.id}`;
+		await emit("work:flag-type-upserted", {
+			id: input.id,
+			row: flagTypePublic(row),
+		});
 		return { data: flagTypePublic(row), txid };
 	});
 }
@@ -1271,10 +1499,17 @@ export async function updateFlagType(
 	org: string,
 	actor: string,
 	id: string,
-	patch: { name?: string; color?: string | null; icon?: string | null; position?: number },
+	patch: {
+		name?: string;
+		color?: string | null;
+		icon?: string | null;
+		position?: number;
+	},
 ) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
-		const [row] = await tx<AnyRow[]>`SELECT f.* FROM flag_type f JOIN "board" b ON b.id = f.board_id WHERE f.id = ${id} AND b.organization_id = ${org}`;
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT f.* FROM flag_type f JOIN "board" b ON b.id = f.board_id WHERE f.id = ${id} AND b.organization_id = ${org}`;
 		if (!row) throw new WorkNotFound();
 		await tx`UPDATE flag_type SET
 			name = ${patch.name ?? row.name},
@@ -1283,15 +1518,24 @@ export async function updateFlagType(
 			position = ${patch.position ?? row.position},
 			updated_at = now()
 			WHERE id = ${id}`;
-		const [updated] = await tx<AnyRow[]>`SELECT * FROM flag_type WHERE id = ${id}`;
+		const [updated] = await tx<
+			AnyRow[]
+		>`SELECT * FROM flag_type WHERE id = ${id}`;
 		await emit("work:flag-type-upserted", { id, row: flagTypePublic(updated) });
 		return { data: flagTypePublic(updated), txid };
 	});
 }
 
-export async function deleteFlagType(sql: Sql, org: string, actor: string, id: string) {
+export async function deleteFlagType(
+	sql: Sql,
+	org: string,
+	actor: string,
+	id: string,
+) {
 	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
-		const [row] = await tx<AnyRow[]>`SELECT f.* FROM flag_type f JOIN "board" b ON b.id = f.board_id WHERE f.id = ${id} AND b.organization_id = ${org}`;
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT f.* FROM flag_type f JOIN "board" b ON b.id = f.board_id WHERE f.id = ${id} AND b.organization_id = ${org}`;
 		if (!row) throw new WorkNotFound();
 		const [referenced] =
 			await tx`SELECT count(*)::int AS count FROM task_flag WHERE flag_type_id = ${id}`;
@@ -1305,7 +1549,9 @@ export async function deleteFlagType(sql: Sql, org: string, actor: string, id: s
 export async function listTicketFlags(sql: Sql, org: string, ticketId: string) {
 	return sql.begin(async (tx) => {
 		await ticketRowById(tx, org, ticketId);
-		const rows = await tx<AnyRow[]>`SELECT * FROM task_flag WHERE task_id = ${ticketId} ORDER BY created_at`;
+		const rows = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_flag WHERE task_id = ${ticketId} ORDER BY created_at`;
 		return { flags: rows.map((r) => taskFlagPublic(r)) };
 	});
 }
@@ -1327,20 +1573,29 @@ export async function createTicketFlag(
 		throw new WorkValidationError("exactly one of targetUserId, targetTeamId");
 	return sql.begin(async (tx) => {
 		const ticket = await ticketRowById(tx, org, ticketId);
-		const [flagType] = await tx<AnyRow[]>`SELECT f.* FROM flag_type f JOIN "board" b ON b.id = f.board_id WHERE f.id = ${input.flagTypeId} AND b.id = ${ticket.board_id}`;
+		const [flagType] = await tx<
+			AnyRow[]
+		>`SELECT f.* FROM flag_type f JOIN "board" b ON b.id = f.board_id WHERE f.id = ${input.flagTypeId} AND b.id = ${ticket.board_id}`;
 		if (!flagType) throw new WorkValidationError("flagTypeId");
 		if (input.targetUserId) {
-			const [user] = await tx`SELECT id FROM "user" WHERE id = ${input.targetUserId}`;
+			const [user] =
+				await tx`SELECT id FROM "user" WHERE id = ${input.targetUserId}`;
 			if (!user) throw new WorkValidationError("targetUserId");
 		}
 		if (input.targetTeamId) {
-			const [team] = await tx`SELECT id FROM team WHERE id = ${input.targetTeamId}`;
+			const [team] =
+				await tx`SELECT id FROM team WHERE id = ${input.targetTeamId}`;
 			if (!team) throw new WorkValidationError("targetTeamId");
 		}
 		await tx`INSERT INTO task_flag (id, task_id, flag_type_id, flagged_by, target_user_id, target_team_id, note, created_at, updated_at)
 			VALUES (${input.id}, ${ticketId}, ${input.flagTypeId}, ${actor}, ${input.targetUserId ?? null}, ${input.targetTeamId ?? null}, ${input.note ?? null}, now(), now())`;
-		const [row] = await tx<AnyRow[]>`SELECT * FROM task_flag WHERE id = ${input.id}`;
-		const txid = await emitInTx(tx, org, actor, "work:task-flag-upserted", { id: input.id, row: taskFlagPublic(row) });
+		const [row] = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_flag WHERE id = ${input.id}`;
+		const txid = await emitInTx(tx, org, actor, "work:task-flag-upserted", {
+			id: input.id,
+			row: taskFlagPublic(row),
+		});
 		return { data: taskFlagPublic(row), txid };
 	});
 }
@@ -1361,8 +1616,13 @@ export async function resolveTicketFlag(
 		if (!row) throw new WorkNotFound();
 		if (row.resolved_at) throw new WorkValidationError("already resolved");
 		await tx`UPDATE task_flag SET resolve_note = ${note}, resolved_at = now(), resolved_by = ${actor}, updated_at = now() WHERE id = ${id}`;
-		const [updated] = await tx<AnyRow[]>`SELECT * FROM task_flag WHERE id = ${id}`;
-		const txid = await emitInTx(tx, org, actor, "work:task-flag-upserted", { id, row: taskFlagPublic(updated) });
+		const [updated] = await tx<
+			AnyRow[]
+		>`SELECT * FROM task_flag WHERE id = ${id}`;
+		const txid = await emitInTx(tx, org, actor, "work:task-flag-upserted", {
+			id,
+			row: taskFlagPublic(updated),
+		});
 		return { data: taskFlagPublic(updated), txid };
 	});
 }
