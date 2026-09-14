@@ -78,7 +78,7 @@ async function selectProjects(
 	extra: string,
 	values: unknown[] = [],
 ): Promise<ProjectRow[]> {
-	const rows = await sql.unsafe(
+	const rows = (await sql.unsafe(
 		`SELECT ${PROJECT_COLUMNS}
 	FROM project p
 	LEFT JOIN "user" u ON u.id = p.lead_user_id
@@ -86,9 +86,9 @@ async function selectProjects(
 	LEFT JOIN "user" au2 ON au2.id = p.archived_by
 	WHERE p.organization_id = $1 ${extra}
 	ORDER BY p.name`,
-		[org, ...values],
-	);
-	return rows as ProjectRow[];
+		[org, ...values] as never[],
+	)) as unknown as ProjectRow[];
+	return rows;
 }
 
 async function appendProjectEvent(
@@ -104,7 +104,7 @@ async function appendProjectEvent(
 	const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
 	const txid = Number(BigInt(transaction.txid));
 	await tx`INSERT INTO event(org, seq, plugin_type, actor, payload, schema_version, txid)
-		VALUES (${org}, ${counter.seq}, ${type}, ${actor}, ${tx.json(payload)}, 1, ${transaction.txid})`;
+		VALUES (${org}, ${counter.seq}, ${type}, ${actor}, ${tx.json(payload as never)}, 1, ${transaction.txid})`;
 	return txid;
 }
 
