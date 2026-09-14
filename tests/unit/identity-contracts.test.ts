@@ -20,7 +20,11 @@ import {
 } from "../../packages/contracts/src/identity/http";
 import * as rows from "../../packages/contracts/src/identity/tables";
 import { statement } from "../../packages/contracts/src/legacy/permissions";
-import { applyMigration, migrationVersions, runMigration } from "../../packages/db/src/migrate";
+import {
+	applyMigration,
+	migrationVersions,
+	runMigration,
+} from "../../packages/db/src/migrate";
 import * as domain from "../../packages/domain/src/identity";
 
 const decode = (schema: Schema.Schema.Any) => (input: unknown) =>
@@ -574,7 +578,7 @@ test("D1 applyMigration annotates stellarc.migration.version with the run's vers
 		const span = spans.find((s) => s.name === "stellarc.migrate.apply");
 		expect(span, "applyMigration span").toBeDefined();
 		expect(span?.attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation,0002_identity",
+			"0001_foundation,0002_identity,0003_work",
 		);
 	} finally {
 		await runtime.dispose();
