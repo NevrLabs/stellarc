@@ -63,7 +63,7 @@ ORDER BY u.created_at DESC`,
 export async function createProjectUpdate(
 	sql: Sql,
 	input: {
-		organizationId: string;
+		organizationId?: string;
 		projectId: string;
 		authorId: string;
 		content: string;
@@ -100,7 +100,7 @@ export async function updateProjectUpdate(
 	sql: Sql,
 	input: {
 		id: string;
-		organizationId: string;
+		organizationId?: string;
 		projectId: string;
 		userId: string;
 		content?: string;
@@ -157,7 +157,7 @@ export async function deleteProjectUpdate(
 	sql: Sql,
 	input: {
 		id: string;
-		organizationId: string;
+		organizationId?: string;
 		projectId: string;
 		userId: string;
 	},
