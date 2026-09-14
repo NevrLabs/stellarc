@@ -9,6 +9,7 @@ import type { Sql } from "postgres";
 const MIGRATIONS = [
 	{ version: "0001_foundation", file: "../migrations/0001_foundation.sql" },
 	{ version: "0002_identity", file: "../migrations/0002_identity.sql" },
+	{ version: "0005_repository", file: "../migrations/0005_repository.sql" },
 ] as const;
 
 /** Owner-only provisioning; the runtime principal must already exist. */
