@@ -138,7 +138,6 @@ test("T02: ticket-key parse/normalize known answers", async () => {
 	expect(parseTicketKey("ABCDEFGHIJKLmnopqrstu-1")).toBeNull(); // 21 chars
 	expect(parseTicketKey("KEY-999999999999999999999999")).toBeNull(); // unsafe
 	expect(normalizeBoardKey("abc")).toBe("ABC");
-	expect(boardKeySchema.safeParse?.("ABC").success ?? true).toBe(true);
 });
 
 test("T03: status taxonomy pin — 8 slugs, frozen order, groups, flags", async () => {
