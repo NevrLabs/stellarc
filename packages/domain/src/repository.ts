@@ -181,17 +181,43 @@ export const repoDeleteEffect = Effect.fn("Domain.repoDelete")(function* (
 ) {
 	return yield* withRuntime(async () => {
 		Schema.decodeUnknownSync(Id)(id);
-		const result = await runTransaction(
-			sql,
-			org,
-			actor,
-			[{ type: "repository:repo-deleted", payload: { id } }],
-			async (tx) => {
-				const deleted =
-					await tx`DELETE FROM repo WHERE id=${id} AND organization_id=${org} RETURNING id`;
-				if (deleted.length === 0) throw new Error("NotFound");
-			},
-		);
+		// Cascaded mirror rows must reach clients as their own delete events,
+		// otherwise issue/PR shapes keep stale rows after the repo disappears
+		// (T07 exact-once deletes).
+		const result = await sql.begin(async (tx) => {
+			const [repo] =
+				await tx`SELECT id FROM repo WHERE id=${id} AND organization_id=${org}`;
+			if (!repo) throw new Error("NotFound");
+			const issues = await tx`SELECT id FROM repo_issue WHERE repo_id=${id}`;
+			const pulls =
+				await tx`SELECT id FROM repo_pull_request WHERE repo_id=${id}`;
+			await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
+			const total = 1 + issues.length + pulls.length;
+			const [counter] =
+				await tx`UPDATE org_event_counter SET seq=seq+${total} WHERE org=${org} RETURNING seq::text`;
+			const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
+			const txid = Number(BigInt(transaction.txid));
+			let seq = BigInt(counter.seq) - BigInt(total);
+			const events: Array<{ type: string; payload: Record<string, unknown> }> =
+				[
+					...(issues as unknown as Array<{ id: string }>).map((issue) => ({
+						type: "repository:issue-deleted",
+						payload: { id: issue.id, repoId: id },
+					})),
+					...(pulls as unknown as Array<{ id: string }>).map((pull) => ({
+						type: "repository:pull-request-deleted",
+						payload: { id: pull.id, repoId: id },
+					})),
+					{ type: "repository:repo-deleted", payload: { id } },
+				];
+			for (const event of events) {
+				seq += 1n;
+				await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+        VALUES (${org},${seq.toString()},${event.type},${actor},${tx.json(event.payload as never)},1,${transaction.txid})`;
+			}
+			await tx`DELETE FROM repo WHERE id=${id} AND organization_id=${org}`;
+			return { txid };
+		});
 		return result;
 	}, "repository:repo-deleted");
 });
