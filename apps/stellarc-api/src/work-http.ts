@@ -3,7 +3,7 @@ import { Effect, Layer, Schema } from "effect";
 import type { Sql } from "postgres";
 import { WorkApi, type WorkError } from "../../../packages/contracts/src/work";
 import * as work from "../../../packages/domain/src/work";
-import type { Authorize } from "./http";
+import { type Authorize, requestTelemetry } from "./http";
 
 // --- Error mapping (§3): WorkError values are returned as plain wire objects;
 // the handleRaw encoder matches them against the status-annotated success
@@ -641,8 +641,94 @@ export function workHandler(
 			HttpServer.layerContext,
 			telemetry,
 		),
-		{ memoMap },
+		{
+			memoMap,
+			// §3/T26: every work request carries http.route/method + stellarc.org
+			// (from the bearer org) + principal.kind/id on success. No titles,
+			// descriptions or notes ever enter span attributes.
+			middleware: (httpApp) =>
+				requestTelemetry(httpApp, workRouteOf, workOrgOf, workPrincipalOf),
+		},
 	);
+}
+
+// Parameterized route templates for §3's work API surface. Order matters:
+// longest literal segments first so :id greediness cannot swallow fixed tails.
+const WORK_ROUTES: Array<[RegExp, string]> = [
+	[
+		/^\/api\/work\/boards\/([^/]+)\/statuses\/reorder$/,
+		"/api/work/boards/:id/statuses/reorder",
+	],
+	[
+		/^\/api\/work\/boards\/([^/]+)\/tickets\/reorder$/,
+		"/api/work/boards/:id/tickets/reorder",
+	],
+	[/^\/api\/work\/boards\/([^/]+)\/statuses$/, "/api/work/boards/:id/statuses"],
+	[/^\/api\/work\/boards\/([^/]+)\/tickets$/, "/api/work/boards/:id/tickets"],
+	[/^\/api\/work\/boards\/([^/]+)\/archive$/, "/api/work/boards/:id/archive"],
+	[
+		/^\/api\/work\/boards\/([^/]+)\/unarchive$/,
+		"/api/work/boards/:id/unarchive",
+	],
+	[/^\/api\/work\/boards\/([^/]+)\/key$/, "/api/work/boards/:id/key"],
+	[/^\/api\/work\/boards\/([^/]+)$/, "/api/work/boards/:id"],
+	[/^\/api\/work\/boards$/, "/api/work/boards"],
+	[/^\/api\/work\/statuses\/([^/]+)$/, "/api/work/statuses/:id"],
+	[/^\/api\/work\/tickets\/bulk$/, "/api/work/tickets/bulk"],
+	[/^\/api\/work\/tickets\/([^/]+)\/status$/, "/api/work/tickets/:id/status"],
+	[/^\/api\/work\/tickets\/([^/]+)\/move$/, "/api/work/tickets/:id/move"],
+	[/^\/api\/work\/tickets\/([^/]+)\/archive$/, "/api/work/tickets/:id/archive"],
+	[/^\/api\/work\/tickets\/([^/]+)\/restore$/, "/api/work/tickets/:id/restore"],
+	[/^\/api\/work\/tickets\/([^/]+)\/labels$/, "/api/work/tickets/:id/labels"],
+	[/^\/api\/work\/tickets\/([^/]+)\/flags$/, "/api/work/tickets/:id/flags"],
+	[/^\/api\/work\/tickets\/([^/]+)$/, "/api/work/tickets/:id"],
+	[/^\/api\/work\/labels\/([^/]+)\/task$/, "/api/work/labels/:id/task"],
+	[/^\/api\/work\/labels\/([^/]+)$/, "/api/work/labels/:id"],
+	[/^\/api\/work\/labels$/, "/api/work/labels"],
+	[/^\/api\/work\/templates\/([^/]+)$/, "/api/work/templates/:id"],
+	[/^\/api\/work\/templates$/, "/api/work/templates"],
+	[/^\/api\/work\/flag-types\/([^/]+)$/, "/api/work/flag-types/:id"],
+	[/^\/api\/work\/flag-types$/, "/api/work/flag-types"],
+	[/^\/api\/work\/flags\/([^/]+)\/resolve$/, "/api/work/flags/:id/resolve"],
+	[/^\/api\/public\/boards\/([^/]+)$/, "/api/public/boards/:id"],
+];
+
+function workRouteOf(pathname: string): string {
+	for (const [pattern, template] of WORK_ROUTES)
+		if (pattern.test(pathname)) return template;
+	return "unmatched";
+}
+
+// The org and principal ride the bearer token ("Bearer <org> <principal>");
+// derive both from the Authorization header instead of the path for work
+// routes. The public board endpoint is unauthenticated — never a principal.
+function bearerParts(
+	headers: Record<string, string | string[] | undefined>,
+): { org: string; principal: string } | undefined {
+	const raw = headers.authorization;
+	const value = Array.isArray(raw) ? raw[0] : raw;
+	if (typeof value !== "string" || value.length === 0) return undefined;
+	const token = value.replace(/^Bearer\s+/i, "").trim();
+	const [org, principal = ""] = token.split(" ");
+	if (!org) return undefined;
+	return { org, principal };
+}
+
+function workOrgOf(
+	_pathname: string,
+	headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+	return bearerParts(headers)?.org;
+}
+
+function workPrincipalOf(
+	pathname: string,
+	headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+	if (pathname.startsWith("/api/public/")) return undefined;
+	if (!WORK_ROUTES.some(([pattern]) => pattern.test(pathname)))
+		return undefined;
+	return bearerParts(headers)?.principal || undefined;
 }
 
 // --- Body schemas (mirror of the contract request schemas) -----------------------------------
