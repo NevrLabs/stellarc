@@ -646,8 +646,10 @@ test("I6 uniques and named secondary indexes match §2; deferred composites abse
 	])
 		expect(byName.has(name), name).toBe(true);
 
+	// Match the expression, not the name: the index name contains "lower",
+	// so /lower/ alone stays green if the expression degrades to (slug).
 	const lowerSlug = byName.get("organization_slug_lower_unique");
-	expect(lowerSlug?.def).toMatch(/lower/);
+	expect(lowerSlug?.def).toMatch(/lower\(/);
 	expect(lowerSlug?.def).toMatch(/UNIQUE/);
 
 	// principal partial unique index (user_id) WHERE kind='human'
