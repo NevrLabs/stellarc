@@ -8,12 +8,13 @@ import { makeAuth } from "../../../packages/domain/src/better-auth";
 import { ShapeEngine } from "../../../packages/sync/src/index";
 import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import { makeAuthHandler } from "./auth-http";
-import { AppConfig, ConfigLive } from "./config";
+import { AppConfig, AuthConfig, AuthConfigLive, ConfigLive } from "./config";
 import { foundationHandler } from "./http";
 import { identityHandler } from "./identity-http";
 
 export const api = Effect.gen(function* () {
 	const config = yield* AppConfig;
+	const authConfig = yield* AuthConfig;
 	const authz = yield* Authz;
 	const pg = yield* PgClient.PgClient;
 	yield* pg`SELECT 1`;
@@ -43,8 +44,8 @@ export const api = Effect.gen(function* () {
 	// /api/identity/* ride the same Bun server; the foundation web handler
 	// 404s anything outside its own routes (fail-closed pass-through order).
 	const auth = makeAuth(sql, {
-		secret: Redacted.value(config.authSecret),
-		baseURL: config.publicOrigin,
+		secret: Redacted.value(authConfig.authSecret),
+		baseURL: authConfig.publicOrigin,
 	});
 	const authHandler = makeAuthHandler(auth);
 	const identityRoutes = identityHandler(sql, auth);
@@ -71,6 +72,7 @@ export const api = Effect.gen(function* () {
 	Effect.provide(SqlLive),
 	Effect.provide(AuthzLive),
 	Effect.provide(ConfigLive),
+	Effect.provide(AuthConfigLive),
 	Effect.scoped,
 );
 

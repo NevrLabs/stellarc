@@ -733,6 +733,8 @@ test("T18 production API is fail-closed and never mounts fixture routes", async 
 			...process.env,
 			PORT: String(port),
 			DATABASE_URL: `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+			AUTH_SECRET: "integration-test-secret-0123456789abcdef012345",
+			PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
 		},
 		stdout: "pipe",
 		stderr: "pipe",
@@ -791,10 +793,6 @@ test("T17 SqlLive owns and closes its PostgreSQL pool", async () => {
 			`postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
 		),
 		port: 3000,
-		authSecret: Redacted.make(
-			"test-secret-do-not-use-in-production-0123456789",
-		),
-		publicOrigin: "http://127.0.0.1:3000",
 	});
 	const context = await Effect.runPromise(
 		Layer.buildWithScope(SqlLive.pipe(Layer.provide(config)), scope),

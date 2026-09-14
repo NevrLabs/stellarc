@@ -41,10 +41,24 @@ test("T17 configuration refuses missing database and invalid ports; Authz defaul
 	const config = await load([
 		["DATABASE_URL", "postgres://localhost/test"],
 		["PORT", "4321"],
-		["AUTH_SECRET", "unit-test-secret-0123456789abcdef0123456789"],
 	]);
 	expect(config.port).toBe(4321);
-	expect(config.publicOrigin).toBe("http://127.0.0.1:3000");
+	// STL-15: AUTH_SECRET strength is enforced on the auth-only config tag.
+	const { AuthConfig, AuthConfigLive } = await import(
+		"../../apps/stellarc-api/src/config"
+	);
+	const loadAuth = (entries: [string, string][]) =>
+		Effect.runPromise(
+			AuthConfig.pipe(
+				Effect.provide(AuthConfigLive),
+				Effect.withConfigProvider(ConfigProvider.fromMap(new Map(entries))),
+			),
+		);
+	const auth = await loadAuth([
+		["AUTH_SECRET", "unit-test-secret-0123456789abcdef0123456789"],
+	]);
+	expect(auth.publicOrigin).toBe("http://127.0.0.1:3000");
+	await expect(loadAuth([["AUTH_SECRET", "short"]])).rejects.toThrow();
 	const authz = await Effect.runPromise(Authz.pipe(Effect.provide(AuthzLive)));
 	expect(authz.authorize("org", {})).toBe("unauthenticated");
 	expect(authz.authorize("org", { authorization: "Bearer org" })).toBe(
