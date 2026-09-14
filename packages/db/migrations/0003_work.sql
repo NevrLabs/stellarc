@@ -125,3 +125,10 @@ CREATE INDEX task_flag_flagTypeId_idx ON task_flag (flag_type_id);
 CREATE INDEX task_flag_targetUserId_idx ON task_flag (target_user_id);
 CREATE INDEX task_flag_targetTeamId_idx ON task_flag (target_team_id);
 CREATE INDEX task_flag_resolvedAt_idx ON task_flag (resolved_at);
+CREATE TABLE work_import (
+  source_id text NOT NULL,
+  table_name text NOT NULL,
+  source_pk text NOT NULL,
+  digest text NOT NULL,
+  PRIMARY KEY (source_id, table_name, source_pk)
+);
