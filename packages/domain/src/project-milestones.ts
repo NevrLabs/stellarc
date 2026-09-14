@@ -158,7 +158,7 @@ export async function deleteProjectMilestone(
 	input: {
 		id: string;
 		projectId: string;
-		organizationId: string;
+		organizationId?: string;
 		userId: string;
 	},
 ): Promise<{ id: string }> {
@@ -189,7 +189,7 @@ export async function completeProjectMilestone(
 		id: string;
 		projectId: string;
 		userId: string;
-		organizationId: string;
+		organizationId?: string;
 	},
 ): Promise<MilestoneRow> {
 	return sql.begin(async (tx) => {
@@ -221,7 +221,7 @@ export async function reopenProjectMilestone(
 		id: string;
 		projectId: string;
 		userId?: string;
-		organizationId: string;
+		organizationId?: string;
 	},
 ): Promise<MilestoneRow> {
 	return sql.begin(async (tx) => {
