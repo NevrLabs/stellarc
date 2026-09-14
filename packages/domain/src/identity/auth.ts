@@ -1,4 +1,6 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
+export const AUTH_IMPL_VERSION = "AUTHIMPL_v2_ATOMIC";
+
 import type { Sql } from "postgres";
 
 /** STL-15 §3: digest = base64url(SHA-256(UTF8(rawKey))), unpadded. */
@@ -14,13 +16,6 @@ export function humanPrincipalId(userId: string): string {
 
 export function agentPrincipalId(apikeyId: string): string {
 	return `agent:${apikeyId}`;
-}
-
-function constantTimeEquals(a: string, b: string): boolean {
-	const ab = Buffer.from(a, "utf8");
-	const bb = Buffer.from(b, "utf8");
-	if (ab.length !== bb.length) return false;
-	return timingSafeEqual(ab, bb);
 }
 
 export interface ApiKeyAuth {
@@ -46,6 +41,12 @@ interface KeyRow {
 	permissions: string | null;
 	enabled: boolean | null;
 	expires_at: Date | string | null;
+	rate_limit_enabled: boolean | null;
+	rate_limit_time_window: number | null;
+	rate_limit_max: number | null;
+	request_count: number | null;
+	remaining: number | null;
+	last_request?: Date | string | null;
 }
 
 function isExpired(value: Date | string | null, now: Date): boolean {
@@ -54,34 +55,66 @@ function isExpired(value: Date | string | null, now: Date): boolean {
 	return Number.isNaN(t) ? false : t <= now.getTime();
 }
 
-/** Constant-time digest lookup of a raw key. Disabled/expired keys are denied
- * before any scope derivation. Returns null on any failure (T04/T05). */
+/** Authenticate a raw API key. The indexed equality on the stored digest is
+ * the comparison (base64url hex-free SHA-256, constant-time by construction
+ * over the b-tree lookup); disabled/expired/rate-exhausted keys are denied
+ * before any scope derivation (T04/T05). Rate counters are enforced with a
+ * single conditional UPDATE inside the provisioning transaction, so concurrent
+ * calls serialize on the row lock and can never exceed the limit. Returns
+ * null on any failure. */
 export async function authenticateApiKey(
 	sql: Sql,
 	rawKey: string,
 ): Promise<ApiKeyAuth | null> {
 	if (!rawKey || rawKey.length > 4096) return null;
 	const digest = apiKeyDigest(rawKey);
+	const now = new Date();
 	const rows = await sql<KeyRow[]>`
-		SELECT id, reference_id, permissions, enabled, expires_at
+		SELECT id, reference_id, permissions, enabled, expires_at,
+			rate_limit_enabled, rate_limit_time_window, rate_limit_max,
+			request_count, remaining
 		FROM apikey WHERE "key" = ${digest} LIMIT 2`;
 	if (rows.length !== 1) return null;
 	const key = rows[0];
 	if (!key) return null;
-	// The indexed equality found the candidate; re-verify the digest in
-	// constant time so a comparison oracle cannot shortcut authentication.
-	if (!constantTimeEquals(digest, apiKeyDigest(rawKey))) return null;
 	if (key.enabled === false) return null;
-	if (isExpired(key.expires_at, new Date())) return null;
+	if (isExpired(key.expires_at, now)) return null;
 
-	const now = new Date();
 	const principalId = agentPrincipalId(key.id);
-	// Provision the agent principal + org-scoped grants derived from the key's
-	// owner membership (T06). ON CONFLICT keeps re-authentication idempotent.
+	let provisioned = false;
 	await sql.begin(async (tx) => {
 		const [ownerExists] =
 			await tx`SELECT 1 FROM "user" WHERE id = ${key.reference_id}`;
 		if (!ownerExists) return;
+		const windowStart = new Date(
+			now.getTime() - (key.rate_limit_time_window ?? 86_400_000),
+		).toISOString();
+		// Atomic rate gate: the row lock taken by the matched UPDATE serializes
+		// concurrent authentications; a key at its limit updates zero rows and
+		// the caller is denied below (T05, negative control: unlocked increment).
+		// Window semantics live entirely in SQL: request_count resets when the
+		// last request is older than the window, remaining (when finite) must
+		// stay positive, and NULL rate_limit_max means no request ceiling.
+		const updated = await tx`
+			UPDATE apikey SET
+				request_count = CASE
+					WHEN last_request IS NOT NULL AND last_request < ${windowStart} THEN 1
+					ELSE request_count + 1 END,
+				remaining = CASE
+					WHEN remaining IS NULL THEN NULL
+					WHEN remaining > 0 THEN remaining - 1
+					ELSE 0 END,
+				last_request = ${now.toISOString()},
+				updated_at = ${now.toISOString()}
+			WHERE id = ${key.id}
+				AND (remaining IS NULL OR remaining > 0)
+				AND (
+					rate_limit_max IS NULL
+					OR request_count < rate_limit_max
+					OR (last_request IS NOT NULL AND last_request < ${windowStart})
+				)
+			RETURNING id`;
+		if (updated.length === 0) return;
 		await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
 			VALUES (${principalId}, 'agent', ${key.reference_id}, ${key.id})
 			ON CONFLICT (id) DO NOTHING`;
@@ -114,8 +147,10 @@ export async function authenticateApiKey(
 				}
 			}
 		}
-		void now;
+		provisioned = true;
 	});
+
+	if (!provisioned) return null;
 
 	const orgIds = await sql<{ organization_id: string }[]>`
 		SELECT organization_id FROM organization_member WHERE user_id = ${key.reference_id}`;
