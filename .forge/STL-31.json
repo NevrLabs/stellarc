@@ -91,12 +91,77 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "pass",
    "at": "2026-09-13T22:35:52+00:00",
    "cycle": 2,
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
-   "pid": 1756460
+   "pid": 1756460,
+   "reason": "orphan running: watcher pid 1756460 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-13T22:54:28+00:00",
+   "agent": "e9793ec5-8ce4-4726-b52c-51aa081e533d",
+   "cycle": 2,
+   "artifact": ".forge/STL-31.review-2.md"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-13T22:54:43+00:00",
+   "note": "re-armed for rework"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-13T23:03:40+00:00",
+   "cycle": 3,
+   "model": "hermes:accept_edits/ocg/glm-5.3",
+   "branch": "forge/stl-31-c3",
+   "pid": 1762151,
+   "agent": "666ee005-6b89-4eaf-9243-92e1dfd86f60",
+   "head": "",
+   "reason": "orphan running: watcher pid 1762151 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-13T23:22:23+00:00",
+   "agent": "666ee005-6b89-4eaf-9243-92e1dfd86f60",
+   "cycle": 3,
+   "reason": "no PR opened"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-13T23:24:59+00:00",
+   "cycle": 4,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-31-c4",
+   "pid": 1765597,
+   "agent": "3f95a34f-2f0c-449b-a8df-6548c16e593e",
+   "head": "65ea06a6",
+   "reason": "orphan running: watcher pid 1765597 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-14T01:25:30+00:00",
+   "agent": "3f95a34f-2f0c-449b-a8df-6548c16e593e",
+   "cycle": 4,
+   "pr": 37,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/37",
+   "branch": "forge/stl-31-c4"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-14T01:28:22+00:00",
+   "cycle": 4,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "pid": 1808981
   }
  ],
- "cycle": 2
+ "cycle": 4
 }
