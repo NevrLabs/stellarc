@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
-import type { OrganizationPublic } from "../../../contracts/src/identity/http";
 import { humanPrincipalId } from "./auth";
 
 // STL-15 §2 mutations: every domain write, projection row and event commits
@@ -121,25 +120,30 @@ export async function createOrganization(
 			}
 			const [orgRow] = await tx<Record<string, unknown>[]>`
 				SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
-			const txid = await appendEvents(tx, orgId, creatorUserId, [
-				{
-					type: "identity:organization-upserted",
-					payload: { id: orgId, row: orgRow },
-				},
-				{
-					type: "identity:member-upserted",
-					payload: { id: memberId },
-				},
-				...roleEvents,
-				{
-					type: "identity:principal-upserted",
-					payload: { id: principalId },
-				},
-				{
-					type: "identity:grant-upserted",
-					payload: { principalId, capability: "org:member" },
-				},
-			]);
+			const txid = await appendEvents(
+				tx,
+				orgId,
+				humanPrincipalId(creatorUserId),
+				[
+					{
+						type: "identity:organization-upserted",
+						payload: { id: orgId, row: orgRow },
+					},
+					{
+						type: "identity:member-upserted",
+						payload: { id: memberId },
+					},
+					...roleEvents,
+					{
+						type: "identity:principal-upserted",
+						payload: { id: principalId },
+					},
+					{
+						type: "identity:grant-upserted",
+						payload: { principalId, capability: "org:member" },
+					},
+				],
+			);
 			return {
 				data: {
 					id: orgId,
@@ -157,8 +161,8 @@ export async function createOrganization(
 					aiDefaultCharacterLimit: 4000,
 					aiProviderBaseUrl: null,
 					aiProviderModel: null,
-					// Omitted secret field, explicit per §3 allowlist semantics.
-					aiProviderApiKey: null as string | null,
+					// aiProviderApiKey deliberately omitted: §3 OrganizationPublic
+					// allowlist never carries the provider secret.
 					createdAt: now.toISOString(),
 				} as unknown as Record<string, unknown>,
 				txid,
@@ -179,20 +183,34 @@ export async function removeMember(
 	sql: Sql,
 	orgId: string,
 	memberId: string,
+	actorPrincipalId: string,
 ): Promise<MutationResult> {
+	if (!actorPrincipalId) {
+		// §3: mutations require an authenticated actor; authentication
+		// establishes actor context before any mutation runs.
+		throw conflict("Unauthenticated");
+	}
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
+		// Review c1 defect 1: the org argument is an org ID or slug — resolve
+		// it to the canonical org row so member scoping binds a real ID, and
+		// an unresolvable org is the same NotFound as an absent member.
+		const [org] =
+			await tx`SELECT id FROM organization WHERE id = ${orgId} OR slug = ${orgId} OR lower(slug) = lower(${orgId})`;
+		if (!org) throw notFound();
 		const [member] =
-			await tx`SELECT id, role FROM organization_member WHERE id = ${memberId} AND organization_id = ${orgId}`;
+			await tx`SELECT id, role FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
 		if (!member) throw notFound();
 		if (member.role === "owner") {
 			const owners = await tx<{ n: number }[]>`
 				SELECT count(*)::int AS n FROM organization_member
-				WHERE organization_id = ${orgId} AND role = 'owner'`;
+				WHERE organization_id = ${org.id} AND role = 'owner'`;
 			if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
 		}
-		await tx`DELETE FROM organization_member WHERE id = ${memberId}`;
-		const txid = await appendEvents(tx, orgId, "identity-service", [
+		await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
+		// Events live in the org's canonical-ID namespace, exactly like every
+		// other identity event — never under the caller's raw path argument.
+		const txid = await appendEvents(tx, org.id, actorPrincipalId, [
 			{ type: "identity:member-deleted", payload: { id: memberId } },
 		]);
 		return { data: { id: memberId }, txid };

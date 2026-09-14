@@ -1,5 +1,3 @@
-import type { Sql } from "postgres";
-
 // STL-15 §3: Better Auth stays at its existing base path (/api/auth/*).
 // This wrapper forwards only the enabled, specified routes to the real
 // handler and normalizes every error to the §3 union envelope; SQL and
@@ -45,9 +43,10 @@ export function makeAuthHandler(auth: AuthLike) {
 				{ status: 404, headers: CORS_HEADERS },
 			);
 		try {
-			let handler = await auth.handler;
-			if (typeof handler !== "function") handler = handler.fetch;
-			const response = await handler(request);
+			const handler = await auth.handler;
+			const response = await (typeof handler === "function"
+				? handler
+				: handler.fetch.bind(handler))(request);
 			const headers = new Headers(response.headers);
 			for (const [key, value] of Object.entries(CORS_HEADERS))
 				headers.set(key, value);
@@ -55,12 +54,9 @@ export function makeAuthHandler(auth: AuthLike) {
 				status: response.status,
 				headers,
 			});
-		} catch (error) {
-			// Diagnostics to stderr during bring-up; response stays sanitized.
-			console.error(
-				"[auth-http] handler error:",
-				error instanceof Error ? error.message : error,
-			);
+		} catch {
+			// Sanitized 503 only — no stderr diagnostics (ADR 0010); the tracing
+			// layer around the handler records the failure span instead.
 			return Response.json(
 				{ _tag: "Unavailable" },
 				{ status: 503, headers: CORS_HEADERS },

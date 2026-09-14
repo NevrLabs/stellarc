@@ -37,7 +37,9 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 		slug: "atom-org",
 	});
 	expect(result.data.slug).toBe("atom-org");
-	expect(result.data.aiProviderApiKey).toBeNull();
+	// §3 OrganizationPublic allowlist: the provider secret is never in `data`.
+	expect("aiProviderApiKey" in result.data).toBe(false);
+	expect(JSON.stringify(result.data)).not.toContain("aiProviderApiKey");
 	expect(result.txid).toBeGreaterThan(0);
 
 	const members =
@@ -54,9 +56,12 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 		await sql`SELECT capability FROM identity_grant WHERE principal_id = ${principal[0]?.id}`;
 	expect(grants.map((g) => g.capability)).toEqual(["org:member"]);
 
-	// Events for the new org, sanitized public payloads.
+	// Events for the new org, sanitized public payloads. The actor is the
+	// caller's stable principal id (human:<userId>), not the raw user id.
+	const orgId = String(result.data.id);
 	const events =
-		await sql`SELECT plugin_type, payload FROM event WHERE org = ${String(result.data.id ?? "")} ORDER BY seq`;
+		await sql`SELECT plugin_type, actor FROM event WHERE org = ${orgId} ORDER BY seq`;
+	for (const event of events) expect(event.actor).toBe("human:u-create-1");
 	expect(events.map((e) => e.plugin_type).sort()).toEqual([
 		"identity:grant-upserted",
 		"identity:member-upserted",
@@ -66,7 +71,8 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 		"identity:role-upserted",
 		"identity:role-upserted",
 	]);
-	for (const event of events) {
+	const payloads = await sql`SELECT payload FROM event WHERE org = ${orgId}`;
+	for (const event of payloads) {
 		const text = JSON.stringify(event.payload);
 		expect(text).not.toContain("ai_provider_api_key");
 		expect(text).not.toContain("aiProviderApiKey");
@@ -114,13 +120,14 @@ test("T14 concurrent removals cannot leave zero owners", async () => {
 		VALUES ('m-t14-b', ${org.id}, 'u-owner-b', 'owner', '2026-01-01 00:00:00')`;
 
 	const [a, b] = await Promise.allSettled([
-		removeMember(sql, org.id, "m-t14-b"),
+		removeMember(sql, org.id, "m-t14-b", "human:u-owner-a"),
 		removeMember(
 			sql,
 			org.id,
 			(
 				await sql`SELECT id FROM organization_member WHERE organization_id = ${org.id} AND user_id = 'u-owner-a'`
 			)[0]?.id ?? "",
+			"human:u-owner-b",
 		),
 	]);
 	const outcomes = [a, b].map((r) =>
@@ -142,11 +149,57 @@ test("T14 removing the only owner is always blocked", async () => {
 	const member = (
 		await sql`SELECT id FROM organization_member WHERE organization_id = ${org.id} AND role = 'owner'`
 	)[0];
-	const failure = await removeMember(sql, org.id, member.id).catch(
-		(error: unknown) => error,
-	);
+	const failure = await removeMember(
+		sql,
+		org.id,
+		String(member?.id),
+		"human:u-solo",
+	).catch((error: unknown) => error);
 	expect(failure).toMatchObject({ _tag: "Conflict", code: "LastOwner" });
 	const owners =
 		await sql`SELECT count(*)::int AS n FROM organization_member WHERE organization_id = ${org.id} AND role = 'owner'`;
 	expect(Number(owners[0]?.n)).toBe(1);
+});
+
+test("T10 removeMember emits identity:member-deleted under the authenticated principal actor", async () => {
+	await seedUser("u-rm-a", "rma@actor.test");
+	await seedUser("u-rm-b", "rmb@actor.test");
+	await createOrganization(sql, "u-rm-a", {
+		name: "ActorOrg",
+		slug: "actor-org",
+	});
+	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+		VALUES ('m-actor-b', (SELECT id FROM organization WHERE slug = 'actor-org'), 'u-rm-b', 'member', '2026-01-01 00:00:00')`;
+	const result = await removeMember(
+		sql,
+		"actor-org",
+		"m-actor-b",
+		"human:u-rm-a",
+	);
+	expect(result.data).toEqual({ id: "m-actor-b" });
+	const events =
+		await sql`SELECT actor, plugin_type FROM event WHERE org = (SELECT id FROM organization WHERE slug = 'actor-org') AND plugin_type = 'identity:member-deleted'`;
+	expect(events).toHaveLength(1);
+	expect(events[0]?.actor).toBe("human:u-rm-a");
+});
+
+test("T10 removeMember without an authenticated actor is rejected", async () => {
+	await seedUser("u-rm-c", "rmc@actor.test");
+	await createOrganization(sql, "u-rm-c", {
+		name: "NoActor",
+		slug: "no-actor",
+	});
+	const member = (
+		await sql`SELECT id FROM organization_member WHERE organization_id = (SELECT id FROM organization WHERE slug = 'no-actor')`
+	)[0];
+	const failure = await removeMember(
+		sql,
+		"no-actor",
+		String(member?.id),
+		"",
+	).catch((error: unknown) => error);
+	expect(failure).toMatchObject({ _tag: "Conflict", code: "Unauthenticated" });
+	const deleted =
+		await sql`SELECT count(*)::int AS n FROM organization_member WHERE id = ${String(member?.id)}`;
+	expect(Number(deleted[0]?.n)).toBe(1);
 });
