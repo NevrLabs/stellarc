@@ -3510,3 +3510,197 @@
 2026-09-13T18:49:07+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
 2026-09-13T18:49:08+00:00 error      -        JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 2026-09-13T18:51:09+00:00 error      -        JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2026-09-13T18:52:22+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-13T18:52:36+00:00 sweep      -        archived concluded lane fbf18f7b (forge implement STL-22 c2)
+2026-09-13T18:52:45+00:00 start      STL-22   implement
+2026-09-13T19:03:30+00:00 ok         STL-22   implement: dispatched 4c79278f-a4a4-4a09-ad28-d617a57e9ca5 on forge/stl-22-c1 (hermes:accept_edits/ocg/glm-5.3); waiting up to 10800s… | STL-22 implement c3 → https://github.com/NevrLabs/stellarc/pull/32
+2026-09-13T19:03:31+00:00 start      STL-31   implement
+2026-09-13T20:41:47+00:00 ok         STL-31   implement: dispatched 153d0f81-9547-4594-a288-ac3c1a4e5179 on forge/stl-31-c2 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | STL-31 implement c2 → https://github.com/NevrLabs/stellarc/pull/35
+2026-09-13T20:43:54+00:00 orphan     STL-22   implement c3 watcher dead → partial
+2026-09-13T20:44:03+00:00 orphan     STL-31   implement c2 watcher dead → partial
+2026-09-13T20:44:17+00:00 sweep      STL-27   stopped overdue lane e781f5bf after 18127s
+2026-09-13T20:44:21+00:00 sweep      -        archived concluded lane 153d0f81 (forge implement STL-31 c2)
+2026-09-13T20:44:26+00:00 sweep      -        archived concluded lane 4c79278f (forge implement STL-22 c3 (cont.))
+2026-09-13T20:44:34+00:00 start      STL-22   review
+2026-09-13T20:58:51+00:00 ok         STL-22   review: dispatched a2570b3e-2d46-4290-859f-184c37a04e7a; waiting… | STL-22 review c3 → REWORK
+2026-09-13T20:58:54+00:00 start      STL-27   implement
+2026-09-13T22:35:50+00:00 ok         STL-27   implement: dispatched 77216eb9-ebf2-4aac-9ea0-cfb718096800 on forge/stl-27-c4 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-27 implement c4 → https://github.com/NevrLabs/stellarc/pull/36
+2026-09-13T22:35:51+00:00 start      STL-31   review
+2026-09-13T22:54:43+00:00 ok         STL-31   review: dispatched e9793ec5-8ce4-4726-b52c-51aa081e533d; waiting… | STL-31 review c2 → REWORK
+2026-09-13T22:56:46+00:00 orphan     STL-22   review c3 watcher dead → rework
+2026-09-13T22:56:51+00:00 orphan     STL-27   implement c4 watcher dead → partial
+2026-09-13T22:56:51+00:00 orphan     STL-31   review c2 watcher dead → pass
+2026-09-13T22:57:00+00:00 sweep      -        archived concluded lane e9793ec5 (forge review STL-31 c2)
+2026-09-13T22:57:05+00:00 sweep      -        archived concluded lane 77216eb9 (forge implement STL-27 c4)
+2026-09-13T22:57:09+00:00 sweep      -        archived concluded lane a2570b3e (forge review STL-22 c3)
+2026-09-13T22:57:18+00:00 start      STL-22   implement
+2026-09-13T22:57:18+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-13T22:57:19+00:00 start      STL-27   review
+2026-09-13T23:03:37+00:00 ok         STL-27   review: dispatched c01591f8-a8fb-43ad-acfe-15866566ba00; waiting… | STL-27 review c4 → REWORK
+2026-09-13T23:03:39+00:00 start      STL-31   implement
+2026-09-13T23:22:23+00:00 fail       STL-31   implement rc=1: Polling the background full-integration run: | [Thought] The full integration suite run went to background (session proc_bfc5946fd93d). The foundation.test.ts tweak was applied (git show > file). I need to poll the background process for the result of the full integration config run. | Let me poll it.
+2026-09-13T23:24:25+00:00 orphan     STL-27   review c4 watcher dead → rework
+2026-09-13T23:24:31+00:00 orphan     STL-31   implement c3 watcher dead → partial
+2026-09-13T23:24:42+00:00 sweep      -        archived concluded lane 666ee005 (forge implement STL-31 c3)
+2026-09-13T23:24:46+00:00 sweep      -        archived concluded lane c01591f8 (forge review STL-27 c4)
+2026-09-13T23:24:55+00:00 start      STL-22   implement
+2026-09-13T23:24:55+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-13T23:24:56+00:00 start      STL-27   implement
+2026-09-13T23:24:56+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-13T23:24:57+00:00 start      STL-31   implement
+2026-09-14T01:25:54+00:00 ok         STL-31   implement: dispatched 3f95a34f-2f0c-449b-a8df-6548c16e593e on forge/stl-31-c4 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-31 implement c4 → https://github.com/NevrLabs/stellarc/pull/37
+2026-09-14T01:28:01+00:00 orphan     STL-31   implement c4 watcher dead → partial
+2026-09-14T01:28:09+00:00 sweep      -        archived concluded lane 3f95a34f (forge implement STL-31 c4)
+2026-09-14T01:28:19+00:00 start      STL-22   implement
+2026-09-14T01:28:19+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T01:28:20+00:00 start      STL-27   implement
+2026-09-14T01:28:20+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T01:28:21+00:00 start      STL-31   review
+2026-09-14T01:54:56+00:00 ok         STL-31   review: dispatched 2d097ae9-91c4-4e7b-a94a-881d7d950eea; waiting… | STL-31 review c4 → REWORK
+2026-09-14T01:56:59+00:00 orphan     STL-31   review c4 watcher dead → pass
+2026-09-14T01:57:09+00:00 sweep      -        archived concluded lane 2d097ae9 (forge review STL-31 c4)
+2026-09-14T01:57:18+00:00 start      STL-22   implement
+2026-09-14T01:57:18+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T01:57:19+00:00 start      STL-27   implement
+2026-09-14T01:57:19+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T01:57:20+00:00 start      STL-31   implement
+2026-09-14T01:57:20+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T01:59:36+00:00 start      STL-22   implement
+2026-09-14T01:59:36+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T01:59:38+00:00 start      STL-27   implement
+2026-09-14T01:59:38+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T01:59:39+00:00 start      STL-31   implement
+2026-09-14T01:59:39+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:01:54+00:00 start      STL-22   implement
+2026-09-14T02:01:54+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:01:55+00:00 start      STL-27   implement
+2026-09-14T02:01:55+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:01:56+00:00 start      STL-31   implement
+2026-09-14T02:01:56+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:04:07+00:00 sweep      -        archived concluded lane e781f5bf (forge implement STL-27 c3 (cont.))
+2026-09-14T02:04:16+00:00 start      STL-22   implement
+2026-09-14T02:04:16+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:04:17+00:00 start      STL-27   implement
+2026-09-14T02:04:17+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:04:18+00:00 start      STL-31   implement
+2026-09-14T02:04:18+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:06:33+00:00 start      STL-22   implement
+2026-09-14T02:06:33+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:06:34+00:00 start      STL-27   implement
+2026-09-14T02:06:34+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:06:35+00:00 start      STL-31   implement
+2026-09-14T02:06:35+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:08:53+00:00 start      STL-22   implement
+2026-09-14T02:08:53+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:08:54+00:00 start      STL-27   implement
+2026-09-14T02:08:54+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:08:55+00:00 start      STL-31   implement
+2026-09-14T02:08:55+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:11:11+00:00 start      STL-22   implement
+2026-09-14T02:11:11+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:11:12+00:00 start      STL-27   implement
+2026-09-14T02:11:12+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:11:13+00:00 start      STL-31   implement
+2026-09-14T02:11:13+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:13:28+00:00 start      STL-22   implement
+2026-09-14T02:13:28+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:13:29+00:00 start      STL-27   implement
+2026-09-14T02:13:29+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:13:30+00:00 start      STL-31   implement
+2026-09-14T02:13:30+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:15:44+00:00 start      STL-22   implement
+2026-09-14T02:15:45+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:15:46+00:00 start      STL-27   implement
+2026-09-14T02:15:46+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:15:47+00:00 start      STL-31   implement
+2026-09-14T02:15:47+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:18:02+00:00 start      STL-22   implement
+2026-09-14T02:18:02+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:18:03+00:00 start      STL-27   implement
+2026-09-14T02:18:03+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:18:04+00:00 start      STL-31   implement
+2026-09-14T02:18:04+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:20:20+00:00 start      STL-22   implement
+2026-09-14T02:20:21+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:20:22+00:00 start      STL-27   implement
+2026-09-14T02:20:22+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:20:23+00:00 start      STL-31   implement
+2026-09-14T02:20:23+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:22:38+00:00 start      STL-22   implement
+2026-09-14T02:22:38+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:22:39+00:00 start      STL-27   implement
+2026-09-14T02:22:39+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:22:40+00:00 start      STL-31   implement
+2026-09-14T02:22:41+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:24:55+00:00 start      STL-22   implement
+2026-09-14T02:24:55+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:24:56+00:00 start      STL-27   implement
+2026-09-14T02:24:56+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:24:57+00:00 start      STL-31   implement
+2026-09-14T02:24:57+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:27:12+00:00 start      STL-22   implement
+2026-09-14T02:27:12+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:27:13+00:00 start      STL-27   implement
+2026-09-14T02:27:13+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:27:14+00:00 start      STL-31   implement
+2026-09-14T02:27:14+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:29:29+00:00 start      STL-22   implement
+2026-09-14T02:29:29+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:29:30+00:00 start      STL-27   implement
+2026-09-14T02:29:30+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:29:31+00:00 start      STL-31   implement
+2026-09-14T02:29:32+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:31:47+00:00 start      STL-22   implement
+2026-09-14T02:31:47+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:31:48+00:00 start      STL-27   implement
+2026-09-14T02:31:48+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:31:49+00:00 start      STL-31   implement
+2026-09-14T02:31:49+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:34:04+00:00 start      STL-22   implement
+2026-09-14T02:34:04+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:34:05+00:00 start      STL-27   implement
+2026-09-14T02:34:05+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:34:07+00:00 start      STL-31   implement
+2026-09-14T02:34:07+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:36:23+00:00 start      STL-22   implement
+2026-09-14T02:36:23+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:36:24+00:00 start      STL-27   implement
+2026-09-14T02:36:24+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:36:25+00:00 start      STL-31   implement
+2026-09-14T02:36:25+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:38:40+00:00 start      STL-22   implement
+2026-09-14T02:38:40+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:38:41+00:00 start      STL-27   implement
+2026-09-14T02:38:41+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:38:42+00:00 start      STL-31   implement
+2026-09-14T02:38:42+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:40:57+00:00 start      STL-22   implement
+2026-09-14T02:40:57+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:40:58+00:00 start      STL-27   implement
+2026-09-14T02:40:58+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:40:59+00:00 start      STL-31   implement
+2026-09-14T02:40:59+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:43:15+00:00 start      STL-22   implement
+2026-09-14T02:43:15+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:43:16+00:00 start      STL-27   implement
+2026-09-14T02:43:16+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:43:17+00:00 start      STL-31   implement
+2026-09-14T02:43:17+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:45:31+00:00 start      STL-22   implement
+2026-09-14T02:45:31+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:45:32+00:00 start      STL-27   implement
+2026-09-14T02:45:32+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:45:33+00:00 start      STL-31   implement
+2026-09-14T02:45:33+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:47:49+00:00 start      STL-22   implement
+2026-09-14T02:47:50+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:47:50+00:00 start      STL-27   implement
+2026-09-14T02:47:51+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:47:52+00:00 start      STL-31   implement
+2026-09-14T02:47:52+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
+2026-09-14T02:50:07+00:00 start      STL-22   implement
+2026-09-14T02:50:07+00:00 fail       STL-22   implement rc=1: forge: STL-22 hit 3 rework cycles — escalate to a human
+2026-09-14T02:50:08+00:00 start      STL-27   implement
+2026-09-14T02:50:08+00:00 fail       STL-27   implement rc=1: forge: STL-27 hit 3 rework cycles — escalate to a human
+2026-09-14T02:50:09+00:00 start      STL-31   implement
+2026-09-14T02:50:09+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human

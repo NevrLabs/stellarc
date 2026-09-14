@@ -105,11 +105,18 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-13T20:44:35+00:00",
    "cycle": 3,
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
-   "pid": 1723393
+   "pid": 1723393,
+   "reason": "orphan running: watcher pid 1723393 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-13T20:58:47+00:00",
+   "note": "re-armed for rework"
   }
  ],
  "cycle": 3

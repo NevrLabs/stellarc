@@ -56,14 +56,6 @@
    "reason": "orphan running: watcher pid 1316283 dead, agent gone; reconciled by driver \u2192 rework"
   },
   {
-   "stage": "review",
-   "status": "rework",
-   "at": "2026-09-12T01:16:38+00:00",
-   "agent": "1a9fa1f6-d196-4171-b19a-69b173d320e9",
-   "cycle": 1,
-   "artifact": ".forge/STL-27.review-1.md"
-  },
-  {
    "stage": "spec",
    "status": "pass",
    "at": "2026-09-12T01:16:56+00:00",
@@ -117,11 +109,18 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-13T22:57:20+00:00",
    "cycle": 4,
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
-   "pid": 1760959
+   "pid": 1760959,
+   "reason": "orphan running: watcher pid 1760959 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-13T23:03:37+00:00",
+   "note": "re-armed for rework"
   }
  ],
  "cycle": 4

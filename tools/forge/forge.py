@@ -47,7 +47,7 @@ PASEO_ENV = HOME / ".paseo-env"
 PIPELINE = HOME / ".local/bin/kaneo-pipeline"
 
 STAGES = ["triage", "spec", "implement", "review", "merge-gate", "merged"]
-MAX_CYCLES = 3
+MAX_CYCLES = 5
 
 # ── util ─────────────────────────────────────────────────────────────────────
 def die(msg, code=1):
@@ -124,6 +124,9 @@ def stage_status(s, stage):
 def record(t, stage, status, **extra):
     s = load_state(t)
     if stage == "implement" and status == "running" and extra.get("cycle"): s["cycle"] = extra["cycle"]
+    last = next((x for x in reversed(s["stages"]) if x["stage"] == stage), None)
+    if last and last["status"] == status and last.get("cycle") == extra.get("cycle") and status in ("pass", "rework", "fail", "partial"):
+        return s   # the orphan reaper already recorded this outcome; don't double-count it
     s["stages"].append({"stage": stage, "status": status, "at": now(), **extra})
     save_state(t, s)
     return s
@@ -544,8 +547,8 @@ def cmd_implement(args):
     # Only REWORK cycles (review said REWORK / merge-gate failed) count against the cap. Cycles that
     # ended in a spec gap are the orchestrator's defect, not the implementer's; they consume a branch
     # number but not the budget.
-    rework_cycles = sum(1 for st in s["stages"] if st["stage"] == "review" and st["status"] == "rework") \
-                  + sum(1 for st in s["stages"] if st["stage"] == "merge-gate" and st["status"] == "fail")
+    rework_cycles = len({st.get("cycle") for st in s["stages"] if st["stage"] == "review" and st["status"] == "rework"}) \
+                  + len({st.get("pr") for st in s["stages"] if st["stage"] == "merge-gate" and st["status"] == "fail"})
     if rework_cycles >= MAX_CYCLES: die(f"{t} hit {MAX_CYCLES} rework cycles — escalate to a human")
     spec = spec_path(t).read_text()
     defects = None
@@ -645,6 +648,15 @@ def _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before):
     set_stage_label(n, c["repo"], "review")
     print(f"{t} implement c{cycle} → {pr['url']}")
 
+def parse_verdict(body):
+    """First explicit verdict in the first ~40 lines: `PASS`/`REWORK` alone on a line, `**PASS**`, `VERDICT: PASS`,
+    `## Verdict\n\n**PASS**`, `Verdict: **REWORK**`. Anything ambiguous → REWORK (fail closed)."""
+    head = "\n".join(body.strip().splitlines()[:40])
+    m = re.search(r"(?im)^\s*(?:\*\*)?(?:verdict\s*:?\s*)?(?:\*\*)?\s*(PASS|REWORK)\b(?:\*\*)?\s*(?:[—–-].*)?$", head)
+    if m: return m.group(1).upper()
+    m = re.search(r"(?i)verdict[^A-Za-z]{0,12}(PASS|REWORK)\b", head)
+    return m.group(1).upper() if m else "REWORK"
+
 def cmd_review(args):
     c = cfg(); n = args[0]; t = ticket_id(c, n); _lk = _lock(t); gate(t, "implement", this="review")
     s = load_state(t); cycle = s["cycle"]
@@ -671,7 +683,7 @@ def cmd_review(args):
     rp = review_path(t, cycle)
     if not rp.exists():
         record(t, "review", "fail", agent=a, reason="no review file"); die(f"reviewer wrote nothing — `paseo logs {a}`")
-    body = rp.read_text(); verdict = "PASS" if body.strip().upper().startswith("PASS") else "REWORK"
+    body = rp.read_text(); verdict = parse_verdict(body)
     sh(["git", "add", str(rp), str(state_path(t))]); sh(["git", "commit", "-q", "-m", f"forge({t}): review c{cycle} {verdict}", "--no-verify"], check=False)
     gh(["pr", "comment", str(pr["number"]), "--body", f"### forge · adversarial review (cycle {cycle}, `{c['models']['review']}`) → **{verdict}**\n\n{body[:8000]}"], c["repo"])
     if verdict == "PASS":

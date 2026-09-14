@@ -104,7 +104,8 @@
    "at": "2026-09-13T22:54:28+00:00",
    "agent": "e9793ec5-8ce4-4726-b52c-51aa081e533d",
    "cycle": 2,
-   "artifact": ".forge/STL-31.review-2.md"
+   "artifact": ".forge/STL-31.review-2.md",
+   "reason": "(misparsed \u2014 actual verdict PASS; superseded by c4)"
   },
   {
    "stage": "spec",
@@ -156,11 +157,18 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "pass",
    "at": "2026-09-14T01:28:22+00:00",
    "cycle": 4,
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
-   "pid": 1808981
+   "pid": 1808981,
+   "reason": "orphan running: watcher pid 1808981 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-14T01:54:56+00:00",
+   "note": "re-armed for rework"
   }
  ],
  "cycle": 4
