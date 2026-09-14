@@ -47,6 +47,7 @@ CREATE TABLE "project_milestone" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "project_milestone_completion_pair_check" CHECK (("completed_at" IS NULL) = ("completed_by" IS NULL)),
+
 	CONSTRAINT "project_milestone_project_id_id_unique" UNIQUE("project_id","id")
 );
 CREATE TABLE "project_update" (

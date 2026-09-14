@@ -95,6 +95,16 @@ afterEach(async () => {
 	for (const close of resources.splice(0).reverse()) await close();
 });
 
+import {
+	completeProjectMilestone,
+	createProjectMilestone,
+	listProjectMilestones,
+	reopenProjectMilestone,
+} from "../../packages/domain/src/project-milestones";
+import {
+	createProjectUpdate,
+	updateProjectUpdate,
+} from "../../packages/domain/src/project-updates";
 // --- STL-21 domain service tests (core subset; Q1 satellites deferred) -----------------
 import {
 	archiveProject,
@@ -298,4 +308,84 @@ test("T05/T07 update properties + archive/unarchive", async () => {
 		"project:archived",
 		"project:unarchived",
 	]);
+});
+
+test("T09/T11 milestones + updates: CRUD, completion pair, edit-history append-only", async () => {
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	await migrate(db.sql);
+	await seedOrg(db, "orgA", "u1");
+	const project = await createProject(db.sql, {
+		organizationId: "orgA",
+		name: "Epsilon",
+		summary: "s",
+		leadUserId: "u1",
+		createdBy: "u1",
+	});
+
+	// milestone create
+	const ms = await createProjectMilestone(db.sql, {
+		projectId: project.id,
+		name: "M1",
+		description: null,
+		targetDate: "2026-06-01",
+		rank: 0,
+		userId: "u1",
+	});
+	expect(ms.name).toBe("M1");
+
+	// complete sets the pair atomically; reopen clears both
+	const done = await completeProjectMilestone(db.sql, {
+		id: ms.id,
+		projectId: project.id,
+		userId: "u1",
+	});
+	expect(done.completedAt).toBeTruthy();
+	expect(done.completedBy?.id).toBe("u1");
+	const reopened = await reopenProjectMilestone(db.sql, {
+		id: ms.id,
+		projectId: project.id,
+	});
+	expect(reopened.completedAt).toBeNull();
+	expect(reopened.completedBy).toBeNull();
+
+	// DB-level pair check rejects completed_by without completed_at
+	await expect(
+		db.sql`INSERT INTO project_milestone (id, project_id, name, rank, completed_by)
+			VALUES ('bad', ${project.id}, 'bad', 0, 'u1')`,
+	).rejects.toThrow();
+
+	// updates: create, edit appends history append-only, health picklist
+	const upd = await createProjectUpdate(db.sql, {
+		projectId: project.id,
+		authorId: "u1",
+		content: "first",
+		health: "on-track",
+	});
+	const edited = await updateProjectUpdate(db.sql, {
+		id: upd.id,
+		projectId: project.id,
+		userId: "u1",
+		content: "first (edited)",
+		health: "at-risk",
+	});
+	expect(edited.editHistory).toHaveLength(1);
+	expect(edited.editHistory[0].content).toBe("first");
+	expect(edited.health).toBe("at-risk");
+	await expect(
+		createProjectUpdate(db.sql, {
+			projectId: project.id,
+			authorId: "u1",
+			content: "x",
+			health: "on-fire",
+		}),
+	).rejects.toThrow(ValidationError);
+
+	const events =
+		await db.sql`SELECT plugin_type FROM event WHERE org = ${"orgA"} ORDER BY seq`;
+	const types = events.map((e) => e.plugin_type);
+	expect(
+		types.filter((t) => t === "project:milestone-upserted").length,
+	).toBeGreaterThanOrEqual(3);
+	expect(types).toContain("project:update-upserted");
 });
