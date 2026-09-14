@@ -16,10 +16,8 @@ export function fixtureSourceId(name: string): string {
  * enters the hash as raw bytes, timestamps as their driver text form. */
 function canonicalDigest(parts: unknown[]): string {
 	const hash = createHash("sha256");
-	const separators: string[] = [];
 	for (const part of parts) {
 		if (part === null || part === undefined) {
-			separators.push("null");
 			hash.update("null");
 		} else if (Buffer.isBuffer(part)) {
 			hash.update(part);
@@ -28,7 +26,6 @@ function canonicalDigest(parts: unknown[]): string {
 		}
 		hash.update("\x1f");
 	}
-	void separators;
 	return hash.digest("hex");
 }
 

@@ -8,7 +8,7 @@ import { humanPrincipalId } from "./auth";
 // Events carry sanitized public rows only — no secrets, no hashes, no bytes.
 
 export interface Failure {
-	readonly _tag: "Conflict" | "NotFound";
+	readonly _tag: "Conflict" | "NotFound" | "Unauthenticated";
 	readonly code?: string;
 }
 
@@ -187,8 +187,10 @@ export async function removeMember(
 ): Promise<MutationResult> {
 	if (!actorPrincipalId) {
 		// §3: mutations require an authenticated actor; authentication
-		// establishes actor context before any mutation runs.
-		throw conflict("Unauthenticated");
+		// establishes actor context before any mutation runs. The error is
+		// the union's Unauthenticated member, never a Conflict code.
+		const unauthenticated: Failure = { _tag: "Unauthenticated" };
+		throw unauthenticated;
 	}
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);

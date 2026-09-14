@@ -180,3 +180,26 @@ export async function deleteProbe(
 		throw error;
 	}
 }
+
+// STL-15: identity seam re-exports (review c1 defect 15) — the barrel exposes
+// the mutation/auth/router/importer surfaces so the API layer reaches them
+// through one import path.
+export {
+	humanPrincipalId,
+	agentPrincipalId,
+	authenticateApiKey,
+	apiKeyDigest,
+} from "./identity/auth";
+export { orgRouter } from "./identity/org-router";
+export type { OrgBinding, OrgRouterError } from "./identity/org-router";
+export {
+	createOrganization,
+	removeMember,
+} from "./identity/mutations";
+export type {
+	CreateOrganizationInput,
+	MutationResult,
+	Failure,
+} from "./identity/mutations";
+export { importIdentity } from "./identity/import";
+export type { ImportReport } from "./identity/import";
