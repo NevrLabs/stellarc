@@ -13,12 +13,26 @@ export class UnsupportedEventSchema extends Error {
 	}
 }
 
+type Decoder = (payload: unknown) => unknown;
+
 /** Historical chains are instance-local; production has only the v1 identity. */
 export class UpcasterRegistry {
 	private chains = new Map<
 		string,
 		Map<number, (payload: unknown) => unknown>
 	>();
+	// v1-native decoders per plugin type. Foundation probe types are built in;
+	// later slices (projects, ...) register theirs via registerType.
+	private readonly decoders = new Map<string, Decoder>([
+		[
+			"foundation:probe-upserted",
+			(payload) => Schema.decodeUnknownSync(Upsert)(payload),
+		],
+		[
+			"foundation:probe-deleted",
+			(payload) => Schema.decodeUnknownSync(Delete)(payload),
+		],
+	]);
 
 	register(
 		pluginType: string,
@@ -33,14 +47,21 @@ export class UpcasterRegistry {
 		this.chains.set(pluginType, chain);
 	}
 
-	supports(pluginType: string) {
-		return (
-			pluginType === "foundation:probe-upserted" ||
-			pluginType === "foundation:probe-deleted"
-		);
+	/** Registers a v1-native decoder for a new plugin type. Idempotent per type. */
+	registerType(pluginType: string, decode: Decoder) {
+		if (this.decoders.has(pluginType)) throw new UnsupportedEventSchema();
+		this.decoders.set(pluginType, decode);
 	}
 
-	decode(pluginType: string, version: number, payload: unknown): ProbePayload {
+	supports(pluginType: string) {
+		return this.decoders.has(pluginType);
+	}
+
+	decode<T = ProbePayload>(
+		pluginType: string,
+		version: number,
+		payload: unknown,
+	): T {
 		try {
 			if (
 				!this.supports(pluginType) ||
@@ -55,9 +76,9 @@ export class UpcasterRegistry {
 				if (!upcast) throw new UnsupportedEventSchema();
 				current = upcast(current);
 			}
-			return pluginType === "foundation:probe-upserted"
-				? Schema.decodeUnknownSync(Upsert)(current)
-				: Schema.decodeUnknownSync(Delete)(current);
+			const decoder = this.decoders.get(pluginType);
+			if (!decoder) throw new UnsupportedEventSchema();
+			return decoder(current) as T;
 		} catch {
 			throw new UnsupportedEventSchema();
 		}
