@@ -550,11 +550,7 @@ function makeFakeSql() {
 
 // The migration list grows with later slices; expectations are derived from
 // the registry itself (order + membership), never hard-coded.
-const ALL_VERSIONS = [
-	"0001_foundation",
-	"0002_identity",
-	"0003_repository",
-];
+const ALL_VERSIONS = ["0001_foundation", "0002_identity", "0003_repository"];
 
 test("D1 runMigration returns every entry's version+checksum in order; re-run verifies without re-applying", async () => {
 	const fresh = makeFakeSql();
