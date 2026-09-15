@@ -1,7 +1,18 @@
 import { createHash } from "node:crypto";
 import type { Sql } from "postgres";
 import { STATUS_DEFINITIONS, STATUS_SLUGS } from "./status-taxonomy";
-import { DEFAULT_SEED_STATUSES, type Tx } from "./work";
+import {
+	boardPublic,
+	flagTypePublic,
+	keyAliasPublic,
+	labelPublic,
+	statusPublic,
+	taskFlagPublic,
+	templatePublic,
+	ticketPublic,
+	DEFAULT_SEED_STATUSES,
+	type Tx,
+} from "./work";
 
 /** Per-table digest ledger (STL-15 `identity_import` pattern): reruns compare
  * digests instead of re-applying; identical source = zero new events. */
@@ -328,31 +339,69 @@ export async function importWork(
 	}
 
 	// --- Import (one destination transaction; failures abort all) -------------
+	// Section 2 event contracts: upsert payloads are {id, row: <Public mapper>}
+	// per table — the same payload shape the live domain services emit, so the
+	// shape tail and T3 consumers see one wire contract for imported and live
+	// rows alike. The emitted row is read back inside the import transaction
+	// (defaults applied by the destination, not the source).
 	type Emitter = (tx: Tx, org: string, row: RawRow) => Promise<void>;
 	const EMITTERS: Partial<Record<TableName, Emitter>> = {
 		board: async (tx, org, row) => {
-			await emit(tx, org, "work:board-upserted", { id: row.id });
+			const [board] = (await tx`SELECT * FROM "board" WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:board-upserted", {
+				id: String(row.id),
+				row: boardPublic(board as never),
+			});
 		},
 		column: async (tx, org, row) => {
-			await emit(tx, org, "work:status-upserted", { id: row.id });
+			const [column] = (await tx`SELECT * FROM "column" WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:status-upserted", {
+				id: String(row.id),
+				row: statusPublic(column as never),
+			});
 		},
 		board_key_alias: async (tx, org, row) => {
-			await emit(tx, org, "work:board-key-upserted", { id: row.id });
+			const [alias] = (await tx`SELECT * FROM board_key_alias WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:board-key-upserted", {
+				id: String(row.id),
+				row: keyAliasPublic(alias as never),
+			});
 		},
 		task: async (tx, org, row) => {
-			await emit(tx, org, "work:ticket-upserted", { id: row.id });
+			const [task] = (await tx`SELECT t.*, b.slug AS board_slug FROM task t
+				JOIN "board" b ON b.id = t.board_id WHERE t.id = ${row.id}`) as never[];
+			await emit(tx, org, "work:ticket-upserted", {
+				id: String(row.id),
+				row: ticketPublic(task as never),
+			});
 		},
 		label: async (tx, org, row) => {
-			await emit(tx, org, "work:label-upserted", { id: row.id });
+			const [label] = (await tx`SELECT * FROM label WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:label-upserted", {
+				id: String(row.id),
+				row: labelPublic(label as never),
+			});
 		},
 		task_template: async (tx, org, row) => {
-			await emit(tx, org, "work:template-upserted", { id: row.id });
+			const [template] = (await tx`SELECT * FROM task_template WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:template-upserted", {
+				id: String(row.id),
+				row: templatePublic(template as never),
+			});
 		},
 		flag_type: async (tx, org, row) => {
-			await emit(tx, org, "work:flag-type-upserted", { id: row.id });
+			const [flagType] = (await tx`SELECT * FROM flag_type WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:flag-type-upserted", {
+				id: String(row.id),
+				row: flagTypePublic(flagType as never),
+			});
 		},
 		task_flag: async (tx, org, row) => {
-			await emit(tx, org, "work:task-flag-upserted", { id: row.id });
+			const [taskFlag] = (await tx`SELECT * FROM task_flag WHERE id = ${row.id}`) as never[];
+			await emit(tx, org, "work:task-flag-upserted", {
+				id: String(row.id),
+				row: taskFlagPublic(taskFlag as never),
+			});
 		},
 	};
 

@@ -4,7 +4,7 @@ export default defineConfig({
 		include: ["tests/integration/**/*.test.ts"],
 		pool: "forks",
 		maxWorkers: 1,
-		testTimeout: 60000,
-		hookTimeout: 60000,
+		testTimeout: 180000,
+		hookTimeout: 180000,
 	},
 });

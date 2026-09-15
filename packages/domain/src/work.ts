@@ -329,6 +329,16 @@ export function ticketPublic(row: TicketRow) {
 	};
 }
 
+export function keyAliasPublic(row: Record<string, unknown>) {
+	return {
+		id: row.id as string,
+		organizationId: row.organization_id as string,
+		boardId: row.board_id as string,
+		key: row.key as string,
+		createdAt: iso(row.created_at),
+	};
+}
+
 export function labelPublic(row: Record<string, unknown>) {
 	return {
 		id: row.id as string,
@@ -566,9 +576,16 @@ export async function setBoardKey(
 			if (clashingAlias) throw new WorkConflict("KeyAliasInUse");
 			const [sameAlias] =
 				await tx`SELECT id FROM board_key_alias WHERE organization_id = ${org} AND board_id = ${id} AND lower(key) = ${lower}`;
-			if (!sameAlias)
+			if (!sameAlias) {
+				const aliasId = `ka-${crypto.randomUUID()}`;
 				await tx`INSERT INTO board_key_alias (id, organization_id, board_id, key, created_at)
-					VALUES (${`ka-${crypto.randomUUID()}`}, ${org}, ${id}, ${board.slug}, now())`;
+					VALUES (${aliasId}, ${org}, ${id}, ${board.slug}, now())`;
+				const [alias] = await tx<AnyRow[]>`SELECT * FROM board_key_alias WHERE id = ${aliasId}`;
+				await emit("work:board-key-upserted", {
+					id: aliasId,
+					row: keyAliasPublic(alias),
+				});
+			}
 		}
 		await tx`UPDATE "board" SET slug = ${normalized} WHERE id = ${id}`;
 		const updated = await boardById(tx, org, id);

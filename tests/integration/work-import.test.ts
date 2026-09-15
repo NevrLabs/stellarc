@@ -281,6 +281,92 @@ test("T18: full 8-table import through work-fixture restores rows and emits upse
 	}
 }, 60000);
 
+const B = {
+	id: "d2-board",
+	organization_id: "fixture-org",
+	slug: "d2-board",
+	name: "D2 Board",
+	last_task_number: 2,
+};
+
+// D2 (c5 rework): section 2 event contracts - upsert payloads are {id, row:
+// <Public mapper>} per table. c4 emitted {id} only, which provably fails the
+// slice's own upcaster (WorkUpcasterRegistry decodes against the schemas).
+test("D2: import upsert events carry {id,row} and decode through the work upcaster", async () => {
+	const { workFixture } = await import("../helpers/work-fixture");
+	const { importWork } = await import("../../packages/domain/src/work-import");
+	const { WorkUpcasterRegistry } = await import(
+		"../../packages/sync/src/work-upcasters",
+	);
+	const fixture = await workFixture();
+	try {
+		const report = await importWork(fixture.sql, "d2-source", {
+			boards: [B],
+			columns: [
+				{ id: "d2-col-1", board_id: "d2-board", name: "Doing", slug: "doing", position: 0 },
+			],
+			tasks: [
+				{
+					id: "d2-task-1",
+					board_id: "d2-board",
+					number: 1,
+					title: "D2 One",
+					status: "doing",
+					column_id: "d2-col-1",
+				},
+				{
+					id: "d2-task-2",
+					board_id: "d2-board",
+					number: 2,
+					title: "D2 Two",
+					status: "doing",
+					column_id: "d2-col-1",
+				},
+			],
+			labels: [
+				{ id: "d2-label-1", name: "d2", color: "#00ff00", source: "kaneo", task_id: "d2-task-1" },
+			],
+		});
+		expect(report.aborted).toBe(false);
+		expect(report.errors).toEqual([]);
+		const events = await fixture.sql`SELECT plugin_type, schema_version, payload
+			FROM event WHERE org = 'fixture-org' ORDER BY seq`;
+		expect(events.length).toBeGreaterThan(0);
+		const registry = new WorkUpcasterRegistry();
+		for (const event of events) {
+			// Every emitted work event must decode against its section-2 schema.
+			// {id}-only payloads throw UnsupportedWorkEventSchema here.
+			const decoded = registry.decode(
+				event.plugin_type,
+				event.schema_version,
+				event.payload,
+			) as { id: string; row?: Record<string, unknown> };
+			expect(decoded.id).toBeTruthy();
+			if (event.plugin_type.endsWith("-upserted")) {
+				// upserts carry the full Public row, not just the id
+				expect(decoded.row).toBeDefined();
+				expect(Object.keys(decoded.row ?? {}).length).toBeGreaterThan(1);
+			}
+		}
+		// The ticket row serializes through the Public mapper: camelCase key
+		// fields present.
+		const ticketUpsert = events.find(
+			(e) => e.plugin_type === "work:ticket-upserted",
+		);
+		expect(ticketUpsert).toBeDefined();
+		const ticketDecoded = registry.decode(
+			ticketUpsert.plugin_type,
+			ticketUpsert.schema_version,
+			ticketUpsert.payload,
+		) as { row: Record<string, unknown> };
+		expect(ticketDecoded.row.title).toBe("D2 One");
+		expect(ticketDecoded.row.key).toBe("D2-BOARD-1");
+		expect(ticketDecoded.row.boardId).toBe("d2-board");
+	} finally {
+		await fixture.close();
+	}
+}, 60000);
+
 test("T20: preflight aborts on flag with zero targets before any write", async () => {
 	const { workFixture } = await import("../helpers/work-fixture");
 	const { importWork } = await import("../../packages/domain/src/work-import");
