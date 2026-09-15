@@ -196,16 +196,19 @@ describe("T06 grant secret isolation", () => {
 		).toThrow();
 	});
 
-	test("token encryption round-trips and never stores plaintext", async () => {
-		const { encryptToken, decryptToken, deriveRepositoryKey } = await import(
+	// A3: secrets are stored as imported (plaintext parity with the fork);
+	// encryption is deferred to its own follow-up slice. The grant store
+	// helper must therefore pass tokens through unchanged and expose only a
+	// fingerprint for telemetry.
+	test("A3 grant tokens are stored as imported; only fingerprinted for telemetry", async () => {
+		const { fingerprintToken, storeGrantToken } = await import(
 			"../../packages/domain/src/github-provider"
 		);
-		const key = deriveRepositoryKey("postgres://secret-url/ db", "test-salt-1");
-		const cipher = encryptToken(key, "gho_live_token_value");
-		expect(cipher).not.toContain("gho_live_token_value");
-		expect(cipher.startsWith("v1:")).toBe(true);
-		expect(decryptToken(key, cipher)).toBe("gho_live_token_value");
-		const other = deriveRepositoryKey("postgres://other", "test-salt-1");
-		expect(() => decryptToken(other, cipher)).toThrow();
+		expect(storeGrantToken("gho_live_token_value")).toBe(
+			"gho_live_token_value",
+		);
+		const print = fingerprintToken("gho_live_token_value");
+		expect(print).not.toContain("gho_live");
+		expect(print).toMatch(/^[0-9a-f]{12}$/);
 	});
 });

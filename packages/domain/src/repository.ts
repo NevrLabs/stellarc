@@ -499,7 +499,8 @@ export const installationDeleteEffect = Effect.fn("Domain.installationDelete")(
 );
 
 // ---------------------------------------------------------------------------
-// github_user_grant — tokens encrypted at rest, events carry metadata only.
+// github_user_grant — A3: tokens stored as imported (plaintext parity with
+// the fork; encryption deferred). Events carry safe metadata only.
 // ---------------------------------------------------------------------------
 
 export type GrantUpsertInput = {
@@ -508,8 +509,8 @@ export type GrantUpsertInput = {
 	providerId: string;
 	githubUserId: string;
 	githubLogin: string;
-	encryptedAccessToken: string;
-	encryptedRefreshToken?: string | null;
+	accessToken: string;
+	refreshToken?: string | null;
 	accessTokenExpiresAt?: string | null;
 	refreshTokenExpiresAt?: string | null;
 	scope?: string | null;
@@ -547,7 +548,7 @@ export const grantUpsertEffect = Effect.fn("Domain.grantUpsert")(function* (
 				const [user] = await tx`SELECT id FROM "user" WHERE id=${input.userId}`;
 				if (!user) throw new Error("InvalidReference");
 				await tx`INSERT INTO github_user_grant (id,user_id,provider_id,github_user_id,github_login,access_token,refresh_token,access_token_expires_at,refresh_token_expires_at,scope)
-          VALUES (${input.id},${input.userId},${input.providerId},${input.githubUserId},${input.githubLogin},${input.encryptedAccessToken},${input.encryptedRefreshToken ?? null},${input.accessTokenExpiresAt ?? null},${input.refreshTokenExpiresAt ?? null},${input.scope ?? null})
+          VALUES (${input.id},${input.userId},${input.providerId},${input.githubUserId},${input.githubLogin},${input.accessToken},${input.refreshToken ?? null},${input.accessTokenExpiresAt ?? null},${input.refreshTokenExpiresAt ?? null},${input.scope ?? null})
           ON CONFLICT (id) DO UPDATE SET provider_id=EXCLUDED.provider_id,github_user_id=EXCLUDED.github_user_id,
             github_login=EXCLUDED.github_login,access_token=EXCLUDED.access_token,
             refresh_token=EXCLUDED.refresh_token,access_token_expires_at=EXCLUDED.access_token_expires_at,
