@@ -31,6 +31,12 @@
    "status": "pass",
    "at": "2026-09-15T13:45:20+00:00",
    "agent": "8dd78156-d7c7-4075-8d4e-af36d8b5ddc7"
+  },
+  {
+   "stage": "spec",
+   "status": "running",
+   "at": "2026-09-15T13:51:29+00:00",
+   "pid": 2354952
   }
  ],
  "cycle": 0
