@@ -127,6 +127,26 @@
    "at": "2026-09-15T02:51:10+00:00",
    "agent": "24a517e2-8516-4618-a2a0-ad2a421607df",
    "reason": "no review file [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-15T12:02:28+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-15T12:02:30+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-15T12:02:30+00:00",
+   "cycle": 4,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 2313645
   }
  ],
  "cycle": 4
