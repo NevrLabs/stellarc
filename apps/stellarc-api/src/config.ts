@@ -33,3 +33,28 @@ export const ConfigLive = Layer.effect(
 		),
 	}),
 );
+
+// STL-15: auth surface config is API-only (the worker shares AppConfig but
+// never authenticates), so AUTH_SECRET lives in its own tag.
+export class AuthConfig extends Context.Tag("stellarc/AuthConfig")<
+	AuthConfig,
+	{
+		readonly authSecret: Redacted.Redacted<string>;
+		readonly publicOrigin: string;
+	}
+>() {}
+
+export const AuthConfigLive = Layer.effect(
+	AuthConfig,
+	Config.all({
+		authSecret: Config.redacted("AUTH_SECRET").pipe(
+			Config.validate({
+				message: "AUTH_SECRET must be at least 32 chars",
+				validation: (value) => Redacted.value(value).length >= 32,
+			}),
+		),
+		publicOrigin: Config.string("PUBLIC_ORIGIN").pipe(
+			Config.withDefault("http://127.0.0.1:3000"),
+		),
+	}),
+);
