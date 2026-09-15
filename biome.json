@@ -14,8 +14,6 @@
 			"!**/routeTree.gen.ts",
 			"!**/dist",
 			"!**/dist.*",
-			"!**/target",
-			"!**/gen",
 			"!**/cache",
 			"!**/*.css",
 			"!**/*.svg",
