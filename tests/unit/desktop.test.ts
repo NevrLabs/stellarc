@@ -84,7 +84,14 @@ test("T02 desktop slice leaves the frozen UI tree untouched", () => {
 	// (ui-purity job fetch-depth: 0; ci.yml full clone).
 	const result = spawnSync(
 		"git",
-		["diff", "--name-only", "origin/dev...HEAD", "--", "apps/stellarc-ui", "packages"],
+		[
+			"diff",
+			"--name-only",
+			"origin/dev...HEAD",
+			"--",
+			"apps/stellarc-ui",
+			"packages",
+		],
 		{ cwd: ROOT, encoding: "utf8" },
 	);
 	const changed = result.stdout
