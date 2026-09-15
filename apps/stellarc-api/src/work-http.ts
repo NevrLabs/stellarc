@@ -172,10 +172,17 @@ export function workHandler(
 		getBoard: async (ctx) => {
 			const s = auth(ctx);
 			if (isWorkError(s)) return s;
-			const [row] =
-				(await sql`SELECT * FROM "board" WHERE id = ${ctx.path.id} AND organization_id = ${s.org}`) as AnyRow[];
-			if (!row) return { _tag: "NotFound" } as WorkError;
-			return ok({ board: work.boardPublic(row as never) });
+			// T07/T29: :id also resolves slug, board_key_alias and KEY-seq
+			// (prefix before the final dash + number) — old URLs keep working.
+			const ref = String(ctx.path.id);
+			const [byId] =
+				(await sql`SELECT * FROM "board" WHERE id = ${ref} AND organization_id = ${s.org}`) as AnyRow[];
+			const board =
+				byId ??
+				(await work.resolveBoardRef(sql, s.org, ref)) ??
+				(await work.resolveBoardKeySeq(sql, s.org, ref));
+			if (!board) return { _tag: "NotFound" } as WorkError;
+			return ok({ board: work.boardPublic(board as never) });
 		},
 		updateBoard: async (ctx) => {
 			const s = auth(ctx);

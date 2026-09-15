@@ -249,3 +249,68 @@ test("T27-wire: mutations settle with txid through the HTTP envelope (awaitTxId 
 	expect(row.count).toBe(1);
 	void board;
 });
+
+test("T07/D8: GET /api/work/boards/:id resolves id, slug, alias and KEY-seq over HTTP", async () => {
+	// Board with key rename: prior slug becomes an alias.
+	const created = await http.handler(
+		new Request("http://x/api/work/boards", {
+			method: "POST",
+			headers: { ...H("org-1"), "content-type": "application/json" },
+			body: JSON.stringify({ name: "D8 Board" }),
+		}),
+	);
+	expect(created.status).toBe(200);
+	const { data } = (await created.json()) as { data: { id: string; slug: string } };
+	const id = data.id;
+	const slug = data.slug;
+	// A ticket on the board: KEY-seq resolution requires number 1 to exist.
+	const ticket = await http.handler(
+		new Request(`http://x/api/work/boards/${id}/tickets`, {
+			method: "POST",
+			headers: { ...H("org-1"), "content-type": "application/json" },
+			body: JSON.stringify({ title: "D8 first ticket" }),
+		}),
+	);
+	expect(ticket.status).toBe(200);
+	// Rename key → NEWKEY; old slug becomes an alias.
+	const renamed = await http.handler(
+		new Request(`http://x/api/work/boards/${id}/key`, {
+			method: "PUT",
+			headers: { ...H("org-1"), "content-type": "application/json" },
+			body: JSON.stringify({ key: "NEWKEY" }),
+		}),
+	);
+	expect(renamed.status).toBe(200);
+	// By id.
+	const byId = await http.handler(
+		new Request(`http://x/api/work/boards/${id}`, { headers: H("org-1") }),
+	);
+	expect(byId.status).toBe(200);
+	// By current slug/key.
+	const bySlug = await http.handler(
+		new Request(`http://x/api/work/boards/${slug}`, { headers: H("org-1") }),
+	);
+	expect(bySlug.status).toBe(200);
+	// By old slug (now an alias).
+	const byAlias = await http.handler(
+		new Request(`http://x/api/work/boards/${slug}`, { headers: H("org-1") }),
+	);
+	expect(byAlias.status).toBe(200);
+	// KEY-seq: NEWKEY-1 resolves to the board.
+	const byKeySeq = await http.handler(
+		new Request("http://x/api/work/boards/NEWKEY-1", { headers: H("org-1") }),
+	);
+	expect(byKeySeq.status).toBe(200);
+	// Unknown ref → 404.
+	const missing = await http.handler(
+		new Request("http://x/api/work/boards/does-not-exist", {
+			headers: H("org-1"),
+		}),
+	);
+	expect(missing.status).toBe(404);
+	// Foreign org → 404 (org-scoped resolution).
+	const foreign = await http.handler(
+		new Request(`http://x/api/work/boards/${slug}`, { headers: H("org-2") }),
+	);
+	expect(foreign.status).toBe(404);
+});

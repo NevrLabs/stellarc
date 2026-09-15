@@ -550,6 +550,24 @@ export async function resolveBoardRef(
 	return row ?? null;
 }
 
+/** KEY-seq resolution (fork resolve-ticket-identity.ts): strip the trailing
+ * `-number`, resolve the prefix as slug/alias, and confirm a task with that
+ * number exists on the board. Returns the board row or null. */
+export async function resolveBoardKeySeq(
+	sql: Sql,
+	org: string,
+	keySeq: string,
+): Promise<BoardRow | null> {
+	const match = /^([A-Za-z][A-Za-z0-9-]*?)-(\d+)$/.exec(keySeq);
+	if (!match) return null;
+	const [, prefix, number] = match;
+	const board = await resolveBoardRef(sql, org, prefix);
+	if (!board) return null;
+	const [ticket] = await sql`SELECT id FROM task
+		WHERE board_id = ${board.id} AND number = ${Number(number)} LIMIT 1`;
+	return ticket ? board : null;
+}
+
 /** PUT /boards/:id/key — board slug becomes `key`; prior key is written as an
  * alias so old URLs and KEY-seq references keep resolving. */
 export async function setBoardKey(
