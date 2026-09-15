@@ -1011,12 +1011,15 @@ export async function setTicketStatus(
 			id,
 			row: ticketPublic(updated),
 		});
-		await emitInTx(tx, org, actor, "work:ticket-status-changed", {
-			id,
-			boardId: row.board_id,
-			from: row.status,
-			to: status,
-		});
+		// The transition pair rides only real transitions (from !== to).
+		if (status !== row.status) {
+			await emitInTx(tx, org, actor, "work:ticket-status-changed", {
+				id,
+				boardId: row.board_id,
+				from: row.status,
+				to: status,
+			});
+		}
 		return { data: ticketPublic(updated), txid };
 	});
 }
@@ -1095,6 +1098,7 @@ export async function reorderTickets(
 		)) as Array<{ id: string }>;
 		if (rows.length !== updates.length)
 			throw new WorkValidationError("every task must belong to the board");
+		const priorByid = new Map<string, string>();
 		for (const update of updates) {
 			const status = update.status;
 			if (status !== undefined) {
@@ -1104,10 +1108,15 @@ export async function reorderTickets(
 			}
 			const columnId =
 				status === undefined ? null : await resolveColumn(tx, boardId, status);
-			if (status !== undefined)
+			if (status !== undefined) {
+				const [prior] = await tx<
+					TicketRow[]
+				>`SELECT t.*, b.slug AS board_slug FROM task t JOIN "board" b ON b.id = t.board_id WHERE t.id = ${update.id}`;
+				priorByid.set(update.id, prior.status);
 				await tx`UPDATE task SET position = ${update.position}, status = ${status}, column_id = ${columnId}, updated_at = now() WHERE id = ${update.id} AND board_id = ${boardId}`;
-			else
+			} else {
 				await tx`UPDATE task SET position = ${update.position}, updated_at = now() WHERE id = ${update.id} AND board_id = ${boardId}`;
+			}
 		}
 		let txid = 0;
 		for (const id of ids) {
@@ -1118,6 +1127,16 @@ export async function reorderTickets(
 				id,
 				row: ticketPublic(updated),
 			});
+			// Transition pair for every status-writing update (D7).
+			const prior = priorByid.get(id);
+			if (prior !== undefined && prior !== updated.status) {
+				await emitInTx(tx, org, actor, "work:ticket-status-changed", {
+					id,
+					boardId: boardId,
+					from: prior,
+					to: updated.status,
+				});
+			}
 		}
 		return { data: { ids }, txid };
 	});
@@ -1178,6 +1197,15 @@ export async function bulkPatchTickets(
 				id: row.id,
 				row: ticketPublic(updated),
 			});
+			// Transition pair on real transitions only (D7).
+			if (patch.status !== undefined && patch.status !== row.status) {
+				await emitInTx(tx, org, actor, "work:ticket-status-changed", {
+					id: row.id,
+					boardId: row.board_id,
+					from: row.status,
+					to: patch.status,
+				});
+			}
 		}
 		const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
 		return { data: { ids }, txid: Number(BigInt(transaction.txid)) };
@@ -1243,9 +1271,12 @@ export async function setTicketArchived(
 // --- Labels -----------------------------------------------------------------------------------
 export async function listLabels(
 	sql: Sql,
-	_org: string,
+	org: string,
 	organizationId: string,
 ) {
+	// Caller-supplied organizationId must be the caller's own org; a foreign
+	// org is indistinguishable from absent (NotFound, post-auth).
+	if (organizationId !== org) throw new WorkNotFound();
 	const rows =
 		await sql`SELECT * FROM label WHERE organization_id = ${organizationId} AND task_id IS NULL ORDER BY name`;
 	return { labels: rows.map((r) => labelPublic(r)) };
@@ -1326,7 +1357,13 @@ export async function assignLabelTask(
 	taskId: string | null,
 ) {
 	return sql.begin(async (tx) => {
-		const [row] = await tx<AnyRow[]>`SELECT * FROM label WHERE id = ${id}`;
+		// Org-scoped: task-attached labels resolve through task→board→org,
+		// org-global labels must belong to the caller's org.
+		const [row] = await tx<AnyRow[]>`SELECT l.* FROM label l
+			WHERE l.id = ${id}
+			AND (l.organization_id = ${org}
+				OR EXISTS (SELECT 1 FROM task t JOIN "board" b2 ON b2.id = t.board_id
+					WHERE t.id = l.task_id AND b2.organization_id = ${org}))`;
 		if (!row) throw new WorkNotFound();
 		if (taskId) await ticketRowById(tx, org, taskId);
 		const scopeCheck = taskId ?? row.organization_id;
@@ -1349,7 +1386,12 @@ export async function deleteLabel(
 	id: string,
 ) {
 	return sql.begin(async (tx) => {
-		const [row] = await tx<AnyRow[]>`SELECT * FROM label WHERE id = ${id}`;
+		// Org-scoped like updateLabel: no cross-org deletes.
+		const [row] = await tx<AnyRow[]>`SELECT l.* FROM label l
+			WHERE l.id = ${id}
+			AND (l.organization_id = ${org}
+				OR EXISTS (SELECT 1 FROM task t JOIN "board" b2 ON b2.id = t.board_id
+					WHERE t.id = l.task_id AND b2.organization_id = ${org}))`;
 		if (!row) throw new WorkNotFound();
 		await tx`DELETE FROM label WHERE id = ${id}`;
 		const txid = await emitInTx(tx, org, actor, "work:label-deleted", { id });
@@ -1396,9 +1438,10 @@ export function validateTemplateData(
 
 export async function listTemplates(
 	sql: Sql,
-	_org: string,
+	org: string,
 	organizationId: string,
 ) {
+	if (organizationId !== org) throw new WorkNotFound();
 	const rows =
 		await sql`SELECT * FROM task_template WHERE organization_id = ${organizationId} ORDER BY name`;
 	return { templates: rows.map((r) => templatePublic(r)) };

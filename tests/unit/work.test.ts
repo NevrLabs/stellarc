@@ -1,13 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { beforeAll, expect, test } from "vitest";
-import { startUnitPostgres } from "./work-unit-postgres";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import { disposablePostgres } from "../helpers/postgres";
 
 let sql: import("postgres").Sql;
+let close: () => Promise<void>;
 
 beforeAll(async () => {
-	({ sql } = await startUnitPostgres());
+	const db = await disposablePostgres();
+	sql = db.sql;
+	close = db.close;
+	const { migrate } = await import("../../packages/db/src/migrate");
+	await migrate(sql);
 }, 60000);
+
+afterAll(async () => {
+	await close();
+});
 
 test("T01: migration catalogs all 8 work tables with exact column sets", async () => {
 	const expected: Record<string, string[]> = {

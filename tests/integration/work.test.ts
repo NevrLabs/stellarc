@@ -486,3 +486,117 @@ test("T22: tailMessages streams exactly once per event; deletes stream as delete
 		),
 	).toBe(true);
 });
+
+test("T14/D4: cross-org label mutation is NotFound — assignLabelTask + deleteLabel scoped by org", async () => {
+	const work = await import("../../packages/domain/src/work");
+	// Victim org-2: board + ticket + task-scoped label.
+	await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('org-2', 'Org Two', 'org-two', now()) ON CONFLICT DO NOTHING`;
+	await work.createBoard(sql, "org-2", "user-1", { id: "b-org2", name: "Victim" });
+	const t = await work.createTicket(sql, "org-2", "user-1", "b-org2", {
+		id: "t-org2",
+		title: "org2 ticket",
+	});
+	const label = await work.createLabel(sql, "org-2", "user-1", {
+		id: "l-org2",
+		name: "OrgTwoLabel",
+		color: "#f00",
+		taskId: t.data.id,
+	});
+	// Attacker org-1 must NOT be able to reassign or delete org-2's label.
+	await expect(
+		work.assignLabelTask(sql, "org-1", "user-1", label.data.id, null),
+	).rejects.toThrow();
+	await expect(
+		work.deleteLabel(sql, "org-1", "user-1", label.data.id),
+	).rejects.toThrow();
+	// Row untouched.
+	const [row] = await sql`SELECT task_id FROM label WHERE id = ${label.data.id}`;
+	expect(row.task_id).toBe(t.data.id);
+});
+
+test("T14/D5: listLabels/listTemplates reject caller-supplied foreign organizationId", async () => {
+	const work = await import("../../packages/domain/src/work");
+	// org-2 rows seeded by the D4 test (order-independent: re-seed here).
+	await work.createLabel(sql, "org-2", "user-1", {
+		id: "l-org2-global",
+		name: "OrgTwoGlobal",
+		color: "#0f0",
+		organizationId: "org-2",
+	});
+	// org-1 caller asking for org-2's globals → NotFound, not a cross-org read.
+	await expect(work.listLabels(sql, "org-1", "org-2")).rejects.toThrow();
+	// Own-org listing still works and excludes the foreign global.
+	const own = await work.listLabels(sql, "org-1", "org-1");
+	expect(own.labels.every((l) => l.name !== "OrgTwoGlobal")).toBe(true);
+	// Templates: same rule.
+	await expect(work.listTemplates(sql, "org-1", "org-2")).rejects.toThrow();
+	const templates = await work.listTemplates(sql, "org-1", "org-1");
+	expect(Array.isArray(templates.templates)).toBe(true);
+});
+
+test("T10/D7: status-changed emitted only on real transitions; bulkPatch/reorder write status without losing the pair", async () => {
+	const work = await import("../../packages/domain/src/work");
+	const board = await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-d7",
+		name: "D7 Board",
+	});
+	const a = await work.createTicket(sql, "org-1", "user-1", board.data.id, {
+		id: "t-d7-a",
+		title: "d7-a",
+	});
+	const b = await work.createTicket(sql, "org-1", "user-1", board.data.id, {
+		id: "t-d7-b",
+		title: "d7-b",
+	});
+	const before =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed'`;
+	// Same-status PUT: no transition, no event.
+	await work.setTicketStatus(sql, "org-1", "user-1", a.data.id, "to-do");
+	const afterNoop =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed'`;
+	expect(afterNoop[0].count).toBe(before[0].count);
+	// Real transition via PUT: exactly one pair (upsert + status-changed).
+	await work.setTicketStatus(sql, "org-1", "user-1", a.data.id, "in-progress");
+	const events =
+		await sql`SELECT plugin_type FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed' ORDER BY seq DESC LIMIT 1`;
+	expect(events).toHaveLength(1);
+	// bulkPatch status: transition pair emitted.
+	const bulk = await work.bulkPatchTickets(sql, "org-1", "user-1", [b.data.id], {
+		status: "in-progress",
+	});
+	expect(bulk.data.ids).toEqual([b.data.id]);
+	// before+1 came from the PUT transition above; bulk adds exactly one more.
+	const bulkPair =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed'`;
+	expect(bulkPair[0].count).toBe(before[0].count + 2);
+	// reorder with status change: transition pair emitted.
+	await work.reorderTickets(sql, "org-1", "user-1", board.data.id, [
+		{ id: a.data.id, position: 1, status: "done" },
+	]);
+	const reorderPair =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed'`;
+	expect(reorderPair[0].count).toBe(before[0].count + 3);
+});
+
+test("T37-supp: deleteStatus blocked with StatusInUse while any task references the slug", async () => {
+	const work = await import("../../packages/domain/src/work");
+	const board = await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-t37",
+		name: "T37 Board",
+	});
+	const t = await work.createTicket(sql, "org-1", "user-1", board.data.id, {
+		id: "t-t37",
+		title: "t37 ticket",
+		status: "done",
+	});
+	const statuses = await work.listStatuses(sql, "org-1", board.data.id);
+	const done = statuses.statuses.find((s) => s.slug === "done");
+	if (!done) throw new Error("done status missing");
+	await expect(
+		work.deleteStatus(sql, "org-1", "user-1", done.id),
+	).rejects.toThrow();
+	// After the task moves elsewhere, delete succeeds and streams the event.
+	await work.setTicketStatus(sql, "org-1", "user-1", t.data.id, "to-do");
+	const deleted = await work.deleteStatus(sql, "org-1", "user-1", done.id);
+	expect(deleted.data.id).toBe(done.id);
+});
