@@ -13,11 +13,13 @@ for (const config of ["vitest.config.ts", "vitest.integration.config.ts"]) {
 			],
 			{ stdout: "inherit", stderr: "inherit" },
 		);
-		const timer = setTimeout(() => child.kill(), 300000);
+		// STL-15: the integration suite grew past 300s (identity suites add
+		// ~130s); kill at 10 min so slow CI machines still fail loudly.
+		const timer = setTimeout(() => child.kill(), 600000);
 		try {
 			expect(await child.exited).toBe(0);
 		} finally {
 			clearTimeout(timer);
 		}
-	}, 310000);
+	}, 610000);
 }

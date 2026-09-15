@@ -733,6 +733,8 @@ test("T18 production API is fail-closed and never mounts fixture routes", async 
 			...process.env,
 			PORT: String(port),
 			DATABASE_URL: `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+			AUTH_SECRET: "integration-test-secret-0123456789abcdef012345",
+			PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
 		},
 		stdout: "pipe",
 		stderr: "pipe",
