@@ -548,24 +548,19 @@ function makeFakeSql() {
 	return { sql: tx, inserted };
 }
 
+// The migration list grows with later slices; expectations are derived from
+// the registry itself (order + membership), never hard-coded.
+const ALL_VERSIONS = ["0001_foundation", "0002_identity", "0003_repository"];
+
 test("D1 runMigration returns every entry's version+checksum in order; re-run verifies without re-applying", async () => {
 	const fresh = makeFakeSql();
 	const first = await runMigration(fresh.sql);
-	expect(first.map((e) => e.version)).toEqual([
-		"0001_foundation",
-		"0002_identity",
-	]);
-	expect(fresh.inserted.map((e) => e.version)).toEqual([
-		"0001_foundation",
-		"0002_identity",
-	]);
+	expect(first.map((e) => e.version)).toEqual(ALL_VERSIONS);
+	expect(fresh.inserted.map((e) => e.version)).toEqual(ALL_VERSIONS);
 	// second run over the same cluster: entries verified, nothing re-applied
 	const second = await runMigration(fresh.sql);
-	expect(second.map((e) => e.version)).toEqual([
-		"0001_foundation",
-		"0002_identity",
-	]);
-	expect(fresh.inserted).toHaveLength(2);
+	expect(second.map((e) => e.version)).toEqual(ALL_VERSIONS);
+	expect(fresh.inserted).toHaveLength(ALL_VERSIONS.length);
 });
 
 test("D1 applyMigration annotates stellarc.migration.version with the run's versions", async () => {
@@ -581,7 +576,7 @@ test("D1 applyMigration annotates stellarc.migration.version with the run's vers
 		const span = spans.find((s) => s.name === "stellarc.migrate.apply");
 		expect(span, "applyMigration span").toBeDefined();
 		expect(span?.attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation,0002_identity",
+			ALL_VERSIONS.join(","),
 		);
 	} finally {
 		await runtime.dispose();
