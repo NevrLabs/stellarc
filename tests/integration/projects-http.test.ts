@@ -530,3 +530,55 @@ test("T15 HTTP telemetry: request spans annotate org, principal.kind, no query t
 	for (const span of spans)
 		expect(span.attributes).not.toHaveProperty("db.query.text");
 });
+
+test("T16 frozen client contract: sub-resource reads carry no organizationId and still resolve org from the project row", async () => {
+	const server = await startProjectsServer();
+	resources.push(server.close);
+	await seedOrg(server.sql, "orgA", [["user-1", "Ada"]]);
+	await seedOrg(server.sql, "orgB", [["user-2", "Lin"]]);
+	const { createProject } = await import("../../packages/domain/src/projects");
+	const project = await createProject(server.sql, {
+		organizationId: "orgA",
+		name: "Alpha Rollout",
+		summary: "s",
+		leadUserId: "user-1",
+		createdBy: "user-1",
+	});
+	const base = `${server.url}/api/project/${project.id}`;
+	// The frozen fetchers (get-project-milestones/resources, list-project-updates)
+	// send only the path id — org must come from the row, guard against the
+	// derived org, and cross-org principals must still be denied.
+	const ms = await fetch(`${base}/milestones`, {
+		headers: auth("orgA", "user-1"),
+	});
+	expect(ms.status).toBe(200);
+	const msBody = (await ms.json()) as unknown[];
+	expect(Array.isArray(msBody)).toBe(true);
+	const updates = await fetch(`${base}/updates`, {
+		headers: auth("orgA", "user-1"),
+	});
+	expect(updates.status).toBe(200);
+	const cross = await fetch(`${base}/milestones`, {
+		headers: auth("orgB", "user-2"),
+	});
+	expect(cross.status).toBe(404);
+	// Discriminating control: a SECOND org's own project must resolve its own
+	// org from the row — a fixed/hardcoded org derivation 404s legitimate
+	// traffic (and would leak across orgs the other direction).
+	const projectB = await createProject(server.sql, {
+		organizationId: "orgB",
+		name: "Beta",
+		summary: "s",
+		leadUserId: "user-2",
+		createdBy: "user-2",
+	});
+	const own = await fetch(
+		`${server.url}/api/project/${projectB.id}/milestones`,
+		{
+			headers: auth("orgB", "user-2"),
+		},
+	);
+	expect(own.status).toBe(200);
+	const ownBody = (await own.json()) as unknown[];
+	expect(Array.isArray(ownBody)).toBe(true);
+});

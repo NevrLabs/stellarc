@@ -302,6 +302,25 @@ export function foundationHandler(
 				await sql`SELECT health FROM project_update WHERE project_id = ${projectId} ORDER BY created_at DESC LIMIT 1`;
 			return row ? (row.health as string) : null;
 		});
+
+	// The frozen fork client sends only the path id on sub-resource routes
+	// (milestones/updates/resources) — the session owned the org there. Derive
+	// the owning org from the project row so the guard can authorize the
+	// caller against it; unknown and inaccessible ids share the no-leak 404.
+	const orgOfProject = async (projectId: string) =>
+		timed("db.projects.org-of-project", async () => {
+			const [row] =
+				await sql`SELECT organization_id FROM project WHERE id = ${projectId}`;
+			return row ? (row.organization_id as string) : null;
+		});
+	const scopedOrg = async (
+		request: Req,
+		projectId: string,
+	): Promise<string | null> => {
+		const fromQuery = queryOrg(request);
+		if (fromQuery) return fromQuery;
+		return orgOfProject(projectId);
+	};
 	const queryOrg = (request: Req) =>
 		new URL(request.url, "http://localhost").searchParams.get(
 			"organizationId",
@@ -555,9 +574,10 @@ export function foundationHandler(
 			)
 			.handleRaw("listMilestones", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const rows = await timed("db.projects.list-milestones", () =>
 						listProjectMilestones(sql, path.projectId),
 					);
@@ -569,9 +589,10 @@ export function foundationHandler(
 					const payload = await jsonBody(request);
 					if (!payload || typeof payload !== "object") return invalid();
 					const p = payload as Record<string, unknown>;
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const row = await timed("db.projects.create-milestone", () =>
 						createProjectMilestone(sql, {
 							projectId: path.projectId,
@@ -593,9 +614,10 @@ export function foundationHandler(
 					const payload = await jsonBody(request);
 					if (!payload || typeof payload !== "object") return invalid();
 					const p = payload as Record<string, unknown>;
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const row = await timed("db.projects.update-milestone", () =>
 						updateProjectMilestone(sql, {
 							id: path.milestoneId,
@@ -615,9 +637,10 @@ export function foundationHandler(
 			)
 			.handleRaw("deleteMilestone", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const result = await timed("db.projects.delete-milestone", () =>
 						deleteProjectMilestone(sql, {
 							id: path.milestoneId,
@@ -633,9 +656,10 @@ export function foundationHandler(
 			)
 			.handleRaw("completeMilestone", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const row = await timed("db.projects.complete-milestone", () =>
 						completeProjectMilestone(sql, {
 							id: path.milestoneId,
@@ -651,9 +675,10 @@ export function foundationHandler(
 			)
 			.handleRaw("reopenMilestone", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const row = await timed("db.projects.reopen-milestone", () =>
 						reopenProjectMilestone(sql, {
 							id: path.milestoneId,
@@ -669,9 +694,10 @@ export function foundationHandler(
 			)
 			.handleRaw("listUpdates", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const rows = await timed("db.projects.list-updates", () =>
 						listProjectUpdates(sql, path.projectId),
 					);
@@ -683,9 +709,10 @@ export function foundationHandler(
 					const payload = await jsonBody(request);
 					if (!payload || typeof payload !== "object") return invalid();
 					const p = payload as Record<string, unknown>;
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const row = await timed("db.projects.create-update", () =>
 						createProjectUpdate(sql, {
 							projectId: path.projectId,
@@ -705,9 +732,10 @@ export function foundationHandler(
 					const payload = await jsonBody(request);
 					if (!payload || typeof payload !== "object") return invalid();
 					const p = payload as Record<string, unknown>;
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const row = await timed("db.projects.update-update", () =>
 						updateProjectUpdate(sql, {
 							id: path.updateId,
@@ -725,9 +753,10 @@ export function foundationHandler(
 			)
 			.handleRaw("deleteUpdate", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
-					if (!principal) return deny(org, request);
+					if (!principal) return notFound();
 					const result = await timed("db.projects.delete-update", () =>
 						deleteProjectUpdate(sql, {
 							id: path.updateId,
