@@ -9,7 +9,14 @@ import type { Sql } from "postgres";
 const MIGRATIONS = [
 	{ version: "0001_foundation", file: "../migrations/0001_foundation.sql" },
 	{ version: "0002_identity", file: "../migrations/0002_identity.sql" },
+	{ version: "0003_work", file: "../migrations/0003_work.sql" },
 ] as const;
+
+/** Registry-derived version list for tests and callers (T01 discovery): new
+ * slices append to MIGRATIONS without consumers hardcoding enumerations. */
+export const migrationVersions: readonly string[] = MIGRATIONS.map(
+	(m) => m.version,
+);
 
 /** Owner-only provisioning; the runtime principal must already exist. */
 export async function grantRuntime(sql: Sql, role: string) {
