@@ -2,7 +2,7 @@ import type { Sql } from "postgres";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { disposablePostgres } from "../helpers/postgres";
 
-// STL-18 T01: the 0005_repository migration applies, re-applies, rejects
+// STL-18 T01: the 0003_repository migration applies, re-applies, rejects
 // drift, and produces the exact §2 catalog (6 tables, snake_case, source
 // nullability, composite uniques and same-org FKs).
 
@@ -190,7 +190,7 @@ afterEach(async () => {
 	await close();
 });
 
-test("T01 0005_repository creates the exact six-table catalog", async () => {
+test("T01 0003_repository creates the exact six-table catalog", async () => {
 	const columns = (await sql`
     SELECT table_name, column_name, data_type, is_nullable, column_default
     FROM information_schema.columns
