@@ -19,6 +19,13 @@ async function runEffect<A>(
 import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
+import {
+	PROJECTIONS,
+	snapshotMessages,
+	tailMessages,
+	WORK_COLLECTIONS,
+	type WorkCollection,
+} from "./work-shapes";
 
 export class ShapeEngine {
 	afterProjectionRead?: () => Promise<void>;
@@ -30,6 +37,14 @@ export class ShapeEngine {
 			boundary: string;
 			expires: number;
 			cursors: Map<string, string>;
+			// Work collections keep their snapshot inline (Public rows) and a
+			// live view of the boundary for tail polls (\u00a74).
+			collection?: WorkCollection;
+			messages?: Array<{
+				key: string;
+				value: unknown;
+				headers: Record<string, unknown>;
+			}>;
 		}
 	>();
 	constructor(
@@ -173,7 +188,11 @@ export class ShapeEngine {
 		]);
 		if ([...q.keys()].some((k) => !allowed.has(k)))
 			return new Response(null, { status: 400 });
-		if (q.get("table") !== "sync_probe")
+		const table = q.get("table") ?? "";
+		const workCollection = WORK_COLLECTIONS.find(
+			(collection) => PROJECTIONS[collection].table === table,
+		);
+		if (table !== "sync_probe" && !workCollection)
 			return new Response(null, { status: 404 });
 		if (q.has("log") && !["full", "changes_only"].includes(q.get("log") ?? ""))
 			return new Response(null, { status: 400 });
@@ -184,31 +203,74 @@ export class ShapeEngine {
 			return new Response(null, { status: 400 });
 		let handle = q.get("handle") ?? "";
 		if (offset === "-1") {
-			const snapshot = await this.sql.begin(
-				"isolation level repeatable read",
-				async (tx) => {
-					const rows = await tx<
-						ProbeRow[]
-					>`SELECT org,id,value,last_seq::text FROM sync_probe WHERE org=${org} ORDER BY id`;
-					await this.afterProjectionRead?.();
-					const [counter] =
-						await tx`SELECT seq::text FROM org_event_counter WHERE org=${org}`;
-					return {
-						org,
-						rows: [...rows],
-						boundary: counter?.seq ?? "0",
-						expires: Date.now() + 300000,
-						cursors: new Map<string, string>(),
-					};
-				},
-			);
+			let snapshot: {
+				org: string;
+				rows: ProbeRow[];
+				boundary: string;
+				expires: number;
+				cursors: Map<string, string>;
+				collection?: WorkCollection;
+				messages?: Array<{
+					key: string;
+					value: unknown;
+					headers: Record<string, unknown>;
+				}>;
+			};
+			if (workCollection) {
+				// \u00a74 work snapshot: Public rows, org-scoped, boundary = counter.
+				snapshot = await this.sql.begin(
+					"isolation level repeatable read",
+					async (tx) => {
+						const messages = await snapshotMessages(tx, org, workCollection);
+						await this.afterProjectionRead?.();
+						const [counter] =
+							await tx`SELECT seq::text FROM org_event_counter WHERE org=${org}`;
+						return {
+							org,
+							rows: [],
+							boundary: counter?.seq ?? "0",
+							expires: Date.now() + 300000,
+							cursors: new Map<string, string>(),
+							collection: workCollection,
+							messages,
+						};
+					},
+				);
+			} else {
+				snapshot = await this.sql.begin(
+					"isolation level repeatable read",
+					async (tx) => {
+						const rows = await tx<
+							ProbeRow[]
+						>`SELECT org,id,value,last_seq::text FROM sync_probe WHERE org=${org} ORDER BY id`;
+						await this.afterProjectionRead?.();
+						const [counter] =
+							await tx`SELECT seq::text FROM org_event_counter WHERE org=${org}`;
+						return {
+							org,
+							rows: [...rows],
+							boundary: counter?.seq ?? "0",
+							expires: Date.now() + 300000,
+							cursors: new Map<string, string>(),
+						};
+					},
+				);
+			}
 			handle = crypto.randomUUID();
 			this.snapshots.set(handle, snapshot);
 		}
 		const snapshot = this.snapshots.get(handle);
+		if (!snapshot)
+			return Response.json([{ headers: { control: "must-refetch" } }], {
+				status: 409,
+			});
 		const headers = new Headers({
 			"content-type": "application/json",
-			"electric-schema": JSON.stringify(electricSchema),
+			"electric-schema": JSON.stringify(
+				snapshot.collection
+					? PROJECTIONS[snapshot.collection].electric
+					: electricSchema,
+			),
 			"cache-control": "no-store",
 			"electric-handle": handle,
 		});
@@ -229,7 +291,35 @@ export class ShapeEngine {
 		const messages: unknown[] = [];
 		let next: string;
 		let caughtUp = true;
-		if (offset === "-1" || offset.startsWith("s:")) {
+		if (snapshot.collection) {
+			// \u00a74 work collection: snapshot pages then event tail.
+			const all = snapshot.messages ?? [];
+			if (offset === "-1" || offset.startsWith("s:")) {
+				const index = offset === "-1" ? 0 : Number(offset.slice(2));
+				const page = all.slice(index, index + 100);
+				messages.push(...page);
+				next =
+					index + 100 < all.length
+						? `s:${index + 100}`
+						: `${snapshot.boundary}_0`;
+			} else {
+				if (!/^\d+_0$/.test(offset)) return new Response(null, { status: 400 });
+				const cursorSeq = offset.split("_")[0] ?? "0";
+				const tail = await tailMessages(
+					this.sql,
+					org,
+					snapshot.collection,
+					cursorSeq,
+				);
+				messages.push(...tail);
+				caughtUp = tail.length < 100;
+				next =
+					tail.length > 0
+						? ((tail[tail.length - 1] as { value: { last_seq: string } }).value
+								.last_seq as string)
+						: offset;
+			}
+		} else if (offset === "-1" || offset.startsWith("s:")) {
 			const index = offset === "-1" ? 0 : Number(offset.slice(2));
 			const rows = snapshot.rows.slice(index, index + 100);
 			for (const row of rows)
