@@ -147,8 +147,8 @@ def family(model_id):
     return m.split("/")[0]
 
 # ── github ───────────────────────────────────────────────────────────────────
-def gh(args, repo, capture=True):
-    return sh(["gh"] + args + ["-R", repo], capture=capture)
+def gh(args, repo, capture=True, check=True):
+    return sh(["gh"] + args + ["-R", repo], capture=capture, check=check)
 
 def issue(n, repo):
     return json.loads(gh(["issue", "view", str(n), "--json", "number,title,body,labels,state,url"], repo).stdout)
