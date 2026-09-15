@@ -148,7 +148,16 @@ def family(model_id):
 
 # ── github ───────────────────────────────────────────────────────────────────
 def gh(args, repo, capture=True, check=True):
-    return sh(["gh"] + args + ["-R", repo], capture=capture, check=check)
+    # GitHub API blips (dial tcp i/o timeout, 5xx) must not burn a cycle or count as a stage failure.
+    for attempt in range(5):
+        r = sh(["gh"] + args + ["-R", repo], capture=capture, check=False)
+        err = (r.stderr or "") + (r.stdout or "")
+        if r.returncode == 0 or not any(s in err for s in ("i/o timeout", "dial tcp", "502", "503", "504", "connection reset", "TLS handshake", "EOF")):
+            break
+        time.sleep(15 * (attempt + 1))
+    if check and r.returncode:
+        die(f"command failed ({r.returncode}): gh {' '.join(args)}\n{(r.stderr or r.stdout)[-1500:]}")
+    return r
 
 def issue(n, repo):
     return json.loads(gh(["issue", "view", str(n), "--json", "number,title,body,labels,state,url"], repo).stdout)

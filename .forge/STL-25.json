@@ -18,6 +18,19 @@
    "status": "note",
    "at": "2026-09-10T12:55:23+00:00",
    "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-15T13:41:57+00:00",
+   "pid": 2349786,
+   "reason": "orphan running: watcher pid 2349786 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-15T13:45:20+00:00",
+   "agent": "8dd78156-d7c7-4075-8d4e-af36d8b5ddc7"
   }
  ],
  "cycle": 0

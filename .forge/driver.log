@@ -4004,3 +4004,19 @@
 2026-09-15T13:20:50+00:00 start      STL-15   implement
 2026-09-15T13:23:03+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
 2026-09-15T13:24:32+00:00 start      STL-16   implement
+2026-09-15T13:36:04+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-15T13:38:07+00:00 start      STL-17   implement
+2026-09-15T13:38:07+00:00 start      STL-18   implement
+2026-09-15T13:38:07+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T13:38:07+00:00 start      STL-25   triage
+2026-09-15T13:38:07+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T13:40:08+00:00 fail       STL-25   triage rc=1: forge: command failed (1): gh issue view 25 --json number,title,body,labels,state,url -R NevrLabs/stellarc | Post "https://api.github.com/graphql": dial tcp 20.205.243.168:443: i/o timeout
+2026-09-15T13:41:55+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T13:41:55+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T13:41:55+00:00 start      STL-25   triage
+2026-09-15T13:41:55+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T13:46:06+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T13:46:06+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T13:48:07+00:00 fail       STL-25   triage rc=1: Post "https://api.github.com/graphql": dial tcp 20.205.243.168:443: i/o timeout |  | dispatched 8dd78156-d7c7-4075-8d4e-af36d8b5ddc7; waiting…
+2026-09-15T13:48:29+00:00 orphan     STL-25   triage c watcher dead → pass
+2026-09-15T13:48:58+00:00 sweep      -        archived concluded lane 8dd78156 (forge triage STL-25)
