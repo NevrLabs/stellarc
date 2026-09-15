@@ -77,7 +77,7 @@ def state(n):
         log("error", tid(n), "state file corrupt and no committed copy"); return {"stages": [], "cycle": 0}
 def last(s, stage):
     for st in reversed(s["stages"]):
-        if st["stage"] == stage: return st["status"]
+        if st["stage"] == stage and st["status"] != "note": return st["status"]
     return None
 
 def blockers(n, key2num):

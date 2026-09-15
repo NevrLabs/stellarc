@@ -3987,3 +3987,18 @@
 2026-09-15T11:17:16+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-15T11:19:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
 2026-09-15T11:21:51+00:00 start      STL-15   review
+2026-09-15T12:02:25+00:00 fail       STL-15   review rc=1: forge: review STL-15: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: review STL-15: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | forge: agent 7161921f-b492-4a84-84c4-c03d8db77381 did not go idle within 2400s — `paseo logs 7161921f-b492-4a84-84c4-c03d8db77381 | tail`
+2026-09-15T12:02:26+00:00 start      STL-16   review
+2026-09-15T12:40:13+00:00 ok         STL-16   review: STL-16 review c4 → REWORK | forge: review STL-16: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: review STL-16: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged)
+2026-09-15T12:40:19+00:00 start      STL-21   review
+2026-09-15T13:17:10+00:00 fail       STL-21   review rc=1: forge: review STL-21: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | forge: command failed (1): gh issue edit 21 --remove-label forge:triage -R NevrLabs/stellarc | Post "https://api.github.com/graphql": dial tcp 20.205.243.168:443: i/o timeout
+2026-09-15T13:17:13+00:00 start      STL-22   review
+2026-09-15T13:17:47+00:00 fail       STL-22   review rc=1: forge: review STL-22: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | forge: command failed (1): gh pr view 32 --json number,url,headRefName -R NevrLabs/stellarc | Post "https://api.github.com/graphql": dial tcp 20.205.243.168:443: i/o timeout
+2026-09-15T13:17:48+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T13:19:49+00:00 orphan     STL-15   review c3 watcher dead → rework
+2026-09-15T13:19:49+00:00 orphan     STL-16   review c4 watcher dead → rework
+2026-09-15T13:19:49+00:00 orphan     STL-21   review c4 watcher dead → rework
+2026-09-15T13:19:59+00:00 sweep      -        archived concluded lane 3ab24ddb (forge review STL-21 c4)
+2026-09-15T13:20:04+00:00 sweep      -        archived concluded lane fcdaeef8 (forge review STL-16 c4)
+2026-09-15T13:20:09+00:00 sweep      -        archived concluded lane 7161921f (forge review STL-15 c3)
+2026-09-15T13:20:50+00:00 start      STL-15   implement

@@ -179,11 +179,20 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-15T12:40:25+00:00",
    "cycle": 4,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 2328719
+   "pid": 2328719,
+   "reason": "orphan running: watcher pid 2328719 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-15T13:16:40+00:00",
+   "agent": "3ab24ddb-c0e7-4c2b-bf00-384d3e4e558f",
+   "cycle": 4,
+   "artifact": ".forge/STL-21.review-4.md"
   }
  ],
  "cycle": 4

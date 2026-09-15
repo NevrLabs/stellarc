@@ -118,7 +118,7 @@ def save_state(t, s):
 
 def stage_status(s, stage):
     for st in reversed(s["stages"]):
-        if st["stage"] == stage: return st["status"]
+        if st["stage"] == stage and st["status"] != "note": return st["status"]
     return None
 
 def record(t, stage, status, **extra):

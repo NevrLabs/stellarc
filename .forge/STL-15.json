@@ -163,12 +163,29 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-15T11:21:54+00:00",
    "cycle": 3,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 2298634
+   "pid": 2298634,
+   "reason": "orphan running: watcher pid 2298634 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-15T13:20:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "running",
+   "at": "2026-09-15T13:20:55+00:00",
+   "cycle": 4,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-15-c4",
+   "pid": 2343264,
+   "agent": "63e10e2b-402a-465f-b794-8629b7520edb"
   }
  ],
- "cycle": 3
+ "cycle": 4
 }
