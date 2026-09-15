@@ -4,6 +4,9 @@ import type { ActivityRow } from "../../contracts/src/activity-notifications";
 import {
 	ACTIVITY_EVENT_TYPES,
 	appendEventInTx,
+	type CommentStoreRow,
+	decodeEditHistory,
+	DomainConflict,
 	DomainForbidden,
 	DomainNotFound,
 	DomainValidation,
@@ -196,3 +199,187 @@ export async function readActivityRow(
 		image: row.user_image ?? null,
 	});
 }
+
+// --- T12/T13: edit and delete (author-only, optimistic, projection-synced) ----
+
+export interface UpdateCommentDeps {
+	readonly org: string;
+	readonly actor: Actor;
+	readonly ticketId: string;
+	readonly commentId: string;
+	readonly content: string;
+	readonly expectedUpdatedAt: Date;
+	readonly tickets: TicketScopeResolver;
+}
+
+export interface DeleteCommentDeps {
+	readonly org: string;
+	readonly actor: Actor;
+	readonly ticketId: string;
+	readonly commentId: string;
+	readonly expectedUpdatedAt: Date;
+	readonly tickets: TicketScopeResolver;
+}
+
+const immutableForLocalAuthor = (row: {
+	user_id: string | null;
+	external_source: string | null;
+}): boolean => row.external_source !== null;
+
+/** Author-only edit with optimistic timestamp check under row lock (§3). */
+export const updateComment = (
+	sql: Sql,
+	deps: UpdateCommentDeps,
+): Effect.Effect<{ row: ActivityRow; txid: number }, unknown> =>
+	Effect.fn("Domain.activity.updateComment")(function* () {
+		assertLiveContent(deps.content);
+		const scope = yield* Effect.tryPromise(() =>
+			deps.tickets.resolve(deps.org, deps.ticketId, deps.actor),
+		);
+		if (!scope) throw new DomainNotFound();
+		if (!scope.canUpdate || !scope.canView) throw new DomainForbidden();
+		const result = yield* Effect.tryPromise({
+			try: () =>
+				sql.begin(
+					async (
+						tx,
+					): Promise<{
+						row: ActivityRow;
+						txid: number;
+					}> => {
+						const rows = (await tx`
+              SELECT * FROM comment
+              WHERE id = ${deps.commentId}
+                AND org_id = ${deps.org}
+                AND ticket_id = ${deps.ticketId}
+              FOR UPDATE`) as unknown as (Record<string, unknown> & {
+							user_id: string | null;
+							external_source: string | null;
+							updated_at: Date;
+						})[];
+						const stored = rows[0];
+						if (!stored) throw new DomainNotFound();
+						// Fork author-only edit; external rows are immutable for
+						// local authors (§3), even the nominal owner.
+						if (
+							stored.user_id !== deps.actor.userId ||
+							immutableForLocalAuthor(stored)
+						)
+							throw new DomainForbidden();
+						if (
+							stored.updated_at.getTime() !==
+							deps.expectedUpdatedAt.getTime()
+						)
+							throw new DomainConflict("StaleWrite");
+						const now = new Date();
+						const history = decodeEditHistory(stored.edit_history);
+						// editedAt serializes to the contract's ISO string form so
+						// encodeActivityRow's decoder accepts it in-memory too.
+						history.push({
+							content: stored.content ?? "",
+							editedAt: new Date(stored.updated_at).toISOString(),
+							userId: stored.user_id ?? "",
+						});
+						await tx`UPDATE comment
+              SET content = ${deps.content}, updated_at = ${now},
+                  edit_history = ${tx.json(history)}
+              WHERE id = ${deps.commentId}`;
+						await tx`UPDATE activity_projection
+              SET content = ${deps.content}, updated_at = ${now},
+                  edit_history = ${tx.json(history)}
+              WHERE org_id = ${deps.org} AND id = ${deps.commentId}`;
+						const edited: CommentStoreRow = {
+							...(stored as unknown as CommentStoreRow),
+							content: deps.content,
+							updated_at: now,
+							edit_history: history,
+						};
+						const { txidText } = await appendEventInTx(
+							tx,
+							deps.org,
+							deps.actor.userId,
+							ACTIVITY_EVENT_TYPES.commentUpdated,
+							JSON.stringify({
+								id: deps.commentId,
+								ticketId: deps.ticketId,
+								boardId: scope.boardId,
+								row: encodeActivityRow(edited, null),
+								origin: "live",
+							}),
+						);
+						return {
+							row: encodeActivityRow(edited, null),
+							txid: safeTxid(txidText),
+						};
+					},
+				),
+			catch: (cause) => cause,
+		});
+		return result;
+	})();
+
+/** Author-only delete with optimistic check; audit log preserved (§3). */
+export const deleteComment = (
+	sql: Sql,
+	deps: DeleteCommentDeps,
+): Effect.Effect<{ data: { id: string }; txid: number }, unknown> =>
+	Effect.fn("Domain.activity.deleteComment")(function* () {
+		const scope = yield* Effect.tryPromise(() =>
+			deps.tickets.resolve(deps.org, deps.ticketId, deps.actor),
+		);
+		if (!scope) throw new DomainNotFound();
+		if (!scope.canUpdate || !scope.canView) throw new DomainForbidden();
+		const result = yield* Effect.tryPromise({
+			try: () =>
+				sql.begin(
+					async (
+						tx,
+					): Promise<{ data: { id: string }; txid: number }> => {
+						const rows = (await tx`
+              SELECT user_id, external_source, updated_at FROM comment
+              WHERE id = ${deps.commentId}
+                AND org_id = ${deps.org}
+                AND ticket_id = ${deps.ticketId}
+              FOR UPDATE`) as unknown as {
+							user_id: string | null;
+							external_source: string | null;
+							updated_at: Date;
+						}[];
+						const stored = rows[0];
+						if (!stored) throw new DomainNotFound();
+						if (
+							stored.user_id !== deps.actor.userId ||
+							immutableForLocalAuthor(stored)
+						)
+							throw new DomainForbidden();
+						if (
+							stored.updated_at.getTime() !==
+							deps.expectedUpdatedAt.getTime()
+						)
+							throw new DomainConflict("StaleWrite");
+						await tx`DELETE FROM comment WHERE id = ${deps.commentId}`;
+						await tx`DELETE FROM activity_projection
+              WHERE org_id = ${deps.org} AND id = ${deps.commentId}`;
+						const { txidText } = await appendEventInTx(
+							tx,
+							deps.org,
+							deps.actor.userId,
+							ACTIVITY_EVENT_TYPES.commentDeleted,
+							JSON.stringify({
+								id: deps.commentId,
+								ticketId: deps.ticketId,
+								boardId: scope.boardId,
+								userId: deps.actor.userId,
+								origin: "live",
+							}),
+						);
+						return {
+							data: { id: deps.commentId },
+							txid: safeTxid(txidText),
+						};
+					},
+				),
+			catch: (cause) => cause,
+		});
+		return result;
+	})();
