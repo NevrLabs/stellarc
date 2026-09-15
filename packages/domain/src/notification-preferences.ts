@@ -11,6 +11,7 @@ import {
 	DomainNotFound,
 	DomainValidation,
 	NOTIFICATION_EVENT_TYPES,
+	newId,
 } from "./activity-events";
 import {
 	makeNotificationSecrets,
@@ -338,13 +339,13 @@ export const updatePreferences = (
               WHERE user_id=${userId}`;
 						} else {
 							await tx`INSERT INTO user_notification_preference
-                (user_id, email_enabled, ntfy_enabled, ntfy_server_url, ntfy_topic,
+                (id, user_id, email_enabled, ntfy_enabled, ntfy_server_url, ntfy_topic,
                  ntfy_token, gotify_enabled, gotify_server_url, gotify_token,
                  webhook_enabled, webhook_url, webhook_secret,
                  task_assignment_enabled, task_comment_enabled,
                  task_status_change_enabled, due_date_reminder_enabled,
                  due_date_reminder_lead_time_minutes, created_at, updated_at)
-              VALUES (${userId}, ${next.emailEnabled}, ${next.ntfyEnabled},
+              VALUES (${userId}, ${userId}, ${next.emailEnabled}, ${next.ntfyEnabled},
                 ${next.ntfyServerUrl}, ${next.ntfyTopic}, ${next.ntfyToken},
                 ${next.gotifyEnabled}, ${next.gotifyServerUrl}, ${next.gotifyToken},
                 ${next.webhookEnabled}, ${next.webhookUrl}, ${next.webhookSecret},
@@ -364,12 +365,23 @@ export const updatePreferences = (
 						if (!next.webhookEnabled || !next.webhookUrl)
 							cascade.webhook_enabled = false;
 						if (Object.keys(cascade).length > 0) {
-							const sets = Object.entries(cascade)
-								.map(([col, val]) => `${col}=${val}`)
-								.join(", ");
-							await tx`UPDATE user_notification_org_rule SET ${sql.raw(sets)}, updated_at=${now}
-                WHERE user_id=${userId} AND is_active=true AND (
-                  email_enabled=true OR ntfy_enabled=true OR gotify_enabled=true OR webhook_enabled=true)`;
+							// Fixed column set — key presence means "cascade this channel".
+							const e = "email_enabled" in cascade;
+							const n = "ntfy_enabled" in cascade;
+							const g = "gotify_enabled" in cascade;
+							const w = "webhook_enabled" in cascade;
+							if (e)
+								await tx`UPDATE user_notification_org_rule SET email_enabled=false, updated_at=${now}
+                  WHERE user_id=${userId} AND is_active=true AND email_enabled=true`;
+							if (n)
+								await tx`UPDATE user_notification_org_rule SET ntfy_enabled=false, updated_at=${now}
+                  WHERE user_id=${userId} AND is_active=true AND ntfy_enabled=true`;
+							if (g)
+								await tx`UPDATE user_notification_org_rule SET gotify_enabled=false, updated_at=${now}
+                  WHERE user_id=${userId} AND is_active=true AND gotify_enabled=true`;
+							if (w)
+								await tx`UPDATE user_notification_org_rule SET webhook_enabled=false, updated_at=${now}
+                  WHERE user_id=${userId} AND is_active=true AND webhook_enabled=true`;
 						}
 						const { txidText } = await appendEventInTx(
 							tx,
@@ -457,11 +469,12 @@ export const upsertOrganizationRule = (
 						)
 							throw new DomainValidation("enable webhook globally first");
 						const now = new Date();
+						const ruleId = newId();
 						const rows = await tx<{ id: string }[]>`
               INSERT INTO user_notification_org_rule
-                (user_id, organization_id, is_active, email_enabled, ntfy_enabled,
+                (id, user_id, organization_id, is_active, email_enabled, ntfy_enabled,
                  gotify_enabled, webhook_enabled, board_mode, created_at, updated_at)
-              VALUES (${userId}, ${organizationId}, ${input.isActive},
+              VALUES (${ruleId}, ${userId}, ${organizationId}, ${input.isActive},
                 ${input.emailEnabled}, ${input.ntfyEnabled}, ${input.gotifyEnabled},
                 ${input.webhookEnabled}, ${input.boardMode}, ${now}, ${now})
               ON CONFLICT (user_id, organization_id) DO UPDATE SET
@@ -470,13 +483,12 @@ export const upsertOrganizationRule = (
                 webhook_enabled=EXCLUDED.webhook_enabled, board_mode=EXCLUDED.board_mode,
                 updated_at=EXCLUDED.updated_at
               RETURNING id`;
-						const ruleId = rows[0].id;
 						await tx`DELETE FROM user_notification_org_board WHERE org_rule_id=${ruleId}`;
 						if (input.boardMode === "selected") {
 							for (const boardId of new Set(input.selectedBoardIds ?? [])) {
 								await tx`INSERT INTO user_notification_org_board
-                  (organization_id, org_rule_id, board_id, created_at, updated_at)
-                VALUES (${organizationId}, ${ruleId}, ${boardId}, ${now}, ${now})
+                  (id, organization_id, org_rule_id, board_id, created_at, updated_at)
+                VALUES (${newId()}, ${organizationId}, ${ruleId}, ${boardId}, ${now}, ${now})
                 ON CONFLICT (org_rule_id, board_id) DO NOTHING`;
 							}
 						}

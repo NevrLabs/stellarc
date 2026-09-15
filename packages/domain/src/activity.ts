@@ -276,8 +276,10 @@ export const updateComment = (
 						// editedAt serializes to the contract's ISO string form so
 						// encodeActivityRow's decoder accepts it in-memory too.
 						history.push({
-							content: stored.content ?? "",
-							editedAt: new Date(stored.updated_at).toISOString(),
+							content: String(stored.content ?? ""),
+							// ISO string form: survives JSON to the DB and the
+							// contract decoder (DateFromString) on re-encode.
+							editedAt: new Date(stored.updated_at).toISOString() as unknown as Date,
 							userId: stored.user_id ?? "",
 						});
 						await tx`UPDATE comment
