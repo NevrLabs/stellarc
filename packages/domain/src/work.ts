@@ -580,7 +580,9 @@ export async function setBoardKey(
 				const aliasId = `ka-${crypto.randomUUID()}`;
 				await tx`INSERT INTO board_key_alias (id, organization_id, board_id, key, created_at)
 					VALUES (${aliasId}, ${org}, ${id}, ${board.slug}, now())`;
-				const [alias] = await tx<AnyRow[]>`SELECT * FROM board_key_alias WHERE id = ${aliasId}`;
+				const [alias] = await tx<
+					AnyRow[]
+				>`SELECT * FROM board_key_alias WHERE id = ${aliasId}`;
 				await emit("work:board-key-upserted", {
 					id: aliasId,
 					row: keyAliasPublic(alias),

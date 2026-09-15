@@ -3,15 +3,15 @@ import type { Sql } from "postgres";
 import { STATUS_DEFINITIONS, STATUS_SLUGS } from "./status-taxonomy";
 import {
 	boardPublic,
+	DEFAULT_SEED_STATUSES,
 	flagTypePublic,
 	keyAliasPublic,
 	labelPublic,
 	statusPublic,
+	type Tx,
 	taskFlagPublic,
 	templatePublic,
 	ticketPublic,
-	DEFAULT_SEED_STATUSES,
-	type Tx,
 } from "./work";
 
 /** Per-table digest ledger (STL-15 `identity_import` pattern): reruns compare
@@ -347,21 +347,24 @@ export async function importWork(
 	type Emitter = (tx: Tx, org: string, row: RawRow) => Promise<void>;
 	const EMITTERS: Partial<Record<TableName, Emitter>> = {
 		board: async (tx, org, row) => {
-			const [board] = (await tx`SELECT * FROM "board" WHERE id = ${row.id}`) as never[];
+			const [board] =
+				(await tx`SELECT * FROM "board" WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:board-upserted", {
 				id: String(row.id),
 				row: boardPublic(board as never),
 			});
 		},
 		column: async (tx, org, row) => {
-			const [column] = (await tx`SELECT * FROM "column" WHERE id = ${row.id}`) as never[];
+			const [column] =
+				(await tx`SELECT * FROM "column" WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:status-upserted", {
 				id: String(row.id),
 				row: statusPublic(column as never),
 			});
 		},
 		board_key_alias: async (tx, org, row) => {
-			const [alias] = (await tx`SELECT * FROM board_key_alias WHERE id = ${row.id}`) as never[];
+			const [alias] =
+				(await tx`SELECT * FROM board_key_alias WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:board-key-upserted", {
 				id: String(row.id),
 				row: keyAliasPublic(alias as never),
@@ -376,28 +379,32 @@ export async function importWork(
 			});
 		},
 		label: async (tx, org, row) => {
-			const [label] = (await tx`SELECT * FROM label WHERE id = ${row.id}`) as never[];
+			const [label] =
+				(await tx`SELECT * FROM label WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:label-upserted", {
 				id: String(row.id),
 				row: labelPublic(label as never),
 			});
 		},
 		task_template: async (tx, org, row) => {
-			const [template] = (await tx`SELECT * FROM task_template WHERE id = ${row.id}`) as never[];
+			const [template] =
+				(await tx`SELECT * FROM task_template WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:template-upserted", {
 				id: String(row.id),
 				row: templatePublic(template as never),
 			});
 		},
 		flag_type: async (tx, org, row) => {
-			const [flagType] = (await tx`SELECT * FROM flag_type WHERE id = ${row.id}`) as never[];
+			const [flagType] =
+				(await tx`SELECT * FROM flag_type WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:flag-type-upserted", {
 				id: String(row.id),
 				row: flagTypePublic(flagType as never),
 			});
 		},
 		task_flag: async (tx, org, row) => {
-			const [taskFlag] = (await tx`SELECT * FROM task_flag WHERE id = ${row.id}`) as never[];
+			const [taskFlag] =
+				(await tx`SELECT * FROM task_flag WHERE id = ${row.id}`) as never[];
 			await emit(tx, org, "work:task-flag-upserted", {
 				id: String(row.id),
 				row: taskFlagPublic(taskFlag as never),

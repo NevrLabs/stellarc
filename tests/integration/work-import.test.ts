@@ -296,14 +296,20 @@ test("D2: import upsert events carry {id,row} and decode through the work upcast
 	const { workFixture } = await import("../helpers/work-fixture");
 	const { importWork } = await import("../../packages/domain/src/work-import");
 	const { WorkUpcasterRegistry } = await import(
-		"../../packages/sync/src/work-upcasters",
+		"../../packages/sync/src/work-upcasters"
 	);
 	const fixture = await workFixture();
 	try {
 		const report = await importWork(fixture.sql, "d2-source", {
 			boards: [B],
 			columns: [
-				{ id: "d2-col-1", board_id: "d2-board", name: "Doing", slug: "doing", position: 0 },
+				{
+					id: "d2-col-1",
+					board_id: "d2-board",
+					name: "Doing",
+					slug: "doing",
+					position: 0,
+				},
 			],
 			tasks: [
 				{
@@ -324,7 +330,13 @@ test("D2: import upsert events carry {id,row} and decode through the work upcast
 				},
 			],
 			labels: [
-				{ id: "d2-label-1", name: "d2", color: "#00ff00", source: "kaneo", task_id: "d2-task-1" },
+				{
+					id: "d2-label-1",
+					name: "d2",
+					color: "#00ff00",
+					source: "kaneo",
+					task_id: "d2-task-1",
+				},
 			],
 		});
 		expect(report.aborted).toBe(false);
@@ -353,7 +365,7 @@ test("D2: import upsert events carry {id,row} and decode through the work upcast
 		const ticketUpsert = events.find(
 			(e) => e.plugin_type === "work:ticket-upserted",
 		);
-		expect(ticketUpsert).toBeDefined();
+		if (!ticketUpsert) throw new Error("missing ticket-upserted event");
 		const ticketDecoded = registry.decode(
 			ticketUpsert.plugin_type,
 			ticketUpsert.schema_version,
