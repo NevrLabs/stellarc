@@ -3706,3 +3706,284 @@
 2026-09-14T02:50:09+00:00 fail       STL-31   implement rc=1: forge: STL-31 hit 3 rework cycles — escalate to a human
 2026-09-14T02:51:27+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
 2026-09-14T02:51:41+00:00 start      STL-22   implement
+2026-09-14T02:56:51+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-14T02:57:10+00:00 start      STL-27   implement
+2026-09-14T03:02:13+00:00 start      STL-31   merge
+2026-09-14T03:57:24+00:00 ok         STL-27   implement: dispatched 7ab537e4-afc5-4417-ab02-812cc4482b9c on forge/stl-27-c5 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | STL-27 implement c5 → https://github.com/NevrLabs/stellarc/pull/38 | forge: implement STL-27: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"5-hour usage limit reached
+2026-09-14T03:57:25+00:00 start      STL-31   merge
+2026-09-14T04:07:57+00:00 ok         STL-31   merge: STL-31 MERGED → 5779c556
+2026-09-14T04:10:05+00:00 orphan     STL-22   implement c4 watcher dead → partial
+2026-09-14T04:10:10+00:00 orphan     STL-27   implement c5 watcher dead → partial
+2026-09-14T04:10:10+00:00 orphan     STL-31   merge-gate c watcher dead → fail
+2026-09-14T04:10:10+00:00 orphan     STL-31   merge-gate c watcher dead → fail
+2026-09-14T04:10:20+00:00 sweep      -        archived concluded lane 7ab537e4 (forge implement STL-27 c5)
+2026-09-14T04:10:24+00:00 sweep      -        archived concluded lane 12f21593 (forge implement STL-22 c4)
+2026-09-14T04:10:33+00:00 start      STL-15   implement
+2026-09-14T06:10:23+00:00 ok         STL-15   implement: dispatched 1ffc5d9a-4ddf-49de-bf93-358c6241663f on forge/stl-15-c1 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | STL-15 implement c1 → https://github.com/NevrLabs/stellarc/pull/39 | forge: implement STL-15: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"5-hour usage limit reached
+2026-09-14T06:10:25+00:00 start      STL-16   implement
+2026-09-14T06:12:07+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-14T06:12:08+00:00 start      STL-17   implement
+2026-09-14T08:34:12+00:00 fail       STL-17   implement rc=1: 4/4 CRUD tests green. Committing, then preferences + workflow-rule services with T18–T21 tests. | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-17-c1 && bunx biome check --write packa... | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-17-c1 && python3 - <<'EOF' from pathlib...
+2026-09-14T08:34:13+00:00 start      STL-18   implement
+2026-09-14T08:46:43+00:00 fail       STL-18   implement rc=1: dispatched f014132c-bb18-4e2e-92c2-26db4ca57fd4 on forge/stl-18-c1 (hermes:accept_edits/ocg/deepseek-v4-pro); waiting up to 10800s… | forge: implementer f014132c-bb18-4e2e-92c2-26db4ca57fd4 reported a spec gap — amend .forge/STL-18.spec.md then re-run `forge implement 18`
+2026-09-14T08:46:44+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-14T08:46:44+00:00 throttle   STL-22   implement deferred; 4 heavy in flight
+2026-09-14T08:46:44+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-14T08:48:51+00:00 orphan     STL-15   implement c1 watcher dead → partial
+2026-09-14T08:48:52+00:00 orphan     STL-16   implement c1 watcher dead → partial
+2026-09-14T08:48:58+00:00 orphan     STL-17   implement c1 watcher dead → partial
+2026-09-14T08:49:04+00:00 orphan     STL-18   implement c1 watcher dead → partial
+2026-09-14T08:49:15+00:00 sweep      -        archived concluded lane f014132c (forge implement STL-18 c1)
+2026-09-14T08:49:21+00:00 sweep      -        archived concluded lane 84690ced (forge implement STL-17 c1)
+2026-09-14T08:49:27+00:00 sweep      -        archived concluded lane 1ffc5d9a (forge implement STL-15 c1)
+2026-09-14T08:49:37+00:00 start      STL-15   review
+2026-09-14T09:14:33+00:00 ok         STL-15   review: dispatched dc16c96a-5fa1-4150-8ae6-15d3877506a1; waiting… | STL-15 review c1 → REWORK
+2026-09-14T09:14:35+00:00 start      STL-16   implement
+2026-09-14T10:40:06+00:00 fail       STL-16   implement rc=1: [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-16-c2 && grep -n "pluginId\|plugin_type... | [Thought] Event payload schemas exist. Now find the append helper the services use (how do they write to `event`?) — grep in work.ts for INSERT INTO event: | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-16-c2 && grep -n "INSERT INTO event" pa...
+2026-09-14T10:40:07+00:00 start      STL-17   implement
+2026-09-14T11:07:47+00:00 fail       STL-17   implement rc=1: The createComment wrapper is also async — but wait, the existing tests call `fx.run(createComment(...))`? No — the existing activity-notifications tests import createComment directly from the domain and call `fx.run(createComment(sql, {...}))`. The fixture never exposed createComment before; my new wrappers are async → Promise. | Fix: make the fixture wrappers non-async (return the Effect directly). | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-17-c2 && python3 - <<'EOF' p = "tests/h...
+2026-09-14T11:07:47+00:00 escalate   STL-17   implement — human needed; delete .forge/STL-17.escalation to resume
+2026-09-14T11:07:50+00:00 start      STL-18   implement
+2026-09-14T12:51:46+00:00 fail       STL-18   implement rc=1: Actually wait — brief §5 file manifest says apps/stellarc-api/src/repository-http.ts CREATE ✓; MODIFY apps/stellarc-api/src/main.ts ✓ errors.ts ✓ http.ts (principalHeaders export? not needed) — keep edits minimal. | Let me write errors.ts patch + repository-http.ts + main.ts wiring + test. GO. | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-18-c1 && python3 - <<'EOF' p='apps/stel...
+2026-09-14T12:51:48+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-14T12:51:48+00:00 throttle   STL-22   implement deferred; 4 heavy in flight
+2026-09-14T12:51:48+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-14T12:54:04+00:00 orphan     STL-15   review c1 watcher dead → rework
+2026-09-14T12:54:09+00:00 orphan     STL-16   implement c2 watcher dead → partial
+2026-09-14T12:54:14+00:00 orphan     STL-17   implement c2 watcher dead → partial
+2026-09-14T12:55:23+00:00 orphan     STL-18   implement c1 watcher dead → partial
+2026-09-14T12:55:31+00:00 sweep      -        archived concluded lane 751d76a8 (forge implement STL-18 c1)
+2026-09-14T12:55:36+00:00 sweep      -        archived concluded lane a4c56718 (forge implement STL-17 c2)
+2026-09-14T12:55:40+00:00 sweep      -        archived concluded lane 324a6b95 (forge implement STL-16 c2)
+2026-09-14T12:55:45+00:00 sweep      -        archived concluded lane dc16c96a (forge review STL-15 c1)
+2026-09-14T12:55:49+00:00 sweep      -        archived concluded lane affb3d2c (forge implement STL-16 c1)
+2026-09-14T12:56:18+00:00 start      STL-15   implement
+2026-09-14T14:02:35+00:00 fail       STL-15   implement rc=1: [Edit] /mnt/deepvault/forge-worktrees/stl-15-c2/tests/unit/identity-import-preflight.test.ts | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-15-c2 && python3 - <<'PYEOF' content = ... | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-15-c2 && export PATH="$HOME/.bun/bin:$P...
+2026-09-14T14:02:39+00:00 start      STL-16   implement
+2026-09-14T14:14:08+00:00 fail       STL-16   implement rc=1: dispatched 3f2dfa40-f5d4-4220-b364-bd3b434e2398 on forge/stl-16-c3 (hermes:accept_edits/ocg/glm-5.3); waiting up to 10800s… | forge: command failed (1): gh pr list --head forge/stl-16-c3 --json number,url,isDraft,state -R NevrLabs/stellarc | Post "https://api.github.com/graphql": dial tcp 20.205.243.168:443: i/o timeout
+2026-09-14T14:14:10+00:00 start      STL-18   implement
+2026-09-14T14:42:06+00:00 fail       STL-18   implement rc=1: [Thought] Line 129 = the probe decode with excess keys + onExcessProperty:error still doesn't throw. Why? `decodeEvent("foundation:probe-upserted", 1, payload, options)` → my branch: `if (REPOSITORY_TYPES.has(...))` false → `if pluginType === "foundation:probe-upserted" → this.decode(pluginType, version, payload)` — I FORGOT to forward `options` in decodeEvent's probe branches! Passing options → decode called without them. Fix: forward options in both probe branches. | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-18-c2 && python3 - <<'PYEOF' path = 'pa... | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-18-c2 && export PATH="$HOME/.bun/bin:$P...
+2026-09-14T14:42:06+00:00 escalate   STL-18   implement — human needed; delete .forge/STL-18.escalation to resume
+2026-09-14T14:42:09+00:00 start      STL-21   implement
+2026-09-14T17:27:20+00:00 ok         STL-21   implement: forge: implement STL-21: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implement STL-21: skipping hermes:accept_edits/glm/glm-5.3-flash — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3-flash] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 4s)"}} | forge: implement STL-21: skipping hermes:accept_edits/ocg/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/glm-5.3] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached. Resets
+2026-09-14T17:27:21+00:00 throttle   STL-22   implement deferred; 4 heavy in flight
+2026-09-14T17:27:21+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-14T17:29:27+00:00 orphan     STL-15   implement c2 watcher dead → partial
+2026-09-14T17:29:32+00:00 orphan     STL-16   implement c3 watcher dead → partial
+2026-09-14T17:29:36+00:00 orphan     STL-18   implement c2 watcher dead → partial
+2026-09-14T17:29:42+00:00 orphan     STL-21   implement c1 watcher dead → partial
+2026-09-14T17:29:50+00:00 sweep      -        archived concluded lane 04240053 (forge implement STL-21 c1)
+2026-09-14T17:29:55+00:00 sweep      -        archived concluded lane df36b4fc (forge implement STL-18 c2)
+2026-09-14T17:29:59+00:00 sweep      -        archived concluded lane 3f2dfa40 (forge implement STL-16 c3)
+2026-09-14T17:30:04+00:00 sweep      -        archived concluded lane ade625a3 (forge implement STL-15 c2)
+2026-09-14T17:30:13+00:00 start      STL-15   implement
+2026-09-14T20:05:28+00:00 ok         STL-15   implement: dispatched 85b64819-8aad-4650-ad8e-f68d387bbf5b on forge/stl-15-c3 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-15 implement c3 → https://github.com/NevrLabs/stellarc/pull/42 | forge: implement STL-15: skipping hermes:accept_edits/ocg/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/glm-5.3] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached. Resets
+2026-09-14T20:05:29+00:00 start      STL-16   implement
+2026-09-14T21:25:41+00:00 ok         STL-16   implement: dispatched 66e392ca-3e4c-4dc6-b909-abf5a765ed23 on forge/stl-16-c4 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-16 implement c4 → https://github.com/NevrLabs/stellarc/pull/43
+2026-09-14T21:25:43+00:00 start      STL-21   implement
+2026-09-15T00:28:16+00:00 fail       STL-21   implement rc=1: dispatched 128af756-7309-4b41-96cc-e96269ef855d on forge/stl-21-c1 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | forge: agent 128af756-7309-4b41-96cc-e96269ef855d did not go idle within 10800s — `paseo logs 128af756-7309-4b41-96cc-e96269ef855d | tail`
+2026-09-15T00:28:18+00:00 start      STL-22   implement
+2026-09-15T01:20:13+00:00 ok         STL-22   implement: dispatched 45e3622f-12e2-4b6b-a78b-85e0a89c3085 on forge/stl-22-c1 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | STL-22 implement c5 → https://github.com/NevrLabs/stellarc/pull/32 | forge: implement STL-22: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached
+2026-09-15T01:20:14+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T01:22:23+00:00 orphan     STL-15   implement c3 watcher dead → partial
+2026-09-15T01:22:29+00:00 orphan     STL-16   implement c4 watcher dead → partial
+2026-09-15T01:22:36+00:00 orphan     STL-21   implement c2 watcher dead → partial
+2026-09-15T01:22:43+00:00 orphan     STL-22   implement c5 watcher dead → partial
+2026-09-15T01:22:57+00:00 sweep      -        archived concluded lane 45e3622f (forge implement STL-22 c5 (cont.))
+2026-09-15T01:23:04+00:00 sweep      -        archived concluded lane 128af756 (forge implement STL-21 c2 (cont.))
+2026-09-15T01:23:09+00:00 sweep      -        archived concluded lane 66e392ca (forge implement STL-16 c4)
+2026-09-15T01:23:15+00:00 sweep      -        archived concluded lane 85b64819 (forge implement STL-15 c3)
+2026-09-15T01:23:25+00:00 start      STL-15   review
+2026-09-15T01:34:05+00:00 fail       STL-15   review rc=1: dispatched ff2f8be6-0913-4ba3-964e-8fa1e527edbe; waiting… | forge: reviewer wrote nothing — `paseo logs ff2f8be6-0913-4ba3-964e-8fa1e527edbe`
+2026-09-15T01:34:06+00:00 start      STL-16   review
+2026-09-15T01:44:04+00:00 fail       STL-16   review rc=1: dispatched 8c28455b-5b2a-4256-9205-b00f11ac214a; waiting… | forge: reviewer wrote nothing — `paseo logs 8c28455b-5b2a-4256-9205-b00f11ac214a`
+2026-09-15T01:44:05+00:00 start      STL-21   implement
+2026-09-15T02:25:32+00:00 fail       STL-21   implement rc=1: dispatched 1c7bafd2-c4f2-4c2e-acdf-e73eaa1259df on forge/stl-21-c1 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | forge: implement STL-21: skipping hermes:accept_edits/ocg/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/glm-5.3] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached. Resets | forge: implementer 1c7bafd2-c4f2-4c2e-acdf-e73eaa1259df pushed nothing to forge/stl-21-c1 — cycle wasted
+2026-09-15T02:25:33+00:00 start      STL-22   review
+2026-09-15T02:31:08+00:00 fail       STL-22   review rc=1: dispatched 2efeace0-a036-4054-a379-65ba8ea63ff1; waiting… | forge: reviewer wrote nothing — `paseo logs 2efeace0-a036-4054-a379-65ba8ea63ff1`
+2026-09-15T02:31:10+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T02:33:11+00:00 orphan     STL-15   review c3 watcher dead → fail
+2026-09-15T02:33:11+00:00 orphan     STL-16   review c4 watcher dead → fail
+2026-09-15T02:33:16+00:00 orphan     STL-21   implement c3 watcher dead → partial
+2026-09-15T02:33:16+00:00 orphan     STL-22   review c5 watcher dead → fail
+2026-09-15T02:33:28+00:00 sweep      -        archived concluded lane 2efeace0 (forge review STL-22 c5)
+2026-09-15T02:33:34+00:00 sweep      -        archived concluded lane 1c7bafd2 (forge implement STL-21 c3 (cont.))
+2026-09-15T02:33:39+00:00 sweep      -        archived concluded lane 8c28455b (forge review STL-16 c4)
+2026-09-15T02:33:46+00:00 sweep      -        archived concluded lane ff2f8be6 (forge review STL-15 c3)
+2026-09-15T02:33:56+00:00 start      STL-15   review
+2026-09-15T02:41:19+00:00 fail       STL-15   review rc=1: dispatched 797c8cc8-d427-43a5-a91a-2e2df8eae44a; waiting… | forge: reviewer wrote nothing — `paseo logs 797c8cc8-d427-43a5-a91a-2e2df8eae44a`
+2026-09-15T02:41:19+00:00 escalate   STL-15   review — human needed; delete .forge/STL-15.escalation to resume
+2026-09-15T02:41:22+00:00 start      STL-16   review
+2026-09-15T02:51:10+00:00 fail       STL-16   review rc=1: dispatched 24a517e2-8516-4618-a2a0-ad2a421607df; waiting… | forge: reviewer wrote nothing — `paseo logs 24a517e2-8516-4618-a2a0-ad2a421607df`
+2026-09-15T02:51:10+00:00 escalate   STL-16   review — human needed; delete .forge/STL-16.escalation to resume
+2026-09-15T02:51:12+00:00 start      STL-21   implement
+2026-09-15T05:18:48+00:00 ok         STL-21   implement: dispatched cbefd81b-7434-475e-9b64-729de8e006ee on forge/stl-21-c4 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-21 implement c4 → https://github.com/NevrLabs/stellarc/pull/44
+2026-09-15T05:18:49+00:00 start      STL-22   review
+2026-09-15T05:29:42+00:00 fail       STL-22   review rc=1: dispatched 5fe61d11-4d34-404b-83a4-bce460a40ce7; waiting… | forge: reviewer wrote nothing — `paseo logs 5fe61d11-4d34-404b-83a4-bce460a40ce7`
+2026-09-15T05:29:42+00:00 escalate   STL-22   review — human needed; delete .forge/STL-22.escalation to resume
+2026-09-15T05:29:44+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T05:31:45+00:00 orphan     STL-15   review c3 watcher dead → fail
+2026-09-15T05:31:45+00:00 orphan     STL-16   review c4 watcher dead → fail
+2026-09-15T05:31:51+00:00 orphan     STL-21   implement c4 watcher dead → partial
+2026-09-15T05:31:51+00:00 orphan     STL-22   review c5 watcher dead → fail
+2026-09-15T05:32:04+00:00 sweep      -        archived concluded lane 5fe61d11 (forge review STL-22 c5)
+2026-09-15T05:32:12+00:00 sweep      -        archived concluded lane cbefd81b (forge implement STL-21 c4)
+2026-09-15T05:32:18+00:00 sweep      -        archived concluded lane 24a517e2 (forge review STL-16 c4)
+2026-09-15T05:32:24+00:00 sweep      -        archived concluded lane 797c8cc8 (forge review STL-15 c3)
+2026-09-15T05:32:34+00:00 start      STL-21   review
+2026-09-15T05:39:33+00:00 fail       STL-21   review rc=1: dispatched 08374ac1-382b-4a04-b75b-1f93181e35f6; waiting… | forge: reviewer wrote nothing — `paseo logs 08374ac1-382b-4a04-b75b-1f93181e35f6`
+2026-09-15T05:39:34+00:00 start      STL-27   review
+2026-09-15T05:49:42+00:00 fail       STL-27   review rc=1: dispatched 94d93c29-4ca7-4258-a47c-5342a9fb8d2f; waiting… | forge: reviewer wrote nothing — `paseo logs 94d93c29-4ca7-4258-a47c-5342a9fb8d2f`
+2026-09-15T05:51:44+00:00 orphan     STL-21   review c4 watcher dead → fail
+2026-09-15T05:51:44+00:00 orphan     STL-27   review c5 watcher dead → fail
+2026-09-15T05:51:56+00:00 sweep      -        archived concluded lane 94d93c29 (forge review STL-27 c5)
+2026-09-15T05:52:02+00:00 sweep      -        archived concluded lane 08374ac1 (forge review STL-21 c4)
+2026-09-15T05:52:11+00:00 start      STL-21   review
+2026-09-15T05:54:40+00:00 fail       STL-21   review rc=1: dispatched ced66dfe-5dcb-41bc-ba9b-33d0e158c024; waiting… | forge: reviewer wrote nothing — `paseo logs ced66dfe-5dcb-41bc-ba9b-33d0e158c024`
+2026-09-15T05:54:40+00:00 escalate   STL-21   review — human needed; delete .forge/STL-21.escalation to resume
+2026-09-15T05:54:42+00:00 start      STL-27   review
+2026-09-15T06:04:50+00:00 fail       STL-27   review rc=1: dispatched 3ae3849f-8307-4d71-ab2e-7794d9342b26; waiting… | forge: reviewer wrote nothing — `paseo logs 3ae3849f-8307-4d71-ab2e-7794d9342b26`
+2026-09-15T06:04:50+00:00 escalate   STL-27   review — human needed; delete .forge/STL-27.escalation to resume
+2026-09-15T06:06:53+00:00 orphan     STL-21   review c4 watcher dead → fail
+2026-09-15T06:06:53+00:00 orphan     STL-27   review c5 watcher dead → fail
+2026-09-15T06:07:05+00:00 sweep      -        archived concluded lane 3ae3849f (forge review STL-27 c5)
+2026-09-15T06:07:11+00:00 sweep      -        archived concluded lane ced66dfe (forge review STL-21 c4)
+2026-09-15T06:07:21+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:09:37+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:11:53+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:14:11+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:16:27+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:18:43+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:20:59+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:23:14+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:25:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:27:50+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:30:05+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:32:23+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:34:41+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:36:57+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:39:14+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:41:31+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:43:48+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:46:03+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:48:19+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:50:37+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:52:54+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:55:10+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:57:26+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T06:59:43+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:02:02+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:04:23+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:06:43+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:09:03+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:11:19+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:13:35+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:15:52+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:18:08+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:20:28+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:22:44+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:25:01+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:27:17+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:29:32+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:31:48+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:34:03+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:36:19+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:38:36+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:40:54+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:43:12+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:45:30+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:47:46+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:50:02+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:52:19+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:54:35+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:56:52+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T07:59:09+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:01:25+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:03:41+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:05:58+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:08:15+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:10:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:12:49+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:15:05+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:17:22+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:19:39+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:21:55+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:24:12+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:26:29+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:28:46+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:31:03+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:33:19+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:35:36+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:37:52+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:40:09+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:42:26+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:44:44+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:47:01+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:49:17+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:51:34+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:53:51+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:56:08+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T08:58:24+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:00:41+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:02:58+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:05:13+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:07:29+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:09:46+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:12:02+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:14:18+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:16:36+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:18:53+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:21:12+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:23:27+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:25:43+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:27:59+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:30:16+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:32:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:34:52+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:37:08+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:39:24+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:41:42+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:43:58+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:46:14+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:48:31+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:50:48+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:53:05+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:55:22+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:57:38+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T09:59:53+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:02:10+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:04:25+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:06:41+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:08:58+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:11:15+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:13:32+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:15:48+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:18:05+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:20:22+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:22:39+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:24:55+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:27:11+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:29:26+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:31:44+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:34:00+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:36:16+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:38:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:40:49+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:43:07+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:45:23+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:47:39+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:49:56+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:52:13+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:54:30+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:56:47+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T10:59:04+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:01:21+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:03:38+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:05:55+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:08:10+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:10:26+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:12:43+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:14:59+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:17:16+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:19:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T11:21:51+00:00 start      STL-15   review

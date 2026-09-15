@@ -17,7 +17,79 @@
    "status": "pass",
    "at": "2026-09-10T02:45:29+00:00",
    "reason": "orphan running (watcher killed in workspace sweep); spec file present"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-14T08:34:15+00:00",
+   "cycle": 1,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "branch": "forge/stl-18-c1",
+   "pid": 1923203,
+   "agent": "f014132c-bb18-4e2e-92c2-26db4ca57fd4",
+   "head": "",
+   "reason": "orphan running: watcher pid 1923203 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-14T08:46:41+00:00",
+   "agent": "f014132c-bb18-4e2e-92c2-26db4ca57fd4",
+   "cycle": 1,
+   "reason": "implementer reported spec gap"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-14T11:07:50+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-14T11:07:58+00:00",
+   "cycle": 1,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-18-c1",
+   "pid": 1975138,
+   "agent": "751d76a8-873d-49de-bb76-aee14b4dfba7",
+   "head": "",
+   "reason": "orphan running: watcher pid 1975138 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-14T12:51:46+00:00",
+   "agent": "751d76a8-873d-49de-bb76-aee14b4dfba7",
+   "cycle": 1,
+   "reason": "no PR opened"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-14T14:14:12+00:00",
+   "cycle": 2,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-18-c2",
+   "pid": 2015147,
+   "agent": "df36b4fc-5459-49da-bce2-584e452cfc2c",
+   "head": "",
+   "reason": "orphan running: watcher pid 2015147 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-14T14:42:06+00:00",
+   "agent": "df36b4fc-5459-49da-bce2-584e452cfc2c",
+   "cycle": 2,
+   "reason": "no PR opened"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-15T11:40:00+00:00",
+   "note": "blocker-c1 answered (A1\u2013A4); T4 depends on T0+T1a only"
   }
  ],
- "cycle": 0
+ "cycle": 2
 }

@@ -23,7 +23,50 @@
    "at": "2026-09-10T02:40:03+00:00",
    "agent": "84c413f2-5f40-40c0-9b44-55132ec2694d",
    "artifact": ".forge/STL-17.spec.md"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-14T06:12:21+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-14T06:12:33+00:00",
+   "cycle": 1,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-17-c1",
+   "pid": 1880356,
+   "agent": "84690ced-e846-4a86-b15d-aaa92b296adb",
+   "head": "",
+   "reason": "orphan running: watcher pid 1880356 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-14T10:40:07+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-14T10:40:10+00:00",
+   "cycle": 2,
+   "model": "hermes:accept_edits/ocg/glm-5.3",
+   "branch": "forge/stl-17-c2",
+   "pid": 1968137,
+   "agent": "a4c56718-bffc-414a-bb4b-7bd9d35aaf90",
+   "head": "e1970663",
+   "reason": "orphan running: watcher pid 1968137 dead, agent idle; reconciled by driver \u2192 partial",
+   "pr": 46
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-15T11:45:00+00:00",
+   "note": "PR #46 opened by orchestrator for pushed c2 work; continue"
   }
  ],
- "cycle": 0
+ "cycle": 2
 }

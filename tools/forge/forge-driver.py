@@ -217,6 +217,9 @@ def next_stage(n):
         return -1
     if last(s, "review") == "rework" and idx("implement", "pass") < idx("review", "rework"): return "implement"
     if last(s, "implement") == "pass": return "review"
+    if last(s, "review") == "blocked":
+        lr = next(x for x in reversed(s["stages"]) if x["stage"] == "review")
+        if "preflight" in str(lr.get("reason", "")): return "review"
     if last(s, "spec") == "pass": return "implement"
     if last(s, "implement") == "blocked":
         li = next(x for x in reversed(s["stages"]) if x["stage"] == "implement")

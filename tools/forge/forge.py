@@ -633,7 +633,17 @@ def _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before):
             s2 = load_state(t); s2["cycle"] = cycle - 1; save_state(t, s2)
             comment(n, c["repo"], f"### forge · implement c{cycle} → **BLOCKED on spec gap**\n\nImplementer stopped rather than invent. Orchestrator must amend `.forge/{t}.spec.md`, then re-run implement.\n\n```\n{btxt[:3000]}\n```")
             die(f"implementer {a} reported a spec gap — amend .forge/{t}.spec.md then re-run `forge implement {n}`")
-        record(t, "implement", "fail", agent=a, cycle=cycle, reason="no PR opened")
+        pushed = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
+        ahead = sh(["git", "rev-list", "--count", f"origin/{c['base']}..{pushed[0]}"], check=False).stdout.strip() if pushed else "0"
+        if pushed and ahead.isdigit() and int(ahead) > 0:
+            sh(["git", "fetch", "-q", "origin", branch], check=False)
+            r = gh(["pr", "create", "--base", c["base"], "--head", branch, "--draft", "--title", f"forge/{t.lower()} c{cycle} (partial, orchestrator-opened)",
+                    "--body", f"Closes #{n}\n\nPARTIAL — implementer pushed {ahead} commit(s) but opened no PR. Continuation cycles land here."], c["repo"], capture=True, check=False)
+            prn = re.search(r"/pull/(\d+)", r.stdout or "")
+            record(t, "implement", "partial", agent=a, cycle=cycle, branch=branch, pr=int(prn.group(1)) if prn else None, head=pushed[0][:8],
+                   reason=f"pushed {ahead} commits, no PR; draft opened by forge")
+        else:
+            record(t, "implement", "fail", agent=a, cycle=cycle, reason="no PR opened, nothing pushed")
         die(f"no PR on {branch}. Salvage: `git -C <worktree> status`; `paseo logs {a} | tail -40`\n{tail}")
     pr = prs[0]
     if pr["isDraft"]:
@@ -670,7 +680,17 @@ def cmd_review(args):
     # Reviewer is chosen to be a DIFFERENT family from whoever implemented this cycle.
     impl_fam = family(impl.get("model") or "")
     reviewers = c["models"]["review"] if isinstance(c["models"]["review"], list) else [c["models"]["review"]]
-    reviewer = next((m for m in reviewers if family(m) != impl_fam), None)
+    candidates = [m for m in reviewers if family(m) != impl_fam]
+    reviewer = pick_model(candidates, "review", t)
+    if reviewer is None and candidates:
+        # every cross-family reviewer is quota-dead. A same-family reviewer beats no review — but flag it in the record and PR.
+        same = pick_model([m for m in reviewers if family(m) == impl_fam], "review", t)
+        if same:
+            print(f"forge: review {t}: no cross-family reviewer answers preflight; using same-family {same} (flagged)", file=sys.stderr)
+            reviewer = same; record(t, "review", "note", note=f"same-family reviewer {same} used: cross-family roster quota-dead")
+        else:
+            record(t, "review", "blocked", cycle=cycle, reason="every reviewer failed preflight (quota/upstream); retry next tick")
+            raise SystemExit(f"forge: review {t}: no reviewer model available")
     if reviewer is None:
         die(f"no reviewer in {reviewers} is a different family from implementer {impl['model']} — refusing (rubber-stamp risk)")
     pr = json.loads(gh(["pr", "view", str(impl["pr"]), "--json", "number,url,headRefName"], c["repo"]).stdout)

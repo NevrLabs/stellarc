@@ -163,6 +163,46 @@
    "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
    "pid": 1808981,
    "reason": "orphan running: watcher pid 1808981 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "fail",
+   "at": "2026-09-14T03:08:11+00:00",
+   "pr": 37,
+   "sha": "65ea06a690f806bc934138fc7518f9662a25e5b1",
+   "pid": 1831042,
+   "reason": "orphan running: watcher pid 1831042 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "fail",
+   "at": "2026-09-14T03:19:16+00:00",
+   "pr": 37,
+   "failed": [
+    "bun test"
+   ],
+   "debris": []
+  },
+  {
+   "stage": "merge-gate",
+   "status": "fail",
+   "at": "2026-09-14T03:57:30+00:00",
+   "pr": 37,
+   "sha": "65ea06a690f806bc934138fc7518f9662a25e5b1",
+   "pid": 1845383,
+   "reason": "orphan running: watcher pid 1845383 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "pass",
+   "at": "2026-09-14T04:07:40+00:00",
+   "pr": 37
+  },
+  {
+   "stage": "merged",
+   "status": "pass",
+   "at": "2026-09-14T04:07:40+00:00",
+   "commit": "5779c5563a6295eb861e6ad65d6c619d1de5efac"
   }
  ],
  "cycle": 4

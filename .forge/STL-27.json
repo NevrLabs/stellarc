@@ -121,7 +121,67 @@
    "status": "pass",
    "at": "2026-09-13T23:03:37+00:00",
    "note": "re-armed for rework"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-14T02:57:11+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-14T02:57:12+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-27-c5",
+   "pid": 1828875,
+   "agent": "7ab537e4-afc5-4417-ab02-812cc4482b9c",
+   "head": "0994c3bf",
+   "reason": "orphan running: watcher pid 1828875 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-14T03:57:01+00:00",
+   "agent": "7ab537e4-afc5-4417-ab02-812cc4482b9c",
+   "cycle": 5,
+   "pr": 38,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/38",
+   "branch": "forge/stl-27-c5"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T05:39:35+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "pid": 2235117,
+   "reason": "orphan running: watcher pid 2235117 dead, agent gone; reconciled by driver \u2192 fail [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T05:49:42+00:00",
+   "agent": "94d93c29-4ca7-4258-a47c-5342a9fb8d2f",
+   "reason": "no review file [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T05:54:43+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "pid": 2238118,
+   "reason": "orphan running: watcher pid 2238118 dead, agent gone; reconciled by driver \u2192 fail [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T06:04:50+00:00",
+   "agent": "3ae3849f-8307-4d71-ab2e-7794d9342b26",
+   "reason": "no review file [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
   }
  ],
- "cycle": 4
+ "cycle": 5
 }

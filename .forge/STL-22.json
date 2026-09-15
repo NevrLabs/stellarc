@@ -120,14 +120,77 @@
   },
   {
    "stage": "implement",
-   "status": "running",
+   "status": "partial",
    "at": "2026-09-14T02:51:43+00:00",
    "cycle": 4,
    "model": "hermes:accept_edits/glm/glm-5.3",
    "branch": "forge/stl-22-c4",
    "pid": 1827878,
-   "agent": "12f21593-7cf9-4333-aafd-346fd313c811"
+   "agent": "12f21593-7cf9-4333-aafd-346fd313c811",
+   "head": "a03bdd62",
+   "reason": "orphan running: watcher pid 1827878 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-15T00:28:19+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-15T00:29:58+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-22-c1",
+   "continues": 4,
+   "pid": 2168074,
+   "agent": "45e3622f-12e2-4b6b-a78b-85e0a89c3085",
+   "head": "5216d005",
+   "reason": "orphan running: watcher pid 2168074 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-15T01:19:47+00:00",
+   "agent": "45e3622f-12e2-4b6b-a78b-85e0a89c3085",
+   "cycle": 5,
+   "pr": 32,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/32",
+   "branch": "forge/stl-22-c1"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T02:25:35+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "pid": 2189675,
+   "reason": "orphan running: watcher pid 2189675 dead, agent gone; reconciled by driver \u2192 fail [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T02:31:08+00:00",
+   "agent": "2efeace0-a036-4054-a379-65ba8ea63ff1",
+   "reason": "no review file [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T05:18:50+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/ocg/deepseek-v4-pro",
+   "pid": 2230782,
+   "reason": "orphan running: watcher pid 2230782 dead, agent gone; reconciled by driver \u2192 fail [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-15T05:29:41+00:00",
+   "agent": "5fe61d11-4d34-404b-83a4-bce460a40ce7",
+   "reason": "no review file [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
   }
  ],
- "cycle": 4
+ "cycle": 5
 }
