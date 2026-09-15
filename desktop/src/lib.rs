@@ -48,7 +48,10 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             log_event("startup");
-            probe_health();
+            // The readiness line is best-effort (spec §3): probe off-thread so
+            // an unreachable/slow API origin (e.g. DNS stall in a CI sandbox)
+            // can never delay window creation — c5's smoke timeout proved it.
+            std::thread::spawn(probe_health);
 
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Stellarc")

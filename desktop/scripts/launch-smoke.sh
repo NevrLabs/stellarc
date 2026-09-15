@@ -68,7 +68,8 @@ while :; do
 	sleep 1
 done
 
-deadline=$((SECONDS + 30))
+# WebKitGTK first init under xvfb (software GL) can be slow; 60s is ample.
+deadline=$((SECONDS + 60))
 created=0
 while ((SECONDS < deadline)); do
 	if grep -q "event=window-created" "$log"; then
@@ -97,6 +98,7 @@ fi
 
 # SIGTERM must terminate the app cleanly (no SIGKILL fallback needed). This is
 # the APP pid — not the xvfb-run wrapper (that is the D4 defect).
+clean_exit=0
 kill -TERM "$app_pid"
 for _ in $(seq 1 10); do
 	if ! kill -0 "$app_pid" 2>/dev/null; then
