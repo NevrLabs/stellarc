@@ -47,7 +47,7 @@ export const api = Effect.gen(function* () {
 		secret: Redacted.value(authConfig.authSecret),
 		baseURL: authConfig.publicOrigin,
 	});
-	const authHandler = makeAuthHandler(auth);
+	const authHandler = makeAuthHandler(auth, authConfig.publicOrigin);
 	const identityRoutes = identityHandler(sql, auth);
 	const dispatch = (request: Request): Promise<Response> => {
 		const path = new URL(request.url).pathname;

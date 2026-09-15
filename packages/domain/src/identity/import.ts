@@ -13,6 +13,29 @@ export function fixtureSourceId(name: string): string {
 	return `fixture:${name}`;
 }
 
+/** Normalize a value for comparison: timestamps compare in their PG text
+ * form (the staged snapshot read them ::text); bytea compares as raw bytes
+ * on both sides; booleans/integers as canonical strings. */
+function comparePart(value: unknown): string | Buffer {
+	if (value === null || value === undefined) return "null";
+	if (Buffer.isBuffer(value)) return value;
+	if (value instanceof Date)
+		return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")} ${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}:${String(value.getSeconds()).padStart(2, "0")}`;
+	if (typeof value === "boolean") return value ? "true" : "false";
+	return String(value);
+}
+
+function compareDigest(parts: unknown[]): string {
+	const hash = createHash("sha256");
+	for (const part of parts) {
+		const norm = comparePart(part);
+		if (Buffer.isBuffer(norm)) hash.update(norm);
+		else hash.update(norm);
+		hash.update("\x1f");
+	}
+	return hash.digest("hex");
+}
+
 /** Canonical all-column representation: null stays the string "null", bytea
  * enters the hash as raw bytes, timestamps as their driver text form. */
 function canonicalDigest(parts: unknown[]): string {
@@ -471,16 +494,20 @@ export async function importIdentity(
 		bytea?: string[];
 	}> = [];
 	for (const entry of TABLES) {
-		const textCols = entry.columns
-			.map((c) => `${quoteIdent(c)}::text`)
+		// TYPED READS: keep native driver types; only bytea reads as hex
+		// text (decoded before rebinding). The D8 verification hashes both
+		// sides on this same typed basis.
+		const selectCols = entry.columns
+			.map((c) =>
+				entry.bytea?.includes(c) ? `${quoteIdent(c)}::text` : quoteIdent(c),
+			)
 			.join(",");
 		const order = entry.pass === 2 ? "id" : entry.pk;
 		const objectRows = (await source.unsafe(
-			`SELECT ${textCols} FROM ${quoteIdent(entry.name)} ORDER BY ${order}`,
-		)) as Array<Record<string, string | null>>;
-		const rows: unknown[][] = objectRows.map(
-			(obj: Record<string, string | null>) =>
-				entry.columns.map((c) => obj[c] ?? null),
+			`SELECT ${selectCols} FROM ${quoteIdent(entry.name)} ORDER BY ${order}`,
+		)) as Array<Record<string, unknown>>;
+		const rows: unknown[][] = objectRows.map((obj: Record<string, unknown>) =>
+			entry.columns.map((c) => obj[c] ?? null),
 		);
 		tableCounts[entry.name] = (tableCounts[entry.name] ?? 0) + rows.length;
 		const digests: string[] = [];
@@ -522,7 +549,9 @@ export async function importIdentity(
 						AND source_pk = ${String(pkValue)}`;
 				if (existing) {
 					if (existing.digest === digest) {
-						identical++;
+						// D7: identical counts distinct (ledger, pk) pairs once;
+						// the pass-2 backfill never double-counts.
+						if (entry.pass !== 2) identical++;
 						continue;
 					}
 					throw new Error(
@@ -556,8 +585,17 @@ export async function importIdentity(
 				);
 				await tx`INSERT INTO identity_import (source_id, table_name, source_pk, digest)
 					VALUES (${sourceId}, ${ledgerName}, ${String(pkValue)}, ${digest})`;
-				changed++;
-				changedKeys.add(`${ledgerName}\u001f${String(pkValue)}`);
+				// D7: pass-2 backfill shares the team row's ledger identity;
+				// only the first materialization counts as changed.
+				if (entry.pass !== 2) changed++;
+				// D7: the emission loop looks the change up under the pass-1
+				// "team" ledger; record it there for both passes.
+				if (entry.pass === 2) {
+					changedKeys.add(`team\u001f${String(pkValue)}`);
+					changedKeys.add(`team#parent\u001f${String(pkValue)}`);
+				} else {
+					changedKeys.add(`${ledgerName}\u001f${String(pkValue)}`);
+				}
 			}
 		}
 
@@ -749,7 +787,8 @@ export async function importIdentity(
 			for (const entry of staged) {
 				const eventType = TABLE_EVENT[entry.table];
 				if (!eventType) continue;
-				// Pass-1 team rows re-appear in pass 2 (parent backfill): emit once.
+				// Pass-1 team rows re-appear in pass 2 (parent backfill):
+				// pass-2 owns the emission (its ledger key marks the change).
 				if (entry.table === "team" && entry.pass !== 2) continue;
 				for (const row of entry.rows) {
 					const pkValue = String(row[entry.columns.indexOf(entry.pk)]);
@@ -792,16 +831,35 @@ export async function importIdentity(
 								payload: { id: pkValue, row: payloadRow },
 							});
 						}
+					} else if (entry.table === "organization") {
+						// The org row's own id is the event org.
+						push(pkValue, {
+							type: eventType,
+							payload: { id: pkValue, row: payloadRow },
+						});
 					} else if (entry.columns.includes("organization_id")) {
 						push(String(row[entry.columns.indexOf("organization_id")]), {
 							type: eventType,
 							payload: { id: pkValue, row: payloadRow },
 						});
-					} else {
-						// user/team-less rows: key to the single org if exactly one exists
-						const orgs = [...userOrgs.values()][0] ?? [];
-						if (orgs.length > 0)
-							push(orgs[0], {
+					} else if (entry.table === "team_member") {
+						// D6 (review c3): team_member rows key to their team's org,
+						// never an arbitrary first membership org.
+						const teamId = String(
+							row[entry.columns.indexOf("team_id")],
+						);
+						const teamEntry = staged.find(
+							(e) => e.table === "team" && e.pass !== 2,
+						);
+						const teamCols = teamEntry?.columns ?? [];
+						const teamRow = (teamEntry?.rows ?? []).find(
+							(r) => String(r[teamCols.indexOf("id")]) === teamId,
+						);
+						const orgId = teamRow
+							? String(teamRow[teamCols.indexOf("organization_id")])
+							: null;
+						if (orgId)
+							push(orgId, {
 								type: eventType,
 								payload: { id: pkValue, row: payloadRow },
 							});
@@ -868,6 +926,66 @@ export async function importIdentity(
 			for (const [org, list] of eventsByOrg) {
 				await appendEvents(tx, org, "identity-importer", list);
 				eventCount += list.length;
+			}
+		}
+
+		// D8 (review c3): post-apply all-ten-table source/destination
+		// comparison — PK sets AND values (including destination-extras)
+		// before the transaction reports success.
+		for (const tdef of TABLES) {
+			if (tdef.pass === 2) continue;
+			const entry = staged.find(
+				(e) => e.table === tdef.name && e.pass !== 2,
+			);
+			if (!entry) continue;
+			// D8: destination reads use the IDENTICAL typed column list the
+			// staged source snapshot used, so both sides hash on one basis.
+			const selectCols = tdef.columns
+				.map((c) =>
+					tdef.bytea?.includes(c) ? `${quoteIdent(c)}::text` : quoteIdent(c),
+				)
+				.join(",");
+			const destRows = (await tx.unsafe(
+				`SELECT ${selectCols} FROM ${quoteIdent(tdef.name)} ORDER BY ${quoteIdent(tdef.pk)}`,
+			)) as Array<Record<string, unknown>>;
+			const srcPks = new Set(
+				entry.rows.map((r) =>
+					String(r[entry.columns.indexOf(tdef.pk)]),
+				),
+			);
+			const destPks = new Set(
+				destRows.map((r) => String(r[tdef.pk] ?? "")),
+			);
+			if (srcPks.size !== destPks.size)
+				throw new Error(
+						`Identity import verification failed: ${tdef.name} PK set mismatch (source ${srcPks.size} vs destination ${destPks.size})`,
+				);
+			for (const pk of srcPks)
+				if (!destPks.has(pk))
+					throw new Error(
+						`Identity import verification failed: ${tdef.name} missing destination PK`,
+					);
+			for (const pk of destPks)
+				if (!srcPks.has(pk))
+					throw new Error(
+						`Identity import verification failed: ${tdef.name} destination-extra PK`,
+					);
+			const srcDigestByPk = new Map<string, string>();
+			entry.rows.forEach((r, i) => {
+				srcDigestByPk.set(
+					String(r[entry.columns.indexOf(entry.pk)]),
+					entry.digests[i] as string,
+			);
+			});
+			for (const destRow of destRows) {
+				const pk = String(destRow[entry.pk] ?? "");
+				const values = entry.columns.map((c) => destRow[c] ?? null);
+				const destDigest = canonicalDigest(values);
+				const srcDigest = srcDigestByPk.get(pk);
+				if (srcDigest !== undefined && destDigest !== srcDigest)
+					throw new Error(
+						`Identity import verification failed: ${tdef.name} value mismatch at a PK`,
+					);
 			}
 		}
 	});

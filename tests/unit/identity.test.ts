@@ -127,6 +127,33 @@ test("T06 key scope derives exactly one agent principal for reference_id; grants
 	expect(grants.map((g) => g.capability)).toEqual(["board:read", "org:member"]);
 });
 
+test("D8 importer verifies all ten PK sets/values and rejects destination extras", async () => {
+	// Same synthetic source as T23 (reuse the builder inline, minimal rows).
+	const source = await disposablePostgres();
+	resources.push(source.close);
+	await runMigration(source.sql);
+	const s = source.sql;
+	await s`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+		VALUES ('u-d8', 'D8', 'd8@src.test', true, '2025-06-01 10:00:00', '2025-06-01 10:00:00')`;
+	await s`INSERT INTO organization (id, name, slug, repos_enabled, tables_enabled, work_enabled,
+		default_resource_privilege, ai_enabled, ai_default_token_limit, ai_default_character_limit, created_at)
+		VALUES ('o-d8', 'D8 Org', 'd8-org', false, false, false, 'manage', false, 1024, 4000, '2025-06-01 10:00:00')`;
+	await s`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+		VALUES ('om-d8', 'o-d8', 'u-d8', 'owner', '2025-06-01 10:00:00')`;
+	const { importIdentity, fixtureSourceId } = await import(
+		"../../packages/domain/src/identity/import"
+	);
+	// Destination carries an EXTRA user row the source does not have.
+	await ctx.sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+		VALUES ('u-extra', 'Extra', 'extra@dest.test', true, '2025-06-01 10:00:00', '2025-06-01 10:00:00')`;
+	await expect(
+		importIdentity(s, ctx.sql, fixtureSourceId("d8")),
+	).rejects.toThrow(/verification failed/);
+	// The whole transaction aborted: no ledger rows landed.
+	const ledger = await ctx.sql`SELECT count(*)::int AS n FROM identity_import`;
+	expect(Number(ledger[0]?.n)).toBe(0);
+});
+
 test("T23 identityImporter: FK-order import, exact all-column preservation, ledger + idempotence", async () => {
 	// Build a synthetic source cluster with the same 0002 schema and seed every
 	// one of the ten imported tables, including edge rows (nullable everything,

@@ -9,11 +9,7 @@ const ALLOWED = new Set<string>([
 	"POST /api/auth/sign-out",
 ]);
 
-const CORS_HEADERS: Record<string, string> = {
-	"access-control-allow-origin": "http://127.0.0.1:4173",
-	"access-control-allow-credentials": "true",
-	"cache-control": "no-store",
-};
+
 
 export interface AuthLike {
 	handler:
@@ -22,7 +18,17 @@ export interface AuthLike {
 		| { fetch: (request: Request) => Promise<Response> };
 }
 
-export function makeAuthHandler(auth: AuthLike) {
+export function makeAuthHandler(
+	auth: AuthLike,
+	// D5 (review c3): production derives CORS from AuthConfig.publicOrigin —
+	// cookie credentials only for configured origins, never a test URL.
+	origin = "http://127.0.0.1:3000",
+) {
+	const corsHeaders: Record<string, string> = {
+		"access-control-allow-origin": origin,
+		"access-control-allow-credentials": "true",
+		"cache-control": "no-store",
+	};
 	return async (request: Request): Promise<Response> => {
 		const url = new URL(request.url);
 		const route = `${request.method} ${url.pathname}`;
@@ -32,7 +38,7 @@ export function makeAuthHandler(auth: AuthLike) {
 			return new Response(null, {
 				status: 204,
 				headers: {
-					...CORS_HEADERS,
+					...corsHeaders,
 					"access-control-allow-methods": "GET,POST,PATCH,DELETE",
 					"access-control-allow-headers": "content-type,x-api-key",
 				},
@@ -40,7 +46,7 @@ export function makeAuthHandler(auth: AuthLike) {
 		if (!ALLOWED.has(route))
 			return Response.json(
 				{ _tag: "NotFound" },
-				{ status: 404, headers: CORS_HEADERS },
+				{ status: 404, headers: corsHeaders },
 			);
 		try {
 			const handler = await auth.handler;
@@ -48,7 +54,7 @@ export function makeAuthHandler(auth: AuthLike) {
 				? handler
 				: handler.fetch.bind(handler))(request);
 			const headers = new Headers(response.headers);
-			for (const [key, value] of Object.entries(CORS_HEADERS))
+			for (const [key, value] of Object.entries(corsHeaders))
 				headers.set(key, value);
 			return new Response(response.body, {
 				status: response.status,
@@ -59,7 +65,7 @@ export function makeAuthHandler(auth: AuthLike) {
 			// layer around the handler records the failure span instead.
 			return Response.json(
 				{ _tag: "Unavailable" },
-				{ status: 503, headers: CORS_HEADERS },
+				{ status: 503, headers: corsHeaders },
 			);
 		}
 	};
