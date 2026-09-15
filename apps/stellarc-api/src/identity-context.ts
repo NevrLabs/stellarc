@@ -10,6 +10,10 @@ export interface RequestContext {
 	readonly kind: "human" | "agent";
 	readonly userId: string;
 	readonly sessionId?: string;
+	/** Agent keys only: the parsed permission ceiling (§2 key ceiling). */
+	readonly keyCeiling?: Readonly<Record<string, readonly string[]>> | null;
+	/** Agent keys only: the apikey row id (own-key filtering, §3). */
+	readonly apikeyId?: string;
 }
 
 export type AuthResolution =
@@ -74,6 +78,8 @@ export async function resolveRequestContext(
 				principalId: result.principal.id,
 				kind: "agent",
 				userId: result.principal.userId,
+				keyCeiling: result.keyCeiling,
+				apikeyId: result.key.id,
 			},
 		};
 	}

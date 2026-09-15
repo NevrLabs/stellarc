@@ -33,6 +33,8 @@ export interface ApiKeyAuth {
 	};
 	/** Orgs whose membership rows reference the owning user (key scope). */
 	readonly orgIds: readonly string[];
+	/** Parsed permission ceiling (§2: agent capability ∩ ceiling). */
+	readonly keyCeiling: Readonly<Record<string, readonly string[]>> | null;
 }
 
 interface KeyRow {
@@ -47,6 +49,31 @@ interface KeyRow {
 	request_count: number | null;
 	remaining: number | null;
 	last_request?: Date | string | null;
+	refill_interval?: number | null;
+	refill_amount?: number | null;
+	owner_banned?: boolean | null;
+}
+
+function parseCeiling(
+	permissions: string | null,
+): Readonly<Record<string, readonly string[]>> | null {
+	if (permissions === null || permissions === undefined) return null;
+	try {
+		const parsed: unknown = JSON.parse(permissions);
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			const out: Record<string, readonly string[]> = {};
+			for (const [resource, actions] of Object.entries(
+				parsed as Record<string, unknown>,
+			)) {
+				if (!Array.isArray(actions)) continue;
+				out[resource] = actions.filter((a): a is string => typeof a === "string");
+			}
+			return out;
+		}
+		return null;
+	} catch {
+		return null;
+	}
 }
 
 function isExpired(value: Date | string | null, now: Date): boolean {
@@ -69,16 +96,26 @@ export async function authenticateApiKey(
 	if (!rawKey || rawKey.length > 4096) return null;
 	const digest = apiKeyDigest(rawKey);
 	const now = new Date();
-	const rows = await sql<KeyRow[]>`
-		SELECT id, reference_id, permissions, enabled, expires_at,
-			rate_limit_enabled, rate_limit_time_window, rate_limit_max,
-			request_count, remaining
-		FROM apikey WHERE "key" = ${digest} LIMIT 2`;
+	type KeyRowJoined = KeyRow & {
+		owner_banned: boolean | null;
+		refill_interval: number | null;
+		refill_amount: number | null;
+	};
+	const rows = await sql<KeyRowJoined[]>`
+		SELECT k.id, k.reference_id, k.permissions, k.enabled, k.expires_at,
+			k.rate_limit_enabled, k.rate_limit_time_window, k.rate_limit_max,
+			k.request_count, k.remaining, k.refill_interval, k.refill_amount,
+			u.banned AS owner_banned
+		FROM apikey k JOIN "user" u ON u.id = k.reference_id
+		WHERE k."key" = ${digest} LIMIT 2`;
 	if (rows.length !== 1) return null;
 	const key = rows[0];
 	if (!key) return null;
 	if (key.enabled === false) return null;
 	if (isExpired(key.expires_at, now)) return null;
+	// D3 (review c3): banned owners deny the key path just like the session
+	// path — the join makes the owner's ban state visible here.
+	if (key.owner_banned === true) return null;
 
 	const principalId = agentPrincipalId(key.id);
 	let provisioned = false;
@@ -86,9 +123,20 @@ export async function authenticateApiKey(
 		const [ownerExists] =
 			await tx`SELECT 1 FROM "user" WHERE id = ${key.reference_id}`;
 		if (!ownerExists) return;
-		const windowStart = new Date(
-			now.getTime() - (key.rate_limit_time_window ?? 86_400_000),
-		).toISOString();
+		const windowMs = key.rate_limit_time_window ?? 86_400_000;
+		const windowStart = new Date(now.getTime() - windowMs).toISOString();
+		// D3 refill semantics: when refill_interval (seconds) has elapsed
+		// since the last request, refill_amount (when finite) restores
+		// capacity instead of a bare -1 decrement.
+		const refillMs = (key.refill_interval ?? 0) * 1000;
+		const refillDue =
+			key.refill_amount !== null &&
+			key.refill_amount !== undefined &&
+			refillMs > 0;
+		const refillCap =
+			key.rate_limit_max !== null && key.rate_limit_max !== undefined
+				? key.rate_limit_max
+				: null;
 		// Atomic rate gate: the row lock taken by the matched UPDATE serializes
 		// concurrent authentications; a key at its limit updates zero rows and
 		// the caller is denied below (T05, negative control: unlocked increment).
@@ -102,8 +150,15 @@ export async function authenticateApiKey(
 					ELSE request_count + 1 END,
 				remaining = CASE
 					WHEN remaining IS NULL THEN NULL
+					WHEN ${refillDue} AND last_refill_at IS NOT NULL
+						AND last_refill_at < ${new Date(now.getTime() - refillMs).toISOString()} THEN
+						CASE WHEN ${refillCap}::int IS NULL THEN NULL
+							ELSE LEAST(${refillCap}::int, remaining + ${key.refill_amount ?? 0}) END
 					WHEN remaining > 0 THEN remaining - 1
 					ELSE 0 END,
+				last_refill_at = CASE
+					WHEN ${refillDue} AND (last_refill_at IS NULL OR last_refill_at < ${new Date(now.getTime() - refillMs).toISOString()}) THEN ${now.toISOString()}
+					ELSE last_refill_at END,
 				last_request = ${now.toISOString()},
 				updated_at = ${now.toISOString()}
 			WHERE id = ${key.id}
@@ -167,5 +222,6 @@ export async function authenticateApiKey(
 			userId: key.reference_id,
 		},
 		orgIds: orgIds.map((row) => row.organization_id),
+		keyCeiling: parseCeiling(key.permissions),
 	};
 }

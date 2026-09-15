@@ -1,6 +1,28 @@
 import type { Sql } from "postgres";
 import { humanPrincipalId } from "../../../packages/domain/src/identity/auth";
-import { removeMember } from "../../../packages/domain/src/identity/mutations";
+import {
+	effectiveCapabilities,
+	type PrincipalContext,
+} from "../../../packages/domain/src/identity/capabilities";
+import {
+	acceptInvitation,
+	addTeamMember,
+	cancelInvitation,
+	createApiKey,
+	createInvitation,
+	createOrganization,
+	createRole,
+	createTeam,
+	deleteApiKey,
+	deleteRole,
+	deleteTeam,
+	removeMember,
+	removeTeamMember,
+	updateMemberRole,
+	updateOrganization,
+	updateRole,
+	updateTeam,
+} from "../../../packages/domain/src/identity/mutations";
 import { orgRouter } from "../../../packages/domain/src/identity/org-router";
 import { resolveRequestContext, sessionTokenValue } from "./identity-context";
 
@@ -57,6 +79,47 @@ function validId(value: unknown): value is string {
 
 function validName(value: unknown): value is string {
 	return typeof value === "string" && value.length > 0 && value.length <= 256;
+}
+
+// D10: slug is bounded exactly like name (§3 bounded names ≤256).
+const validSlug = validName;
+
+// §3 Permission = Record(nonempty resource, Array(nonempty action)),
+// validated against the pinned vocabulary — unknown capability rejected.
+function validPermission(value: unknown): value is Record<string, string[]> {
+	if (value === null || typeof value !== "object" || Array.isArray(value))
+		return false;
+	const { statement } = require("../../../packages/contracts/src/legacy/permissions");
+	for (const [resource, actions] of Object.entries(
+		value as Record<string, unknown>,
+	)) {
+		if (!resource) return false;
+		if (!Array.isArray(actions) || actions.length === 0) return false;
+		const allowed = (statement as Record<string, readonly string[]>)[resource];
+		if (!allowed) return false;
+		for (const action of actions) {
+			if (typeof action !== "string" || !action) return false;
+			if (!(allowed as readonly string[]).includes(action)) return false;
+		}
+	}
+	return true;
+}
+
+function manageCapability(
+	caps: ReadonlySet<string>,
+	capability: string,
+): Response | null {
+	return caps.has(capability) ? null : errorResponse("Forbidden", 403);
+}
+
+function principalContext(ctx: import("./identity-context").RequestContext): PrincipalContext {
+	return {
+		principalId: ctx.principalId,
+		kind: ctx.kind,
+		userId: ctx.userId,
+		keyCeiling: ctx.keyCeiling,
+		apikeyId: ctx.apikeyId,
+	};
 }
 
 async function readJson(request: Request): Promise<Record<string, unknown>> {
@@ -178,6 +241,69 @@ function teamPublic(row: TeamRow) {
 	};
 }
 
+// --- route table (D9: 405 + Allow on known paths) -------------------------------
+
+const ROUTES: Array<{ method: string; segments: string[] }> = [
+	{ method: "POST", segments: ["active-org"] },
+	{ method: "GET", segments: ["organizations"] },
+	{ method: "POST", segments: ["organizations"] },
+	{ method: "PATCH", segments: ["orgs", ":org"] },
+	{ method: "GET", segments: ["orgs", ":org", "members"] },
+	{ method: "PATCH", segments: ["orgs", ":org", "members", ":id"] },
+	{ method: "DELETE", segments: ["orgs", ":org", "members", ":id"] },
+	{ method: "GET", segments: ["orgs", ":org", "roles"] },
+	{ method: "POST", segments: ["orgs", ":org", "roles"] },
+	{ method: "PATCH", segments: ["orgs", ":org", "roles", ":id"] },
+	{ method: "DELETE", segments: ["orgs", ":org", "roles", ":id"] },
+	{ method: "GET", segments: ["orgs", ":org", "teams"] },
+	{ method: "POST", segments: ["orgs", ":org", "teams"] },
+	{ method: "PATCH", segments: ["orgs", ":org", "teams", ":id"] },
+	{ method: "DELETE", segments: ["orgs", ":org", "teams", ":id"] },
+	{ method: "GET", segments: ["orgs", ":org", "teams", ":id", "members"] },
+	{ method: "POST", segments: ["orgs", ":org", "teams", ":id", "members"] },
+	{ method: "DELETE", segments: ["orgs", ":org", "teams", ":id", "members", ":memberId"] },
+	{ method: "GET", segments: ["orgs", ":org", "invitations"] },
+	{ method: "POST", segments: ["orgs", ":org", "invitations"] },
+	{ method: "POST", segments: ["orgs", ":org", "invitations", ":id", "cancel"] },
+	{ method: "POST", segments: ["invitations", ":id", "accept"] },
+	{ method: "GET", segments: ["orgs", ":org", "apikeys"] },
+	{ method: "POST", segments: ["orgs", ":org", "apikeys"] },
+	{ method: "DELETE", segments: ["orgs", ":org", "apikeys", ":id"] },
+	{ method: "GET", segments: ["users", ":id", "avatar"] },
+];
+
+function matchRoute(segments: string[], method: string): boolean {
+	return ROUTES.some(
+		(r) =>
+			r.method === method &&
+			r.segments.length === segments.length &&
+			r.segments.every(
+				(seg, i) => seg.startsWith(":") || seg === segments[i],
+			),
+	);
+}
+
+function pathKnown(segments: string[]): boolean {
+	return ROUTES.some(
+		(r) =>
+			r.segments.length === segments.length &&
+			r.segments.every(
+				(seg, i) => seg.startsWith(":") || seg === segments[i],
+			),
+	);
+}
+
+function allowHeader(segments: string[]): Record<string, string> {
+	const methods = ROUTES.filter(
+		(r) =>
+			r.segments.length === segments.length &&
+			r.segments.every(
+				(seg, i) => seg.startsWith(":") || seg === segments[i],
+			),
+	).map((r) => r.method);
+	return methods.length > 0 ? { allow: methods.join(", ") } : {};
+}
+
 // --- handler -------------------------------------------------------------------
 
 export function identityHandler(sql: Sql, _auth: AuthLike) {
@@ -235,9 +361,10 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 		// POST /api/identity/organizations
 		if (method("POST", request) && segments.join("/") === "organizations") {
 			const body = await readJson(request);
-			if (!validName(body.name) || typeof body.slug !== "string" || !body.slug)
+			// D10: slug is bounded exactly like name (§3 bounded ≤256).
+			if (!validName(body.name) || !validSlug(body.slug))
 				return errorResponse("ValidationError", 400, {
-					message: "name and slug required",
+					message: "name and slug required (each bounded to 256)",
 				});
 			// Instance admin only (§3): user.role === 'admin' at the instance level.
 			const [user] =
@@ -298,15 +425,29 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 		if (segments[0] === "orgs" && segments.length >= 3) {
 			const orgArg = decodeURIComponent(segments[1] ?? "");
 			if (!validId(orgArg)) return errorResponse("NotFound", 404);
-			// Resolve org + membership first; foreign org = same 404 as absent.
+			// Resolve org + principal capabilities first; foreign org = same
+			// 404 as absent (§3). Authorization is capability-based (D2):
+			// agents never inherit the owner's human membership authority.
 			const [org] = await sql<
 				OrgRow[]
 			>`SELECT * FROM organization WHERE id = ${orgArg} OR slug = ${orgArg}`;
 			if (!org) return errorResponse("NotFound", 404);
-			const [membership] = await sql`
-				SELECT role FROM organization_member WHERE organization_id = ${org.id} AND user_id = ${ctx.userId}`;
-			if (!membership) return errorResponse("NotFound", 404);
+			const caps = await effectiveCapabilities(
+				sql,
+				principalContext(ctx),
+				String(org.id),
+			);
+			if (!caps.has("org:member") && caps.size === 0)
+				return errorResponse("NotFound", 404);
+			if (caps.size === 0) return errorResponse("NotFound", 404);
 			const rest = segments.slice(2);
+			// Guards accept equivalent capability aliases: the fork's key
+			// ceiling vocabulary (organization:manage_members) and the
+			// resource-action form (member:delete) name the same power.
+			const manage = (...capabilities: string[]): Response | null =>
+				capabilities.some((c) => caps.has(c))
+					? null
+					: errorResponse("Forbidden", 403);
 
 			// GET /orgs/:org/members
 			if (method("GET", request) && rest.join("/") === "members") {
@@ -337,21 +478,41 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				);
 			}
 
+			// PATCH /orgs/:org/members/:id (§3 role change)
+			if (
+				method("PATCH", request) &&
+				rest[0] === "members" &&
+				rest.length === 2
+			) {
+				const denied = manage("member:update", "organization:manage_members");
+				if (denied) return denied;
+				const body = await readJson(request);
+				const role = typeof body.role === "string" ? body.role : "";
+				if (!validName(role) || !["owner", "admin", "member", "viewer"].includes(role))
+					return errorResponse("ValidationError", 400, {
+						message: "role must be a known nonempty role",
+					});
+				try {
+					const result = await updateMemberRole(sql, String(org.id), String(rest[1]), role, ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
 			// DELETE /orgs/:org/members/:id
 			if (
 				method("DELETE", request) &&
 				rest[0] === "members" &&
 				rest.length === 2
 			) {
-				const memberId = String(rest[1]);
-				// Only owners/admins may remove members (manage_members capability).
-				if (!["owner", "admin"].includes(String(membership.role)))
-					return errorResponse("Forbidden", 403);
+				const denied = manage("member:delete", "organization:manage_members");
+				if (denied) return denied;
 				try {
 					const result = await removeMember(
 						sql,
-						org.id,
-						memberId,
+						String(org.id),
+						String(rest[1]),
 						ctx.principalId,
 					);
 					return json(result, 200);
@@ -367,6 +528,63 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				return json({ roles: roles.map(rolePublic) }, 200);
 			}
 
+			// POST /orgs/:org/roles
+			if (method("POST", request) && rest.join("/") === "roles") {
+				const denied = manage("organization:manage_settings", "organization:update");
+				if (denied) return denied;
+				const body = await readJson(request);
+				if (!validName(body.role) || !validPermission(body.permission))
+					return errorResponse("ValidationError", 400, {
+						message: "role and permission required",
+					});
+				try {
+					const result = await createRole(sql, String(org.id), {
+						role: String(body.role),
+						permission: body.permission as Record<string, string[]>,
+					}, ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// PATCH /orgs/:org/roles/:id
+			if (
+				method("PATCH", request) &&
+				rest[0] === "roles" &&
+				rest.length === 2
+			) {
+				const denied = manage("organization:manage_settings", "organization:update");
+				if (denied) return denied;
+				const body = await readJson(request);
+				if (!validPermission(body.permission))
+					return errorResponse("ValidationError", 400, {
+						message: "permission required",
+					});
+				try {
+					const result = await updateRole(sql, String(org.id), String(rest[1]), body.permission as Record<string, string[]>, ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// DELETE /orgs/:org/roles/:id
+			if (
+				method("DELETE", request) &&
+				rest[0] === "roles" &&
+				rest.length === 2
+			) {
+				const denied = manage("organization:manage_settings", "organization:update");
+				if (denied) return denied;
+				try {
+					const result = await deleteRole(sql, String(org.id), String(rest[1]), ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
 			// GET /orgs/:org/teams
 			if (method("GET", request) && rest.join("/") === "teams") {
 				const teams = await sql<TeamRow[]>`
@@ -374,10 +592,143 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				return json({ teams: teams.map(teamPublic) }, 200);
 			}
 
+			// POST /orgs/:org/teams
+			if (method("POST", request) && rest.join("/") === "teams") {
+				const denied = manage("team:create");
+				if (denied) return denied;
+				const body = await readJson(request);
+				if (!validName(body.name))
+					return errorResponse("ValidationError", 400, {
+						message: "name required",
+					});
+				if (body.parentTeamId !== undefined && body.parentTeamId !== null && !validId(body.parentTeamId))
+					return errorResponse("ValidationError", 400, { message: "parentTeamId invalid" });
+				if (body.icon !== undefined && body.icon !== null && typeof body.icon !== "string")
+					return errorResponse("ValidationError", 400, { message: "icon invalid" });
+				try {
+					const result = await createTeam(sql, String(org.id), {
+						name: String(body.name),
+						icon: body.icon === undefined ? undefined : (body.icon as string | null),
+						parentTeamId:
+							body.parentTeamId === undefined
+								? undefined
+								: body.parentTeamId === null
+									? null
+									: String(body.parentTeamId),
+					}, ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// PATCH /orgs/:org/teams/:id
+			if (
+				method("PATCH", request) &&
+				rest[0] === "teams" &&
+				rest.length === 2
+			) {
+				const denied = manage("team:update", "organization:manage_members");
+				if (denied) return denied;
+				const body = await readJson(request);
+				if (body.name !== undefined && !validName(body.name))
+					return errorResponse("ValidationError", 400, { message: "name must be nonempty when present" });
+				if (body.parentTeamId !== undefined && body.parentTeamId !== null && !validId(body.parentTeamId))
+					return errorResponse("ValidationError", 400, { message: "parentTeamId invalid" });
+				if (body.icon !== undefined && body.icon !== null && typeof body.icon !== "string")
+					return errorResponse("ValidationError", 400, { message: "icon invalid" });
+				try {
+					const result = await updateTeam(sql, String(org.id), String(rest[1]), {
+						name: body.name === undefined ? undefined : String(body.name),
+						icon: body.icon === undefined ? undefined : (body.icon as string | null),
+						parentTeamId:
+							body.parentTeamId === undefined
+								? undefined
+								: body.parentTeamId === null
+									? null
+									: String(body.parentTeamId),
+					}, ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// DELETE /orgs/:org/teams/:id (reparent children + member deletions in tx)
+			if (
+				method("DELETE", request) &&
+				rest[0] === "teams" &&
+				rest.length === 2
+			) {
+				const denied = manage("team:delete");
+				if (denied) return denied;
+				try {
+					const result = await deleteTeam(sql, String(org.id), String(rest[1]), ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// /orgs/:org/teams/:id/members
+			if (rest[0] === "teams" && rest.length === 3 && rest[2] === "members") {
+				const teamId = String(rest[1]);
+				const [team] = await sql`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${org.id}`;
+				if (!team) return errorResponse("NotFound", 404);
+				if (method("GET", request)) {
+					const rows = await sql`
+						SELECT tm.*, t.organization_id AS team_org FROM team_member tm
+						JOIN team t ON t.id = tm.team_id
+						WHERE tm.team_id = ${teamId} ORDER BY tm.id`;
+					return json(
+						{
+							members: rows.map((row) => ({
+								id: row.id,
+								teamId: row.team_id,
+								userId: row.user_id,
+								createdAt: toIso(row.created_at),
+								organizationId: row.team_org,
+							})),
+						},
+						200,
+					);
+				}
+				if (method("POST", request)) {
+					const denied = manage("team:update", "organization:manage_members");
+					if (denied) return denied;
+					const body = await readJson(request);
+					if (!validId(body.userId))
+						return errorResponse("ValidationError", 400, { message: "userId required" });
+					try {
+						const result = await addTeamMember(sql, String(org.id), teamId, String(body.userId), ctx.principalId);
+						return json(result, 200);
+					} catch (error) {
+						return identityError(error);
+					}
+				}
+			}
+
+			// DELETE /orgs/:org/teams/:id/members/:memberId
+			if (
+				method("DELETE", request) &&
+				rest[0] === "teams" &&
+				rest.length === 4 &&
+				rest[2] === "members"
+			) {
+				const denied = manage("team:update", "organization:manage_members");
+				if (denied) return denied;
+				try {
+					const result = await removeTeamMember(sql, String(org.id), String(rest[1]), String(rest[3]), ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
 			// GET /orgs/:org/invitations (managers only)
 			if (method("GET", request) && rest.join("/") === "invitations") {
-				if (!["owner", "admin"].includes(String(membership.role)))
-					return errorResponse("Forbidden", 403);
+				const denied = manage("invitation:read", "organization:manage_members");
+				if (denied) return denied;
 				const invitations = await sql`
 					SELECT * FROM invitation WHERE organization_id = ${org.id} ORDER BY id`;
 				return json(
@@ -398,15 +749,182 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				);
 			}
 
-			// GET /orgs/:org/apikeys (own keys only)
+			// POST /orgs/:org/invitations
+			if (method("POST", request) && rest.join("/") === "invitations") {
+				const denied = manage("invitation:create", "organization:manage_members");
+				if (denied) return denied;
+				const body = await readJson(request);
+				if (
+					typeof body.email !== "string" ||
+					!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email) ||
+					typeof body.role !== "string" ||
+					!body.role
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "email and role required",
+					});
+				if (body.teamId !== undefined && body.teamId !== null && !validId(body.teamId))
+					return errorResponse("ValidationError", 400, { message: "teamId invalid" });
+				try {
+					const result = await createInvitation(sql, String(org.id), {
+						email: String(body.email),
+						role: String(body.role),
+						teamId:
+							body.teamId === undefined || body.teamId === null
+								? null
+								: String(body.teamId),
+					}, ctx);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// POST /orgs/:org/invitations/:id/cancel
+			if (
+				method("POST", request) &&
+				rest[0] === "invitations" &&
+				rest.length === 3 &&
+				rest[2] === "cancel"
+			) {
+				const denied = manage("invitation:update", "organization:manage_members");
+				if (denied) return denied;
+				try {
+					const result = await cancelInvitation(sql, String(org.id), String(rest[1]), ctx.principalId);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// GET /orgs/:org/apikeys (D1: own keys only, scoped to org — the
+			// owner must hold the org:member structural grant in THIS org;
+			// agents see only their own key).
 			if (method("GET", request) && rest.join("/") === "apikeys") {
 				const keys = await sql`
-					SELECT * FROM apikey WHERE reference_id = ${ctx.userId} ORDER BY id`;
+					SELECT a.* FROM apikey a
+					WHERE a.reference_id = ${ctx.userId}
+					AND EXISTS (
+						SELECT 1 FROM identity_grant g
+						JOIN principal p ON p.id = g.principal_id
+						WHERE g.org_id = ${org.id} AND g.capability = 'org:member'
+						AND p.kind = 'human' AND p.user_id = ${ctx.userId}
+					)
+					${ctx.kind === "agent" ? sql`AND a.id = ${ctx.apikeyId ?? ""}` : sql``}
+					ORDER BY a.id`;
 				return json({ keys: keys.map(apiKeyPublicRow) }, 200);
+			}
+
+			// POST /orgs/:org/apikeys (human session only, §3)
+			if (method("POST", request) && rest.join("/") === "apikeys") {
+				if (ctx.kind !== "human")
+					return errorResponse("Forbidden", 403);
+				const denied = manage("apikey:create");
+				if (denied) return denied;
+				const body = await readJson(request);
+				if (!validName(body.name) || !validPermission(body.permissions))
+					return errorResponse("ValidationError", 400, {
+						message: "name and permissions required",
+					});
+				if (body.expiresAt !== undefined && body.expiresAt !== null && typeof body.expiresAt !== "string")
+					return errorResponse("ValidationError", 400, { message: "expiresAt must be a date string" });
+				try {
+					const result = await createApiKey(sql, String(org.id), {
+						name: String(body.name),
+						permissions: body.permissions as Record<string, string[]>,
+						expiresAt:
+							body.expiresAt === undefined || body.expiresAt === null
+								? null
+								: String(body.expiresAt),
+					}, ctx);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
+			}
+
+			// DELETE /orgs/:org/apikeys/:id (own key only; revokes grants now)
+			if (
+				method("DELETE", request) &&
+				rest[0] === "apikeys" &&
+				rest.length === 2
+			) {
+				const denied = manage("apikey:delete");
+				if (denied) return denied;
+				try {
+					const result = await deleteApiKey(sql, String(org.id), String(rest[1]), ctx);
+					return json(result, 200);
+				} catch (error) {
+					return identityError(error);
+				}
 			}
 		}
 
-		// Unsupported path under /api/identity — 404 (fail closed).
+		// POST /api/identity/invitations/:id/accept (atomic consume)
+		if (
+			method("POST", request) &&
+			segments[0] === "invitations" &&
+			segments.length === 3 &&
+			segments[2] === "accept"
+		) {
+			try {
+				const result = await acceptInvitation(sql, String(segments[1]), ctx);
+				return json(result, 200);
+			} catch (error) {
+				return identityError(error);
+			}
+		}
+
+		// PATCH /api/identity/orgs/:org (slug change instance-admin-only)
+		if (method("PATCH", request) && segments[0] === "orgs" && segments.length === 2) {
+			const orgArg = decodeURIComponent(segments[1] ?? "");
+			if (!validId(orgArg)) return errorResponse("NotFound", 404);
+			const [org] = await sql<OrgRow[]>`SELECT * FROM organization WHERE id = ${orgArg} OR slug = ${orgArg}`;
+			if (!org) return errorResponse("NotFound", 404);
+			const caps = await effectiveCapabilities(sql, principalContext(ctx), String(org.id));
+			if (caps.size === 0) return errorResponse("NotFound", 404);
+			const denied = manageCapability(caps, "organization:update");
+			if (denied) return denied;
+			const body = await readJson(request);
+			const nameOk = body.name === undefined || validName(body.name);
+			const descOk =
+				body.description === undefined ||
+				body.description === null ||
+				typeof body.description === "string";
+			const slugOk = body.slug === undefined || validSlug(body.slug);
+			if (!nameOk || !descOk || !slugOk || (body.name === undefined && body.description === undefined && body.slug === undefined))
+				return errorResponse("ValidationError", 400, {
+					message: "at least one of name, description, slug required",
+				});
+			if (body.slug !== undefined && String(body.slug) !== org.slug) {
+				const [user] = await sql`SELECT role FROM "user" WHERE id = ${ctx.userId}`;
+				if (user?.role !== "admin")
+					return errorResponse("Forbidden", 403);
+			}
+			try {
+				const result = await updateOrganization(sql, String(org.id), {
+					name: body.name === undefined ? undefined : String(body.name),
+					description:
+						body.description === undefined
+							? undefined
+							: body.description === null
+								? null
+								: String(body.description),
+					slug: body.slug === undefined ? undefined : String(body.slug),
+				}, ctx.principalId);
+				return json(result, 200);
+			} catch (error) {
+				return identityError(error);
+			}
+		}
+
+		// D9: known path with an unsupported method is 405 + Allow;
+		// unknown paths stay 404 (fail closed).
+		if (pathKnown(segments))
+			return new Response(null, {
+				status: 405,
+				headers: { ...NO_STORE, ...allowHeader(segments) },
+			});
 		return new Response(null, { status: 404 });
 	};
 }

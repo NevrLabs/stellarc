@@ -46,8 +46,28 @@ async function seed() {
 		VALUES (${ORG}, 'Http Org', 'http-org', false, false, false, 'manage', false, 1024, 4000, '2026-01-01 00:00:00')`;
 	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
 		VALUES ('mem-http-1', ${ORG}, ${USER}, 'owner', '2026-01-01 00:00:00')`;
+	// Structural projection exactly as the importer/org-create provisions it
+	// (§2: human principal + org:member structural grant).
+	await sql`INSERT INTO principal (id, kind, user_id, apikey_id)
+		VALUES ('human:' || ${USER}, 'human', ${USER}, null)
+		ON CONFLICT (id) DO NOTHING`
 	await sql`INSERT INTO organization_role (id, organization_id, role, permission, created_at, updated_at)
 		VALUES ('role-http-viewer', ${ORG}, 'viewer', '{}', '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
+	// Owner capability set (static role caps ∩ structural grant).
+	const ownerCaps = [
+		"org:member",
+		"organization:read", "organization:update", "organization:manage_settings",
+		"organization:manage_connections", "organization:manage_members",
+		"member:read", "member:create", "member:update", "member:delete",
+		"invitation:read", "invitation:create", "invitation:update",
+		"team:read", "team:create", "team:update", "team:delete",
+		"apikey:read", "apikey:create", "apikey:delete",
+	];
+	for (const cap of ownerCaps) {
+		await sql`INSERT INTO identity_grant (org_id, principal_id, capability)
+			VALUES (${ORG}, 'human:' || ${USER}, ${cap})
+			ON CONFLICT DO NOTHING`;
+	}
 }
 
 async function signIn() {
@@ -254,4 +274,153 @@ test("avatar round-trips exact bytes/MIME/length; unrelated user is 404 (T22)", 
 		cookie,
 	);
 	expect(missing.status).toBe(404);
+});
+
+// --- Rework c4: D1/D2/D9/D10 ---------------------------------------------------
+
+const C4_SECRET = "test-secret-do-not-use-in-production-0123456789";
+
+async function seedAgentKey(
+	permissions: string | null,
+	opts: { keyId?: string; banned?: boolean } = {},
+) {
+	const { apiKeyDigest } = await import(
+		"../../packages/domain/src/identity/auth"
+	);
+	const raw = `stl15-agent-raw-${opts.keyId ?? Math.random().toString(36).slice(2)}`;
+	await sql`INSERT INTO apikey (id, config_id, name, reference_id, prefix, "key", permissions, enabled, created_at, updated_at)
+		VALUES (${opts.keyId ?? "key-c4-1"}, 'cfg-c4', 'Agent Key', ${USER}, 'stl15_', ${apiKeyDigest(raw)}, ${permissions}, true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
+	if (opts.banned) {
+		await sql`UPDATE "user" SET banned = true WHERE id = ${USER}`;
+	}
+	return raw;
+}
+
+function agentGet(path: string, rawKey: string) {
+	return handler(
+		new Request(`http://127.0.0.1:4173${path}`, {
+			headers: { "x-api-key": rawKey },
+		}),
+	);
+}
+
+test("D2 agent key with read-only ceiling cannot remove members (no owner authority)", async () => {
+	await seed();
+	await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+		VALUES ('u-http-2', 'Second', 'second@test.invalid', true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
+	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+		VALUES ('mem-http-2', ${ORG}, 'u-http-2', 'member', '2026-01-01 00:00:00')`;
+	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }));
+	const res = await handler(
+		new Request(
+			`http://127.0.0.1:4173/api/identity/orgs/${ORG}/members/mem-http-2`,
+			{ method: "DELETE", headers: { "x-api-key": raw } },
+		),
+	);
+	expect(res.status).toBe(403);
+	expect((await res.json())._tag).toBe("Forbidden");
+	// The member is still there.
+	const rows =
+		await sql`SELECT count(*)::int AS n FROM organization_member WHERE id = 'mem-http-2'`;
+	expect(Number(rows[0]?.n)).toBe(1);
+});
+
+test("D2 agent key with manage_members ceiling CAN remove members; reads work with read ceiling", async () => {
+	await seed();
+	await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+		VALUES ('u-http-2', 'Second', 'second@test.invalid', true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
+	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+		VALUES ('mem-http-2', ${ORG}, 'u-http-2', 'member', '2026-01-01 00:00:00')`;
+	// read ceiling grants the member list
+	const readRaw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), { keyId: "key-c4-read" });
+	const list = await agentGet(`/api/identity/orgs/${ORG}/members`, readRaw);
+	expect(list.status).toBe(200);
+
+	const raw = await seedAgentKey(
+		JSON.stringify({ organization: ["read", "manage_members"] }),
+		{ keyId: "key-c4-mgmt" },
+	);
+	const res = await handler(
+		new Request(
+			`http://127.0.0.1:4173/api/identity/orgs/${ORG}/members/mem-http-2`,
+			{ method: "DELETE", headers: { "x-api-key": raw } },
+		),
+	);
+	expect(res.status).toBe(200);
+	const body = await res.json();
+	expect(body.data.id).toBe("mem-http-2");
+});
+
+test("D2 banned owner denies the agent key path", async () => {
+	await seed();
+	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
+		keyId: "key-c4-ban",
+		banned: true,
+	});
+	const res = await agentGet(`/api/identity/orgs/${ORG}/members`, raw);
+	expect(res.status).toBe(401);
+});
+
+test("D1 apikey listing is org-scoped: agent sees only its own key, and only in orgs it holds grants", async () => {
+	await seed();
+	// second org the owner belongs to
+	await sql`INSERT INTO organization (id, name, slug, repos_enabled, tables_enabled, work_enabled,
+		default_resource_privilege, ai_enabled, ai_default_token_limit, ai_default_character_limit, created_at)
+		VALUES ('org-http-2', 'Other Org', 'other-org', false, false, false, 'manage', false, 1024, 4000, '2026-01-01 00:00:00')`;
+	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+		VALUES ('mem-http-x2', 'org-http-2', ${USER}, 'owner', '2026-01-01 00:00:00')`;
+	// a second key owned by the same user (must NOT appear for the agent)
+	await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
+		keyId: "key-c4-other",
+	});
+	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
+		keyId: "key-c4-self",
+	});
+	// Human sees own keys (both).
+	const cookie = await signIn();
+	const humanList = await get(`/api/identity/orgs/${ORG}/apikeys`, cookie);
+	expect(humanList.status).toBe(200);
+	const humanBody = await humanList.json();
+	expect(humanBody.keys).toHaveLength(2);
+	// Agent sees ONLY its own key (never the owner's other key).
+	const agentList = await agentGet(`/api/identity/orgs/${ORG}/apikeys`, raw);
+	expect(agentList.status).toBe(200);
+	const agentBody = await agentList.json();
+	expect(agentBody.keys).toHaveLength(1);
+	expect(agentBody.keys[0].id).toBe("key-c4-self");
+});
+
+test("D9 unsupported method on a known identity path is 405 with Allow", async () => {
+	await seed();
+	const cookie = await signIn();
+	const res = await handler(
+		new Request(`http://127.0.0.1:4173/api/identity/orgs/${ORG}/members`, {
+			method: "POST",
+			headers: { cookie, "content-type": "application/json" },
+			body: "{}",
+		}),
+	);
+	expect(res.status).toBe(405);
+	expect(res.headers.get("allow")).toBeTruthy();
+	// Unsupported PATH is still 404 (fail closed).
+	const res2 = await get(`/api/identity/orgs/${ORG}/nonexistent`, cookie);
+	expect(res2.status).toBe(404);
+});
+
+test("D10 org slug is bounded to 256 chars on create", async () => {
+	await seed();
+	await sql`UPDATE "user" SET role = 'admin' WHERE id = ${USER}`;
+	const cookie = await signIn();
+	const res = await handler(
+		new Request("http://127.0.0.1:4173/api/identity/organizations", {
+			method: "POST",
+			headers: { cookie, "content-type": "application/json" },
+			body: JSON.stringify({
+				name: "Bound Test",
+				slug: "x".repeat(257),
+			}),
+		}),
+	);
+	expect(res.status).toBe(400);
+	expect((await res.json())._tag).toBe("ValidationError");
 });
