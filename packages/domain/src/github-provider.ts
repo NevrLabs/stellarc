@@ -1,10 +1,4 @@
-import {
-	createCipheriv,
-	createDecipheriv,
-	createHash,
-	hkdfSync,
-	randomBytes,
-} from "node:crypto";
+import { createHash } from "node:crypto";
 import { Context, Effect, Layer } from "effect";
 
 // STL-18 GitHub provider adapter. Normalization is lossless for the mirror
@@ -109,53 +103,21 @@ export function normalizePullRequest(input: PullRequestInput, repo: RepoRef) {
 }
 
 // ---------------------------------------------------------------------------
-// Token encryption (T06). Key material: HKDF-SHA256 over DATABASE_URL with a
-// fixed app salt; per-token random IV; AES-256-GCM with auth tag appended.
-// Ciphertext is prefixed "v1:" and never contains plaintext fragments.
+// Secret storage policy (A3, 2026-09-15): github_user_grant tokens are stored
+// EXACTLY as imported — the fork stores them plaintext today and parity means
+// parity. Encryption is deferred to its own numbered follow-up (STL-xx); the
+// migration marks the columns "-- SECRET: encryption pending STL-xx". The
+// helpers below keep every telemetry/log surface fingerprint-only.
 // ---------------------------------------------------------------------------
 
-export function deriveRepositoryKey(databaseUrl: string, salt: string): Buffer {
-	return Buffer.from(
-		hkdfSync(
-			"sha256",
-			databaseUrl,
-			createHash("sha256").update(salt).digest(),
-			"stellarc/github-user-grant/access_token",
-			32,
-		),
-	);
-}
-
-export function encryptToken(key: Buffer, plaintext: string): string {
-	const iv = randomBytes(12);
-	const cipher = createCipheriv("aes-256-gcm", key, iv);
-	const encrypted = Buffer.concat([
-		cipher.update(plaintext, "utf8"),
-		cipher.final(),
-	]);
-	const tag = cipher.getAuthTag();
-	return `v1:${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
-}
-
-export function decryptToken(key: Buffer, payload: string): string {
-	if (!payload.startsWith("v1:")) throw new Error("Unsupported ciphertext");
-	const [ivPart, tagPart, dataPart] = payload.slice(3).split(":");
-	if (!ivPart || !tagPart || !dataPart) throw new Error("Malformed ciphertext");
-	const decipher = createDecipheriv(
-		"aes-256-gcm",
-		key,
-		Buffer.from(ivPart, "base64"),
-	);
-	decipher.setAuthTag(Buffer.from(tagPart, "base64"));
-	return Buffer.concat([
-		decipher.update(Buffer.from(dataPart, "base64")),
-		decipher.final(),
-	]).toString("utf8");
+/** Identity under the A3 plaintext-parity policy: stored as imported. */
+export function storeGrantToken(token: string): string {
+	return token;
 }
 
 /** Masked fingerprint for logs/telemetry: never the token itself. */
-export function tokenFingerprint(payload: string): string {
-	return createHash("sha256").update(payload).digest("hex").slice(0, 12);
+export function fingerprintToken(token: string): string {
+	return createHash("sha256").update(token).digest("hex").slice(0, 12);
 }
 
 // ---------------------------------------------------------------------------
