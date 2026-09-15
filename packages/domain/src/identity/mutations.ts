@@ -271,15 +271,17 @@ export async function updateMemberRole(
 		}
 		const now = new Date();
 		await tx`UPDATE organization_member SET role = ${role} WHERE id = ${memberId} AND organization_id = ${orgId}`;
-		const [row] = await tx<{
-			id: string;
-			organization_id: string;
-			user_id: string;
-			role: string;
-			ai_token_limit: number | null;
-			ai_character_limit: number | null;
-			joined_at: Date | string;
-		}[]>`SELECT id, organization_id, user_id, role, ai_token_limit, ai_character_limit, joined_at
+		const [row] = await tx<
+			{
+				id: string;
+				organization_id: string;
+				user_id: string;
+				role: string;
+				ai_token_limit: number | null;
+				ai_character_limit: number | null;
+				joined_at: Date | string;
+			}[]
+		>`SELECT id, organization_id, user_id, role, ai_token_limit, ai_character_limit, joined_at
 			FROM organization_member WHERE id = ${memberId}`;
 		const principalId = humanPrincipalId(String(row.user_id));
 		// Owner-grant follows the role change structurally.
@@ -416,7 +418,8 @@ async function assertTeamParentOk(
 	}
 	if (parentTeamId === null || parentTeamId === undefined) return;
 	if (parentTeamId === teamId) throw conflict("TeamCycle");
-	const [parent] = await tx`SELECT id FROM team WHERE id = ${parentTeamId} AND organization_id = ${orgId}`;
+	const [parent] =
+		await tx`SELECT id FROM team WHERE id = ${parentTeamId} AND organization_id = ${orgId}`;
 	if (!parent) throw notFound();
 	// Walk ancestors; a cycle or cross-org escape is rejected (§2).
 	let cursor: string | null = parentTeamId;
@@ -474,14 +477,24 @@ export async function updateTeam(
 ): Promise<MutationResult> {
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
-		const [team] = await tx`SELECT id, name, source, icon, parent_team_id, created_at, updated_at
+		const [team] =
+			await tx`SELECT id, name, source, icon, parent_team_id, created_at, updated_at
 			FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
 		if (!team) throw notFound();
-		await assertTeamParentOk(tx, orgId, teamId, input.parentTeamId !== undefined ? input.parentTeamId : (team.parent_team_id as string | null));
+		await assertTeamParentOk(
+			tx,
+			orgId,
+			teamId,
+			input.parentTeamId !== undefined
+				? input.parentTeamId
+				: (team.parent_team_id as string | null),
+		);
 		const name = input.name ?? team.name;
 		const icon = input.icon !== undefined ? input.icon : team.icon;
 		const parent =
-			input.parentTeamId !== undefined ? input.parentTeamId : team.parent_team_id;
+			input.parentTeamId !== undefined
+				? input.parentTeamId
+				: team.parent_team_id;
 		const now = new Date();
 		await tx`UPDATE team SET name = ${name}, icon = ${icon}, parent_team_id = ${parent}, updated_at = ${now}
 			WHERE id = ${teamId} AND organization_id = ${orgId}`;
@@ -512,7 +525,8 @@ export async function deleteTeam(
 ): Promise<MutationResult> {
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
-		const [team] = await tx`SELECT id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
+		const [team] =
+			await tx`SELECT id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
 		if (!team) throw notFound();
 		// §3: reparented child upserts + removed member deletions in same tx.
 		const children = await tx<{ id: string }[]>`
@@ -522,10 +536,16 @@ export async function deleteTeam(
 		const events: EventInsert[] = [];
 		await tx`UPDATE team SET parent_team_id = NULL WHERE parent_team_id = ${teamId} AND organization_id = ${orgId}`;
 		for (const child of children)
-			events.push({ type: "identity:team-upserted", payload: { id: child.id } });
+			events.push({
+				type: "identity:team-upserted",
+				payload: { id: child.id },
+			});
 		await tx`DELETE FROM team_member WHERE team_id = ${teamId}`;
 		for (const member of members)
-			events.push({ type: "identity:team-member-deleted", payload: { id: member.id } });
+			events.push({
+				type: "identity:team-member-deleted",
+				payload: { id: member.id },
+			});
 		await tx`DELETE FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
 		events.push({ type: "identity:team-deleted", payload: { id: teamId } });
 		const txid = await appendEvents(tx, orgId, actor, events);
@@ -542,11 +562,14 @@ export async function addTeamMember(
 ): Promise<MutationResult> {
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
-		const [team] = await tx`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
+		const [team] =
+			await tx`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
 		if (!team) throw notFound();
-		const [member] = await tx`SELECT 1 FROM organization_member WHERE organization_id = ${orgId} AND user_id = ${userId}`;
+		const [member] =
+			await tx`SELECT 1 FROM organization_member WHERE organization_id = ${orgId} AND user_id = ${userId}`;
 		if (!member) throw notFound();
-		const [dupe] = await tx`SELECT id FROM team_member WHERE team_id = ${teamId} AND user_id = ${userId}`;
+		const [dupe] =
+			await tx`SELECT id FROM team_member WHERE team_id = ${teamId} AND user_id = ${userId}`;
 		if (dupe) throw conflict("Duplicate");
 		const id = newId("tm");
 		const now = new Date();
@@ -555,7 +578,13 @@ export async function addTeamMember(
 			{ type: "identity:team-member-upserted", payload: { id } },
 		]);
 		return {
-			data: { id, teamId, userId, createdAt: now.toISOString(), organizationId: orgId },
+			data: {
+				id,
+				teamId,
+				userId,
+				createdAt: now.toISOString(),
+				organizationId: orgId,
+			},
 			txid,
 		};
 	});
@@ -597,7 +626,8 @@ export async function createInvitation(
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
 		if (input.teamId) {
-			const [team] = await tx`SELECT id FROM team WHERE id = ${input.teamId} AND organization_id = ${orgId}`;
+			const [team] =
+				await tx`SELECT id FROM team WHERE id = ${input.teamId} AND organization_id = ${orgId}`;
 			if (!team) throw notFound();
 		}
 		const id = newId("inv");
@@ -633,7 +663,8 @@ export async function cancelInvitation(
 ): Promise<MutationResult> {
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
-		const [row] = await tx`SELECT id, status FROM invitation WHERE id = ${invitationId} AND organization_id = ${orgId}`;
+		const [row] =
+			await tx`SELECT id, status FROM invitation WHERE id = ${invitationId} AND organization_id = ${orgId}`;
 		if (!row) throw notFound();
 		// §2: invitations change status through upsert, never physical delete.
 		await tx`UPDATE invitation SET status = 'canceled' WHERE id = ${invitationId}`;
@@ -657,7 +688,8 @@ export async function acceptInvitation(
 			RETURNING id, organization_id, email, role, team_id, expires_at, created_at, inviter_id`;
 		const invitation = consumed[0];
 		if (!invitation) {
-			const [anyRow] = await tx`SELECT organization_id FROM invitation WHERE id = ${invitationId}`;
+			const [anyRow] =
+				await tx`SELECT organization_id FROM invitation WHERE id = ${invitationId}`;
 			if (!anyRow) throw notFound();
 			throw conflict("AlreadyAccepted");
 		}
@@ -665,7 +697,8 @@ export async function acceptInvitation(
 		await lockOrg(tx, orgId);
 		// Invitee identity must match the authenticated user's email (§3
 		// authenticated matching invitee).
-		const [invitee] = await tx`SELECT email FROM "user" WHERE id = ${ctx.userId}`;
+		const [invitee] =
+			await tx`SELECT email FROM "user" WHERE id = ${ctx.userId}`;
 		if (!invitee || invitee.email !== invitation.email) {
 			throw forbidden();
 		}
@@ -688,10 +721,20 @@ export async function acceptInvitation(
 		const txid = await appendEvents(tx, orgId, ctx.principalId, [
 			{ type: "identity:member-upserted", payload: { id: memberId } },
 			{ type: "identity:invitation-upserted", payload: { id: invitationId } },
-			{ type: "identity:grant-upserted", payload: { principalId, capability: "org:member" } },
+			{
+				type: "identity:grant-upserted",
+				payload: { principalId, capability: "org:member" },
+			},
 		]);
 		return {
-			data: { id: memberId, organizationId: orgId, userId: ctx.userId, role: invitation.role ?? "member", joinedAt: now.toISOString(), principalId },
+			data: {
+				id: memberId,
+				organizationId: orgId,
+				userId: ctx.userId,
+				role: invitation.role ?? "member",
+				joinedAt: now.toISOString(),
+				principalId,
+			},
 			txid,
 		};
 	});
@@ -705,14 +748,17 @@ export async function updateOrganization(
 ): Promise<MutationResult> {
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
-		const [org] = await tx`SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
+		const [org] =
+			await tx`SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
 		if (!org) throw notFound();
 		if (input.slug !== undefined && input.slug !== org.slug) {
-			const [taken] = await tx`SELECT id FROM organization WHERE (slug = ${input.slug} OR lower(slug) = lower(${input.slug})) AND id <> ${orgId}`;
+			const [taken] =
+				await tx`SELECT id FROM organization WHERE (slug = ${input.slug} OR lower(slug) = lower(${input.slug})) AND id <> ${orgId}`;
 			if (taken) throw conflict("Duplicate");
 		}
 		const name = input.name ?? org.name;
-		const description = input.description !== undefined ? input.description : org.description;
+		const description =
+			input.description !== undefined ? input.description : org.description;
 		const slug = input.slug ?? org.slug;
 		const now = new Date();
 		await tx`UPDATE organization SET name = ${name}, description = ${description}, slug = ${slug} WHERE id = ${orgId}`;
@@ -721,12 +767,21 @@ export async function updateOrganization(
 		]);
 		return {
 			data: {
-				id: orgId, name, slug,
-				logo: null, metadata: null, description,
-				reposEnabled: false, tablesEnabled: false, workEnabled: false,
-				defaultResourcePrivilege: "manage", aiEnabled: false,
-				aiDefaultTokenLimit: 1024, aiDefaultCharacterLimit: 4000,
-				aiProviderBaseUrl: null, aiProviderModel: null,
+				id: orgId,
+				name,
+				slug,
+				logo: null,
+				metadata: null,
+				description,
+				reposEnabled: false,
+				tablesEnabled: false,
+				workEnabled: false,
+				defaultResourcePrivilege: "manage",
+				aiEnabled: false,
+				aiDefaultTokenLimit: 1024,
+				aiDefaultCharacterLimit: 4000,
+				aiProviderBaseUrl: null,
+				aiProviderModel: null,
 				createdAt: toIsoRow(org.created_at),
 			},
 			txid,
@@ -734,14 +789,16 @@ export async function updateOrganization(
 	});
 }
 
-import { apiKeyDigest, agentPrincipalId } from "./auth";
+import { agentPrincipalId, apiKeyDigest } from "./auth";
 
 export async function createApiKey(
 	sql: Sql,
 	orgId: string,
 	input: { name: string; permissions: PermissionMap; expiresAt: string | null },
 	ctx: InvitationContext,
-): Promise<MutationResult & { data: { key: Record<string, unknown>; secret: string } }> {
+): Promise<
+	MutationResult & { data: { key: Record<string, unknown>; secret: string } }
+> {
 	// §3: one-time secret, digest stored, ceiling ≤ issuer capabilities.
 	// The route layer already enforced human-session + apikey:create.
 	const secret = `stellarc_${randomBytes(24).toString("base64url")}`;
@@ -761,19 +818,31 @@ export async function createApiKey(
 			ON CONFLICT (id) DO NOTHING`;
 		const events: EventInsert[] = [
 			{ type: "identity:apikey-upserted", payload: { id: keyId } },
-			{ type: "identity:principal-upserted", payload: { id: principalId, row: { id: principalId, kind: "agent", userId: ctx.userId } } },
+			{
+				type: "identity:principal-upserted",
+				payload: {
+					id: principalId,
+					row: { id: principalId, kind: "agent", userId: ctx.userId },
+				},
+			},
 		];
 		await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
 			VALUES (${orgId}, ${principalId}, 'org:member')
 			ON CONFLICT DO NOTHING`;
-		events.push({ type: "identity:grant-upserted", payload: { principalId, capability: "org:member" } });
+		events.push({
+			type: "identity:grant-upserted",
+			payload: { principalId, capability: "org:member" },
+		});
 		for (const [resource, actions] of Object.entries(input.permissions)) {
 			for (const action of actions) {
 				const cap = `${resource}:${action}`;
 				await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
 					VALUES (${orgId}, ${principalId}, ${cap})
 					ON CONFLICT DO NOTHING`;
-				events.push({ type: "identity:grant-upserted", payload: { principalId, capability: cap } });
+				events.push({
+					type: "identity:grant-upserted",
+					payload: { principalId, capability: cap },
+				});
 			}
 		}
 		const txid = await appendEvents(tx, orgId, ctx.principalId, events);
@@ -817,18 +886,23 @@ export async function deleteApiKey(
 ): Promise<MutationResult> {
 	return sql.begin(async (tx) => {
 		await lockOrg(tx, orgId);
-		const [key] = await tx`SELECT id, reference_id FROM apikey WHERE id = ${keyId}`;
+		const [key] =
+			await tx`SELECT id, reference_id FROM apikey WHERE id = ${keyId}`;
 		if (!key) throw notFound();
 		// Own key only (§3): the owner or the agent itself (same owner).
 		if (key.reference_id !== ctx.userId) throw forbidden();
 		const principalId = agentPrincipalId(keyId);
-		const removed = await tx`DELETE FROM identity_grant WHERE org_id = ${orgId} AND principal_id = ${principalId} RETURNING capability`;
+		const removed =
+			await tx`DELETE FROM identity_grant WHERE org_id = ${orgId} AND principal_id = ${principalId} RETURNING capability`;
 		await tx`DELETE FROM apikey WHERE id = ${keyId}`;
 		const events: EventInsert[] = [
 			{ type: "identity:apikey-deleted", payload: { id: keyId } },
 		];
 		for (const row of removed)
-			events.push({ type: "identity:grant-deleted", payload: { principalId, capability: row.capability } });
+			events.push({
+				type: "identity:grant-deleted",
+				payload: { principalId, capability: row.capability },
+			});
 		const txid = await appendEvents(tx, orgId, ctx.principalId, events);
 		return { data: { id: keyId }, txid };
 	});

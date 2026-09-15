@@ -845,9 +845,7 @@ export async function importIdentity(
 					} else if (entry.table === "team_member") {
 						// D6 (review c3): team_member rows key to their team's org,
 						// never an arbitrary first membership org.
-						const teamId = String(
-							row[entry.columns.indexOf("team_id")],
-						);
+						const teamId = String(row[entry.columns.indexOf("team_id")]);
 						const teamEntry = staged.find(
 							(e) => e.table === "team" && e.pass !== 2,
 						);
@@ -934,9 +932,7 @@ export async function importIdentity(
 		// before the transaction reports success.
 		for (const tdef of TABLES) {
 			if (tdef.pass === 2) continue;
-			const entry = staged.find(
-				(e) => e.table === tdef.name && e.pass !== 2,
-			);
+			const entry = staged.find((e) => e.table === tdef.name && e.pass !== 2);
 			if (!entry) continue;
 			// D8: destination reads use the IDENTICAL typed column list the
 			// staged source snapshot used, so both sides hash on one basis.
@@ -949,16 +945,12 @@ export async function importIdentity(
 				`SELECT ${selectCols} FROM ${quoteIdent(tdef.name)} ORDER BY ${quoteIdent(tdef.pk)}`,
 			)) as Array<Record<string, unknown>>;
 			const srcPks = new Set(
-				entry.rows.map((r) =>
-					String(r[entry.columns.indexOf(tdef.pk)]),
-				),
+				entry.rows.map((r) => String(r[entry.columns.indexOf(tdef.pk)])),
 			);
-			const destPks = new Set(
-				destRows.map((r) => String(r[tdef.pk] ?? "")),
-			);
+			const destPks = new Set(destRows.map((r) => String(r[tdef.pk] ?? "")));
 			if (srcPks.size !== destPks.size)
 				throw new Error(
-						`Identity import verification failed: ${tdef.name} PK set mismatch (source ${srcPks.size} vs destination ${destPks.size})`,
+					`Identity import verification failed: ${tdef.name} PK set mismatch (source ${srcPks.size} vs destination ${destPks.size})`,
 				);
 			for (const pk of srcPks)
 				if (!destPks.has(pk))
@@ -975,7 +967,7 @@ export async function importIdentity(
 				srcDigestByPk.set(
 					String(r[entry.columns.indexOf(entry.pk)]),
 					entry.digests[i] as string,
-			);
+				);
 			});
 			for (const destRow of destRows) {
 				const pk = String(destRow[entry.pk] ?? "");

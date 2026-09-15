@@ -107,15 +107,10 @@ export function parseKeyCeiling(
 async function loadDynamicRoles(
 	sql: Sql,
 	orgId: string,
-): Promise<
-	ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>
-> {
+): Promise<ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>> {
 	const rows = await sql<{ role: string; permission: string }[]>`
 		SELECT role, permission FROM organization_role WHERE organization_id = ${orgId}`;
-	const map = new Map<
-		string,
-		Readonly<Record<string, readonly string[]>>
-	>();
+	const map = new Map<string, Readonly<Record<string, readonly string[]>>>();
 	for (const row of rows) {
 		try {
 			const parsed: unknown = JSON.parse(row.permission);

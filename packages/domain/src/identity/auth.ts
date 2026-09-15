@@ -66,7 +66,9 @@ function parseCeiling(
 				parsed as Record<string, unknown>,
 			)) {
 				if (!Array.isArray(actions)) continue;
-				out[resource] = actions.filter((a): a is string => typeof a === "string");
+				out[resource] = actions.filter(
+					(a): a is string => typeof a === "string",
+				);
 			}
 			return out;
 		}

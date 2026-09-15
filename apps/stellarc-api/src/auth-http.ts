@@ -9,8 +9,6 @@ const ALLOWED = new Set<string>([
 	"POST /api/auth/sign-out",
 ]);
 
-
-
 export interface AuthLike {
 	handler:
 		| ((request: Request) => Promise<Response>)

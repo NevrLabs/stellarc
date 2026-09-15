@@ -50,18 +50,31 @@ async function seed() {
 	// (§2: human principal + org:member structural grant).
 	await sql`INSERT INTO principal (id, kind, user_id, apikey_id)
 		VALUES ('human:' || ${USER}, 'human', ${USER}, null)
-		ON CONFLICT (id) DO NOTHING`
+		ON CONFLICT (id) DO NOTHING`;
 	await sql`INSERT INTO organization_role (id, organization_id, role, permission, created_at, updated_at)
 		VALUES ('role-http-viewer', ${ORG}, 'viewer', '{}', '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
 	// Owner capability set (static role caps ∩ structural grant).
 	const ownerCaps = [
 		"org:member",
-		"organization:read", "organization:update", "organization:manage_settings",
-		"organization:manage_connections", "organization:manage_members",
-		"member:read", "member:create", "member:update", "member:delete",
-		"invitation:read", "invitation:create", "invitation:update",
-		"team:read", "team:create", "team:update", "team:delete",
-		"apikey:read", "apikey:create", "apikey:delete",
+		"organization:read",
+		"organization:update",
+		"organization:manage_settings",
+		"organization:manage_connections",
+		"organization:manage_members",
+		"member:read",
+		"member:create",
+		"member:update",
+		"member:delete",
+		"invitation:read",
+		"invitation:create",
+		"invitation:update",
+		"team:read",
+		"team:create",
+		"team:update",
+		"team:delete",
+		"apikey:read",
+		"apikey:create",
+		"apikey:delete",
 	];
 	for (const cap of ownerCaps) {
 		await sql`INSERT INTO identity_grant (org_id, principal_id, capability)
@@ -332,7 +345,10 @@ test("D2 agent key with manage_members ceiling CAN remove members; reads work wi
 	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
 		VALUES ('mem-http-2', ${ORG}, 'u-http-2', 'member', '2026-01-01 00:00:00')`;
 	// read ceiling grants the member list
-	const readRaw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), { keyId: "key-c4-read" });
+	const readRaw = await seedAgentKey(
+		JSON.stringify({ organization: ["read"] }),
+		{ keyId: "key-c4-read" },
+	);
 	const list = await agentGet(`/api/identity/orgs/${ORG}/members`, readRaw);
 	expect(list.status).toBe(200);
 

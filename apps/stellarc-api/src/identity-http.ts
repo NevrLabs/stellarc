@@ -89,7 +89,9 @@ const validSlug = validName;
 function validPermission(value: unknown): value is Record<string, string[]> {
 	if (value === null || typeof value !== "object" || Array.isArray(value))
 		return false;
-	const { statement } = require("../../../packages/contracts/src/legacy/permissions");
+	const {
+		statement,
+	} = require("../../../packages/contracts/src/legacy/permissions");
 	for (const [resource, actions] of Object.entries(
 		value as Record<string, unknown>,
 	)) {
@@ -112,7 +114,9 @@ function manageCapability(
 	return caps.has(capability) ? null : errorResponse("Forbidden", 403);
 }
 
-function principalContext(ctx: import("./identity-context").RequestContext): PrincipalContext {
+function principalContext(
+	ctx: import("./identity-context").RequestContext,
+): PrincipalContext {
 	return {
 		principalId: ctx.principalId,
 		kind: ctx.kind,
@@ -261,10 +265,16 @@ const ROUTES: Array<{ method: string; segments: string[] }> = [
 	{ method: "DELETE", segments: ["orgs", ":org", "teams", ":id"] },
 	{ method: "GET", segments: ["orgs", ":org", "teams", ":id", "members"] },
 	{ method: "POST", segments: ["orgs", ":org", "teams", ":id", "members"] },
-	{ method: "DELETE", segments: ["orgs", ":org", "teams", ":id", "members", ":memberId"] },
+	{
+		method: "DELETE",
+		segments: ["orgs", ":org", "teams", ":id", "members", ":memberId"],
+	},
 	{ method: "GET", segments: ["orgs", ":org", "invitations"] },
 	{ method: "POST", segments: ["orgs", ":org", "invitations"] },
-	{ method: "POST", segments: ["orgs", ":org", "invitations", ":id", "cancel"] },
+	{
+		method: "POST",
+		segments: ["orgs", ":org", "invitations", ":id", "cancel"],
+	},
 	{ method: "POST", segments: ["invitations", ":id", "accept"] },
 	{ method: "GET", segments: ["orgs", ":org", "apikeys"] },
 	{ method: "POST", segments: ["orgs", ":org", "apikeys"] },
@@ -277,9 +287,7 @@ function matchRoute(segments: string[], method: string): boolean {
 		(r) =>
 			r.method === method &&
 			r.segments.length === segments.length &&
-			r.segments.every(
-				(seg, i) => seg.startsWith(":") || seg === segments[i],
-			),
+			r.segments.every((seg, i) => seg.startsWith(":") || seg === segments[i]),
 	);
 }
 
@@ -287,9 +295,7 @@ function pathKnown(segments: string[]): boolean {
 	return ROUTES.some(
 		(r) =>
 			r.segments.length === segments.length &&
-			r.segments.every(
-				(seg, i) => seg.startsWith(":") || seg === segments[i],
-			),
+			r.segments.every((seg, i) => seg.startsWith(":") || seg === segments[i]),
 	);
 }
 
@@ -297,9 +303,7 @@ function allowHeader(segments: string[]): Record<string, string> {
 	const methods = ROUTES.filter(
 		(r) =>
 			r.segments.length === segments.length &&
-			r.segments.every(
-				(seg, i) => seg.startsWith(":") || seg === segments[i],
-			),
+			r.segments.every((seg, i) => seg.startsWith(":") || seg === segments[i]),
 	).map((r) => r.method);
 	return methods.length > 0 ? { allow: methods.join(", ") } : {};
 }
@@ -488,12 +492,21 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				if (denied) return denied;
 				const body = await readJson(request);
 				const role = typeof body.role === "string" ? body.role : "";
-				if (!validName(role) || !["owner", "admin", "member", "viewer"].includes(role))
+				if (
+					!validName(role) ||
+					!["owner", "admin", "member", "viewer"].includes(role)
+				)
 					return errorResponse("ValidationError", 400, {
 						message: "role must be a known nonempty role",
 					});
 				try {
-					const result = await updateMemberRole(sql, String(org.id), String(rest[1]), role, ctx.principalId);
+					const result = await updateMemberRole(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						role,
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -530,7 +543,10 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 
 			// POST /orgs/:org/roles
 			if (method("POST", request) && rest.join("/") === "roles") {
-				const denied = manage("organization:manage_settings", "organization:update");
+				const denied = manage(
+					"organization:manage_settings",
+					"organization:update",
+				);
 				if (denied) return denied;
 				const body = await readJson(request);
 				if (!validName(body.role) || !validPermission(body.permission))
@@ -538,10 +554,15 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						message: "role and permission required",
 					});
 				try {
-					const result = await createRole(sql, String(org.id), {
-						role: String(body.role),
-						permission: body.permission as Record<string, string[]>,
-					}, ctx.principalId);
+					const result = await createRole(
+						sql,
+						String(org.id),
+						{
+							role: String(body.role),
+							permission: body.permission as Record<string, string[]>,
+						},
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -554,7 +575,10 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				rest[0] === "roles" &&
 				rest.length === 2
 			) {
-				const denied = manage("organization:manage_settings", "organization:update");
+				const denied = manage(
+					"organization:manage_settings",
+					"organization:update",
+				);
 				if (denied) return denied;
 				const body = await readJson(request);
 				if (!validPermission(body.permission))
@@ -562,7 +586,13 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						message: "permission required",
 					});
 				try {
-					const result = await updateRole(sql, String(org.id), String(rest[1]), body.permission as Record<string, string[]>, ctx.principalId);
+					const result = await updateRole(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						body.permission as Record<string, string[]>,
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -575,10 +605,18 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				rest[0] === "roles" &&
 				rest.length === 2
 			) {
-				const denied = manage("organization:manage_settings", "organization:update");
+				const denied = manage(
+					"organization:manage_settings",
+					"organization:update",
+				);
 				if (denied) return denied;
 				try {
-					const result = await deleteRole(sql, String(org.id), String(rest[1]), ctx.principalId);
+					const result = await deleteRole(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -601,21 +639,41 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 					return errorResponse("ValidationError", 400, {
 						message: "name required",
 					});
-				if (body.parentTeamId !== undefined && body.parentTeamId !== null && !validId(body.parentTeamId))
-					return errorResponse("ValidationError", 400, { message: "parentTeamId invalid" });
-				if (body.icon !== undefined && body.icon !== null && typeof body.icon !== "string")
-					return errorResponse("ValidationError", 400, { message: "icon invalid" });
+				if (
+					body.parentTeamId !== undefined &&
+					body.parentTeamId !== null &&
+					!validId(body.parentTeamId)
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "parentTeamId invalid",
+					});
+				if (
+					body.icon !== undefined &&
+					body.icon !== null &&
+					typeof body.icon !== "string"
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "icon invalid",
+					});
 				try {
-					const result = await createTeam(sql, String(org.id), {
-						name: String(body.name),
-						icon: body.icon === undefined ? undefined : (body.icon as string | null),
-						parentTeamId:
-							body.parentTeamId === undefined
-								? undefined
-								: body.parentTeamId === null
-									? null
-									: String(body.parentTeamId),
-					}, ctx.principalId);
+					const result = await createTeam(
+						sql,
+						String(org.id),
+						{
+							name: String(body.name),
+							icon:
+								body.icon === undefined
+									? undefined
+									: (body.icon as string | null),
+							parentTeamId:
+								body.parentTeamId === undefined
+									? undefined
+									: body.parentTeamId === null
+										? null
+										: String(body.parentTeamId),
+						},
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -632,22 +690,45 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				if (denied) return denied;
 				const body = await readJson(request);
 				if (body.name !== undefined && !validName(body.name))
-					return errorResponse("ValidationError", 400, { message: "name must be nonempty when present" });
-				if (body.parentTeamId !== undefined && body.parentTeamId !== null && !validId(body.parentTeamId))
-					return errorResponse("ValidationError", 400, { message: "parentTeamId invalid" });
-				if (body.icon !== undefined && body.icon !== null && typeof body.icon !== "string")
-					return errorResponse("ValidationError", 400, { message: "icon invalid" });
+					return errorResponse("ValidationError", 400, {
+						message: "name must be nonempty when present",
+					});
+				if (
+					body.parentTeamId !== undefined &&
+					body.parentTeamId !== null &&
+					!validId(body.parentTeamId)
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "parentTeamId invalid",
+					});
+				if (
+					body.icon !== undefined &&
+					body.icon !== null &&
+					typeof body.icon !== "string"
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "icon invalid",
+					});
 				try {
-					const result = await updateTeam(sql, String(org.id), String(rest[1]), {
-						name: body.name === undefined ? undefined : String(body.name),
-						icon: body.icon === undefined ? undefined : (body.icon as string | null),
-						parentTeamId:
-							body.parentTeamId === undefined
-								? undefined
-								: body.parentTeamId === null
-									? null
-									: String(body.parentTeamId),
-					}, ctx.principalId);
+					const result = await updateTeam(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						{
+							name: body.name === undefined ? undefined : String(body.name),
+							icon:
+								body.icon === undefined
+									? undefined
+									: (body.icon as string | null),
+							parentTeamId:
+								body.parentTeamId === undefined
+									? undefined
+									: body.parentTeamId === null
+										? null
+										: String(body.parentTeamId),
+						},
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -663,7 +744,12 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				const denied = manage("team:delete");
 				if (denied) return denied;
 				try {
-					const result = await deleteTeam(sql, String(org.id), String(rest[1]), ctx.principalId);
+					const result = await deleteTeam(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -673,7 +759,8 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 			// /orgs/:org/teams/:id/members
 			if (rest[0] === "teams" && rest.length === 3 && rest[2] === "members") {
 				const teamId = String(rest[1]);
-				const [team] = await sql`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${org.id}`;
+				const [team] =
+					await sql`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${org.id}`;
 				if (!team) return errorResponse("NotFound", 404);
 				if (method("GET", request)) {
 					const rows = await sql`
@@ -698,9 +785,17 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 					if (denied) return denied;
 					const body = await readJson(request);
 					if (!validId(body.userId))
-						return errorResponse("ValidationError", 400, { message: "userId required" });
+						return errorResponse("ValidationError", 400, {
+							message: "userId required",
+						});
 					try {
-						const result = await addTeamMember(sql, String(org.id), teamId, String(body.userId), ctx.principalId);
+						const result = await addTeamMember(
+							sql,
+							String(org.id),
+							teamId,
+							String(body.userId),
+							ctx.principalId,
+						);
 						return json(result, 200);
 					} catch (error) {
 						return identityError(error);
@@ -718,7 +813,13 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				const denied = manage("team:update", "organization:manage_members");
 				if (denied) return denied;
 				try {
-					const result = await removeTeamMember(sql, String(org.id), String(rest[1]), String(rest[3]), ctx.principalId);
+					const result = await removeTeamMember(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						String(rest[3]),
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -751,7 +852,10 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 
 			// POST /orgs/:org/invitations
 			if (method("POST", request) && rest.join("/") === "invitations") {
-				const denied = manage("invitation:create", "organization:manage_members");
+				const denied = manage(
+					"invitation:create",
+					"organization:manage_members",
+				);
 				if (denied) return denied;
 				const body = await readJson(request);
 				if (
@@ -763,17 +867,28 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 					return errorResponse("ValidationError", 400, {
 						message: "email and role required",
 					});
-				if (body.teamId !== undefined && body.teamId !== null && !validId(body.teamId))
-					return errorResponse("ValidationError", 400, { message: "teamId invalid" });
+				if (
+					body.teamId !== undefined &&
+					body.teamId !== null &&
+					!validId(body.teamId)
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "teamId invalid",
+					});
 				try {
-					const result = await createInvitation(sql, String(org.id), {
-						email: String(body.email),
-						role: String(body.role),
-						teamId:
-							body.teamId === undefined || body.teamId === null
-								? null
-								: String(body.teamId),
-					}, ctx);
+					const result = await createInvitation(
+						sql,
+						String(org.id),
+						{
+							email: String(body.email),
+							role: String(body.role),
+							teamId:
+								body.teamId === undefined || body.teamId === null
+									? null
+									: String(body.teamId),
+						},
+						ctx,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -787,10 +902,18 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				rest.length === 3 &&
 				rest[2] === "cancel"
 			) {
-				const denied = manage("invitation:update", "organization:manage_members");
+				const denied = manage(
+					"invitation:update",
+					"organization:manage_members",
+				);
 				if (denied) return denied;
 				try {
-					const result = await cancelInvitation(sql, String(org.id), String(rest[1]), ctx.principalId);
+					const result = await cancelInvitation(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						ctx.principalId,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -817,8 +940,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 
 			// POST /orgs/:org/apikeys (human session only, §3)
 			if (method("POST", request) && rest.join("/") === "apikeys") {
-				if (ctx.kind !== "human")
-					return errorResponse("Forbidden", 403);
+				if (ctx.kind !== "human") return errorResponse("Forbidden", 403);
 				const denied = manage("apikey:create");
 				if (denied) return denied;
 				const body = await readJson(request);
@@ -826,17 +948,28 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 					return errorResponse("ValidationError", 400, {
 						message: "name and permissions required",
 					});
-				if (body.expiresAt !== undefined && body.expiresAt !== null && typeof body.expiresAt !== "string")
-					return errorResponse("ValidationError", 400, { message: "expiresAt must be a date string" });
+				if (
+					body.expiresAt !== undefined &&
+					body.expiresAt !== null &&
+					typeof body.expiresAt !== "string"
+				)
+					return errorResponse("ValidationError", 400, {
+						message: "expiresAt must be a date string",
+					});
 				try {
-					const result = await createApiKey(sql, String(org.id), {
-						name: String(body.name),
-						permissions: body.permissions as Record<string, string[]>,
-						expiresAt:
-							body.expiresAt === undefined || body.expiresAt === null
-								? null
-								: String(body.expiresAt),
-					}, ctx);
+					const result = await createApiKey(
+						sql,
+						String(org.id),
+						{
+							name: String(body.name),
+							permissions: body.permissions as Record<string, string[]>,
+							expiresAt:
+								body.expiresAt === undefined || body.expiresAt === null
+									? null
+									: String(body.expiresAt),
+						},
+						ctx,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -852,7 +985,12 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				const denied = manage("apikey:delete");
 				if (denied) return denied;
 				try {
-					const result = await deleteApiKey(sql, String(org.id), String(rest[1]), ctx);
+					const result = await deleteApiKey(
+						sql,
+						String(org.id),
+						String(rest[1]),
+						ctx,
+					);
 					return json(result, 200);
 				} catch (error) {
 					return identityError(error);
@@ -876,12 +1014,22 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 		}
 
 		// PATCH /api/identity/orgs/:org (slug change instance-admin-only)
-		if (method("PATCH", request) && segments[0] === "orgs" && segments.length === 2) {
+		if (
+			method("PATCH", request) &&
+			segments[0] === "orgs" &&
+			segments.length === 2
+		) {
 			const orgArg = decodeURIComponent(segments[1] ?? "");
 			if (!validId(orgArg)) return errorResponse("NotFound", 404);
-			const [org] = await sql<OrgRow[]>`SELECT * FROM organization WHERE id = ${orgArg} OR slug = ${orgArg}`;
+			const [org] = await sql<
+				OrgRow[]
+			>`SELECT * FROM organization WHERE id = ${orgArg} OR slug = ${orgArg}`;
 			if (!org) return errorResponse("NotFound", 404);
-			const caps = await effectiveCapabilities(sql, principalContext(ctx), String(org.id));
+			const caps = await effectiveCapabilities(
+				sql,
+				principalContext(ctx),
+				String(org.id),
+			);
 			if (caps.size === 0) return errorResponse("NotFound", 404);
 			const denied = manageCapability(caps, "organization:update");
 			if (denied) return denied;
@@ -892,26 +1040,38 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				body.description === null ||
 				typeof body.description === "string";
 			const slugOk = body.slug === undefined || validSlug(body.slug);
-			if (!nameOk || !descOk || !slugOk || (body.name === undefined && body.description === undefined && body.slug === undefined))
+			if (
+				!nameOk ||
+				!descOk ||
+				!slugOk ||
+				(body.name === undefined &&
+					body.description === undefined &&
+					body.slug === undefined)
+			)
 				return errorResponse("ValidationError", 400, {
 					message: "at least one of name, description, slug required",
 				});
 			if (body.slug !== undefined && String(body.slug) !== org.slug) {
-				const [user] = await sql`SELECT role FROM "user" WHERE id = ${ctx.userId}`;
-				if (user?.role !== "admin")
-					return errorResponse("Forbidden", 403);
+				const [user] =
+					await sql`SELECT role FROM "user" WHERE id = ${ctx.userId}`;
+				if (user?.role !== "admin") return errorResponse("Forbidden", 403);
 			}
 			try {
-				const result = await updateOrganization(sql, String(org.id), {
-					name: body.name === undefined ? undefined : String(body.name),
-					description:
-						body.description === undefined
-							? undefined
-							: body.description === null
-								? null
-								: String(body.description),
-					slug: body.slug === undefined ? undefined : String(body.slug),
-				}, ctx.principalId);
+				const result = await updateOrganization(
+					sql,
+					String(org.id),
+					{
+						name: body.name === undefined ? undefined : String(body.name),
+						description:
+							body.description === undefined
+								? undefined
+								: body.description === null
+									? null
+									: String(body.description),
+						slug: body.slug === undefined ? undefined : String(body.slug),
+					},
+					ctx.principalId,
+				);
 				return json(result, 200);
 			} catch (error) {
 				return identityError(error);
