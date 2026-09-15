@@ -20,23 +20,75 @@ import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
 
+/**
+ * Per-table wire policy. The engine owns the protocol mechanics (snapshot
+ * boundary, cursors, tails, reconnect, long-poll); a spec owns only what is
+ * table-specific: the snapshot query, the electric schema header and the
+ * event→message mapping. `sync_probe` is the T0 identity of this contract and
+ * its behaviour is byte-identical to the pre-generalization engine.
+ */
+export interface ShapeTableSpec {
+	readonly schema: Record<
+		string,
+		{ type: string; not_null?: boolean; pk_index?: number }
+	>;
+	/** Snapshot rows in wire form (org included), ordered by id, inside the
+	 * engine's repeatable-read transaction. */
+	readonly snapshot: (
+		tx: Parameters<Parameters<Sql["begin"]>[1]>[0],
+		org: string,
+		params: URLSearchParams,
+	) => Promise<Array<Record<string, unknown>>>;
+	/** Map one log event to a table message. Return null when the event
+	 * belongs to another table (the offset still advances — exact-once per
+	 * table is preserved). Throwing means an unsupported schema (503). The
+	 * engine's sql handle is passed so id-only payloads can hydrate the
+	 * committed row through the table's own org predicate. */
+	readonly eventMessage: (
+		event: {
+			seq: string;
+			txid: string;
+			plugin_type: string;
+			payload: unknown;
+			schema_version: number;
+		},
+		org: string,
+		params: URLSearchParams,
+		sql: Sql,
+	) =>
+		| Promise<{
+				id: string;
+				value: Record<string, unknown>;
+				deleted: boolean;
+		  } | null>
+		| { id: string; value: Record<string, unknown>; deleted: boolean }
+		| null;
+	readonly extraParams?: ReadonlySet<string>;
+	readonly requireParams?: readonly string[];
+}
+
 export class ShapeEngine {
 	afterProjectionRead?: () => Promise<void>;
 	private snapshots = new Map<
 		string,
 		{
 			org: string;
-			rows: ProbeRow[];
+			table: string;
+			rows: Array<Record<string, unknown>>;
 			boundary: string;
 			expires: number;
 			cursors: Map<string, string>;
 		}
 	>();
+	private tables = new Map<string, ShapeTableSpec>();
 	constructor(
 		private sql: Sql,
 		private upcasters = new UpcasterRegistry(),
 		private telemetry?: (entry: { org: string; log: string }) => void,
 	) {}
+	registerTable(name: string, spec: ShapeTableSpec) {
+		this.tables.set(name, spec);
+	}
 	shapeEffect = Effect.fn("Sync.shape")(
 		(org: string, url: URL, signal?: AbortSignal) => {
 			const self = this;
@@ -84,6 +136,7 @@ export class ShapeEngine {
 	}
 	private pageEffect(org: string, url: URL) {
 		const offset = url.searchParams.get("offset") ?? "-1";
+		const table = url.searchParams.get("table") ?? "sync_probe";
 		const snapshot = this.snapshots.get(url.searchParams.get("handle") ?? "");
 		const decoded = snapshot?.cursors.get(offset) ?? offset;
 		const initial = decoded === "-1" || decoded.startsWith("s:");
@@ -101,7 +154,7 @@ export class ShapeEngine {
 								? yield* Effect.promise(() => response.clone().json())
 								: [];
 						yield* Effect.annotateCurrentSpan({
-							"stellarc.shape.table": "sync_probe",
+							"stellarc.shape.table": table,
 							"stellarc.shape.offset_from": initial
 								? decoded
 								: decoded.split("_")[0],
@@ -159,8 +212,15 @@ export class ShapeEngine {
 		}
 	}
 
+	private tableSpec(table: string): ShapeTableSpec {
+		if (table === "sync_probe") return probeTable(this.upcasters);
+		return this.tables.get(table) ?? probeTable(this.upcasters);
+	}
+
 	private async page(org: string, url: URL): Promise<Response> {
 		const q = url.searchParams;
+		const table = q.get("table") ?? "sync_probe";
+		const spec = this.tableSpec(table);
 		const allowed = new Set([
 			"table",
 			"offset",
@@ -170,11 +230,14 @@ export class ShapeEngine {
 			"cursor",
 			"expired_handle",
 			"cache-buster",
+			...(spec.extraParams ?? []),
 		]);
 		if ([...q.keys()].some((k) => !allowed.has(k)))
 			return new Response(null, { status: 400 });
-		if (q.get("table") !== "sync_probe")
+		if (table !== "sync_probe" && !this.tables.has(table))
 			return new Response(null, { status: 404 });
+		for (const required of spec.requireParams ?? [])
+			if (!q.get(required)) return new Response(null, { status: 400 });
 		if (q.has("log") && !["full", "changes_only"].includes(q.get("log") ?? ""))
 			return new Response(null, { status: 400 });
 		let offset = q.get("offset");
@@ -187,14 +250,13 @@ export class ShapeEngine {
 			const snapshot = await this.sql.begin(
 				"isolation level repeatable read",
 				async (tx) => {
-					const rows = await tx<
-						ProbeRow[]
-					>`SELECT org,id,value,last_seq::text FROM sync_probe WHERE org=${org} ORDER BY id`;
+					const rows = await spec.snapshot(tx, org, q);
 					await this.afterProjectionRead?.();
 					const [counter] =
 						await tx`SELECT seq::text FROM org_event_counter WHERE org=${org}`;
 					return {
 						org,
+						table,
 						rows: [...rows],
 						boundary: counter?.seq ?? "0",
 						expires: Date.now() + 300000,
@@ -208,7 +270,7 @@ export class ShapeEngine {
 		const snapshot = this.snapshots.get(handle);
 		const headers = new Headers({
 			"content-type": "application/json",
-			"electric-schema": JSON.stringify(electricSchema),
+			"electric-schema": JSON.stringify(spec.schema),
 			"cache-control": "no-store",
 			"electric-handle": handle,
 		});
@@ -234,9 +296,9 @@ export class ShapeEngine {
 			const rows = snapshot.rows.slice(index, index + 100);
 			for (const row of rows)
 				messages.push({
-					key: key(org, row.id),
+					key: key(org, String(row.id)),
 					value: row,
-					headers: { operation: "insert", relation: ["public", "sync_probe"] },
+					headers: { operation: "insert", relation: ["public", table] },
 				});
 			next =
 				index + 100 < snapshot.rows.length
@@ -249,36 +311,35 @@ export class ShapeEngine {
 				.sql`SELECT seq::text,txid::text,plugin_type,payload,schema_version FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 101`;
 			caughtUp = events.length <= 100;
 			next = offset;
-			for (const event of events.slice(0, 100)) {
+			for (const raw of events.slice(0, 100)) {
+				const event = {
+					seq: String(raw.seq),
+					txid: String(raw.txid),
+					plugin_type: String(raw.plugin_type),
+					payload: raw.payload,
+					schema_version: Number(raw.schema_version),
+				};
 				next = `${event.seq}_0`;
-				if (
-					!["foundation:probe-upserted", "foundation:probe-deleted"].includes(
-						event.plugin_type,
-					)
-				)
-					continue;
-				let payload: ProbePayload;
+				let mapped: {
+					id: string;
+					value: Record<string, unknown>;
+					deleted: boolean;
+				} | null;
 				try {
-					payload = this.upcasters.decode(
-						event.plugin_type,
-						event.schema_version,
-						event.payload,
-					);
+					mapped = await spec.eventMessage(event, org, q, this.sql);
 				} catch {
 					return Response.json(
 						{ _tag: "Unavailable", message: "Unsupported event schema" },
 						{ status: 503, headers: { "cache-control": "no-store" } },
 					);
 				}
-				const deleted = event.plugin_type === "foundation:probe-deleted";
+				if (!mapped) continue;
 				messages.push({
-					key: key(org, payload.id),
-					value: deleted
-						? { org, id: payload.id }
-						: { org, ...payload, last_seq: event.seq },
+					key: key(org, mapped.id),
+					value: mapped.value,
 					headers: {
-						operation: deleted ? "delete" : "update",
-						relation: ["public", "sync_probe"],
+						operation: mapped.deleted ? "delete" : "update",
+						relation: ["public", table],
 						txids: [Number(event.txid)],
 					},
 				});
@@ -298,4 +359,38 @@ export class ShapeEngine {
 		headers.set("electric-offset", token);
 		return Response.json(messages, { headers });
 	}
+}
+
+/** T0 sync_probe identity of the ShapeTableSpec contract. */
+export function probeTable(upcasters: UpcasterRegistry): ShapeTableSpec {
+	return {
+		schema: electricSchema,
+		snapshot: async (tx, org) =>
+			(await tx<
+				Array<Record<string, unknown>>
+			>`SELECT org,id,value,last_seq::text FROM sync_probe WHERE org=${org} ORDER BY id`) as Array<
+				Record<string, unknown>
+			>,
+		eventMessage: (event, org) => {
+			if (
+				!["foundation:probe-upserted", "foundation:probe-deleted"].includes(
+					event.plugin_type,
+				)
+			)
+				return null;
+			const payload = upcasters.decode(
+				event.plugin_type,
+				event.schema_version,
+				event.payload,
+			) as ProbePayload;
+			const deleted = event.plugin_type === "foundation:probe-deleted";
+			return {
+				id: payload.id,
+				value: deleted
+					? { org, id: payload.id }
+					: { org, ...payload, last_seq: event.seq },
+				deleted,
+			};
+		},
+	};
 }
