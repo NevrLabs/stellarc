@@ -116,7 +116,16 @@ async function body<T>(
 
 type AnyRow = Record<string, unknown>;
 
+// Fixed-window rate buckets keyed `${boardId}:${minute}`. Pruned on write so
+// the map holds at most the current window's keys (D12: no unbounded growth).
 const publicRateBuckets = new Map<string, number>();
+let publicRateCurrentWindow = -1;
+function pruneRateBuckets(window: number) {
+	if (window === publicRateCurrentWindow) return;
+	for (const key of publicRateBuckets.keys())
+		if (!key.endsWith(`:${window}`)) publicRateBuckets.delete(key);
+	publicRateCurrentWindow = window;
+}
 
 /** All work endpoints (§3). Org identity rides the authorization token. */
 export function workHandler(
@@ -583,6 +592,7 @@ export function workHandler(
 			const id = ctx.path.id;
 			const now = Math.floor(Date.now() / 1000);
 			const window = Math.floor(now / 60);
+			pruneRateBuckets(window);
 			const key = `${id}:${window}`;
 			const bucket = publicRateBuckets.get(key) ?? 0;
 			if (bucket >= 120) {

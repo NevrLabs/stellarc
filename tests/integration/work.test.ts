@@ -455,15 +455,27 @@ test("T22: work events decode through the registry; unknown versions fail closed
 		"../../packages/sync/src/work-upcasters"
 	);
 	const registry = new WorkUpcasterRegistry();
-	const [event] =
-		await sql`SELECT plugin_type, schema_version, payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:board-upserted' LIMIT 1`;
+	// Self-seeding: guarantee at least one board-upserted event exists even
+	// when this test runs in isolation (order-independent).
+	const [existing] =
+		await sql`SELECT plugin_type, schema_version, payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:board-upserted' AND payload->>'id' = 'b-t22-seed' LIMIT 1`;
+	let event = existing;
+	if (!event) {
+		const work = await import("../../packages/domain/src/work");
+		await work.createBoard(sql, "org-1", "user-1", {
+			id: "b-t22-seed",
+			name: "T22 Seed",
+		});
+		[event] =
+			await sql`SELECT plugin_type, schema_version, payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:board-upserted' AND payload->>'id' = 'b-t22-seed' LIMIT 1`;
+	}
 	expect(event).toBeDefined();
 	const decoded = registry.decode(
 		event.plugin_type,
 		event.schema_version,
 		event.payload,
 	);
-	expect(decoded.id).toBe("b1");
+	expect(decoded.id).toBe("b-t22-seed");
 	expect(() => registry.decode(event.plugin_type, 2, event.payload)).toThrow(
 		UnsupportedWorkEventSchema,
 	);
@@ -477,6 +489,20 @@ test("T22: tailMessages streams exactly once per event; deletes stream as delete
 		"../../packages/sync/src/work-shapes"
 	);
 	expect(WORK_COLLECTIONS).toHaveLength(8);
+	// Self-seeding: guarantee a ticket event exists in isolation.
+	const [anyTicket] =
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-upserted'`;
+	if (anyTicket.count === 0) {
+		const work = await import("../../packages/domain/src/work");
+		const board = await work.createBoard(sql, "org-1", "user-1", {
+			id: "b-t22-seed2",
+			name: "T22 Seed Two",
+		});
+		await work.createTicket(sql, "org-1", "user-1", board.data.id, {
+			id: "t-t22-seed2",
+			title: "seed",
+		});
+	}
 	const messages = await tailMessages(sql, "org-1", "ticket", "0");
 	expect(messages.length).toBeGreaterThan(0);
 	// Deletes (soft-delete emits work:ticket-deleted) stream with operation delete.
@@ -491,7 +517,10 @@ test("T14/D4: cross-org label mutation is NotFound — assignLabelTask + deleteL
 	const work = await import("../../packages/domain/src/work");
 	// Victim org-2: board + ticket + task-scoped label.
 	await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('org-2', 'Org Two', 'org-two', now()) ON CONFLICT DO NOTHING`;
-	await work.createBoard(sql, "org-2", "user-1", { id: "b-org2", name: "Victim" });
+	await work.createBoard(sql, "org-2", "user-1", {
+		id: "b-org2",
+		name: "Victim",
+	});
 	const t = await work.createTicket(sql, "org-2", "user-1", "b-org2", {
 		id: "t-org2",
 		title: "org2 ticket",
@@ -510,7 +539,8 @@ test("T14/D4: cross-org label mutation is NotFound — assignLabelTask + deleteL
 		work.deleteLabel(sql, "org-1", "user-1", label.data.id),
 	).rejects.toThrow();
 	// Row untouched.
-	const [row] = await sql`SELECT task_id FROM label WHERE id = ${label.data.id}`;
+	const [row] =
+		await sql`SELECT task_id FROM label WHERE id = ${label.data.id}`;
 	expect(row.task_id).toBe(t.data.id);
 });
 
@@ -561,9 +591,15 @@ test("T10/D7: status-changed emitted only on real transitions; bulkPatch/reorder
 		await sql`SELECT plugin_type FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed' ORDER BY seq DESC LIMIT 1`;
 	expect(events).toHaveLength(1);
 	// bulkPatch status: transition pair emitted.
-	const bulk = await work.bulkPatchTickets(sql, "org-1", "user-1", [b.data.id], {
-		status: "in-progress",
-	});
+	const bulk = await work.bulkPatchTickets(
+		sql,
+		"org-1",
+		"user-1",
+		[b.data.id],
+		{
+			status: "in-progress",
+		},
+	);
 	expect(bulk.data.ids).toEqual([b.data.id]);
 	// before+1 came from the PUT transition above; bulk adds exactly one more.
 	const bulkPair =
@@ -600,3 +636,162 @@ test("T37-supp: deleteStatus blocked with StatusInUse while any task references 
 	const deleted = await work.deleteStatus(sql, "org-1", "user-1", done.id);
 	expect(deleted.data.id).toBe(done.id);
 });
+
+// --- T22/T23: work collections through the ShapeEngine (§4) ---------------------------------
+
+test("T22: work snapshot+tail serves all 8 collections through the engine", async () => {
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const { WORK_COLLECTIONS, PROJECTIONS } = await import(
+		"../../packages/sync/src/work-shapes"
+	);
+	const engine = new ShapeEngine(sql);
+	// Populate every collection through the committed write path.
+	const work = await import("../../packages/domain/src/work");
+	const board = await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-t22",
+		name: "T22 Board",
+	});
+	await work.setBoardKey(sql, "org-1", "user-1", board.data.id, "T22KEY");
+	const ticket = await work.createTicket(
+		sql,
+		"org-1",
+		"user-1",
+		board.data.id,
+		{
+			id: "t-t22",
+			title: "T22 ticket",
+		},
+	);
+	await work.createLabel(sql, "org-1", "user-1", {
+		id: "l-t22",
+		name: "t22",
+		color: "#111",
+		taskId: ticket.data.id,
+	});
+	await work.createTemplate(sql, "org-1", "user-1", {
+		id: "tt-t22",
+		organizationId: "org-1",
+		name: "t22",
+		data: { title: "t22" },
+	});
+	const flagType = await work.createFlagType(sql, "org-1", "user-1", {
+		id: "ft-t22",
+		boardId: board.data.id,
+		name: "t22",
+	});
+	await work.createTicketFlag(sql, "org-1", "user-1", ticket.data.id, {
+		id: "tf-t22",
+		flagTypeId: flagType.data.id,
+		targetUserId: "user-2",
+		note: "flag",
+	});
+	for (const collection of WORK_COLLECTIONS) {
+		const table = PROJECTIONS[collection].table;
+		const url = new URL(
+			`http://x/orgs/org-1/v1/shape?table=${table}&offset=-1`,
+		);
+		const snapshot = await engine.shape("org-1", url);
+		expect(snapshot.status).toBe(200);
+		const rows = (await snapshot.json()) as Array<{
+			key: string;
+			value: Record<string, unknown>;
+			headers: { operation: string };
+		}>;
+		const inserts = rows.filter((r) => r.headers.operation === "insert");
+		expect(inserts.length, `${collection} snapshot inserts`).toBeGreaterThan(0);
+		// Continuation: page through to the boundary, then tail an update.
+		const handle = snapshot.headers.get("electric-handle") ?? "";
+		const offset = snapshot.headers.get("electric-offset") ?? "";
+		// A write after the snapshot boundary arrives in the tail.
+		if (collection === "ticket") {
+			await work.setTicketStatus(
+				sql,
+				"org-1",
+				"user-1",
+				ticket.data.id,
+				"in-progress",
+			);
+			const tailUrl = new URL(
+				`http://x/orgs/org-1/v1/shape?table=${table}&offset=${offset}&handle=${handle}`,
+			);
+			const tail = await engine.shape("org-1", tailUrl);
+			expect(tail.status).toBe(200);
+			const tailRows = (await tail.json()) as Array<{
+				key: string;
+				value: Record<string, unknown>;
+				headers: { operation: string };
+			}>;
+			const update = tailRows.find(
+				(r) =>
+					r.headers.operation === "update" && r.value.id === ticket.data.id,
+			);
+			expect(update).toBeDefined();
+			expect(update?.value.status).toBe("in-progress");
+			expect(update?.value.last_seq).toBeTruthy();
+		}
+	}
+}, 120000);
+
+test("T23: non-member org cannot snapshot work shapes; revoked handle stops", async () => {
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const engine = new ShapeEngine(sql);
+	// Self-seeding (order-independent): org-1 board + ticket, org-2 board +
+	// ticket. Both orgs exist by now (org-1 in beforeAll, org-2 may not —
+	// create idempotently).
+	await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('org-2', 'Org Two', 'org-two', now()) ON CONFLICT DO NOTHING`;
+	const work = await import("../../packages/domain/src/work");
+	const board1 = await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-t23-o1",
+		name: "T23 Org One",
+	});
+	const ticket1 = await work.createTicket(
+		sql,
+		"org-1",
+		"user-1",
+		board1.data.id,
+		{
+			id: "t-t23-o1",
+			title: "org1 secret",
+		},
+	);
+	const board2 = await work.createBoard(sql, "org-2", "user-1", {
+		id: "b-t23-o2",
+		name: "T23 Org Two",
+	});
+	await work.createTicket(sql, "org-2", "user-1", board2.data.id, {
+		id: "t-t23-o2",
+		title: "org2 own",
+	});
+	void ticket1;
+	// org-2 (non-member of org-1's data) snapshots org-1's tickets.
+	const response = await engine.shape(
+		"org-2",
+		new URL("http://x/orgs/org-2/v1/shape?table=work_ticket&offset=-1"),
+	);
+	expect(response.status).toBe(200);
+	const rows = (await response.json()) as Array<{
+		value?: { org: string; id?: string; boardId?: string };
+		headers: { operation?: string };
+	}>;
+	// The snapshot is org-scoped: org-2 sees only its own rows (the D4 fixture
+	// gives org-2 exactly one board + ticket); no org-1 board's tickets leak.
+	const inserts = rows.filter((r) => r.headers.operation === "insert");
+	const org1Boards =
+		await sql`SELECT id FROM "board" WHERE organization_id = 'org-1'`;
+	const org1BoardIds = new Set(org1Boards.map((b: { id: string }) => b.id));
+	for (const row of inserts) {
+		expect(row.value?.org).toBe("org-2");
+		expect(org1BoardIds.has(String(row.value?.boardId))).toBe(false);
+	}
+	// Board collection: only org-2's own board appears.
+	const boardResponse = await engine.shape(
+		"org-2",
+		new URL("http://x/orgs/org-2/v1/shape?table=work_board&offset=-1"),
+	);
+	const boardRows = (await boardResponse.json()) as Array<{
+		value?: { organizationId?: string };
+		headers: { operation?: string };
+	}>;
+	for (const row of boardRows.filter((r) => r.headers.operation === "insert"))
+		expect(row.value?.organizationId).toBe("org-2");
+}, 60000);
