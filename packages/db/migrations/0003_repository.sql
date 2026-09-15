@@ -91,6 +91,8 @@ CREATE TABLE organization_github_installation (
   CONSTRAINT organization_github_installation_org_installation_key UNIQUE (organization_id, installation_id)
 );
 
+-- github_user_grant: access_token/refresh_token are stored as imported,
+-- unchanged (fork stores plaintext today). -- SECRET: encryption pending STL-xx
 CREATE TABLE github_user_grant (
   id text PRIMARY KEY,
   user_id text NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
@@ -107,6 +109,8 @@ CREATE TABLE github_user_grant (
   CONSTRAINT github_user_grant_user_provider_key UNIQUE (user_id, provider_id)
 );
 
+-- integration.config may embed provider secrets; stored as imported.
+-- -- SECRET: encryption pending STL-xx
 CREATE TABLE integration (
   id text PRIMARY KEY,
   board_id text NOT NULL,
