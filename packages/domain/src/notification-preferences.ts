@@ -5,6 +5,7 @@ import type {
 	PreferenceResponse,
 	PreferenceRulePublic,
 } from "../../contracts/src/activity-notifications";
+import { safeTxid } from "./activity";
 import {
 	appendEventInTx,
 	DomainForbidden,
@@ -19,7 +20,6 @@ import {
 	type NotificationSecrets,
 	normalizeOptionalString,
 } from "./notification-secrets";
-import { safeTxid } from "./activity";
 
 /**
  * T18/T19: global notification preferences + per-org rules (§2/§3).
@@ -65,10 +65,7 @@ export interface PreferenceDeps {
 	/** Organization membership check (STL-15 seam). */
 	readonly isMember: (userId: string, orgId: string) => Promise<boolean>;
 	/** Board-existence-in-org check (STL-16 seam). */
-	readonly boardInOrg: (
-		orgId: string,
-		boardIds: string[],
-	) => Promise<number>;
+	readonly boardInOrg: (orgId: string, boardIds: string[]) => Promise<number>;
 }
 
 export const LEAD_TIME_MIN = 5;
@@ -123,7 +120,9 @@ function toPreferencePublic(
 		ntfyTokenConfigured: row ? secrets.decrypt(row.ntfy_token) !== null : false,
 		gotifyEnabled: row?.gotify_enabled ?? false,
 		gotifyConfigured: Boolean(row?.gotify_server_url && row?.gotify_token),
-		gotifyTokenConfigured: row ? secrets.decrypt(row.gotify_token) !== null : false,
+		gotifyTokenConfigured: row
+			? secrets.decrypt(row.gotify_token) !== null
+			: false,
 		webhookEnabled: row?.webhook_enabled ?? false,
 		webhookConfigured: Boolean(row?.webhook_url),
 		webhookSecretConfigured: row
@@ -192,7 +191,9 @@ async function readResponse(
 		ntfyTopic: row?.ntfy_topic ?? null,
 		gotifyServerUrl: row?.gotify_server_url ?? null,
 		webhookUrl: row?.webhook_url ?? null,
-		maskedNtfyToken: maskSecret(row ? deps.secrets.decrypt(row.ntfy_token) : null),
+		maskedNtfyToken: maskSecret(
+			row ? deps.secrets.decrypt(row.ntfy_token) : null,
+		),
 		maskedGotifyToken: maskSecret(
 			row ? deps.secrets.decrypt(row.gotify_token) : null,
 		),
@@ -204,7 +205,11 @@ async function readResponse(
 }
 
 function validateLeadTime(minutes: number): void {
-	if (!Number.isInteger(minutes) || minutes < LEAD_TIME_MIN || minutes > LEAD_TIME_MAX)
+	if (
+		!Number.isInteger(minutes) ||
+		minutes < LEAD_TIME_MIN ||
+		minutes > LEAD_TIME_MAX
+	)
 		throw new DomainValidation("dueDateReminderLeadTimeMinutes");
 }
 
@@ -230,19 +235,14 @@ export const updatePreferences = (
 	userId: string,
 	input: PreferenceUpdateInput,
 	deps: PreferenceDeps,
-): Effect.Effect<
-	{ data: PreferenceResponse; txid: number },
-	unknown
-> =>
+): Effect.Effect<{ data: PreferenceResponse; txid: number }, unknown> =>
 	Effect.fn("Domain.notificationPreferences.update")(function* () {
 		if (input.dueDateReminderLeadTimeMinutes !== undefined)
 			validateLeadTime(input.dueDateReminderLeadTimeMinutes);
 		const result = yield* Effect.tryPromise({
 			try: () =>
 				sql.begin(
-					async (
-						tx,
-					): Promise<{ data: PreferenceResponse; txid: number }> => {
+					async (tx): Promise<{ data: PreferenceResponse; txid: number }> => {
 						const rows = await tx<PreferenceRowDb[]>`
               SELECT * FROM user_notification_preference WHERE user_id = ${userId} FOR UPDATE`;
 						const existing = rows[0];
@@ -251,8 +251,7 @@ export const updatePreferences = (
 						const next = {
 							emailEnabled:
 								input.emailEnabled ?? existing?.email_enabled ?? false,
-							ntfyEnabled:
-								input.ntfyEnabled ?? existing?.ntfy_enabled ?? false,
+							ntfyEnabled: input.ntfyEnabled ?? existing?.ntfy_enabled ?? false,
 							ntfyServerUrl:
 								input.ntfyServerUrl !== undefined
 									? normalizeOptionalString(input.ntfyServerUrl)
@@ -263,7 +262,9 @@ export const updatePreferences = (
 									: (existing?.ntfy_topic ?? null),
 							ntfyToken:
 								input.ntfyToken !== undefined
-									? deps.secrets.encrypt(normalizeOptionalString(input.ntfyToken))
+									? deps.secrets.encrypt(
+											normalizeOptionalString(input.ntfyToken),
+										)
 									: (existing?.ntfy_token ?? null),
 							gotifyEnabled:
 								input.gotifyEnabled ?? existing?.gotify_enabled ?? false,
@@ -273,7 +274,9 @@ export const updatePreferences = (
 									: (existing?.gotify_server_url ?? null),
 							gotifyToken:
 								input.gotifyToken !== undefined
-									? deps.secrets.encrypt(normalizeOptionalString(input.gotifyToken))
+									? deps.secrets.encrypt(
+											normalizeOptionalString(input.gotifyToken),
+										)
 									: (existing?.gotify_token ?? null),
 							webhookEnabled:
 								input.webhookEnabled ?? existing?.webhook_enabled ?? false,
@@ -311,13 +314,19 @@ export const updatePreferences = (
 						// Enabled channel prerequisites (no traffic sent — §3).
 						if (next.ntfyEnabled && (!next.ntfyServerUrl || !next.ntfyTopic))
 							throw new DomainValidation("ntfy requires server URL and topic");
-						if (next.gotifyEnabled && (!next.gotifyServerUrl || next.gotifyToken === null))
-							throw new DomainValidation("gotify requires server URL and token");
+						if (
+							next.gotifyEnabled &&
+							(!next.gotifyServerUrl || next.gotifyToken === null)
+						)
+							throw new DomainValidation(
+								"gotify requires server URL and token",
+							);
 						if (next.webhookEnabled && !next.webhookUrl)
 							throw new DomainValidation("webhook requires endpoint URL");
 						if (next.emailEnabled && !deps.emailAddress)
 							throw new DomainValidation("email requires account address");
-						if (next.ntfyServerUrl) validateUrl(next.ntfyServerUrl, "ntfyServerUrl");
+						if (next.ntfyServerUrl)
+							validateUrl(next.ntfyServerUrl, "ntfyServerUrl");
 						if (next.gotifyServerUrl)
 							validateUrl(next.gotifyServerUrl, "gotifyServerUrl");
 						if (next.webhookUrl) validateUrl(next.webhookUrl, "webhookUrl");
@@ -424,16 +433,14 @@ export const upsertOrganizationRule = (
 	deps: PreferenceDeps,
 ): Effect.Effect<{ data: PreferenceResponse; txid: number }, unknown> =>
 	Effect.fn("Domain.notificationPreferences.upsertOrgRule")(function* () {
-		if (!(yield* Effect.tryPromise(() =>
-			deps.isMember(userId, organizationId),
-		)))
+		if (
+			!(yield* Effect.tryPromise(() => deps.isMember(userId, organizationId)))
+		)
 			throw new DomainForbidden();
 		const result = yield* Effect.tryPromise({
 			try: () =>
 				sql.begin(
-					async (
-						tx,
-					): Promise<{ data: PreferenceResponse; txid: number }> => {
+					async (tx): Promise<{ data: PreferenceResponse; txid: number }> => {
 						if (input.boardMode === "selected") {
 							const ids = [...new Set(input.selectedBoardIds ?? [])];
 							if (ids.length === 0)
@@ -453,7 +460,9 @@ export const upsertOrganizationRule = (
 							throw new DomainValidation("enable email globally first");
 						if (
 							input.ntfyEnabled &&
-							(!pref?.ntfy_enabled || !pref?.ntfy_server_url || !pref?.ntfy_topic)
+							(!pref?.ntfy_enabled ||
+								!pref?.ntfy_server_url ||
+								!pref?.ntfy_topic)
 						)
 							throw new DomainValidation("enable ntfy globally first");
 						if (
@@ -517,16 +526,14 @@ export const deleteOrganizationRule = (
 	deps: PreferenceDeps,
 ): Effect.Effect<{ data: PreferenceResponse; txid: number }, unknown> =>
 	Effect.fn("Domain.notificationPreferences.deleteOrgRule")(function* () {
-		if (!(yield* Effect.tryPromise(() =>
-			deps.isMember(userId, organizationId),
-		)))
+		if (
+			!(yield* Effect.tryPromise(() => deps.isMember(userId, organizationId)))
+		)
 			throw new DomainForbidden();
 		const result = yield* Effect.tryPromise({
 			try: () =>
 				sql.begin(
-					async (
-						tx,
-					): Promise<{ data: PreferenceResponse; txid: number }> => {
+					async (tx): Promise<{ data: PreferenceResponse; txid: number }> => {
 						const rows = await tx<{ id: string }[]>`
               SELECT id FROM user_notification_org_rule
               WHERE user_id = ${userId} AND organization_id = ${organizationId}

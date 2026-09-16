@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { Sql } from "postgres";
 import type { WorkflowRow } from "../../contracts/src/activity-notifications";
+import { safeTxid } from "./activity";
 import {
 	appendEventInTx,
 	DomainConflict,
@@ -10,7 +11,6 @@ import {
 	newId,
 	WORKFLOW_EVENT_TYPES,
 } from "./activity-events";
-import { safeTxid } from "./activity";
 
 /**
  * T20/T21: workflow rules are integration event→status mappings (§1), CRUD
@@ -31,11 +31,23 @@ export const WORKFLOW_VOCABULARY: ReadonlySet<string> = new Set([
 
 export interface WorkflowDeps {
 	/** Can the actor update the board? (STL-16 seam) */
-	readonly canUpdateBoard: (org: string, boardId: string, actor: string) => Promise<boolean>;
+	readonly canUpdateBoard: (
+		org: string,
+		boardId: string,
+		actor: string,
+	) => Promise<boolean>;
 	/** Does the status belong to the board? (STL-16 seam) */
-	readonly statusInBoard: (org: string, boardId: string, statusId: string) => Promise<boolean>;
+	readonly statusInBoard: (
+		org: string,
+		boardId: string,
+		statusId: string,
+	) => Promise<boolean>;
 	/** Can the actor view the board? (STL-16 seam) */
-	readonly canViewBoard: (org: string, boardId: string, actor: string) => Promise<boolean>;
+	readonly canViewBoard: (
+		org: string,
+		boardId: string,
+		actor: string,
+	) => Promise<boolean>;
 }
 
 interface RuleRowDb {
@@ -71,13 +83,12 @@ export const listWorkflowRules = (
 ): Effect.Effect<{ items: WorkflowRow[] }, unknown> =>
 	Effect.fn("Domain.workflowRules.list")(function* () {
 		if (
-			!(yield* Effect.tryPromise(() =>
-				deps.canViewBoard(org, boardId, actor),
-			))
+			!(yield* Effect.tryPromise(() => deps.canViewBoard(org, boardId, actor)))
 		)
 			throw new DomainNotFound();
-		const rows = yield* Effect.tryPromise(() =>
-			sql<RuleRowDb[]>`
+		const rows = yield* Effect.tryPromise(
+			() =>
+				sql<RuleRowDb[]>`
       SELECT * FROM workflow_rule
       WHERE org_id=${org} AND board_id=${boardId}
       ORDER BY created_at, id`,
@@ -99,8 +110,7 @@ export const upsertWorkflowRule = (
 ): Effect.Effect<{ data: WorkflowRow; txid: number }, unknown> =>
 	Effect.fn("Domain.workflowRules.upsert")(function* () {
 		const pair = `${args.integrationType}:${args.eventType}`;
-		if (!WORKFLOW_VOCABULARY.has(pair))
-			throw new DomainValidation(pair);
+		if (!WORKFLOW_VOCABULARY.has(pair)) throw new DomainValidation(pair);
 		if (
 			!(yield* Effect.tryPromise(() =>
 				deps.canUpdateBoard(args.org, args.boardId, args.actor),
@@ -109,16 +119,13 @@ export const upsertWorkflowRule = (
 			throw new DomainForbidden();
 		const result = yield* Effect.tryPromise({
 			try: () =>
-				sql.begin(
-					async (
-						tx,
-					): Promise<{ data: WorkflowRow; txid: number }> => {
-						if (
-							!(await deps.statusInBoard(args.org, args.boardId, args.statusId))
-						)
-							throw new DomainValidation("status not in board");
-						const now = new Date();
-						const rows = await tx<RuleRowDb[]>`
+				sql.begin(async (tx): Promise<{ data: WorkflowRow; txid: number }> => {
+					if (
+						!(await deps.statusInBoard(args.org, args.boardId, args.statusId))
+					)
+						throw new DomainValidation("status not in board");
+					const now = new Date();
+					const rows = await tx<RuleRowDb[]>`
               INSERT INTO workflow_rule
                 (id, org_id, board_id, integration_type, event_type, status_id, created_at, updated_at)
               VALUES (${newId()}, ${args.org}, ${args.boardId},
@@ -126,20 +133,19 @@ export const upsertWorkflowRule = (
               ON CONFLICT (board_id, integration_type, event_type) DO UPDATE SET
                 status_id=EXCLUDED.status_id, updated_at=EXCLUDED.updated_at
               RETURNING *`;
-						if (!rows[0]) throw new DomainConflict("Duplicate");
-						const { txidText } = await appendEventInTx(
-							tx,
-							args.org,
-							args.actor,
-							WORKFLOW_EVENT_TYPES.ruleUpserted,
-							JSON.stringify({
-								id: rows[0].id,
-								boardId: args.boardId,
-							}),
-						);
-						return { data: toRow(rows[0]), txid: safeTxid(txidText) };
-					},
-				),
+					if (!rows[0]) throw new DomainConflict("Duplicate");
+					const { txidText } = await appendEventInTx(
+						tx,
+						args.org,
+						args.actor,
+						WORKFLOW_EVENT_TYPES.ruleUpserted,
+						JSON.stringify({
+							id: rows[0].id,
+							boardId: args.boardId,
+						}),
+					);
+					return { data: toRow(rows[0]), txid: safeTxid(txidText) };
+				}),
 			catch: (cause) => cause,
 		});
 		return result;
@@ -160,9 +166,7 @@ export const deleteWorkflowRule = (
 		const result = yield* Effect.tryPromise({
 			try: () =>
 				sql.begin(
-					async (
-						tx,
-					): Promise<{ data: { id: string }; txid: number }> => {
+					async (tx): Promise<{ data: { id: string }; txid: number }> => {
 						const rows = await tx<{ id: string }[]>`
               DELETE FROM workflow_rule
               WHERE id=${args.ruleId} AND org_id=${args.org} AND board_id=${args.boardId}

@@ -65,13 +65,8 @@ export function makeNotificationSecrets(rawKey: string): NotificationSecrets {
 				const [ivPart, dataPart, tagPart] = value
 					.slice(SECRET_PREFIX.length)
 					.split(".");
-				if (!ivPart || !dataPart || !tagPart)
-					throw new SecretUndecryptable();
-				const decipher = createDecipheriv(
-					SECRET_ALGORITHM,
-					key,
-					unb64(ivPart),
-				);
+				if (!ivPart || !dataPart || !tagPart) throw new SecretUndecryptable();
+				const decipher = createDecipheriv(SECRET_ALGORITHM, key, unb64(ivPart));
 				decipher.setAuthTag(unb64(tagPart));
 				return Buffer.concat([
 					decipher.update(unb64(dataPart)),
@@ -90,9 +85,7 @@ export function makeNotificationSecrets(rawKey: string): NotificationSecrets {
 /** Fork-compatible value mask: keep first/last 4 when long, else bullets. */
 export function maskSecret(value: string | null): string | null {
 	if (!value) return null;
-	return value.length > 8
-		? `${value.slice(0, 4)}…${value.slice(-4)}`
-		: "••••";
+	return value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : "••••";
 }
 
 /** Trim to null (fork normalizeOptionalString semantics without the nullish bug). */

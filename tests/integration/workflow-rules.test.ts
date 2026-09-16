@@ -1,4 +1,11 @@
+import { Cause, type Effect, Exit, ManagedRuntime } from "effect";
 import { expect, test } from "vitest";
+import { migrate } from "../../packages/db/src/migrate";
+import {
+	DomainForbidden,
+	DomainNotFound,
+	DomainValidation,
+} from "../../packages/domain/src/activity-events";
 import {
 	deleteWorkflowRule,
 	isValidWorkflowPair,
@@ -6,23 +13,19 @@ import {
 	resolveWorkflowRule,
 	upsertWorkflowRule,
 } from "../../packages/domain/src/workflow-rules";
-import {
-	DomainForbidden,
-	DomainNotFound,
-	DomainValidation,
-} from "../../packages/domain/src/activity-events";
+import { TelemetryTest } from "../../packages/telemetry/src/index";
 import { seedIdentity } from "../helpers/activity-fixture";
 import { disposablePostgres } from "../helpers/postgres";
-import { migrate } from "../../packages/db/src/migrate";
-import { Cause, type Effect, Exit, ManagedRuntime } from "effect";
-import { TelemetryTest } from "../../packages/telemetry/src/index";
 
 async function makeFixture() {
 	const db = await disposablePostgres();
 	await migrate(db.sql);
 	const sql = db.sql;
 	const org = "org-wf-1";
-	await seedIdentity(sql, { org, users: ["user-alice", "user-bob", "user-zed"] });
+	await seedIdentity(sql, {
+		org,
+		users: ["user-alice", "user-bob", "user-zed"],
+	});
 	const boardId = "board-wf-1";
 	const statuses = new Set(["st-todo", "st-doing"]);
 	const updaters = new Set(["user-alice", "user-bob"]);
@@ -41,7 +44,17 @@ async function makeFixture() {
 		if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
 		return exit.value;
 	}
-	return { sql, org, boardId, deps, run, close: async () => { await runtime.dispose(); await db.close(); } };
+	return {
+		sql,
+		org,
+		boardId,
+		deps,
+		run,
+		close: async () => {
+			await runtime.dispose();
+			await db.close();
+		},
+	};
 }
 
 test("T20 upsert validates vocabulary, board permission, status-in-board; concurrent-safe uniqueness", async () => {
@@ -114,12 +127,11 @@ test("T20 upsert validates vocabulary, board permission, status-in-board; concur
 		expect(rows).toHaveLength(1);
 		expect(rows[0].status_id).toBe("st-doing");
 		// concurrent upserts of the same pair from two connections: one row
-		const c1 = await fx.sql.begin(async (tx) =>
-			tx`SELECT 1`,
-		);
+		const c1 = await fx.sql.begin(async (tx) => tx`SELECT 1`);
 		expect(c1).toBeTruthy();
 		// shape event emitted
-		const events = await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
+		const events =
+			await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
 		const types = events.map((e) => (e as { plugin_type: string }).plugin_type);
 		expect(types).toContain("workflow:rule-upserted");
 		// list is permission-gated
@@ -152,7 +164,8 @@ test("T20 upsert validates vocabulary, board permission, status-in-board; concur
 				}),
 			),
 		).rejects.toThrow(DomainNotFound);
-		const afterDel = await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
+		const afterDel =
+			await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
 		expect(
 			afterDel.map((e) => (e as { plugin_type: string }).plugin_type),
 		).toContain("workflow:rule-deleted");
@@ -164,7 +177,15 @@ test("T20 upsert validates vocabulary, board permission, status-in-board; concur
 test("T21 resolver returns configured target or null; vocabulary pinned", async () => {
 	const fx = await makeFixture();
 	try {
-		expect(await resolveWorkflowRule(fx.sql, fx.org, fx.boardId, "github", "issue_opened")).toBeNull();
+		expect(
+			await resolveWorkflowRule(
+				fx.sql,
+				fx.org,
+				fx.boardId,
+				"github",
+				"issue_opened",
+			),
+		).toBeNull();
 		await fx.run(
 			upsertWorkflowRule(fx.sql, fx.deps, {
 				org: fx.org,
@@ -175,8 +196,24 @@ test("T21 resolver returns configured target or null; vocabulary pinned", async 
 				statusId: "st-doing",
 			}),
 		);
-		expect(await resolveWorkflowRule(fx.sql, fx.org, fx.boardId, "github", "pr_merged")).toBe("st-doing");
-		expect(await resolveWorkflowRule(fx.sql, fx.org, fx.boardId, "github", "issue_closed")).toBeNull();
+		expect(
+			await resolveWorkflowRule(
+				fx.sql,
+				fx.org,
+				fx.boardId,
+				"github",
+				"pr_merged",
+			),
+		).toBe("st-doing");
+		expect(
+			await resolveWorkflowRule(
+				fx.sql,
+				fx.org,
+				fx.boardId,
+				"github",
+				"issue_closed",
+			),
+		).toBeNull();
 		// pure lookup, no code execution surface
 		expect(isValidWorkflowPair("github", "pr_merged")).toBe(true);
 		expect(isValidWorkflowPair("github", "eval")).toBe(false);

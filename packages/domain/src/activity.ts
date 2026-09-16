@@ -5,11 +5,11 @@ import {
 	ACTIVITY_EVENT_TYPES,
 	appendEventInTx,
 	type CommentStoreRow,
-	decodeEditHistory,
 	DomainConflict,
 	DomainForbidden,
 	DomainNotFound,
 	DomainValidation,
+	decodeEditHistory,
 	type EventOrigin,
 	encodeActivityRow,
 	newId,
@@ -267,8 +267,7 @@ export const updateComment = (
 						)
 							throw new DomainForbidden();
 						if (
-							stored.updated_at.getTime() !==
-							deps.expectedUpdatedAt.getTime()
+							stored.updated_at.getTime() !== deps.expectedUpdatedAt.getTime()
 						)
 							throw new DomainConflict("StaleWrite");
 						const now = new Date();
@@ -279,7 +278,9 @@ export const updateComment = (
 							content: String(stored.content ?? ""),
 							// ISO string form: survives JSON to the DB and the
 							// contract decoder (DateFromString) on re-encode.
-							editedAt: new Date(stored.updated_at).toISOString() as unknown as Date,
+							editedAt: new Date(
+								stored.updated_at,
+							).toISOString() as unknown as Date,
 							userId: stored.user_id ?? "",
 						});
 						await tx`UPDATE comment
@@ -334,9 +335,7 @@ export const deleteComment = (
 		const result = yield* Effect.tryPromise({
 			try: () =>
 				sql.begin(
-					async (
-						tx,
-					): Promise<{ data: { id: string }; txid: number }> => {
+					async (tx): Promise<{ data: { id: string }; txid: number }> => {
 						const rows = (await tx`
               SELECT user_id, external_source, updated_at FROM comment
               WHERE id = ${deps.commentId}
@@ -355,8 +354,7 @@ export const deleteComment = (
 						)
 							throw new DomainForbidden();
 						if (
-							stored.updated_at.getTime() !==
-							deps.expectedUpdatedAt.getTime()
+							stored.updated_at.getTime() !== deps.expectedUpdatedAt.getTime()
 						)
 							throw new DomainConflict("StaleWrite");
 						await tx`DELETE FROM comment WHERE id = ${deps.commentId}`;

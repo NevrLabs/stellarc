@@ -1,20 +1,20 @@
+import { Cause, type Effect, Exit, ManagedRuntime } from "effect";
 import { expect, test } from "vitest";
-import {
-	deleteOrganizationRule,
-	updatePreferences,
-	upsertOrganizationRule,
-} from "../../packages/domain/src/notification-preferences";
+import { migrate } from "../../packages/db/src/migrate";
 import {
 	DomainForbidden,
 	DomainNotFound,
 	DomainValidation,
 } from "../../packages/domain/src/activity-events";
+import {
+	deleteOrganizationRule,
+	updatePreferences,
+	upsertOrganizationRule,
+} from "../../packages/domain/src/notification-preferences";
 import { makeNotificationSecrets } from "../../packages/domain/src/notification-secrets";
+import { TelemetryTest } from "../../packages/telemetry/src/index";
 import { seedIdentity } from "../helpers/activity-fixture";
 import { disposablePostgres } from "../helpers/postgres";
-import { migrate } from "../../packages/db/src/migrate";
-import { Cause, type Effect, Exit, ManagedRuntime } from "effect";
-import { TelemetryTest } from "../../packages/telemetry/src/index";
 
 const KEY = "test-secret-key";
 
@@ -92,7 +92,8 @@ test("T18 secret encryption + mask: token stored encrypted, returned masked, nev
 		);
 		expect(res.data.ntfyTokenConfigured).toBe(true);
 		expect(res.data.maskedNtfyToken).toBe("tok-…mnop");
-		const stored = await fx.sql`SELECT ntfy_token FROM user_notification_preference WHERE user_id='user-alice'`;
+		const stored =
+			await fx.sql`SELECT ntfy_token FROM user_notification_preference WHERE user_id='user-alice'`;
 		expect(String(stored[0].ntfy_token).startsWith("enc:v1:")).toBe(true);
 		expect(String(stored[0].ntfy_token)).not.toContain("tok-abcdefghijklmnop");
 		// decrypts back through the same key
@@ -124,7 +125,12 @@ test("T18 omitted preserves, explicit null clears (fork nullish bug not copied)"
 		);
 		// omitted field: server URL preserved
 		const kept = await fx.run(
-			updatePreferences(fx.sql, "user-alice", { taskCommentEnabled: false }, fx.deps),
+			updatePreferences(
+				fx.sql,
+				"user-alice",
+				{ taskCommentEnabled: false },
+				fx.deps,
+			),
 		);
 		expect(kept.data.ntfyServerUrl).toBe("https://ntfy.example.com");
 		expect(kept.data.ntfyTopic).toBe("topic-x");
@@ -136,7 +142,12 @@ test("T18 omitted preserves, explicit null clears (fork nullish bug not copied)"
 			),
 		).resolves.toBeTruthy();
 		const cleared = await fx.run(
-			updatePreferences(fx.sql, "user-alice", { ntfyToken: null, ntfyEnabled: false }, fx.deps),
+			updatePreferences(
+				fx.sql,
+				"user-alice",
+				{ ntfyToken: null, ntfyEnabled: false },
+				fx.deps,
+			),
 		);
 		expect(cleared.data.ntfyTokenConfigured).toBe(false);
 		expect(cleared.data.maskedNtfyToken).toBeNull();
@@ -356,12 +367,13 @@ test("T19 org-rule upsert/delete: validation, cross-org board rejection, cascade
 				fx.deps,
 			),
 		);
-		let res = await fx.run(
+		const res = await fx.run(
 			updatePreferences(fx.sql, "user-alice", { ntfyEnabled: false }, fx.deps),
 		);
 		expect(res.data.organizations[0].ntfyEnabled).toBe(false);
 		// events emitted on rule mutation
-		const events = await fx.sql`SELECT plugin_type FROM event WHERE org='user-alice' ORDER BY seq`;
+		const events =
+			await fx.sql`SELECT plugin_type FROM event WHERE org='user-alice' ORDER BY seq`;
 		const types = events.map((e) => (e as { plugin_type: string }).plugin_type);
 		expect(types).toContain("notification:preferences-updated");
 		expect(types).toContain("notification:organization-rule-upserted");
@@ -371,9 +383,7 @@ test("T19 org-rule upsert/delete: validation, cross-org board rejection, cascade
 		);
 		expect(del.data.organizations).toHaveLength(0);
 		await expect(
-			fx.run(
-				deleteOrganizationRule(fx.sql, "user-alice", fx.org, fx.deps),
-			),
+			fx.run(deleteOrganizationRule(fx.sql, "user-alice", fx.org, fx.deps)),
 		).rejects.toThrow(DomainNotFound);
 	} finally {
 		await fx.close();

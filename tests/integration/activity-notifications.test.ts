@@ -295,7 +295,10 @@ test("fixture sanity: appendEventInTx writes schema_version=1 rows", async () =>
 // --- T12/T13: comment edit (history append, optimistic conflict, author-only)
 // and delete; external/non-comment rows immutable through the comment endpoint.
 
-import { deleteComment, updateComment } from "../../packages/domain/src/activity";
+import {
+	deleteComment,
+	updateComment,
+} from "../../packages/domain/src/activity";
 
 test("T12 edit appends old content to history and updates projection atomically", async () => {
 	const fx = await makeCommentFixture();
@@ -327,25 +330,29 @@ test("T12 edit appends old content to history and updates projection atomically"
 		expect(updated.row.editHistory).toHaveLength(1);
 		expect(updated.row.editHistory[0].content).toBe("first version");
 		expect(updated.row.editHistory[0].userId).toBe(fx.alice.userId);
-		expect(
-			new Date(updated.row.editHistory[0].editedAt).getTime(),
-		).toBe(created.row.updatedAt.getTime());
+		expect(new Date(updated.row.editHistory[0].editedAt).getTime()).toBe(
+			created.row.updatedAt.getTime(),
+		);
 		expect(updated.txid).toBeGreaterThan(0);
 		// authoritative store carries the same history
-		const stored = await fx.sql`SELECT content, edit_history FROM comment WHERE id=${created.row.id}`;
+		const stored =
+			await fx.sql`SELECT content, edit_history FROM comment WHERE id=${created.row.id}`;
 		expect(stored[0].content).toBe("second version");
 		expect(stored[0].edit_history).toHaveLength(1);
 		// projection matches
-		const projection = await fx.sql`SELECT content FROM activity_projection WHERE org_id=${fx.org} AND id=${created.row.id}`;
+		const projection =
+			await fx.sql`SELECT content FROM activity_projection WHERE org_id=${fx.org} AND id=${created.row.id}`;
 		expect(projection[0].content).toBe("second version");
 		// event log has create + update, schema_version=1
-		const events = await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
+		const events =
+			await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
 		expect(events.map((e) => e.plugin_type)).toEqual([
 			ACTIVITY_EVENT_TYPES.commentCreated,
 			ACTIVITY_EVENT_TYPES.commentUpdated,
 		]);
 		// update does not notify again: no new outbox job
-		const jobs = await fx.sql`SELECT count(*)::int AS n FROM notification_outbox`;
+		const jobs =
+			await fx.sql`SELECT count(*)::int AS n FROM notification_outbox`;
 		expect(jobs[0].n).toBe(1);
 	} finally {
 		await fx.close();
@@ -381,7 +388,8 @@ test("T12 optimistic conflict: stale expectedUpdatedAt is rejected under lock", 
 				}),
 			),
 		).rejects.toThrow(DomainConflict);
-		const stored = await fx.sql`SELECT content FROM comment WHERE id=${created.row.id}`;
+		const stored =
+			await fx.sql`SELECT content FROM comment WHERE id=${created.row.id}`;
 		expect(stored[0].content).toBe("v1");
 	} finally {
 		await fx.close();
@@ -467,7 +475,8 @@ test("T12 delete removes comment and live projection, preserves audit log", asyn
 			await fx.sql`SELECT * FROM activity_projection WHERE org_id=${fx.org} AND id=${created.row.id}`,
 		).toHaveLength(0);
 		// audit trail survives: create + delete events
-		const events = await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
+		const events =
+			await fx.sql`SELECT plugin_type FROM event WHERE org=${fx.org} ORDER BY seq`;
 		expect(events.map((e) => e.plugin_type)).toEqual([
 			ACTIVITY_EVENT_TYPES.commentCreated,
 			ACTIVITY_EVENT_TYPES.commentDeleted,
