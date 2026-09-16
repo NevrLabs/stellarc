@@ -186,6 +186,10 @@ async function readResponse(
 	const rules = await readOrgRules(sql, userId);
 	return {
 		...toPreferencePublic(row, deps.secrets),
+		// The response identifies the requesting user even before the first
+		// write materializes the row (defaults are the DTO's identity base).
+		id: userId,
+		userId,
 		emailAddress: deps.emailAddress,
 		ntfyServerUrl: row?.ntfy_server_url ?? null,
 		ntfyTopic: row?.ntfy_topic ?? null,
