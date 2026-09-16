@@ -474,3 +474,35 @@ test("D2: DELETE /api/work/board-keys/:id removes the alias and streams work:boa
 	);
 	expect(foreign.status).toBe(404);
 });
+
+// D5 (rework c40): the 120/min fixed-window on the public endpoint was never
+// exercised. Exceed it in-test; the 121st request must 429 with RateLimited
+// + retryAfterSeconds. (Unique board id → isolated bucket; the module-level
+// map is not shared with any other test's board.)
+test("D5: public endpoint rate-limits at 120/min with 429 RateLimited + retryAfterSeconds", async () => {
+	const H2 = { ...H("org-1"), "content-type": "application/json" };
+	const boardRes = await http.handler(
+		new Request("http://x/api/work/boards", {
+			method: "POST",
+			headers: H2,
+			body: JSON.stringify({ name: "D5 Rate Limited Board" }),
+		}),
+	);
+	const board = ((await boardRes.json()) as { data: { id: string } }).data;
+	await sql`UPDATE "board" SET is_public = true WHERE id = ${board.id}`;
+	let last: Response | undefined;
+	for (let i = 0; i < 121; i++) {
+		last = await http.handler(
+			new Request(`http://x/api/public/boards/${board.id}`),
+		);
+		if (last.status === 429) break;
+	}
+	expect(last?.status).toBe(429);
+	const body = (await last?.json()) as {
+		_tag?: string;
+		retryAfterSeconds?: number;
+	};
+	expect(body._tag).toBe("RateLimited");
+	expect(body.retryAfterSeconds).toBeGreaterThanOrEqual(1);
+	expect(body.retryAfterSeconds).toBeLessThanOrEqual(60);
+}, 60000);
