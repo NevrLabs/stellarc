@@ -351,12 +351,12 @@
   },
   {
    "stage": "implement",
-   "status": "partial",
+   "status": "pass",
    "cycle": 9,
    "branch": "forge/stl-15",
    "pr": 53,
    "head": "eda1f82c",
-   "reason": "consolidated: 3 branches \u2192 forge/stl-15; superseded PRs [48, 42, 39]"
+   "reason": "consolidated: 3 branches \u2192 forge/stl-15; superseded PRs [48, 42, 39] \u2014 prior cycle had PASSed implement; routed to review"
   }
  ],
  "cycle": 9

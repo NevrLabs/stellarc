@@ -301,12 +301,12 @@
   },
   {
    "stage": "implement",
-   "status": "partial",
+   "status": "pass",
    "cycle": 7,
    "branch": "forge/stl-22",
    "pr": 58,
    "head": "5216d005",
-   "reason": "consolidated: 2 branches \u2192 forge/stl-22; superseded PRs [32]"
+   "reason": "consolidated: 2 branches \u2192 forge/stl-22; superseded PRs [32] \u2014 prior cycle had PASSed implement; routed to review"
   }
  ],
  "cycle": 7

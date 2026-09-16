@@ -174,12 +174,12 @@
   },
   {
    "stage": "implement",
-   "status": "partial",
+   "status": "pass",
    "cycle": 5,
    "branch": "forge/stl-27",
    "pr": 59,
    "head": "0994c3bf",
-   "reason": "consolidated: 3 branches \u2192 forge/stl-27; superseded PRs [38, 36, 33]"
+   "reason": "consolidated: 3 branches \u2192 forge/stl-27; superseded PRs [38, 36, 33] \u2014 prior cycle had PASSed implement; routed to review"
   }
  ],
  "cycle": 5
