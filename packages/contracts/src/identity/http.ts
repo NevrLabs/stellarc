@@ -226,13 +226,14 @@ const PathTeamMember = Schema.Struct({ org: ID, id: ID, memberId: ID });
 export const ActiveOrgRequest = Schema.Struct({ organizationId: ID });
 export const CreateOrganizationRequest = Schema.Struct({
 	name: Name,
-	slug: Schema.NonEmptyString,
+	// D10 (§3): slug is bounded exactly like name.
+	slug: Name,
 	description: Schema.optional(Schema.String),
 });
 export const UpdateOrganizationRequest = Schema.Struct({
 	name: Schema.optional(Schema.String),
 	description: Schema.optional(Schema.NullOr(Schema.String)),
-	slug: Schema.optional(Schema.NonEmptyString),
+	slug: Schema.optional(Name),
 });
 export const UpdateMemberRequest = Schema.Struct({ role: Schema.String });
 export const CreateRoleRequest = Schema.Struct({

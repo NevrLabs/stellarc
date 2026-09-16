@@ -1,4 +1,18 @@
+import { Schema } from "effect";
 import type { Sql } from "postgres";
+import {
+	ActiveOrgRequest,
+	AddTeamMemberRequest,
+	CreateApiKeyRequest,
+	CreateInvitationRequest,
+	CreateOrganizationRequest,
+	CreateRoleRequest,
+	CreateTeamRequest,
+	UpdateMemberRequest,
+	UpdateOrganizationRequest,
+	UpdateRoleRequest,
+	UpdateTeamRequest,
+} from "../../../packages/contracts/src/identity/http";
 import { humanPrincipalId } from "../../../packages/domain/src/identity/auth";
 import {
 	effectiveCapabilities,
@@ -124,6 +138,19 @@ function principalContext(
 		keyCeiling: ctx.keyCeiling,
 		apikeyId: ctx.apikeyId,
 	};
+}
+
+/** D8 (§3): write bodies decode through the contracts request schemas —
+ * excess properties are REJECTED, not dropped, and invalid shapes become
+ * ValidationError 400 before any handler logic runs. */
+function decodeBody<A, I>(
+	schema: Schema.Schema<A, I>,
+	body: unknown,
+): A | null {
+	const result = Schema.decodeUnknownEither(schema, {
+		onExcessProperty: "error",
+	})(body);
+	return result._tag === "Right" ? result.right : null;
 }
 
 async function readJson(request: Request): Promise<Record<string, unknown>> {
@@ -394,8 +421,9 @@ export function identityHandler(
 
 		// POST /api/identity/active-org
 		if (method("POST", request) && segments.join("/") === "active-org") {
-			const body = await readJson(request);
-			if (!validId(body.organizationId))
+			const raw = await readJson(request);
+			const body = decodeBody(ActiveOrgRequest, raw);
+			if (!body)
 				return errorResponse("ValidationError", 400, {
 					message: "organizationId required",
 				});
@@ -425,9 +453,10 @@ export function identityHandler(
 
 		// POST /api/identity/organizations
 		if (method("POST", request) && segments.join("/") === "organizations") {
-			const body = await readJson(request);
-			// D10: slug is bounded exactly like name (§3 bounded ≤256).
-			if (!validName(body.name) || !validSlug(body.slug))
+			const raw = await readJson(request);
+			// D8/D10: schema decode bounds name/slug (≤256) and rejects excess keys.
+			const body = decodeBody(CreateOrganizationRequest, raw);
+			if (!body)
 				return errorResponse("ValidationError", 400, {
 					message: "name and slug required (each bounded to 256)",
 				});
@@ -564,8 +593,9 @@ export function identityHandler(
 			) {
 				const denied = manage("member:update", "organization:manage_members");
 				if (denied) return denied;
-				const body = await readJson(request);
-				const role = typeof body.role === "string" ? body.role : "";
+				const raw = await readJson(request);
+				const body = decodeBody(UpdateMemberRequest, raw);
+				const role = body ? body.role : "";
 				if (
 					!validName(role) ||
 					!["owner", "admin", "member", "viewer"].includes(role)
@@ -624,8 +654,9 @@ export function identityHandler(
 					"organization:update",
 				);
 				if (denied) return denied;
-				const body = await readJson(request);
-				if (!validName(body.role) || !validPermission(body.permission))
+				const raw = await readJson(request);
+				const body = decodeBody(CreateRoleRequest, raw);
+				if (!body)
 					return errorResponse("ValidationError", 400, {
 						message: "role and permission required",
 					});
@@ -657,8 +688,9 @@ export function identityHandler(
 					"organization:update",
 				);
 				if (denied) return denied;
-				const body = await readJson(request);
-				if (!validPermission(body.permission))
+				const raw = await readJson(request);
+				const body = decodeBody(UpdateRoleRequest, raw);
+				if (!body)
 					return errorResponse("ValidationError", 400, {
 						message: "permission required",
 					});
@@ -713,26 +745,11 @@ export function identityHandler(
 			if (method("POST", request) && rest.join("/") === "teams") {
 				const denied = manage("team:create");
 				if (denied) return denied;
-				const body = await readJson(request);
-				if (!validName(body.name))
+				const raw = await readJson(request);
+				const body = decodeBody(CreateTeamRequest, raw);
+				if (!body)
 					return errorResponse("ValidationError", 400, {
-						message: "name required",
-					});
-				if (
-					body.parentTeamId !== undefined &&
-					body.parentTeamId !== null &&
-					!validId(body.parentTeamId)
-				)
-					return errorResponse("ValidationError", 400, {
-						message: "parentTeamId invalid",
-					});
-				if (
-					body.icon !== undefined &&
-					body.icon !== null &&
-					typeof body.icon !== "string"
-				)
-					return errorResponse("ValidationError", 400, {
-						message: "icon invalid",
+						message: "name, icon, parentTeamId invalid",
 					});
 				try {
 					const result = await createTeam(
@@ -768,26 +785,11 @@ export function identityHandler(
 			) {
 				const denied = manage("team:update", "organization:manage_members");
 				if (denied) return denied;
-				const body = await readJson(request);
-				if (body.name !== undefined && !validName(body.name))
+				const raw = await readJson(request);
+				const body = decodeBody(UpdateTeamRequest, raw);
+				if (!body)
 					return errorResponse("ValidationError", 400, {
-						message: "name must be nonempty when present",
-					});
-				if (
-					body.parentTeamId !== undefined &&
-					body.parentTeamId !== null &&
-					!validId(body.parentTeamId)
-				)
-					return errorResponse("ValidationError", 400, {
-						message: "parentTeamId invalid",
-					});
-				if (
-					body.icon !== undefined &&
-					body.icon !== null &&
-					typeof body.icon !== "string"
-				)
-					return errorResponse("ValidationError", 400, {
-						message: "icon invalid",
+						message: "name, icon, parentTeamId invalid",
 					});
 				try {
 					const result = await updateTeam(
@@ -865,8 +867,9 @@ export function identityHandler(
 				if (method("POST", request)) {
 					const denied = manage("team:update", "organization:manage_members");
 					if (denied) return denied;
-					const body = await readJson(request);
-					if (!validId(body.userId))
+					const raw = await readJson(request);
+					const body = decodeBody(AddTeamMemberRequest, raw);
+					if (!body)
 						return errorResponse("ValidationError", 400, {
 							message: "userId required",
 						});
@@ -941,23 +944,11 @@ export function identityHandler(
 					"organization:manage_members",
 				);
 				if (denied) return denied;
-				const body = await readJson(request);
-				if (
-					typeof body.email !== "string" ||
-					!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email) ||
-					typeof body.role !== "string" ||
-					!body.role
-				)
+				const raw = await readJson(request);
+				const body = decodeBody(CreateInvitationRequest, raw);
+				if (!body)
 					return errorResponse("ValidationError", 400, {
 						message: "email and role required",
-					});
-				if (
-					body.teamId !== undefined &&
-					body.teamId !== null &&
-					!validId(body.teamId)
-				)
-					return errorResponse("ValidationError", 400, {
-						message: "teamId invalid",
 					});
 				try {
 					const result = await createInvitation(
@@ -1029,8 +1020,9 @@ export function identityHandler(
 				if (ctx.kind !== "human") return errorResponse("Forbidden", 403);
 				const denied = manage("apikey:create");
 				if (denied) return denied;
-				const body = await readJson(request);
-				if (!validName(body.name) || !validPermission(body.permissions))
+				const raw = await readJson(request);
+				const body = decodeBody(CreateApiKeyRequest, raw);
+				if (!body)
 					return errorResponse("ValidationError", 400, {
 						message: "name and permissions required",
 					});
@@ -1127,7 +1119,12 @@ export function identityHandler(
 			if (caps.size === 0) return errorResponse("NotFound", 404);
 			const denied = manageCapability(caps, "organization:update");
 			if (denied) return denied;
-			const body = await readJson(request);
+			const raw = await readJson(request);
+			const body = decodeBody(UpdateOrganizationRequest, raw);
+			if (!body)
+				return errorResponse("ValidationError", 400, {
+					message: "name/description/slug invalid",
+				});
 			const nameOk = body.name === undefined || validName(body.name);
 			const descOk =
 				body.description === undefined ||

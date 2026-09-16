@@ -470,3 +470,57 @@ test("D10 org slug is bounded to 256 chars on create", async () => {
 	expect(res.status).toBe(400);
 	expect((await res.json())._tag).toBe("ValidationError");
 });
+
+// --- Rework c12 (D8): Schema decode / excess-write-key rejection ------------------------
+
+test("D8 write bodies decode through contracts schemas; excess keys rejected (role create)", async () => {
+	await seed();
+	const cookie = await signIn();
+	// Excess property on a write body must be rejected, not silently dropped.
+	const response = await handler(
+		new Request(`http://127.0.0.1:4173/api/identity/orgs/${ORG}/roles`, {
+			method: "POST",
+			headers: { "content-type": "application/json", cookie },
+			body: JSON.stringify({
+				role: "schema-probe",
+				permission: { organization: ["read"] },
+				admin: true, // excess write key
+			}),
+		}),
+	);
+	expect(response.status).toBe(400);
+	const body = (await response.json()) as { _tag: string };
+	expect(body._tag).toBe("ValidationError");
+	// Nothing was written.
+	const [row] = await sql`SELECT id FROM organization_role
+		WHERE organization_id = ${ORG} AND role = 'schema-probe'`;
+	expect(row).toBeUndefined();
+});
+
+test("D8 invitation create validates email format through the schema", async () => {
+	await seed();
+	const cookie = await signIn();
+	const response = await handler(
+		new Request(`http://127.0.0.1:4173/api/identity/orgs/${ORG}/invitations`, {
+			method: "POST",
+			headers: { "content-type": "application/json", cookie },
+			body: JSON.stringify({ email: "not-an-email", role: "member" }),
+		}),
+	);
+	expect(response.status).toBe(400);
+	const body = (await response.json()) as { _tag: string };
+	expect(body._tag).toBe("ValidationError");
+});
+
+test("D8 team create rejects nonempty bounded name violations via schema", async () => {
+	await seed();
+	const cookie = await signIn();
+	const response = await handler(
+		new Request(`http://127.0.0.1:4173/api/identity/orgs/${ORG}/teams`, {
+			method: "POST",
+			headers: { "content-type": "application/json", cookie },
+			body: JSON.stringify({ name: "" }),
+		}),
+	);
+	expect(response.status).toBe(400);
+});
