@@ -1,8 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
 
 type DeleteOrganizationRoleRequest = {
   organizationId: string;
+  /** The role row's id. */
   roleName: string;
 };
 
@@ -13,17 +18,14 @@ function useDeleteOrganizationRole() {
       organizationId,
       roleName,
     }: DeleteOrganizationRoleRequest) => {
-      const { data, error } = await authClient.organization.deleteRole({
-        organizationId: organizationId,
-        roleName,
-      });
-      if (error) {
-        throw new Error(error.message || "Failed to delete role");
-      }
-      return data;
+      const result = await identitySend<IdentityMutation<{ id: string }>>(
+        orgPath(organizationId, "roles", roleName),
+        "DELETE",
+      );
+      return result.data;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-roles", variables.organizationId],
       });
     },

@@ -1,5 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
+import type { InvitationPublic } from "@/lib/identity-collections";
 import queryClient from "@/query-client";
 
 type CancelInvitationRequest = {
@@ -9,34 +14,23 @@ type CancelInvitationRequest = {
 
 function useCancelInvitation() {
   return useMutation({
-    mutationFn: async ({ invitationId }: CancelInvitationRequest) => {
-      const { data, error } = await authClient.organization.cancelInvitation({
-        invitationId,
-      });
-
-      if (error) {
-        throw new Error(error.message || "Failed to cancel invitation");
-      }
-
-      return data;
+    mutationFn: async ({
+      invitationId,
+      organizationId,
+    }: CancelInvitationRequest) => {
+      const result = await identitySend<IdentityMutation<InvitationPublic>>(
+        orgPath(organizationId, "invitations", invitationId, "cancel"),
+        "POST",
+        {},
+      );
+      return result.data;
     },
     onSuccess: (_, { organizationId }) => {
-      // Invalidate all organization-related queries
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-invites", organizationId],
       });
-
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization", "full", organizationId],
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["organization-members", organizationId],
-      });
-
-      // Also invalidate the broader organization query
-      queryClient.invalidateQueries({
-        queryKey: ["organization"],
       });
     },
   });

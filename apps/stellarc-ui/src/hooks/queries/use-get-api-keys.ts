@@ -1,17 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import useActiveOrganization from "@/hooks/queries/organization/use-active-organization";
+import { identityGet, orgPath } from "@/lib/identity-client";
+import type { ApiKeyPublic } from "@/lib/identity-collections";
 
 function useGetApiKeys() {
+  const { data: organization } = useActiveOrganization();
+  const organizationId = organization?.id;
+
   return useQuery({
-    queryKey: ["api-keys"],
+    queryKey: ["api-keys", organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
-      const result = await authClient.apiKey.list();
-
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
-
-      return result.data.apiKeys || [];
+      if (!organizationId) return [];
+      const { keys } = await identityGet<{ keys: ApiKeyPublic[] }>(
+        orgPath(organizationId, "apikeys"),
+      );
+      return keys;
     },
   });
 }

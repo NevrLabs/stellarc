@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { identityGet, orgPath } from "@/lib/identity-client";
+import type {
+  InvitationPublic,
+  MemberPublic,
+  OrganizationPublic,
+  TeamPublic,
+} from "@/lib/identity-collections";
 
 type GetFullOrganizationRequest = {
   organizationId?: string;
@@ -7,29 +13,40 @@ type GetFullOrganizationRequest = {
   membersLimit?: number;
 };
 
+export type FullOrganization = {
+  organization: OrganizationPublic;
+  members: MemberPublic[];
+  teams: TeamPublic[];
+  invitations: InvitationPublic[];
+};
+
 function useGetFullOrganization({
   organizationId,
   organizationSlug,
-  membersLimit = 100,
 }: GetFullOrganizationRequest) {
   return useQuery({
     queryKey: ["organization", "full", organizationId || organizationSlug],
     enabled: !!(organizationId || organizationSlug),
     queryFn: async () => {
-      const { data, error } = await authClient.organization.getFullOrganization(
-        {
-          query: {
-            organizationId: organizationId,
-            membersLimit,
-          },
-        },
-      );
-
-      if (error) {
-        throw new Error(error.message || "Failed to get full organization");
+      if (!organizationId) {
+        throw new Error("useGetFullOrganization requires organizationId");
       }
-
-      return data;
+      const [org, members, teams, invitations] = await Promise.all([
+        identityGet<OrganizationPublic>(orgPath(organizationId)),
+        identityGet<{ members: MemberPublic[] }>(
+          orgPath(organizationId, "members"),
+        ),
+        identityGet<{ teams: TeamPublic[] }>(orgPath(organizationId, "teams")),
+        identityGet<{ invitations: InvitationPublic[] }>(
+          orgPath(organizationId, "invitations"),
+        ).catch(() => ({ invitations: [] as InvitationPublic[] })),
+      ]);
+      return {
+        organization: org,
+        members: members.members,
+        teams: teams.teams,
+        invitations: invitations.invitations,
+      } satisfies FullOrganization;
     },
   });
 }

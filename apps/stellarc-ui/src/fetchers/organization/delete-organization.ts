@@ -1,19 +1,21 @@
-import { authClient } from "@/lib/auth-client";
+import { IdentityApiError, identitySend } from "@/lib/identity-client";
 
 type DeleteOrganizationRequest = {
   id: string;
 };
 
-const deleteOrganization = async ({ id }: DeleteOrganizationRequest) => {
-  const { data, error } = await authClient.organization.delete({
-    organizationId: id,
-  });
-
-  if (error) {
-    throw new Error(error.message || "Failed to delete organization");
+// §2: runtime does not delete organizations in this slice (no owned
+// cross-slice cascade policy). Surfaced as a typed error so the frozen UI's
+// delete affordance degrades loudly instead of silently no-opping.
+async function deleteOrganization({ id }: DeleteOrganizationRequest) {
+  try {
+    await identitySend(orgPath(id), "DELETE");
+  } catch (error) {
+    if (error instanceof IdentityApiError && error.status === 405) {
+      throw new Error("Organization deletion is not available");
+    }
+    throw error;
   }
-
-  return data;
-};
+}
 
 export default deleteOrganization;

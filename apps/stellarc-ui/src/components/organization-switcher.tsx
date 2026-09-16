@@ -42,9 +42,24 @@ export function OrganizationMenuSection({
 
       setIsSwitching(true);
       try {
-        await authClient.organization.setActive({
-          organizationId: selectedOrganization.id,
-        });
+        // STL-15 (rework c13, D10): session switch rides the first-party
+        // /api/identity/active-org (membership-authorized) instead of the
+        // unmounted Better Auth organization-plugin route.
+        await fetch(
+          `${import.meta.env.VITE_API_URL || "http://localhost:1337"}${
+            (import.meta.env.VITE_API_URL || "http://localhost:1337").endsWith(
+              "/api",
+            )
+              ? ""
+              : "/api"
+          }/identity/active-org`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ organizationId: selectedOrganization.id }),
+          },
+        );
 
         setTimeout(() => {
           navigate({

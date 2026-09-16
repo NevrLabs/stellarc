@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import useAuth from "@/components/providers/auth-provider/hooks/use-auth";
 import useActiveOrganization from "@/hooks/queries/organization/use-active-organization";
-import { authClient } from "@/lib/auth-client";
+import { identityGet, orgPath } from "@/lib/identity-client";
+import type { MemberPublic } from "@/lib/identity-collections";
 
 export const useGetActiveOrganizationMember = () => {
   const { user } = useAuth();
@@ -11,19 +12,10 @@ export const useGetActiveOrganizationMember = () => {
     queryKey: ["organization-member", "active", organization?.id, user?.id],
     enabled: !!organization?.id && !!user?.id,
     queryFn: async () => {
-      const { data, error } = await authClient.organization.listMembers({
-        query: {
-          organizationId: organization?.id,
-        },
-      });
-
-      if (error) {
-        throw new Error(
-          error.message || "Failed to get active organization user",
-        );
-      }
-
-      return data.members.find((member) => member.userId === user?.id) ?? null;
+      const { members } = await identityGet<{ members: MemberPublic[] }>(
+        orgPath(organization!.id, "members"),
+      );
+      return members.find((member) => member.userId === user?.id) ?? null;
     },
   });
 };

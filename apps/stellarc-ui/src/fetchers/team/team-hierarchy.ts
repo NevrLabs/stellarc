@@ -1,4 +1,9 @@
-import { getApiUrl } from "@/fetchers/get-api-url";
+import {
+  type IdentityMutation,
+  identityGet,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
 
 export type EffectiveTeamMember = {
   userId: string;
@@ -7,18 +12,36 @@ export type EffectiveTeamMember = {
   viaTeamName: string | null;
 };
 
+export type TeamNode = {
+  id: string;
+  name: string;
+  organizationId: string;
+  source: string;
+  icon: string | null;
+  parentTeamId: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
 export async function getEffectiveTeamMembers(
   teamId: string,
   organizationId: string,
 ): Promise<EffectiveTeamMember[]> {
-  const response = await fetch(
-    getApiUrl(
-      `/team/${encodeURIComponent(teamId)}/effective-members?organizationId=${encodeURIComponent(organizationId)}`,
-    ),
-    { credentials: "include" },
-  );
-  if (!response.ok) throw new Error(await response.text());
-  return (await response.json()) as EffectiveTeamMember[];
+  const { members } = await identityGet<{
+    members: Array<{
+      id: string;
+      teamId: string;
+      userId: string;
+      organizationId: string;
+      createdAt: string | null;
+      name: string | null;
+    }>;
+  }>(orgPath(organizationId, "teams", teamId, "members"));
+  return members.map((member) => ({
+    userId: member.userId,
+    viaTeamId: null,
+    viaTeamName: null,
+  }));
 }
 
 export async function setTeamParent(
@@ -26,35 +49,25 @@ export async function setTeamParent(
   organizationId: string,
   parentTeamId: string | null,
 ): Promise<{ id: string; parentTeamId: string | null }> {
-  const response = await fetch(
-    getApiUrl(`/team/${encodeURIComponent(teamId)}/parent`),
-    {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ organizationId, parentTeamId }),
-    },
-  );
-  if (!response.ok) throw new Error(await response.text());
-  return (await response.json()) as { id: string; parentTeamId: string | null };
+  const result = await identitySend<
+    IdentityMutation<TeamNode & { members?: unknown[] }>
+  >(orgPath(organizationId, "teams", teamId), "PATCH", {
+    ...(parentTeamId ? { parentTeamId } : {}),
+  });
+  return { id: result.data.id, parentTeamId: result.data.parentTeamId ?? null };
 }
 
 export type TeamParentLink = { id: string; parentTeamId: string | null };
 
-/**
- * Parent links for every team in the organization. Better Auth's client
- * strips additionalFields it does not know at parse time, so parentTeamId
- * never survives listTeams — this endpoint is the source of truth.
- */
+/** Parent links for every team in the organization (identity /teams list). */
 export async function getTeamHierarchy(
   organizationId: string,
 ): Promise<TeamParentLink[]> {
-  const response = await fetch(
-    getApiUrl(
-      `/team/hierarchy?organizationId=${encodeURIComponent(organizationId)}`,
-    ),
-    { credentials: "include" },
+  const { teams } = await identityGet<{ teams: TeamNode[] }>(
+    orgPath(organizationId, "teams"),
   );
-  if (!response.ok) throw new Error(await response.text());
-  return (await response.json()) as TeamParentLink[];
+  return teams.map((team) => ({
+    id: team.id,
+    parentTeamId: team.parentTeamId,
+  }));
 }

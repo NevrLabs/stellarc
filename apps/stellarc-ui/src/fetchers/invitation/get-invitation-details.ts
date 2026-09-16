@@ -1,4 +1,5 @@
-import { client } from "@kaneo/libs";
+import { identityGet } from "@/lib/identity-client";
+import type { InvitationPublic } from "@/lib/identity-collections";
 
 export type InvitationDetails = {
   id: string;
@@ -19,17 +20,14 @@ export type GetInvitationDetailsResponse = {
 export async function getInvitationDetails(
   invitationId: string,
 ): Promise<GetInvitationDetailsResponse> {
-  const response = await client.invitation.public[":id"].$get({
-    param: {
-      id: invitationId,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error);
+  try {
+    return await identityGet<GetInvitationDetailsResponse>(
+      `/invitations/${encodeURIComponent(invitationId)}/details`,
+    );
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Invalid invitation",
+    };
   }
-
-  const result = await response.json();
-  return result;
 }

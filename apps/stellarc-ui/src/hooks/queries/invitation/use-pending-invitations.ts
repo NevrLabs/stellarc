@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
+import useAuth from "@/components/providers/auth-provider/hooks/use-auth";
 import { getPendingInvitations } from "@/fetchers/invitation/get-pending-invitations";
-import { authClient } from "@/lib/auth-client";
 
 export function usePendingInvitations() {
-  const { data: session } = authClient.useSession();
+  const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["invitations", "pending", session?.user?.email],
+    queryKey: ["invitations", "pending", user?.email],
     queryFn: getPendingInvitations,
-    enabled: !!session?.user?.email,
+    enabled: !!user?.email,
     refetchInterval: 60000,
   });
 }

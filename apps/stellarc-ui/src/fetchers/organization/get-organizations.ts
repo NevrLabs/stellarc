@@ -1,13 +1,12 @@
-import { authClient } from "@/lib/auth-client";
+import { type IdentityMutation, identityGet } from "@/lib/identity-client";
+import type { OrganizationPublic } from "@/lib/identity-collections";
 
-const getOrganizations = async () => {
-  const { data, error } = await authClient.organization.list();
-
-  if (error) {
-    throw new Error(error.message || "Failed to fetch organizations");
-  }
-
-  return data || [];
-};
+async function getOrganizations() {
+  const { organizations } = await identityGet<{
+    organizations: OrganizationPublic[];
+  }>("/organizations");
+  return organizations;
+}
 
 export default getOrganizations;
+export type { IdentityMutation };

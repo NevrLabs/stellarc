@@ -100,26 +100,6 @@ const validSlug = validName;
 
 // §3 Permission = Record(nonempty resource, Array(nonempty action)),
 // validated against the pinned vocabulary — unknown capability rejected.
-function validPermission(value: unknown): value is Record<string, string[]> {
-	if (value === null || typeof value !== "object" || Array.isArray(value))
-		return false;
-	const {
-		statement,
-	} = require("../../../packages/contracts/src/legacy/permissions");
-	for (const [resource, actions] of Object.entries(
-		value as Record<string, unknown>,
-	)) {
-		if (!resource) return false;
-		if (!Array.isArray(actions) || actions.length === 0) return false;
-		const allowed = (statement as Record<string, readonly string[]>)[resource];
-		if (!allowed) return false;
-		for (const action of actions) {
-			if (typeof action !== "string" || !action) return false;
-			if (!(allowed as readonly string[]).includes(action)) return false;
-		}
-	}
-	return true;
-}
 
 function manageCapability(
 	caps: ReadonlySet<string>,
@@ -276,6 +256,7 @@ function teamPublic(row: TeamRow) {
 
 const ROUTES: Array<{ method: string; segments: string[] }> = [
 	{ method: "POST", segments: ["active-org"] },
+	{ method: "GET", segments: ["active-organization"] },
 	{ method: "GET", segments: ["organizations"] },
 	{ method: "POST", segments: ["organizations"] },
 	{ method: "PATCH", segments: ["orgs", ":org"] },
@@ -419,6 +400,32 @@ export function identityHandler(
 		const ctx = resolution.context;
 		principalKind.set(ctx.kind);
 
+		// GET /api/identity/active-organization (rework c13, D10): the
+		// switcher's active-org read; session-driven, user-private (§4).
+		if (
+			method("GET", request) &&
+			segments.join("/") === "active-organization"
+		) {
+			const rawToken = sessionTokenFromCookie(headers);
+			const [sessionRow] = await sql`
+				SELECT active_organization_id FROM session
+				WHERE token = ${rawToken === null ? "" : sessionTokenValue(rawToken)}`;
+			const activeId = sessionRow?.active_organization_id;
+			if (typeof activeId !== "string" || activeId.length === 0)
+				return json({ organization: null }, 200);
+			try {
+				const resolved = await orgRouter(sql, ctx.userId, activeId);
+				const [org] = await sql<
+					OrgRow[]
+				>`SELECT * FROM organization WHERE id = ${resolved.orgId}`;
+				if (!org) return json({ organization: null }, 200);
+				return json({ organization: orgPublic(org) }, 200);
+			} catch {
+				// Stale/inaccessible active org: treat as none rather than 404.
+				return json({ organization: null }, 200);
+			}
+		}
+
 		// POST /api/identity/active-org
 		if (method("POST", request) && segments.join("/") === "active-org") {
 			const raw = await readJson(request);
@@ -485,6 +492,73 @@ export function identityHandler(
 			} catch (error) {
 				return identityError(error);
 			}
+		}
+
+		// GET /api/identity/invitations/pending (rework c13, D10): the
+		// authenticated user's own pending invitations (invitee side).
+		if (
+			method("GET", request) &&
+			segments.join("/") === "invitations/pending"
+		) {
+			const [user] = await sql<{ email: string }[]>`
+				SELECT email FROM "user" WHERE id = ${ctx.userId}`;
+			if (!user) return json([], 200);
+			const rows = await sql`
+				SELECT id, organization_id, email, role, team_id, status, expires_at, created_at, inviter_id
+				FROM invitation
+				WHERE email = ${user.email} AND status = 'pending' AND expires_at > now()
+				ORDER BY id`;
+			return json(
+				rows.map((row) => ({
+					id: row.id,
+					organizationId: row.organization_id,
+					email: row.email,
+					role: row.role,
+					teamId: row.team_id,
+					status: row.status,
+					expiresAt: toIso(row.expires_at),
+					createdAt: toIso(row.created_at),
+					inviterId: row.inviter_id,
+				})),
+				200,
+			);
+		}
+
+		// GET /api/identity/invitations/:id/details (rework c13, D10): public
+		// invitation context for the invitee's accept screen (name resolution,
+		// status/expiry). No auth beyond knowing the invitation id.
+		if (
+			method("GET", request) &&
+			segments[0] === "invitations" &&
+			segments[2] === "details" &&
+			segments.length === 3 &&
+			validId(segments[1])
+		) {
+			const [invitation] = await sql`
+				SELECT id, organization_id, email, role, team_id, status, expires_at, created_at, inviter_id
+				FROM invitation WHERE id = ${segments[1]}`;
+			if (!invitation) return errorResponse("NotFound", 404);
+			const [org] = await sql<{ name: string }[]>`
+				SELECT name FROM organization WHERE id = ${invitation.organization_id}`;
+			const [inviter] = await sql<{ name: string }[]>`
+				SELECT name FROM "user" WHERE id = ${invitation.inviter_id}`;
+			const expired =
+				new Date(toIso(invitation.expires_at)).getTime() < Date.now();
+			return json(
+				{
+					valid: invitation.status === "pending" && !expired,
+					invitation: {
+						id: invitation.id,
+						email: invitation.email,
+						organizationName: org?.name ?? "",
+						inviterName: inviter?.name ?? "",
+						expiresAt: toIso(invitation.expires_at),
+						status: invitation.status,
+						expired,
+					},
+				},
+				200,
+			);
 		}
 
 		// GET /api/identity/users/:id/avatar (§3: bytes, stored safe image MIME,
@@ -555,6 +629,15 @@ export function identityHandler(
 				capabilities.some((c) => caps.has(c))
 					? null
 					: errorResponse("Forbidden", 403);
+
+			// GET /orgs/:org (rework c13, D10): the org public projection for
+			// the resolved scope — the lifted full-organization hook's base row.
+			if (rest.length === 0 && method("GET", request)) {
+				const [row] = await sql<
+					OrgRow[]
+				>`SELECT * FROM organization WHERE id = ${org.id}`;
+				return json(orgPublic(row), 200);
+			}
 
 			// GET /orgs/:org/members
 			if (method("GET", request) && rest.join("/") === "members") {
@@ -848,8 +931,10 @@ export function identityHandler(
 				if (!team) return errorResponse("NotFound", 404);
 				if (method("GET", request)) {
 					const rows = await sql`
-						SELECT tm.*, t.organization_id AS team_org FROM team_member tm
+						SELECT tm.*, t.organization_id AS team_org, u.name AS user_name
+						FROM team_member tm
 						JOIN team t ON t.id = tm.team_id
+						JOIN "user" u ON u.id = tm.user_id
 						WHERE tm.team_id = ${teamId} ORDER BY tm.id`;
 					return json(
 						{
@@ -859,6 +944,7 @@ export function identityHandler(
 								userId: row.user_id,
 								createdAt: toIso(row.created_at),
 								organizationId: row.team_org,
+								name: row.user_name,
 							})),
 						},
 						200,

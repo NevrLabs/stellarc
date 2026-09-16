@@ -1,4 +1,5 @@
-import { authClient } from "@/lib/auth-client";
+import { identityGet, orgPath } from "@/lib/identity-client";
+import type { MemberPublic } from "@/lib/identity-collections";
 
 export type GetActiveOrganizationMembersRequest = {
   organizationId: string;
@@ -7,17 +8,10 @@ export type GetActiveOrganizationMembersRequest = {
 async function getActiveOrganizationMembers({
   organizationId,
 }: GetActiveOrganizationMembersRequest) {
-  const { data, error } = await authClient.organization.listMembers({
-    query: {
-      organizationId: organizationId,
-    },
-  });
-
-  if (error) {
-    throw new Error(error.message || "Failed to fetch organization users");
-  }
-
-  return data || [];
+  const { members } = await identityGet<{
+    members: MemberPublic[];
+  }>(orgPath(organizationId, "members"));
+  return members;
 }
 
 export default getActiveOrganizationMembers;

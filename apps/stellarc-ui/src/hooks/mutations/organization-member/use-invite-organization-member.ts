@@ -1,12 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import inviteOrganizationMember from "@/fetchers/organization-member/invite-organization-member";
 import queryClient from "@/query-client";
 
 type InviteOrganizationMemberRequest = {
   organizationId: string;
   email: string;
-  role: "admin" | "member" | "owner";
-  resend?: boolean;
+  role?: "owner" | "admin" | "member";
 };
 
 function useInviteOrganizationMember() {
@@ -15,34 +14,14 @@ function useInviteOrganizationMember() {
       organizationId,
       email,
       role,
-      resend,
-    }: InviteOrganizationMemberRequest) => {
-      const { data, error } = await authClient.organization.inviteMember({
-        email,
-        role,
-        organizationId: organizationId,
-        resend,
-      });
-
-      if (error) {
-        throw new Error(
-          error.message || "Failed to invite organization member",
-        );
-      }
-
-      return data;
-    },
+    }: InviteOrganizationMemberRequest) =>
+      inviteOrganizationMember({ organizationId, email, role }),
     onSuccess: (_, { organizationId }) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-invites", organizationId],
       });
-
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization", "full", organizationId],
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["organization-members", organizationId],
       });
     },
   });

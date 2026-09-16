@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import getOrganizationMembers from "@/fetchers/organization-member/get-organization-members";
+import type { MemberPublic } from "@/lib/identity-collections";
 
 type GetOrganizationMembersRequest = {
   organizationId?: string;
@@ -14,40 +15,11 @@ type GetOrganizationMembersRequest = {
 
 function useGetOrganizationMembers({
   organizationId,
-  limit,
-  offset,
-  sortBy,
-  sortDirection,
-  filterField,
-  filterOperator,
-  filterValue,
-}: GetOrganizationMembersRequest) {
+}: GetOrganizationMembersRequest = {}) {
   return useQuery({
-    queryKey: [
-      "organization-members",
-      organizationId,
-      limit,
-      offset,
-      sortBy,
-      sortDirection,
-      filterField,
-      filterOperator,
-      filterValue,
-    ],
+    queryKey: ["organization-members", organizationId],
     enabled: !!organizationId,
-    queryFn: async () => {
-      const { data, error } = await authClient.organization.listMembers({
-        query: {
-          organizationId: organizationId,
-        },
-      });
-
-      if (error) {
-        throw new Error(error.message || "Failed to get organization users");
-      }
-
-      return data.members;
-    },
+    queryFn: () => getOrganizationMembers({ organizationId: organizationId! }),
   });
 }
 

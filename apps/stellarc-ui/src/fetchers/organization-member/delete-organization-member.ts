@@ -1,7 +1,12 @@
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
 
 export type DeleteOrganizationMemberRequest = {
   organizationId: string;
+  /** The removed member's user id (fork UI passes the row's userId). */
   userId: string;
 };
 
@@ -9,16 +14,11 @@ async function deleteOrganizationMember({
   organizationId,
   userId,
 }: DeleteOrganizationMemberRequest) {
-  const { data, error } = await authClient.organization.removeMember({
-    organizationId: organizationId,
-    memberIdOrEmail: userId,
-  });
-
-  if (error) {
-    throw new Error(error.message || "Failed to remove organization member");
-  }
-
-  return data;
+  const result = await identitySend<IdentityMutation<{ id: string }>>(
+    orgPath(organizationId, "members", userId),
+    "DELETE",
+  );
+  return result.data;
 }
 
 export default deleteOrganizationMember;

@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
+import type { RolePublic } from "@/lib/identity-collections";
 
 type CreateOrganizationRoleRequest = {
   organizationId: string;
@@ -15,18 +20,15 @@ function useCreateOrganizationRole() {
       role,
       permission,
     }: CreateOrganizationRoleRequest) => {
-      const { data, error } = await authClient.organization.createRole({
-        organizationId: organizationId,
-        role,
-        permission,
-      });
-      if (error) {
-        throw new Error(error.message || "Failed to create role");
-      }
-      return data;
+      const result = await identitySend<IdentityMutation<RolePublic>>(
+        orgPath(organizationId, "roles"),
+        "POST",
+        { role, permission },
+      );
+      return result.data;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-roles", variables.organizationId],
       });
     },

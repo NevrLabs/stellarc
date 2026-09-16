@@ -1,4 +1,9 @@
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
+import type { OrganizationPublic } from "@/lib/identity-collections";
 
 type UpdateOrganizationRequest = {
   id: string;
@@ -12,26 +17,18 @@ const updateOrganization = async ({
   id,
   name,
   description,
-  logo,
   slug,
 }: UpdateOrganizationRequest) => {
-  const metadata = description ? { description } : undefined;
-
-  const { data, error } = await authClient.organization.update({
-    organizationId: id,
-    data: {
+  const result = await identitySend<IdentityMutation<OrganizationPublic>>(
+    orgPath(id),
+    "PATCH",
+    {
       name,
-      slug,
-      logo,
-      metadata,
+      ...(slug !== undefined ? { slug } : {}),
+      ...(description !== undefined ? { description } : {}),
     },
-  });
-
-  if (error) {
-    throw new Error(error.message || "Failed to update organization");
-  }
-
-  return data;
+  );
+  return result.data;
 };
 
 export default updateOrganization;

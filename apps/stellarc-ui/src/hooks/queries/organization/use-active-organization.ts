@@ -1,17 +1,31 @@
+import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth-client";
+import { identityGet, orgPath } from "@/lib/identity-client";
+import type { OrganizationPublic } from "@/lib/identity-collections";
 
 function useActiveOrganization() {
   const {
     data: activeOrganization,
     error,
     refetch: refetchActiveOrganization,
-  } = authClient.useActiveOrganization();
+  } = useQuery({
+    queryKey: ["identity", "active-organization"],
+    queryFn: () => identityGet<OrganizationPublic>("/active-organization"),
+    retry: false,
+    staleTime: 30_000,
+  });
   const {
     data: organizations,
     isPending: isOrganizationsPending,
     refetch: refetchOrganizations,
-  } = authClient.useListOrganizations();
+  } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: () =>
+      identityGet<{ organizations: OrganizationPublic[] }>(
+        "/organizations",
+      ).then((r) => r.organizations),
+    staleTime: 30_000,
+  });
   const params = useParams({ strict: false }) as {
     organizationSlug?: string;
     organizationId?: string;

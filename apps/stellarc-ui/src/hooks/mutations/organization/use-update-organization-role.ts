@@ -1,8 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
+import type { RolePublic } from "@/lib/identity-collections";
 
 type UpdateOrganizationRoleRequest = {
   organizationId: string;
+  /** The role row's id (the role route keys rows by id, not name). */
   roleName: string;
   permission: Record<string, string[]>;
 };
@@ -15,21 +21,20 @@ function useUpdateOrganizationRole() {
       roleName,
       permission,
     }: UpdateOrganizationRoleRequest) => {
-      const { data, error } = await authClient.organization.updateRole({
-        organizationId: organizationId,
-        roleName,
-        data: { permission },
-      });
-      if (error) throw new Error(error.message || "Failed to update role");
-      return data;
+      const result = await identitySend<IdentityMutation<RolePublic>>(
+        orgPath(organizationId, "roles", roleName),
+        "PATCH",
+        { permission },
+      );
+      return result.data;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-roles", variables.organizationId],
       });
       // The role's permission set just changed, so any cached capability
       // map for members assigned to this role is now stale.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-capabilities", variables.organizationId],
       });
     },

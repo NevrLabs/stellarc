@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import deleteOrganizationMember from "@/fetchers/organization-member/delete-organization-member";
 import queryClient from "@/query-client";
 
 type DeleteOrganizationMemberRequest = {
@@ -12,31 +12,20 @@ function useDeleteOrganizationMember() {
     mutationFn: async ({
       organizationId,
       userId,
-    }: DeleteOrganizationMemberRequest) => {
-      const { data, error } = await authClient.organization.removeMember({
-        memberIdOrEmail: userId,
-        organizationId: organizationId,
-      });
-
-      if (error) {
-        throw new Error(
-          error.message || "Failed to remove organization member",
-        );
-      }
-
-      return data;
-    },
+    }: DeleteOrganizationMemberRequest) =>
+      deleteOrganizationMember({ organizationId, userId }),
     onSuccess: (_, { organizationId }) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-invites", organizationId],
       });
-
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization", "full", organizationId],
       });
-
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["organization-members", organizationId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["active-organization-members", organizationId],
       });
     },
   });

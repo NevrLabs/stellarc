@@ -1,4 +1,9 @@
-import { authClient } from "@/lib/auth-client";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
+import type { InvitationPublic } from "@/lib/identity-collections";
 
 export type InviteOrganizationMemberRequest = {
   organizationId: string;
@@ -11,17 +16,12 @@ const inviteOrganizationMember = async ({
   email,
   role = "member",
 }: InviteOrganizationMemberRequest) => {
-  const { data, error } = await authClient.organization.inviteMember({
-    organizationId: organizationId,
-    email,
-    role,
-  });
-
-  if (error) {
-    throw new Error(error.message || "Failed to invite organization member");
-  }
-
-  return data;
+  const result = await identitySend<IdentityMutation<InvitationPublic>>(
+    orgPath(organizationId, "invitations"),
+    "POST",
+    { email, role },
+  );
+  return result.data;
 };
 
 export default inviteOrganizationMember;

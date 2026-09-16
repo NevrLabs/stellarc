@@ -1,19 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { identityGet } from "@/lib/identity-client";
+import type { InvitationPublic } from "@/lib/identity-collections";
 
 function useGetUserInvitations() {
   return useQuery({
-    queryKey: ["user-invitations"],
-    queryFn: async () => {
-      const { data, error } =
-        await authClient.organization.listUserInvitations();
-
-      if (error) {
-        throw new Error(error.message || "Failed to get user invitations");
-      }
-
-      return data;
-    },
+    queryKey: ["invitations", "user"],
+    queryFn: () => identityGet<InvitationPublic[]>("/invitations/pending"),
   });
 }
 

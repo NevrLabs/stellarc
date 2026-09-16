@@ -1,5 +1,11 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { useMutation } from "@tanstack/react-query";
+import {
+  type IdentityMutation,
+  identitySend,
+  orgPath,
+} from "@/lib/identity-client";
+import type { MemberPublic } from "@/lib/identity-collections";
+import queryClient from "@/query-client";
 
 type UpdateOrganizationMemberRoleRequest = {
   organizationId: string;
@@ -8,46 +14,28 @@ type UpdateOrganizationMemberRoleRequest = {
 };
 
 function useUpdateOrganizationMemberRole() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       organizationId,
       memberId,
       role,
     }: UpdateOrganizationMemberRoleRequest) => {
-      const { data, error } = await authClient.organization.updateMemberRole({
-        memberId,
-        organizationId: organizationId,
-        role: role as "admin" | "member" | "owner",
-      });
-
-      if (error) {
-        throw new Error(
-          error.message || "Failed to update organization member role",
-        );
-      }
-
-      return data;
+      const result = await identitySend<IdentityMutation<MemberPublic>>(
+        orgPath(organizationId, "members", memberId),
+        "PATCH",
+        { role },
+      );
+      return result.data;
     },
-    onSuccess: (_data, variables) => {
-      // The members page reads from useGetFullOrganization which keys by
-      // ["organization", "full", organizationId] — invalidate that exact prefix
-      // so the table re-renders with the new role.
-      queryClient.invalidateQueries({
-        queryKey: ["organization", "full", variables.organizationId],
+    onSuccess: (_, { organizationId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["organization", "full", organizationId],
       });
-      queryClient.invalidateQueries({
-        queryKey: ["organization-members", variables.organizationId],
+      void queryClient.invalidateQueries({
+        queryKey: ["organization-members", organizationId],
       });
-      // useGetActiveOrganizationMember is keyed ["organization-member", "active", ...]
-      // and drives sidebar/role badges for the current user.
-      queryClient.invalidateQueries({
-        queryKey: ["organization-member", "active"],
-      });
-      // The active user's role may have changed; capability cache is keyed
-      // by (organizationId, role) so we drop the per-organization cache.
-      queryClient.invalidateQueries({
-        queryKey: ["organization-capabilities", variables.organizationId],
+      void queryClient.invalidateQueries({
+        queryKey: ["active-organization-members", organizationId],
       });
     },
   });
