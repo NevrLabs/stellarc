@@ -1,28 +1,17 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { useMutation } from "@tanstack/react-query";
+import deleteOrganization from "@/fetchers/organization/delete-organization";
 
 type DeleteOrganizationRequest = {
   organizationId: string;
 };
 
+// §2/§3: the identity runtime has no org-delete in this slice; the server
+// answers 405 and this hook surfaces that as a typed error instead of
+// silently pretending to delete.
 function useDeleteOrganization() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ organizationId }: DeleteOrganizationRequest) => {
-      const { data, error } = await authClient.organization.delete({
-        organizationId: organizationId,
-      });
-
-      if (error) {
-        throw new Error(error.message || "Failed to delete organization");
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      queryClient.invalidateQueries({ queryKey: ["active-organization"] });
-    },
+    mutationFn: async ({ organizationId }: DeleteOrganizationRequest) =>
+      deleteOrganization({ id: organizationId }),
   });
 }
 

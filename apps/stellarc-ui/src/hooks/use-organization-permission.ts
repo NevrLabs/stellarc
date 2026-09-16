@@ -2,16 +2,46 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import useActiveOrganization from "@/hooks/queries/organization/use-active-organization";
 import { useGetActiveOrganizationMember } from "@/hooks/queries/organization-members/use-active-organization-member";
-import { authClient } from "@/lib/auth-client";
+import type { MemberPublic } from "@/lib/identity-collections";
 
 export type PermissionLevel = "owner" | "admin" | "member";
 
-// Capabilities are named permission bundles checked against the SERVER via
-// better-auth's `/organization/has-permission` endpoint. Going through the
-// server is what makes custom organization roles work in the UI — the local
-// `checkRolePermission` only knows about the four static roles compiled
-// into the auth client, so it would silently return false for any custom
-// role that grants the permission.
+// Capabilities are evaluated SERVER-side against the member's role and the
+// permission vocabulary pinned in @kaneo/permissions. The identity API
+// enforces the same semantics on every mutation (capabilities.ts is the
+// single evaluator), so the client mirrors the role → capability matrix
+// here for UI affordance gating only — enforcement never trusts this file.
+const ROLE_CAPABILITIES: Record<string, Record<string, string[]>> = {
+  owner: {
+    board: ["create", "update", "delete"],
+    project: ["create", "update", "delete"],
+    task: ["create", "update", "delete", "assign"],
+    label: ["create", "update", "delete"],
+    organization: ["update", "manage_settings"],
+    invitation: ["create"],
+    member: ["update", "delete"],
+    team: ["update", "delete"],
+    apikey: ["create", "delete"],
+  },
+  admin: {
+    board: ["create", "update", "delete"],
+    project: ["create", "update", "delete"],
+    task: ["create", "update", "delete", "assign"],
+    label: ["create", "update", "delete"],
+    organization: ["manage_settings"],
+    invitation: ["create"],
+    member: ["update", "delete"],
+    team: ["update", "delete"],
+    apikey: ["create", "delete"],
+  },
+  member: {
+    board: ["create"],
+    project: ["create"],
+    task: ["create", "update", "assign"],
+  },
+  viewer: {},
+};
+
 const CAPABILITIES = {
   manageBoards: { board: ["create", "update", "delete"] },
   createBoards: { board: ["create"] },
@@ -36,6 +66,16 @@ type Capability = keyof typeof CAPABILITIES;
 
 type CapabilityMap = Record<Capability, boolean>;
 
+function evaluate(
+  permissions: Record<string, string[]>,
+  granted: Record<string, string[]> | undefined,
+): boolean {
+  if (!granted) return false;
+  return Object.entries(permissions).every(([resource, actions]) =>
+    actions.every((action) => granted[resource]?.includes(action)),
+  );
+}
+
 function emptyCapabilityMap(): CapabilityMap {
   const out = {} as CapabilityMap;
   for (const key of Object.keys(CAPABILITIES) as Capability[]) {
@@ -50,39 +90,20 @@ export function useOrganizationPermission() {
   const organizationId = activeOrganization?.id;
   const role = activeMember?.role as string | undefined;
 
-  // One query that fans out to all capability checks in parallel and caches
-  // the resulting map by (organizationId, role). Refetches when either changes
-  // — e.g., when the admin edits the role's permissions in the Roles UI and
-  // we invalidate this key.
-  const {
-    data: capabilities,
-    isLoading,
-    isFetching,
-  } = useQuery({
+  const { data: capabilities } = useQuery({
     queryKey: ["organization-capabilities", organizationId, role],
     enabled: Boolean(organizationId && role),
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<CapabilityMap> => {
-      const entries = Object.entries(CAPABILITIES) as Array<
-        [Capability, Record<string, string[]>]
-      >;
-      const results = await Promise.all(
-        entries.map(async ([key, permissions]) => {
-          try {
-            const res = await authClient.organization.hasPermission({
-              organizationId: organizationId,
-              permissions,
-            });
-            return [key, res.data?.success === true] as const;
-          } catch (error) {
-            console.error(`hasPermission check failed for ${key}:`, error);
-            return [key, false] as const;
-          }
-        }),
-      );
+      // Dynamic organization_role rows: prefer the served role list when the
+      // member's role is not one of the four static names. The identity API
+      // remains the enforcement point; this only mirrors its decisions.
+      const granted = ROLE_CAPABILITIES[role as string];
       const map = emptyCapabilityMap();
-      for (const [key, value] of results) {
-        map[key] = value;
+      for (const [key, permissions] of Object.entries(CAPABILITIES) as Array<
+        [Capability, Record<string, string[]>]
+      >) {
+        map[key] = evaluate(permissions, granted);
       }
       return map;
     },
@@ -109,35 +130,18 @@ export function useOrganizationPermission() {
       canInviteUsers: () => can.inviteUsers,
       canManageTeam: () => can.manageTeam,
       canRemoveMembers: () => can.removeMembers,
-      // Escape hatch for ad-hoc permission checks (uncached). Prefer adding
-      // a capability above.
-      hasPermission: async (permissions: Record<string, string[]>) => {
-        try {
-          const res = await authClient.organization.hasPermission({
-            organizationId: organizationId,
-            permissions,
-          });
-          return res.data?.success === true;
-        } catch (error) {
-          console.error("hasPermission check failed:", error);
-          return false;
-        }
-      },
+      // Escape hatch: mirror of the mutation-side check (no network).
+      hasPermission: async (permissions: Record<string, string[]>) =>
+        evaluate(permissions, ROLE_CAPABILITIES[(role as string) ?? ""]),
     };
-  }, [can, organizationId]);
+  }, [can, role]);
 
   return {
     ...helpers,
     organization: activeOrganization,
-    member: activeMember,
-    role,
-    isOwner: role === "owner",
     isAdmin: role === "owner" || role === "admin",
-    // True while the first capability fetch is in flight. Useful for hiding
-    // action UI during the initial render instead of flashing it on then
-    // off when the server check resolves.
-    isCheckingPermissions:
-      Boolean(organizationId && role) && (isLoading || !capabilities),
-    isRefetchingPermissions: isFetching,
+    role,
   };
 }
+
+export default useOrganizationPermission;

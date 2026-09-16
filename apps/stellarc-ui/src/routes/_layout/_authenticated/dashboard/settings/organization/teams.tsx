@@ -51,7 +51,36 @@ import {
   setTeamParent,
 } from "@/fetchers/team/team-hierarchy";
 import { useOrganizationPermission } from "@/hooks/use-organization-permission";
-import { authClient } from "@/lib/auth-client";
+import { orgPath as identityOrgPath } from "@/lib/identity-client";
+import type { MemberPublic, TeamPublic } from "@/lib/identity-collections";
+
+// Identity API base for the fetches below (mirrors lib/identity-client.ts,
+// which cannot be imported wholesale here because the module also exports
+// error classes used by other surfaces — keep the URL builder local).
+function identityUrl(path: string) {
+  const trimmedBase = (
+    import.meta.env.VITE_API_URL || "http://localhost:1337"
+  ).replace(/\/+$/, "");
+  const base = trimmedBase.endsWith("/api")
+    ? trimmedBase
+    : `${trimmedBase}/api`;
+  return `${base}/identity${path}`;
+}
+
+function orgPath(org: string, ...rest: string[]): string {
+  return identityOrgPath(org, ...rest);
+}
+
+type Team = TeamPublic;
+type TeamMemberRow = {
+  id: string;
+  teamId: string;
+  userId: string;
+  organizationId: string;
+  createdAt: string | null;
+  name?: string | null;
+};
+
 import { getAvatarTone } from "@/lib/avatar-tone";
 import { getInitials } from "@/lib/get-initials";
 import { toast } from "@/lib/toast";
@@ -60,22 +89,39 @@ export const Route = createFileRoute(
   "/_layout/_authenticated/dashboard/settings/organization/teams",
 )({
   beforeLoad: async () => {
-    const { data: organization } =
-      await authClient.organization.getFullOrganization();
-    if (!organization?.id) return;
-    throw redirect({
-      to: "/dashboard/organization/$organizationSlug/members",
-      params: { organizationId: organization.id },
-      search: { tab: "teams" },
-      replace: true,
-    });
+    // STL-15 (rework c13, D10): resolve the org via the identity API instead
+    // of the unmounted Better Auth organization-plugin route.
+    try {
+      const trimmedBase = (
+        import.meta.env.VITE_API_URL || "http://localhost:1337"
+      ).replace(/\/+$/, "");
+      const base = trimmedBase.endsWith("/api")
+        ? trimmedBase
+        : `${trimmedBase}/api`;
+      const res = await fetch(`${base}/identity/organizations`, {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const { organizations } = (await res.json()) as {
+        organizations: Array<{ id: string }>;
+      };
+      if (!organizations?.[0]?.id) return;
+      throw redirect({
+        to: "/dashboard/organization/$organizationSlug/members",
+        params: { organizationId: organizations[0].id },
+        search: { tab: "teams" },
+        replace: true,
+      });
+    } catch (error) {
+      // redirect() throws by design — rethrow untouched.
+      if (error && typeof error === "object" && "to" in (error as object)) {
+        throw error;
+      }
+      return;
+    }
   },
   component: TeamsSettings,
 });
-
-type Team = NonNullable<
-  Awaited<ReturnType<typeof authClient.organization.listTeams>>["data"]
->[number];
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -106,11 +152,12 @@ export function TeamsManagement({
     queryKey: ["organization-teams", organizationId],
     enabled: Boolean(organizationId),
     queryFn: async () => {
-      const { data, error } = await authClient.organization.listTeams({
-        query: { organizationId },
+      const res = await fetch(identityUrl(orgPath(organizationId, "teams")), {
+        credentials: "include",
       });
-      if (error) throw new Error(error.message || "Failed to load teams");
-      return data;
+      if (!res.ok) throw new Error("Failed to load teams");
+      const { teams } = (await res.json()) as { teams: Team[] };
+      return teams;
     },
   });
 
@@ -138,25 +185,33 @@ export function TeamsManagement({
     queryKey: ["organization-members", organizationId, "teams-settings"],
     enabled: Boolean(organizationId),
     queryFn: async () => {
-      const { data, error } = await authClient.organization.listMembers({
-        query: { organizationId },
+      const res = await fetch(identityUrl(orgPath(organizationId, "members")), {
+        credentials: "include",
       });
-      if (error) throw new Error(error.message || "Failed to load members");
-      return data.members;
+      if (!res.ok) throw new Error("Failed to load members");
+      const { members } = (await res.json()) as { members: MemberPublic[] };
+      return members;
     },
   });
 
   const saveTeam = useMutation({
     mutationFn: async ({ team, name }: { team?: Team; name: string }) => {
-      const result = team
-        ? await authClient.organization.updateTeam({
-            teamId: team.id,
-            data: { name },
-          })
-        : await authClient.organization.createTeam({ name, organizationId });
-      if (result.error)
-        throw new Error(result.error.message || "Failed to save team");
-      return result.data;
+      const res = await fetch(
+        identityUrl(
+          team
+            ? orgPath(organizationId, "teams", team.id)
+            : orgPath(organizationId, "teams"),
+        ),
+        {
+          method: team ? "PATCH" : "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(team ? { name } : { name }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to save team");
+      const saved = (await res.json()) as { data: Team };
+      return saved.data;
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -170,11 +225,11 @@ export function TeamsManagement({
 
   const deleteTeam = useMutation({
     mutationFn: async (teamId: string) => {
-      const { error } = await authClient.organization.removeTeam({
-        teamId,
-        organizationId,
-      });
-      if (error) throw new Error(error.message || "Failed to delete team");
+      const res = await fetch(
+        identityUrl(orgPath(organizationId, "teams", teamId)),
+        { method: "DELETE", credentials: "include" },
+      );
+      if (!res.ok) throw new Error("Failed to delete team");
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -339,9 +394,12 @@ export function TeamsManagement({
   );
 }
 
-type OrganizationMember = NonNullable<
-  Awaited<ReturnType<typeof authClient.organization.listMembers>>["data"]
->["members"][number];
+type OrganizationMember = {
+  id: string;
+  userId: string;
+  role: string;
+  user: { id: string; name: string; email: string; image: string | null };
+};
 
 function TeamCard({
   team,
@@ -366,10 +424,13 @@ function TeamCard({
   const teamMembersQuery = useQuery({
     queryKey,
     queryFn: async () => {
-      const { data, error } = await authClient.organization.listTeamMembers({
-        query: { teamId: team.id },
-      });
-      return resolveTeamMembersResult({ data, error });
+      const res = await fetch(
+        identityUrl(orgPath(organizationId, "teams", team.id, "members")),
+        { credentials: "include" },
+      );
+      if (!res.ok) return { members: [] as TeamMemberRow[] };
+      const body = (await res.json()) as { members: TeamMemberRow[] };
+      return { members: body.members };
     },
   });
   /*
@@ -383,6 +444,13 @@ function TeamCard({
     queryFn: () => getEffectiveTeamMembers(team.id, organizationId),
   });
   const parentTeamId = parentByTeamId.get(team.id) ?? null;
+  // Identity DELETE keys on the team_member row id; the fork UI hands us the
+  // user id, so resolve through the loaded roster.
+  const rosterUserIdToMemberId = (userId: string): string | null =>
+    teamMembersQuery.data?.members?.find((row) => row.userId === userId)?.id ??
+    teamMembersQuery.data?.find?.((row: TeamMemberRow) => row.userId === userId)
+      ?.id ??
+    null;
   const setParent = useMutation({
     mutationFn: (nextParentId: string | null) =>
       setTeamParent(team.id, organizationId, nextParentId),
@@ -451,21 +519,30 @@ function TeamCard({
       userId: string;
       remove?: boolean;
     }) => {
-      const result = remove
-        ? await authClient.organization.removeTeamMember({
-            teamId: team.id,
-            userId,
-            organizationId,
-          })
-        : await authClient.organization.addTeamMember({
-            teamId: team.id,
-            userId,
-            organizationId,
-          });
-      if (result.error)
-        throw new Error(
-          result.error.message || "Failed to update team members",
-        );
+      const res = await fetch(
+        identityUrl(
+          remove
+            ? orgPath(
+                organizationId,
+                "teams",
+                team.id,
+                "members",
+                // removal keys on the team_member row id; resolve via the
+                // loaded roster when the caller only knows the user id.
+                rosterUserIdToMemberId(userId) ?? userId,
+              )
+            : orgPath(organizationId, "teams", team.id, "members"),
+        ),
+        remove
+          ? { method: "DELETE", credentials: "include" }
+          : {
+              method: "POST",
+              credentials: "include",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ userId }),
+            },
+      );
+      if (!res.ok) throw new Error("Failed to update team members");
     },
     onSuccess: async () => {
       setMemberId("");

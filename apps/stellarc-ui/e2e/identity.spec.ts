@@ -81,13 +81,13 @@ test.beforeAll(async () => {
     max: 4,
     onnotice: () => {},
   });
-  const { runMigration } = await import("../../packages/db/src/migrate");
+  const { runMigration } = await import("../../../../packages/db/src/migrate");
   await runMigration(sourceSql);
   const bcrypt = (await import("bcryptjs")).default;
   const hash = bcrypt.hashSync("imported-password-1", 10);
   await sourceSql`UPDATE account SET password = ${hash} WHERE id = 'a-fx'`;
   const { seedIdentitySnapshot } = await import(
-    "../../tests/helpers/identity-fixture"
+    "../../../../tests/helpers/identity-fixture"
   );
   await seedIdentitySnapshot(sourceSql);
   await sourceSql.end();
@@ -161,7 +161,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   apiProcess?.kill("SIGTERM");
-});
+}, 240000);
 
 const BASE = "http://127.0.0.1:1337/api";
 let cookiePair = "";

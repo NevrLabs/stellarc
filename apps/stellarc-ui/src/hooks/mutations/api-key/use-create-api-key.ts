@@ -5,37 +5,46 @@ import {
   identitySend,
   orgPath,
 } from "@/lib/identity-client";
-import type { ApiKeyPublic } from "@/lib/identity-collections";
 
 type CreateApiKeyClientRequest = {
   name: string;
-  permissions: Record<string, string[]>;
-  /** Expiry as an ISO date string; undefined = non-expiring. */
-  expiresIn?: string;
+  /** Lifetime in seconds (fork dialog semantics); null/undefined = never. */
+  expiresIn?: number | null;
+  prefix?: string;
+  metadata?: Record<string, unknown>;
 };
 
-type CreateApiKeyResponse = { key: ApiKeyPublic; secret: string };
+// The frozen dialog/modal contract: the modal displays the one-time secret
+// returned under `key` (fork behavior — the raw key is shown exactly once,
+// only the digest is persisted server-side).
+type CreateApiKeyResponse = { key: string; name: string };
 
 function useCreateApiKey() {
   const queryClient = useQueryClient();
   const { data: organization } = useActiveOrganization();
 
   return useMutation({
-    mutationFn: async (data: CreateApiKeyClientRequest) => {
+    mutationFn: async (
+      data: CreateApiKeyClientRequest,
+    ): Promise<CreateApiKeyResponse> => {
       const organizationId = organization?.id;
       if (!organizationId) {
         throw new Error("No active organization");
       }
-      const result = await identitySend<IdentityMutation<CreateApiKeyResponse>>(
-        orgPath(organizationId, "apikeys"),
-        "POST",
-        {
-          name: data.name,
-          permissions: data.permissions,
-          ...(data.expiresIn ? { expiresAt: data.expiresIn } : {}),
-        },
-      );
-      return result.data;
+      const result = await identitySend<
+        IdentityMutation<{ key: { name: string | null }; secret: string }>
+      >(orgPath(organizationId, "apikeys"), "POST", {
+        name: data.name,
+        permissions: {},
+        ...(data.expiresIn
+          ? {
+              expiresAt: new Date(
+                Date.now() + data.expiresIn * 1000,
+              ).toISOString(),
+            }
+          : {}),
+      });
+      return { key: result.data.secret, name: result.data.key.name ?? "" };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["api-keys"] });
