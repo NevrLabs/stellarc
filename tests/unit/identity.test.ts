@@ -107,7 +107,13 @@ test("T05 disabled or expired keys are denied before scope derivation", async ()
 	expect(expired).toBeNull();
 });
 
-test("T06 key scope derives exactly one agent principal for reference_id; grants stored", async () => {
+test("T06 key auth is read-only; grants exist only via the createApiKey mutation", async () => {
+	// Rework c10 (defects 4/5): authenticateApiKey never mints principal or
+	// identity_grant rows. The fixture provisions the agent key through the
+	// createApiKey mutation (the only grant source besides the importer).
+	const { createApiKey } = await import(
+		"../../packages/domain/src/identity/mutations"
+	);
 	await seedKeyRow(ctx.sql, {
 		permissions: JSON.stringify({ board: ["read"] }),
 	});
@@ -119,12 +125,33 @@ test("T06 key scope derives exactly one agent principal for reference_id; grants
 	// Deterministic separate agent namespace (never collides with human ids).
 	expect(auth?.principal.id).toMatch(/^agent:/);
 	expect(auth?.principal.id).not.toBe(humanPrincipalId(USER_ID));
-	// Rerun is idempotent: same principal row, no duplicate grants.
-	const again = await authenticateApiKey(ctx.sql, RAW_KEY);
-	expect(again?.principal.id).toBe(auth?.principal.id);
+	// Read-only: authenticating a hand-seeded key row mints NO principal and
+	// NO structural grants (T06 negative-control foundation — the union
+	// sabotage in identity-http stays red because the intersection is real).
+	const seeded = await ctx.sql`SELECT count(*)::int AS n FROM principal
+		WHERE id = ${auth?.principal.id ?? ""}`;
+	expect(seeded[0]?.n).toBe(0);
 	const grants = await ctx.sql`SELECT capability FROM identity_grant
 		WHERE org_id=${ORG_ID} AND principal_id=${auth?.principal.id ?? ""} ORDER BY capability`;
-	expect(grants.map((g) => g.capability)).toEqual(["board:read", "org:member"]);
+	expect(grants.map((g) => g.capability)).toEqual([]);
+	// The mutation path is the grant source: createApiKey through the domain
+	// service mints principal + ceiling-derived structural grants.
+	const created = await createApiKey(
+		ctx.sql,
+		ORG_ID,
+		{ name: "Mut key", permissions: { board: ["read"] }, expiresAt: null },
+		{ principalId: `human:${USER_ID}`, kind: "human", userId: USER_ID },
+	);
+	const mintedKey = created.data.key as { id: string };
+	expect(typeof created.data.secret).toBe("string");
+	const auth2 = await authenticateApiKey(ctx.sql, created.data.secret);
+	expect(auth2?.principal.id).toBe(`agent:${mintedKey.id}`);
+	const grants2 = await ctx.sql`SELECT capability FROM identity_grant
+		WHERE org_id=${ORG_ID} AND principal_id=${auth2?.principal.id ?? ""} ORDER BY capability`;
+	expect(grants2.map((g) => g.capability)).toEqual([
+		"board:read",
+		"org:member",
+	]);
 });
 
 test("D8 importer verifies all ten PK sets/values and rejects destination extras", async () => {

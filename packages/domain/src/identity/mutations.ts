@@ -220,29 +220,29 @@ export async function removeMember(
 				WHERE organization_id = ${org.id} AND role = 'owner'`;
 			if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
 		}
-			await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
-			// Defect 6 (T12): revoke EVERY principal derived from this user —
-			// the human principal and every agent principal minted from their
-			// API keys — in the same transaction, with matching grant-deleted
-			// events. Session and shape-handle authorization re-read these
-			// rows per request, so access terminates now, not at cache expiry.
-			const removed = await tx<{ principal_id: string; capability: string }[]>`
+		await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
+		// Defect 6 (T12): revoke EVERY principal derived from this user —
+		// the human principal and every agent principal minted from their
+		// API keys — in the same transaction, with matching grant-deleted
+		// events. Session and shape-handle authorization re-read these
+		// rows per request, so access terminates now, not at cache expiry.
+		const removed = await tx<{ principal_id: string; capability: string }[]>`
 				DELETE FROM identity_grant WHERE org_id = ${org.id} AND principal_id IN
 					(SELECT id FROM principal WHERE user_id = ${String(member.user_id)})
 				RETURNING principal_id, capability`;
-			// Events live in the org's canonical-ID namespace, exactly like
-			// every other identity event — never under the caller's raw path.
-			const txid = await appendEvents(tx, org.id, actorPrincipalId, [
-				{ type: "identity:member-deleted", payload: { id: memberId } },
-				...removed.map((row) => ({
-					type: "identity:grant-deleted" as const,
-					payload: {
-						principalId: row.principal_id,
-						capability: row.capability,
-					},
-				})),
-			]);
-			return { data: { id: memberId }, txid };
+		// Events live in the org's canonical-ID namespace, exactly like
+		// every other identity event — never under the caller's raw path.
+		const txid = await appendEvents(tx, org.id, actorPrincipalId, [
+			{ type: "identity:member-deleted", payload: { id: memberId } },
+			...removed.map((row) => ({
+				type: "identity:grant-deleted" as const,
+				payload: {
+					principalId: row.principal_id,
+					capability: row.capability,
+				},
+			})),
+		]);
+		return { data: { id: memberId }, txid };
 	});
 }
 
@@ -322,7 +322,7 @@ function roleCapabilitiesForGrants(
 	if (dynamic) {
 		const caps: string[] = [];
 		for (const [resource, actions] of Object.entries(dynamic)) {
-			for (const action of actions) caps.add(`${resource}:${action}`);
+			for (const action of actions) caps.push(`${resource}:${action}`);
 		}
 		return caps;
 	}
@@ -378,7 +378,6 @@ export async function updateMemberRole(
 				WHERE organization_id = ${orgId} AND role = 'owner'`;
 			if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
 		}
-		const now = new Date();
 		await tx`UPDATE organization_member SET role = ${role} WHERE id = ${memberId} AND organization_id = ${orgId}`;
 		const [row] = await tx<
 			{
@@ -729,7 +728,7 @@ export async function addTeamMember(
 export async function removeTeamMember(
 	sql: Sql,
 	orgId: string,
-	teamId: string,
+	_teamId: string,
 	memberId: string,
 	actor: string,
 ): Promise<MutationResult> {
@@ -896,7 +895,6 @@ export async function updateOrganization(
 		const description =
 			input.description !== undefined ? input.description : org.description;
 		const slug = input.slug ?? org.slug;
-		const now = new Date();
 		await tx`UPDATE organization SET name = ${name}, description = ${description}, slug = ${slug} WHERE id = ${orgId}`;
 		const txid = await appendEvents(tx, orgId, actor, [
 			{ type: "identity:organization-upserted", payload: { id: orgId } },

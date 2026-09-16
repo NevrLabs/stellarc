@@ -47,10 +47,6 @@ export function makeAuth(sql: Sql, deps: BetterAuthDeps) {
 			storeSessionInDatabase: true,
 		},
 		advanced: {
-			database: {
-				// 0002 identity tables use text IDs with driver-side defaults
-				// absent; Better Auth's default id generation fills them.
-			},
 			cookiePrefix: "stellarc",
 		},
 		user: {

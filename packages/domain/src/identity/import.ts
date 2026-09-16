@@ -13,29 +13,6 @@ export function fixtureSourceId(name: string): string {
 	return `fixture:${name}`;
 }
 
-/** Normalize a value for comparison: timestamps compare in their PG text
- * form (the staged snapshot read them ::text); bytea compares as raw bytes
- * on both sides; booleans/integers as canonical strings. */
-function comparePart(value: unknown): string | Buffer {
-	if (value === null || value === undefined) return "null";
-	if (Buffer.isBuffer(value)) return value;
-	if (value instanceof Date)
-		return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")} ${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}:${String(value.getSeconds()).padStart(2, "0")}`;
-	if (typeof value === "boolean") return value ? "true" : "false";
-	return String(value);
-}
-
-function compareDigest(parts: unknown[]): string {
-	const hash = createHash("sha256");
-	for (const part of parts) {
-		const norm = comparePart(part);
-		if (Buffer.isBuffer(norm)) hash.update(norm);
-		else hash.update(norm);
-		hash.update("\x1f");
-	}
-	return hash.digest("hex");
-}
-
 /** Canonical all-column representation: null stays the string "null", bytea
  * enters the hash as raw bytes, timestamps as their driver text form. */
 function canonicalDigest(parts: unknown[]): string {

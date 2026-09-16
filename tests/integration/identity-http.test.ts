@@ -349,7 +349,9 @@ test("D2 agent key with read-only ceiling cannot remove members (no owner author
 		VALUES ('u-http-2', 'Second', 'second@test.invalid', true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
 	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
 		VALUES ('mem-http-2', ${ORG}, 'u-http-2', 'member', '2026-01-01 00:00:00')`;
-	const { raw } = await seedAgentKey(JSON.stringify({ organization: ["read"] }));
+	const { raw } = await seedAgentKey(
+		JSON.stringify({ organization: ["read"] }),
+	);
 	const res = await handler(
 		new Request(
 			`http://127.0.0.1:4173/api/identity/orgs/${ORG}/members/mem-http-2`,
@@ -395,10 +397,13 @@ test("D2 agent key with manage_members ceiling CAN remove members; reads work wi
 
 test("D2 banned owner denies the agent key path", async () => {
 	await seed();
-	const { raw } = await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
-		keyId: "key-c4-ban",
-		banned: true,
-	});
+	const { raw } = await seedAgentKey(
+		JSON.stringify({ organization: ["read"] }),
+		{
+			keyId: "key-c4-ban",
+			banned: true,
+		},
+	);
 	const res = await agentGet(`/api/identity/orgs/${ORG}/members`, raw);
 	expect(res.status).toBe(401);
 });

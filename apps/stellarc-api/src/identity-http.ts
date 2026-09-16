@@ -10,7 +10,6 @@ import {
 	cancelInvitation,
 	createApiKey,
 	createInvitation,
-	createOrganization,
 	createRole,
 	createTeam,
 	deleteApiKey,
@@ -282,15 +281,6 @@ const ROUTES: Array<{ method: string; segments: string[] }> = [
 	{ method: "GET", segments: ["users", ":id", "avatar"] },
 ];
 
-function matchRoute(segments: string[], method: string): boolean {
-	return ROUTES.some(
-		(r) =>
-			r.method === method &&
-			r.segments.length === segments.length &&
-			r.segments.every((seg, i) => seg.startsWith(":") || seg === segments[i]),
-	);
-}
-
 function pathKnown(segments: string[]): boolean {
 	return ROUTES.some(
 		(r) =>
@@ -448,8 +438,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 			// capabilities-empty principal is Forbidden, not "absent org".
 			if (!caps.has("org:member") && caps.size === 0)
 				return errorResponse("NotFound", 404);
-			if (!caps.has("org:member"))
-				return errorResponse("Forbidden", 403);
+			if (!caps.has("org:member")) return errorResponse("Forbidden", 403);
 			const rest = segments.slice(2);
 			// Guards accept equivalent capability aliases: the fork's key
 			// ceiling vocabulary (organization:manage_members) and the

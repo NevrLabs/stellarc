@@ -58,7 +58,10 @@ async function seedAgentKey(
 
 test("authenticateApiKey performs NO writes: no principal, no grants", async () => {
 	await seedOrgAndOwner();
-	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), "key-c10-a");
+	const raw = await seedAgentKey(
+		JSON.stringify({ organization: ["read"] }),
+		"key-c10-a",
+	);
 	const { authenticateApiKey } = await import(
 		"../../packages/domain/src/identity/auth"
 	);
@@ -92,13 +95,17 @@ test("agent capability is ceiling INTERSECT structural: a ceiling grant without 
 	const { effectiveCapabilities } = await import(
 		"../../packages/domain/src/identity/capabilities"
 	);
-	const caps = await effectiveCapabilities(sql, {
-		principalId: agentPrincipalId("key-c10-b"),
-		kind: "agent",
-		userId: USER,
-		keyCeiling: { organization: ["read"], member: ["delete"] },
-		apikeyId: "key-c10-b",
-	}, ORG);
+	const caps = await effectiveCapabilities(
+		sql,
+		{
+			principalId: agentPrincipalId("key-c10-b"),
+			kind: "agent",
+			userId: USER,
+			keyCeiling: { organization: ["read"], member: ["delete"] },
+			apikeyId: "key-c10-b",
+		},
+		ORG,
+	);
 	expect(caps.has("member:delete")).toBe(false);
 	expect(caps.has("organization:read")).toBe(false);
 	const ctx = await import("../../apps/stellarc-api/src/identity-context");
@@ -124,11 +131,15 @@ test("fresh createOrganization owner holds organization:update (role plus struct
 	const { effectiveCapabilities } = await import(
 		"../../packages/domain/src/identity/capabilities"
 	);
-	const caps = await effectiveCapabilities(sql, {
-		principalId: `human:${USER}`,
-		kind: "human",
-		userId: USER,
-	}, created.data.id as string);
+	const caps = await effectiveCapabilities(
+		sql,
+		{
+			principalId: `human:${USER}`,
+			kind: "human",
+			userId: USER,
+		},
+		created.data.id as string,
+	);
 	expect(caps.has("organization:update")).toBe(true);
 	expect(caps.has("org:member")).toBe(true);
 	expect(caps.has("member:delete")).toBe(true);
