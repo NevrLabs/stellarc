@@ -7,8 +7,37 @@ import { Authz, AuthzLive } from "../../../packages/domain/src/authz";
 import { ShapeEngine } from "../../../packages/sync/src/index";
 import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import { AppConfig, ConfigLive } from "./config";
-import { foundationHandler } from "./http";
+import { type Authorize, foundationHandler } from "./http";
 import { workHandler } from "./work-http";
+
+// STL-16 §2: Actor = principal.id. The bearer token rides the wire as
+// "Bearer <org> <principal>" — the same grammar work-http's telemetry
+// (workPrincipalOf) already implements. Production passes this extractor so
+// emitted work events carry the real principal instead of the session()
+// "anonymous" default. Kept local: §3 forbids production token grammars from
+// growing exported module surface (see foundation.test.ts's principalFrom
+// guard on the foundation handler).
+function workPrincipalFrom(org: string, authorization?: string): string {
+	const token = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
+	return token.startsWith(`${org} `) ? token.slice(org.length + 1) : "";
+}
+
+import type { Sql } from "postgres";
+
+/**
+ * The single production composition of the work handler. Exported so tests
+ * (and only tests) compose the handler identically to the running API — the
+ * D3 actor contract ("Actor = principal.id", §2) is pinned against the exact
+ * wiring main.ts uses, not a test-side lookalike.
+ */
+export function composeWorkHandler(
+	sql: Sql,
+	authorize: Authorize,
+	telemetry?: Parameters<typeof workHandler>[3],
+	memoMap?: Parameters<typeof workHandler>[4],
+) {
+	return workHandler(sql, authorize, workPrincipalFrom, telemetry, memoMap);
+}
 
 export const api = Effect.gen(function* () {
 	const config = yield* AppConfig;
@@ -46,7 +75,7 @@ export const api = Effect.gen(function* () {
 	// foundation handler keeps /health + /orgs/:org/v1/shape and 404s the rest.
 	const work = yield* Effect.acquireRelease(
 		Effect.sync(() =>
-			workHandler(sql, authz.authorize, undefined, telemetry, memoMap),
+			composeWorkHandler(sql, authz.authorize, telemetry, memoMap),
 		),
 		(work) => Effect.promise(() => work.dispose()),
 	);

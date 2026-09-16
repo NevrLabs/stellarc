@@ -385,3 +385,37 @@ test("T27-wire: DELETE /api/work/tickets/:id settles with a committed txid", asy
 		await sql`SELECT deleted_at IS NOT NULL AS gone FROM task WHERE id = ${ticket.id}`;
 	expect(row?.gone).toBe(true);
 }, 30000);
+
+// D3 (rework c40): production composition must pass the bearer-principal
+// extractor, not `undefined`. The harness-composed handler injects its own
+// extractor, which masked the defect — main.ts passed undefined, session()
+// defaulted the principal to "anonymous", and every prod-composed work event
+// carried actor='anonymous'. This test composes the handler exactly as
+// main.ts does (AuthzLive from the domain layer, default extractor) and
+// asserts the event actor is the bearer principal.
+test("D3: prod-composed work handler stamps the bearer principal as event actor", async () => {
+	const { composeWorkHandler } = await import(
+		"../../apps/stellarc-api/src/main"
+	);
+	// The exact production composition (main.ts): its extractor + an
+	// org-membership authorize (principal-agnostic, like the domain layer).
+	const prod = composeWorkHandler(sql, () => "ok");
+	try {
+		const create = await prod.handler(
+			new Request("http://x/api/work/boards", {
+				method: "POST",
+				headers: { ...H("org-1"), "content-type": "application/json" },
+				body: JSON.stringify({ name: "D3 Prod Board" }),
+			}),
+		);
+		expect(create.status).toBe(200);
+		const { data } = (await create.json()) as { data: { id: string } };
+		const [event] = await sql`SELECT actor FROM event
+			WHERE org = 'org-1' AND plugin_type = 'work:board-upserted'
+			AND payload->>'id' = ${data.id}`;
+		expect(event?.actor).toBe("user-1");
+		expect(event?.actor).not.toBe("anonymous");
+	} finally {
+		await prod.dispose();
+	}
+});
