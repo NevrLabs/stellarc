@@ -1,12 +1,12 @@
 import type { Sql } from "postgres";
 import { expect, test } from "vitest";
 import { migrate } from "../../packages/db/src/migrate";
-import { appendEventInTx } from "../../packages/domain/src/activity-events";
 import { createComment } from "../../packages/domain/src/activity";
+import { appendEventInTx } from "../../packages/domain/src/activity-events";
+import { ActivityNotificationShapes } from "../../packages/sync/src/activity-notification-shapes";
 import { seedIdentity } from "../helpers/activity-fixture";
 import { makeCommentFixture } from "../helpers/comment-fixture";
 import { disposablePostgres } from "../helpers/postgres";
-import { ActivityNotificationShapes } from "../../packages/sync/src/activity-notification-shapes";
 
 type Message = {
 	headers: Record<string, unknown>;

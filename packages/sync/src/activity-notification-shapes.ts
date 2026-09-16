@@ -19,7 +19,14 @@ interface WireMessage {
 	headers: Headers;
 }
 
-type ColumnType = "text" | "int8" | "int4" | "bool" | "jsonb" | "timestamp" | "timestamptz";
+type ColumnType =
+	| "text"
+	| "int8"
+	| "int4"
+	| "bool"
+	| "jsonb"
+	| "timestamp"
+	| "timestamptz";
 
 interface ColumnSpec {
 	type: ColumnType;
@@ -27,8 +34,14 @@ interface ColumnSpec {
 	pk_index?: number;
 }
 
-const col = (type: ColumnType, not_null = false, pk_index?: number): ColumnSpec =>
-	pk_index === undefined ? { type, not_null } : { type, not_null: true, pk_index };
+const col = (
+	type: ColumnType,
+	not_null = false,
+	pk_index?: number,
+): ColumnSpec =>
+	pk_index === undefined
+		? { type, not_null }
+		: { type, not_null: true, pk_index };
 
 const ACTIVITY_SCHEMA: Record<string, ColumnSpec> = {
 	id: col("text", true, 0),
@@ -133,11 +146,12 @@ const ACTIVITY_EVENTS = new Set([
 	"activity:legacy-recorded",
 ]);
 
-const json = (value: unknown): unknown =>
-	value === undefined ? null : value;
+const json = (value: unknown): unknown => (value === undefined ? null : value);
 
 const iso = (value: unknown): string | null =>
-	value === null || value === undefined ? null : new Date(value as never).toISOString();
+	value === null || value === undefined
+		? null
+		: new Date(value as never).toISOString();
 
 /** Public activity value (§3): camelCase projection row + taskId adapter. */
 function activityValue(row: Record<string, unknown>): Record<string, unknown> {
@@ -157,7 +171,9 @@ function activityValue(row: Record<string, unknown>): Record<string, unknown> {
 		editHistory: json(row.edit_history ?? row.editHistory) ?? [],
 		eventData: json(row.event_data ?? row.eventData),
 		externalUserName: json(row.external_user_name ?? row.externalUserName),
-		externalUserAvatar: json(row.external_user_avatar ?? row.externalUserAvatar),
+		externalUserAvatar: json(
+			row.external_user_avatar ?? row.externalUserAvatar,
+		),
 		externalSource: json(row.external_source ?? row.externalSource),
 		externalUrl: json(row.external_url ?? row.externalUrl),
 		user: userId && name !== null ? { id: userId, name, image } : null,
@@ -178,7 +194,9 @@ function workflowValue(row: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** Preference value: safe public booleans only — never secrets or URLs (§3). */
-function preferenceValue(row: Record<string, unknown>): Record<string, unknown> {
+function preferenceValue(
+	row: Record<string, unknown>,
+): Record<string, unknown> {
 	return {
 		id: (row.user_id ?? row.userId) as string,
 		userId: (row.user_id ?? row.userId) as string,
@@ -192,12 +210,22 @@ function preferenceValue(row: Record<string, unknown>): Record<string, unknown> 
 		webhookEnabled: Boolean(row.webhook_enabled ?? row.webhookEnabled),
 		webhookConfigured: Boolean(row.webhook_url ?? row.webhookUrl),
 		webhookSecretConfigured: Boolean(row.webhook_secret ?? row.webhookSecret),
-		taskAssignmentEnabled: Boolean(row.task_assignment_enabled ?? row.taskAssignmentEnabled ?? true),
-		taskCommentEnabled: Boolean(row.task_comment_enabled ?? row.taskCommentEnabled ?? true),
-		taskStatusChangeEnabled: Boolean(row.task_status_change_enabled ?? row.taskStatusChangeEnabled ?? true),
-		dueDateReminderEnabled: Boolean(row.due_date_reminder_enabled ?? row.dueDateReminderEnabled ?? true),
+		taskAssignmentEnabled: Boolean(
+			row.task_assignment_enabled ?? row.taskAssignmentEnabled ?? true,
+		),
+		taskCommentEnabled: Boolean(
+			row.task_comment_enabled ?? row.taskCommentEnabled ?? true,
+		),
+		taskStatusChangeEnabled: Boolean(
+			row.task_status_change_enabled ?? row.taskStatusChangeEnabled ?? true,
+		),
+		dueDateReminderEnabled: Boolean(
+			row.due_date_reminder_enabled ?? row.dueDateReminderEnabled ?? true,
+		),
 		dueDateReminderLeadTimeMinutes: Number(
-			row.due_date_reminder_lead_time_minutes ?? row.dueDateReminderLeadTimeMinutes ?? 1440,
+			row.due_date_reminder_lead_time_minutes ??
+				row.dueDateReminderLeadTimeMinutes ??
+				1440,
 		),
 		createdAt: iso(row.created_at ?? row.createdAt),
 		updatedAt: iso(row.updated_at ?? row.updatedAt),
@@ -224,7 +252,9 @@ function orgRuleValue(
 	};
 }
 
-function notificationValue(row: Record<string, unknown>): Record<string, unknown> {
+function notificationValue(
+	row: Record<string, unknown>,
+): Record<string, unknown> {
 	return {
 		id: row.id,
 		orgId: json(row.org_id ?? row.orgId),
@@ -265,7 +295,11 @@ export class ActivityNotificationShapes {
 	}
 
 	/** Private self-only shape for /users/me/v1/shape (§2/§3). */
-	privateShape(user: string, url: URL, signal?: AbortSignal): Promise<Response> {
+	privateShape(
+		user: string,
+		url: URL,
+		signal?: AbortSignal,
+	): Promise<Response> {
 		return this.serve("private", user, url, signal);
 	}
 
@@ -293,34 +327,39 @@ export class ActivityNotificationShapes {
 			"cursor",
 			"cache-buster",
 		]);
-		for (const key of q.keys())
-			if (!allowed.has(key)) return this.bad(400);
+		for (const key of q.keys()) if (!allowed.has(key)) return this.bad(400);
 		const table = q.get("table");
 		if (!table || !SCHEMAS[table]) return this.bad(404);
 		if (kind === "org" && !ORG_TABLES.has(table)) return this.bad(404);
 		if (kind === "private" && !PRIVATE_TABLES.has(table)) return this.bad(404);
 		if (table === "activity" && !q.get("ticket")) return this.bad(400);
 		const offset = q.get("offset");
-		if (offset && offset !== "-1" && !/^-?\d+$/.test(offset.split("_")[0] ?? ""))
+		if (
+			offset &&
+			offset !== "-1" &&
+			!/^-?\d+$/.test(offset.split("_")[0] ?? "")
+		)
 			return this.bad(400);
 		const live = q.get("live") === "true";
 		const token = () =>
-			this.serveOnce(kind, owner, table ?? "", q, signal).then(async (response) => {
-				if (!live) return response;
-				const messages =
-					response.status === 200
-						? ((await response.clone().json()) as WireMessage[])
-						: [];
-				const changed =
-					response.status !== 200 ||
-					messages.some(
-						(m) =>
-							m.headers.operation ||
-							m.headers.control === "up-to-date" === false,
-					) ||
-					response.headers.get("electric-offset") !== q.get("offset");
-				return changed ? response : null;
-			});
+			this.serveOnce(kind, owner, table ?? "", q, signal).then(
+				async (response) => {
+					if (!live) return response;
+					const messages =
+						response.status === 200
+							? ((await response.clone().json()) as WireMessage[])
+							: [];
+					const changed =
+						response.status !== 200 ||
+						messages.some(
+							(m) =>
+								m.headers.operation ||
+								(m.headers.control === "up-to-date") === false,
+						) ||
+						response.headers.get("electric-offset") !== q.get("offset");
+					return changed ? response : null;
+				},
+			);
 		if (!live) return token() as Promise<Response>;
 		const deadline = Date.now() + LIVE_DEADLINE_MS;
 		let current = await token();
@@ -387,7 +426,9 @@ export class ActivityNotificationShapes {
 			const index = offset === "-1" ? 0 : Number(offset.slice(2));
 			for (const row of rows.slice(index, index + PAGE)) messages.push(row);
 			next =
-				index + PAGE < rows.length ? `s:${index + PAGE}` : `${snapshot?.boundary ?? "0"}_0`;
+				index + PAGE < rows.length
+					? `s:${index + PAGE}`
+					: `${snapshot?.boundary ?? "0"}_0`;
 		} else {
 			const cursorSeq = offset.split("_")[0] ?? "0";
 			const namespace = kind === "private" ? `user:${owner}` : owner;
@@ -397,7 +438,9 @@ export class ActivityNotificationShapes {
         ORDER BY seq LIMIT ${PAGE + 1}`;
 			caughtUp = events.length <= PAGE;
 			next = offset;
-			for (const event of events.slice(0, PAGE) as Array<Record<string, unknown>>) {
+			for (const event of events.slice(0, PAGE) as Array<
+				Record<string, unknown>
+			>) {
 				next = `${event.seq}_0`;
 				const message = await this.projectEvent(
 					kind,
@@ -430,7 +473,10 @@ export class ActivityNotificationShapes {
 		return Response.json(messages, { headers });
 	}
 
-	private async readBoundary(kind: "org" | "private", owner: string): Promise<string> {
+	private async readBoundary(
+		kind: "org" | "private",
+		owner: string,
+	): Promise<string> {
 		const namespace = kind === "private" ? `user:${owner}` : owner;
 		const [row] = await this.sql`
       SELECT seq::text FROM org_event_counter WHERE org = ${namespace}`;
@@ -555,7 +601,9 @@ export class ActivityNotificationShapes {
 					};
 				}
 				const row = payload.row as Record<string, unknown>;
-				const identity = await this.readIdentity((row?.userId as string) ?? null);
+				const identity = await this.readIdentity(
+					(row?.userId as string) ?? null,
+				);
 				return {
 					key: JSON.stringify([owner, payload.id]),
 					value: activityValue({ ...row, ...identity }),
@@ -597,7 +645,10 @@ export class ActivityNotificationShapes {
 				headers: { operation: "delete", txids },
 			};
 		}
-		if (event.plugin_type === "notification:created" || event.plugin_type === "notification:updated") {
+		if (
+			event.plugin_type === "notification:created" ||
+			event.plugin_type === "notification:updated"
+		) {
 			const found = await this.sql`
         SELECT * FROM notification WHERE id = ${payload.id as string} AND user_id = ${owner} LIMIT 1`;
 			const row = found[0] as Record<string, unknown> | undefined;
@@ -644,8 +695,13 @@ export class ActivityNotificationShapes {
 		if (!userId) return { user_name: null, user_image: null };
 		const rows = await this.sql`
       SELECT name, image FROM "user" WHERE id = ${userId} LIMIT 1`;
-		const row = rows[0] as { name: string | null; image: string | null } | undefined;
+		const row = rows[0] as
+			| { name: string | null; image: string | null }
+			| undefined;
 		if (!row) return { user_name: null, user_image: null };
-		return { user_name: row.name as string, user_image: (row.image as string) ?? null };
+		return {
+			user_name: row.name as string,
+			user_image: (row.image as string) ?? null,
+		};
 	}
 }
