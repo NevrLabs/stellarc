@@ -11,6 +11,7 @@ import { makeAuthHandler } from "./auth-http";
 import { AppConfig, AuthConfig, AuthConfigLive, ConfigLive } from "./config";
 import { foundationHandler } from "./http";
 import { identityHandler } from "./identity-http";
+import { identityTracer } from "./identity-trace";
 
 export const api = Effect.gen(function* () {
 	const config = yield* AppConfig;
@@ -43,12 +44,17 @@ export const api = Effect.gen(function* () {
 	// STL-15: Better Auth at /api/auth/* and identity routes at
 	// /api/identity/* ride the same Bun server; the foundation web handler
 	// 404s anything outside its own routes (fail-closed pass-through order).
+	// STL-15 rework c12: one OTel tracer shared by every identity/auth surface
+	// (review c9 defect 3, ADR 0010). In production the global OTel API provider
+	// is registered by the telemetry runtime at boot.
+	const tracer = identityTracer();
 	const auth = makeAuth(sql, {
 		secret: Redacted.value(authConfig.authSecret),
 		baseURL: authConfig.publicOrigin,
+		tracer,
 	});
-	const authHandler = makeAuthHandler(auth, authConfig.publicOrigin);
-	const identityRoutes = identityHandler(sql, auth);
+	const authHandler = makeAuthHandler(auth, authConfig.publicOrigin, tracer);
+	const identityRoutes = identityHandler(sql, auth, tracer);
 	const dispatch = (request: Request): Promise<Response> => {
 		const path = new URL(request.url).pathname;
 		if (path.startsWith("/api/auth/") || path === "/api/auth")

@@ -1,6 +1,10 @@
 import type { Sql } from "postgres";
 import { agentPrincipalId, humanPrincipalId } from "./auth";
 
+// ADR 0010 (review c9 defect 3): capability resolution is a named service
+// span. Attributes carry org/principal identifiers only. Tracer is injected
+// (identity/tracer-type TracerLike); absent tracer = untraced execution.
+
 // STL-15 §2 authorization model (rework c4, defect 2): effective agent
 // capability = membership/dynamic-role capability INTERSECT key ceiling
 // INTERSECT structural grant. Humans use membership role capability plus
@@ -136,6 +140,29 @@ async function loadDynamicRoles(
 /** Effective capability set for one org: membership ∩ key ceiling ∩
  * structural identity_grant. Agents never consult human membership. */
 export async function effectiveCapabilities(
+	sql: Sql,
+	ctx: PrincipalContext,
+	orgId: string,
+	tracer?: import("./tracer-type").TracerLike,
+): Promise<ReadonlySet<string>> {
+	const span = tracer?.startSpan("Identity.capabilities");
+	if (!span) return effectiveCapabilitiesInner(sql, ctx, orgId);
+	span.setAttribute("stellarc.org", orgId);
+	span.setAttribute("stellarc.principal.kind", ctx.kind);
+	try {
+		const result = await span.with(() =>
+			effectiveCapabilitiesInner(sql, ctx, orgId),
+		);
+		span.end();
+		return result;
+	} catch (error) {
+		span.recordError(error);
+		span.end();
+		throw error;
+	}
+}
+
+async function effectiveCapabilitiesInner(
 	sql: Sql,
 	ctx: PrincipalContext,
 	orgId: string,

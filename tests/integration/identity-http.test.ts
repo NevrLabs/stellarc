@@ -291,8 +291,6 @@ test("avatar round-trips exact bytes/MIME/length; unrelated user is 404 (T22)", 
 
 // --- Rework c4: D1/D2/D9/D10 ---------------------------------------------------
 
-const C4_SECRET = "test-secret-do-not-use-in-production-0123456789";
-
 async function seedAgentKey(
 	permissions: string | null,
 	opts: { keyId?: string; banned?: boolean } = {},

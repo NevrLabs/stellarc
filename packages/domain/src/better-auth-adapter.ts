@@ -169,15 +169,46 @@ function buildWhere(model: ModelDef, where: Where[]): [string, unknown[]] {
 	return [joined ? `WHERE ${joined}` : "", params];
 }
 
-export const postgresJsAdapter = (sql: Sql) =>
+export const postgresJsAdapter = (
+	sql: Sql,
+	tracer?: import("./identity/tracer-type").TracerLike,
+) =>
 	createAdapterFactory(
 		// The factory's transaction generic cannot express postgres.js's
 		// UnwrapPromiseArray chaining; the runtime contract is exercised by
 		// the integration suite, so this boundary cast is contained here.
-		createAdapterFactoryArgs(sql) as never,
+		createAdapterFactoryArgs(sql, tracer) as never,
 	);
 
-function createAdapterFactoryArgs(sql: Sql) {
+// ADR 0010 (review c9 defect 3/11): every adapter model read/write is a
+// named span — the adapter is a first-party service, not an opaque SQL hole.
+// The model NAME is an allowlisted identifier; where-values never enter
+// span attributes (no emails/tokens/hashes).
+
+async function tracedAdapterOp<T>(
+	tracer: import("./identity/tracer-type").TracerLike | undefined,
+	op: string,
+	model: string,
+	body: () => Promise<T>,
+): Promise<T> {
+	const span = tracer?.startSpan(`Identity.authAdapter.${op}`);
+	if (!span) return body();
+	span.setAttribute("stellarc.model", model);
+	try {
+		const result = await span.with(body);
+		span.end();
+		return result;
+	} catch (error) {
+		span.recordError(error);
+		span.end();
+		throw error;
+	}
+}
+
+function createAdapterFactoryArgs(
+	sql: Sql,
+	tracer?: import("./identity/tracer-type").TracerLike,
+) {
 	return {
 		config: {
 			adapterId: "postgres-js",
@@ -196,18 +227,20 @@ function createAdapterFactoryArgs(sql: Sql) {
 									adapterName: "postgres.js (stellarc 0002 identity)",
 									usePlural: false,
 								},
-								adapter: makeAdapter(tx),
+								adapter: makeAdapter(tx, tracer),
 							})({} as never),
 						) as never,
 				) as never,
 		},
-		adapter: makeAdapter(sql),
+		adapter: makeAdapter(sql, tracer),
 	};
 }
 
-/* eslint-disable-next-line */
-// biome-ignore lint/suspicious/noExplicitAny: better-auth adapter record shape is intentionally structural
-function makeAdapter(sql: Sql): () => any {
+function makeAdapter(
+	sql: Sql,
+	tracer?: import("./identity/tracer-type").TracerLike,
+	// biome-ignore lint/suspicious/noExplicitAny: better-auth adapter record shape is intentionally structural
+): () => any {
 	return () => ({
 		options: {},
 		async create({
@@ -217,30 +250,34 @@ function makeAdapter(sql: Sql): () => any {
 			model: string;
 			data: Record<string, unknown>;
 		}) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const cols = Object.keys(data)
-				.map((key) => def.fields[key])
-				.filter((value): value is string => typeof value === "string");
-			const entries = Object.entries(data).filter(([key]) =>
-				Boolean(def.fields[key]),
-			);
-			const placeholders = entries.map((_, i) => `$${i + 1}`).join(",");
-			const rows = (await sql.unsafe(
-				`INSERT INTO ${def.table} (${cols.map(quoteIdent).join(",")}) VALUES (${placeholders}) RETURNING *`,
-				entries.map(([, value]) => value) as never[],
-			)) as Array<Record<string, unknown>>;
-			return mapRow(model, rows[0]);
+			return tracedAdapterOp(tracer, "create", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const cols = Object.keys(data)
+					.map((key) => def.fields[key])
+					.filter((value): value is string => typeof value === "string");
+				const entries = Object.entries(data).filter(([key]) =>
+					Boolean(def.fields[key]),
+				);
+				const placeholders = entries.map((_, i) => `$${i + 1}`).join(",");
+				const rows = (await sql.unsafe(
+					`INSERT INTO ${def.table} (${cols.map(quoteIdent).join(",")}) VALUES (${placeholders}) RETURNING *`,
+					entries.map(([, value]) => value) as never[],
+				)) as Array<Record<string, unknown>>;
+				return mapRow(model, rows[0]);
+			});
 		},
 		async findOne({ model, where }: { model: string; where: Where[] }) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const [clause, params] = buildWhere(def, where);
-			const rows = (await sql.unsafe(
-				`SELECT * FROM ${def.table} ${clause} LIMIT 1`,
-				params as never[],
-			)) as Array<Record<string, unknown>>;
-			return mapRow(model, rows[0] ?? null);
+			return tracedAdapterOp(tracer, "findOne", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const [clause, params] = buildWhere(def, where);
+				const rows = (await sql.unsafe(
+					`SELECT * FROM ${def.table} ${clause} LIMIT 1`,
+					params as never[],
+				)) as Array<Record<string, unknown>>;
+				return mapRow(model, rows[0] ?? null);
+			});
 		},
 		async findMany({
 			model,
@@ -255,17 +292,19 @@ function makeAdapter(sql: Sql): () => any {
 			offset?: number;
 			sortBy?: { field: string; direction: "asc" | "desc" };
 		}) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const [clause, params] = buildWhere(def, where ?? []);
-			const order = sortBy
-				? ` ORDER BY ${quoteIdent(def.fields[sortBy.field] ?? sortBy.field)} ${sortBy.direction === "desc" ? "DESC" : "ASC"}`
-				: "";
-			const rows = (await sql.unsafe(
-				`SELECT * FROM ${def.table} ${clause}${order} LIMIT ${Number(limit)} OFFSET ${Number(offset ?? 0)}`,
-				params as never[],
-			)) as Array<Record<string, unknown>>;
-			return rows.map((row) => mapRow(model, row));
+			return tracedAdapterOp(tracer, "findMany", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const [clause, params] = buildWhere(def, where ?? []);
+				const order = sortBy
+					? ` ORDER BY ${quoteIdent(def.fields[sortBy.field] ?? sortBy.field)} ${sortBy.direction === "desc" ? "DESC" : "ASC"}`
+					: "";
+				const rows = (await sql.unsafe(
+					`SELECT * FROM ${def.table} ${clause}${order} LIMIT ${Number(limit)} OFFSET ${Number(offset ?? 0)}`,
+					params as never[],
+				)) as Array<Record<string, unknown>>;
+				return rows.map((row) => mapRow(model, row));
+			});
 		},
 		async update({
 			model,
@@ -276,25 +315,27 @@ function makeAdapter(sql: Sql): () => any {
 			where: Where[];
 			update: Record<string, unknown>;
 		}) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const [clause, whereParams] = buildWhere(def, where);
-			const sets = Object.entries(update).filter(([key]) =>
-				Boolean(def.fields[key]),
-			);
-			if (sets.length === 0) return null;
-			const params: unknown[] = [];
-			const setSql = sets
-				.map(([key, value]) => {
-					params.push(value);
-					return `${quoteIdent(def.fields[key])} = $${params.length}`;
-				})
-				.join(",");
-			const rows = (await sql.unsafe(
-				`UPDATE ${def.table} SET ${setSql} ${clause} RETURNING *`,
-				[...params, ...whereParams] as never[],
-			)) as Array<Record<string, unknown>>;
-			return mapRow(model, rows[0] ?? null);
+			return tracedAdapterOp(tracer, "update", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const [clause, whereParams] = buildWhere(def, where);
+				const sets = Object.entries(update).filter(([key]) =>
+					Boolean(def.fields[key]),
+				);
+				if (sets.length === 0) return null;
+				const params: unknown[] = [];
+				const setSql = sets
+					.map(([key, value]) => {
+						params.push(value);
+						return `${quoteIdent(def.fields[key])} = $${params.length}`;
+					})
+					.join(",");
+				const rows = (await sql.unsafe(
+					`UPDATE ${def.table} SET ${setSql} ${clause} RETURNING *`,
+					[...params, ...whereParams] as never[],
+				)) as Array<Record<string, unknown>>;
+				return mapRow(model, rows[0] ?? null);
+			});
 		},
 		async updateMany({
 			model,
@@ -305,41 +346,50 @@ function makeAdapter(sql: Sql): () => any {
 			where: Where[];
 			update: Record<string, unknown>;
 		}) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const [clause, whereParams] = buildWhere(def, where);
-			const sets = Object.entries(update).filter(([key]) =>
-				Boolean(def.fields[key]),
-			);
-			const params: unknown[] = [];
-			const setSql = sets
-				.map(([key, value]) => {
-					params.push(value);
-					return `${quoteIdent(def.fields[key])} = $${params.length}`;
-				})
-				.join(",");
-			if (!setSql) return 0;
-			const rows = (await sql.unsafe(
-				`UPDATE ${def.table} SET ${setSql} ${clause} RETURNING id`,
-				[...params, ...whereParams] as never[],
-			)) as unknown[];
-			return rows.length;
+			return tracedAdapterOp(tracer, "updateMany", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const [clause, whereParams] = buildWhere(def, where);
+				const sets = Object.entries(update).filter(([key]) =>
+					Boolean(def.fields[key]),
+				);
+				const params: unknown[] = [];
+				const setSql = sets
+					.map(([key, value]) => {
+						params.push(value);
+						return `${quoteIdent(def.fields[key])} = $${params.length}`;
+					})
+					.join(",");
+				if (!setSql) return 0;
+				const rows = (await sql.unsafe(
+					`UPDATE ${def.table} SET ${setSql} ${clause} RETURNING id`,
+					[...params, ...whereParams] as never[],
+				)) as unknown[];
+				return rows.length;
+			});
 		},
 		async delete({ model, where }: { model: string; where: Where[] }) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const [clause, params] = buildWhere(def, where);
-			await sql.unsafe(`DELETE FROM ${def.table} ${clause}`, params as never[]);
+			return tracedAdapterOp(tracer, "delete", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const [clause, params] = buildWhere(def, where);
+				await sql.unsafe(
+					`DELETE FROM ${def.table} ${clause}`,
+					params as never[],
+				);
+			});
 		},
 		async deleteMany({ model, where }: { model: string; where: Where[] }) {
-			const def = MODELS[model];
-			if (!def) throw new Error(`Unknown model ${model}`);
-			const [clause, params] = buildWhere(def, where);
-			const rows = (await sql.unsafe(
-				`DELETE FROM ${def.table} ${clause} RETURNING id`,
-				params as never[],
-			)) as unknown[];
-			return rows.length;
+			return tracedAdapterOp(tracer, "deleteMany", model, async () => {
+				const def = MODELS[model];
+				if (!def) throw new Error(`Unknown model ${model}`);
+				const [clause, params] = buildWhere(def, where);
+				const rows = (await sql.unsafe(
+					`DELETE FROM ${def.table} ${clause} RETURNING id`,
+					params as never[],
+				)) as unknown[];
+				return rows.length;
+			});
 		},
 		async count({ model, where }: { model: string; where?: Where[] }) {
 			const def = MODELS[model];

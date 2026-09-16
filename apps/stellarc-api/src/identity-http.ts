@@ -24,6 +24,7 @@ import {
 } from "../../../packages/domain/src/identity/mutations";
 import { orgRouter } from "../../../packages/domain/src/identity/org-router";
 import { resolveRequestContext, sessionTokenValue } from "./identity-context";
+import { identityTracer, type TracerLike } from "./identity-trace";
 
 // STL-15 §3: identity HTTP surface. Every route decodes through the §3
 // schemas (excess write keys rejected, bounded lengths), answers in the
@@ -281,6 +282,22 @@ const ROUTES: Array<{ method: string; segments: string[] }> = [
 	{ method: "GET", segments: ["users", ":id", "avatar"] },
 ];
 
+/** Route template for span attributes: concrete IDs collapse to :params so
+ * cardinality stays bounded (T30) — mirrors the ROUTES table above. */
+function routeTemplate(segments: string[], _method: string): string {
+	const templates = new Set(ROUTES.map((r) => r.segments.join("/")));
+	const concrete = segments.join("/");
+	if (templates.has(concrete)) return `/api/identity/${concrete}`;
+	for (const r of ROUTES) {
+		if (
+			r.segments.length === segments.length &&
+			r.segments.every((seg, i) => seg.startsWith(":") || seg === segments[i])
+		)
+			return `/api/identity/${r.segments.join("/")}`;
+	}
+	return "/api/identity/unmatched";
+}
+
 function pathKnown(segments: string[]): boolean {
 	return ROUTES.some(
 		(r) =>
@@ -300,26 +317,80 @@ function allowHeader(segments: string[]): Record<string, string> {
 
 // --- handler -------------------------------------------------------------------
 
-export function identityHandler(sql: Sql, _auth: AuthLike) {
-	return async (request: Request): Promise<Response> => {
+export function identityHandler(
+	sql: Sql,
+	_auth: AuthLike,
+	tracer: TracerLike = identityTracer(),
+) {
+	const dispatch = async (request: Request): Promise<Response> => {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		if (!path.startsWith("/api/identity/"))
 			return new Response(null, { status: 404 });
 
 		const headers = Object.fromEntries(request.headers.entries());
-		const resolution = await resolveRequestContext(sql, headers);
+		// Server span in the inbound trace (review c9 defect 3 / T30): route
+		// template + method are known up front; org/principal/status are
+		// annotated as they resolve. No SQL text or secrets in attributes.
+		const span = tracer.startSpan("stellarc.http.request", {
+			traceparent: headers.traceparent,
+		});
+		const segments = path
+			.slice("/api/identity/".length)
+			.split("/")
+			.filter(Boolean);
+		span.setAttribute("http.route", routeTemplate(segments, request.method));
+		span.setAttribute("http.request.method", request.method);
+		const orgFromPath = segments[0] === "orgs" ? segments[1] : undefined;
+		if (orgFromPath)
+			span.setAttribute("stellarc.org", decodeURIComponent(orgFromPath));
+		try {
+			const response = await span.with(() =>
+				handle(request, headers, segments),
+			);
+			span.setAttribute("http.response.status_code", response.status);
+			if (response.status < 400)
+				span.setAttribute(
+					"stellarc.principal.kind",
+					principalKind.get() ?? "human",
+				);
+			span.end();
+			return response;
+		} catch (error) {
+			span.recordError(error);
+			span.setAttribute("http.response.status_code", 503);
+			span.end();
+			return errorResponse("Unavailable", 503);
+		}
+	};
+
+	// The authenticated principal kind travels through the span-scoped slot
+	// the HTTP wrapper reads after the handler resolves the caller.
+	const principalKind = (() => {
+		let current = "human";
+		return {
+			get: () => current,
+			set: (kind: string) => {
+				current = kind;
+			},
+		};
+	})();
+
+	return dispatch;
+
+	async function handle(
+		request: Request,
+		headers: Record<string, string>,
+		segments: string[],
+	): Promise<Response> {
+		const resolution = await resolveRequestContext(sql, headers, tracer);
 		if (!resolution.ok) {
 			// Ambiguous simultaneous credentials are rejected like unauthenticated
 			// (§3) — never 500.
 			return errorResponse("Unauthenticated", 401);
 		}
 		const ctx = resolution.context;
-
-		const segments = path
-			.slice("/api/identity/".length)
-			.split("/")
-			.filter(Boolean);
+		principalKind.set(ctx.kind);
 
 		// POST /api/identity/active-org
 		if (method("POST", request) && segments.join("/") === "active-org") {
@@ -368,12 +439,19 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				"../../../packages/domain/src/identity/mutations"
 			);
 			try {
-				const result = await createOrganization(sql, ctx.userId, {
-					name: String(body.name),
-					slug: String(body.slug),
-					description:
-						typeof body.description === "string" ? body.description : undefined,
-				});
+				const result = await createOrganization(
+					sql,
+					ctx.userId,
+					{
+						name: String(body.name),
+						slug: String(body.slug),
+						description:
+							typeof body.description === "string"
+								? body.description
+								: undefined,
+					},
+					tracer,
+				);
 				return json(result, 200);
 			} catch (error) {
 				return identityError(error);
@@ -430,6 +508,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				sql,
 				principalContext(ctx),
 				String(org.id),
+				tracer,
 			);
 			// Rework c10 (defect 5): with mint-on-auth removed, an
 			// authenticated agent has real capabilities only where
@@ -501,6 +580,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(rest[1]),
 						role,
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -522,6 +602,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(org.id),
 						String(rest[1]),
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -557,6 +638,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 							permission: body.permission as Record<string, string[]>,
 						},
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -587,6 +669,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(rest[1]),
 						body.permission as Record<string, string[]>,
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -611,6 +694,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(org.id),
 						String(rest[1]),
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -668,6 +752,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 										: String(body.parentTeamId),
 						},
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -723,6 +808,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 										: String(body.parentTeamId),
 						},
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -744,6 +830,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(org.id),
 						String(rest[1]),
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -790,6 +877,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 							teamId,
 							String(body.userId),
 							ctx.principalId,
+							tracer,
 						);
 						return json(result, 200);
 					} catch (error) {
@@ -814,6 +902,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(rest[1]),
 						String(rest[3]),
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -883,6 +972,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 									: String(body.teamId),
 						},
 						ctx,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -908,6 +998,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(org.id),
 						String(rest[1]),
 						ctx.principalId,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -964,6 +1055,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 									: String(body.expiresAt),
 						},
 						ctx,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -985,6 +1077,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						String(org.id),
 						String(rest[1]),
 						ctx,
+						tracer,
 					);
 					return json(result, 200);
 				} catch (error) {
@@ -1001,7 +1094,12 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 			segments[2] === "accept"
 		) {
 			try {
-				const result = await acceptInvitation(sql, String(segments[1]), ctx);
+				const result = await acceptInvitation(
+					sql,
+					String(segments[1]),
+					ctx,
+					tracer,
+				);
 				return json(result, 200);
 			} catch (error) {
 				return identityError(error);
@@ -1024,6 +1122,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				sql,
 				principalContext(ctx),
 				String(org.id),
+				tracer,
 			);
 			if (caps.size === 0) return errorResponse("NotFound", 404);
 			const denied = manageCapability(caps, "organization:update");
@@ -1066,6 +1165,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 						slug: body.slug === undefined ? undefined : String(body.slug),
 					},
 					ctx.principalId,
+					tracer,
 				);
 				return json(result, 200);
 			} catch (error) {
@@ -1081,7 +1181,7 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				headers: { ...NO_STORE, ...allowHeader(segments) },
 			});
 		return new Response(null, { status: 404 });
-	};
+	}
 }
 
 function apiKeyPublicRow(row: Record<string, unknown>) {

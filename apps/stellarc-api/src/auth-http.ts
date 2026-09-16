@@ -21,6 +21,7 @@ export function makeAuthHandler(
 	// D5 (review c3): production derives CORS from AuthConfig.publicOrigin —
 	// cookie credentials only for configured origins, never a test URL.
 	origin = "http://127.0.0.1:3000",
+	tracer?: import("./identity-trace").TracerLike,
 ) {
 	const corsHeaders: Record<string, string> = {
 		"access-control-allow-origin": origin,
@@ -46,6 +47,30 @@ export function makeAuthHandler(
 				{ _tag: "NotFound" },
 				{ status: 404, headers: corsHeaders },
 			);
+		// Server span in the inbound trace (review c9 defect 3 / T30).
+		const span = tracer?.startSpan("stellarc.http.request", {
+			traceparent: request.headers.get("traceparent") ?? undefined,
+		});
+		if (!span) return handleAllowed(request, route);
+		span.setAttribute("http.route", url.pathname);
+		span.setAttribute("http.request.method", request.method);
+		try {
+			const response = await span.with(() => handleAllowed(request, route));
+			span.setAttribute("http.response.status_code", response.status);
+			span.end();
+			return response;
+		} catch (error) {
+			span.recordError(error);
+			span.setAttribute("http.response.status_code", 503);
+			span.end();
+			throw error;
+		}
+	};
+
+	async function handleAllowed(
+		request: Request,
+		_route: string,
+	): Promise<Response> {
 		try {
 			const handler = await auth.handler;
 			const response = await (typeof handler === "function"
@@ -66,5 +91,5 @@ export function makeAuthHandler(
 				{ status: 503, headers: corsHeaders },
 			);
 		}
-	};
+	}
 }

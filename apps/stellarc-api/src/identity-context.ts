@@ -61,6 +61,31 @@ export function sessionTokenValue(raw: string): string {
 export async function resolveRequestContext(
 	sql: Sql,
 	headers: Record<string, string>,
+	tracer?: import("./identity-trace").TracerLike,
+): Promise<AuthResolution> {
+	const span = tracer?.startSpan("Identity.authenticate");
+	if (!span) return resolveRequestContextInner(sql, headers);
+	try {
+		const result = await span.with(() =>
+			resolveRequestContextInner(sql, headers),
+		);
+		span.setAttribute(
+			"stellarc.principal.kind",
+			result.ok ? result.context.kind : "none",
+		);
+		if (!result.ok) span.setAttribute("error.type", "Unauthenticated");
+		span.end();
+		return result;
+	} catch (error) {
+		span.recordError(error);
+		span.end();
+		throw error;
+	}
+}
+
+async function resolveRequestContextInner(
+	sql: Sql,
+	headers: Record<string, string>,
 ): Promise<AuthResolution> {
 	const apiKey = headers["x-api-key"];
 	const cookies = parseCookie(headers.cookie);

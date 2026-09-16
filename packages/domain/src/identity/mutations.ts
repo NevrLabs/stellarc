@@ -1,6 +1,35 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
 import { humanPrincipalId } from "./auth";
+import type { TracerLike } from "./tracer-type";
+
+// ADR 0010 (review c9 defect 3 / T31): every domain mutation is a named
+// Identity.* span carrying the org id and the resulting txid; SQL text and
+// row payloads never enter span attributes. Tracer is injected (optional:
+// absent tracer = untraced execution, e.g. unit tests of pure SQL logic).
+
+async function tracedMutation<T>(
+	tracer: TracerLike | undefined,
+	name: string,
+	orgId: string,
+	body: () => Promise<T>,
+): Promise<T> {
+	const span = tracer?.startSpan(`Identity.${name}`);
+	if (!span) return body();
+	span.setAttribute("stellarc.org", orgId);
+	try {
+		const result = await span.with(body);
+		const txid = (result as { txid?: number } | undefined)?.txid;
+		if (typeof txid === "number")
+			span.setAttribute("stellarc.txtid".replace("txtid", "txid"), txid);
+		span.end();
+		return result;
+	} catch (error) {
+		span.recordError(error);
+		span.end();
+		throw error;
+	}
+}
 
 // STL-15 §2 mutations: every domain write, projection row and event commits
 // atomically on one connection. Org-scoped mutations take a transaction
@@ -82,112 +111,115 @@ export async function createOrganization(
 	sql: Sql,
 	creatorUserId: string,
 	input: CreateOrganizationInput,
-): Promise<MutationResult> {
-	const slug = input.slug;
-	const orgId = deterministicId("org", [slug]);
-	const memberId = deterministicId("member", [orgId, creatorUserId]);
-	const now = new Date();
-	try {
-		return await sql.begin(async (tx) => {
-			await lockOrg(tx, orgId);
-			const [existing] =
-				await tx`SELECT id FROM organization WHERE lower(slug) = lower(${slug})`;
-			if (existing) throw conflict("Duplicate");
-			const [slugTaken] =
-				await tx`SELECT id FROM organization WHERE slug = ${slug}`;
-			if (slugTaken) throw conflict("Duplicate");
-			await tx`INSERT INTO organization (id, name, slug, description, repos_enabled, tables_enabled, work_enabled, default_resource_privilege, ai_enabled, ai_default_token_limit, ai_default_character_limit, created_at)
-				VALUES (${orgId}, ${input.name}, ${slug}, ${input.description ?? null}, false, false, false, 'manage', false, 1024, 4000, ${now})`;
-			await tx`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
-				VALUES (${memberId}, ${orgId}, ${creatorUserId}, 'owner', ${now})`;
-			const principalId = humanPrincipalId(creatorUserId);
-			await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
-				VALUES (${principalId}, 'human', ${creatorUserId}, null)
-				ON CONFLICT (id) DO NOTHING`;
-			// Defect 7: seed the FULL owner capability set so the fresh org's
-			// owner is never locked out (humans = role ∪ structural, §2).
-			for (const capability of OWNER_GRANT_CAPABILITIES_DERIVE) {
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "createOrganization", "", async () => {
+		const slug = input.slug;
+		const orgId = deterministicId("org", [slug]);
+		const memberId = deterministicId("member", [orgId, creatorUserId]);
+		const now = new Date();
+		try {
+			return await sql.begin(async (tx) => {
+				await lockOrg(tx, orgId);
+				const [existing] =
+					await tx`SELECT id FROM organization WHERE lower(slug) = lower(${slug})`;
+				if (existing) throw conflict("Duplicate");
+				const [slugTaken] =
+					await tx`SELECT id FROM organization WHERE slug = ${slug}`;
+				if (slugTaken) throw conflict("Duplicate");
+				await tx`INSERT INTO organization (id, name, slug, description, repos_enabled, tables_enabled, work_enabled, default_resource_privilege, ai_enabled, ai_default_token_limit, ai_default_character_limit, created_at)
+					VALUES (${orgId}, ${input.name}, ${slug}, ${input.description ?? null}, false, false, false, 'manage', false, 1024, 4000, ${now})`;
+				await tx`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+					VALUES (${memberId}, ${orgId}, ${creatorUserId}, 'owner', ${now})`;
+				const principalId = humanPrincipalId(creatorUserId);
+				await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
+					VALUES (${principalId}, 'human', ${creatorUserId}, null)
+					ON CONFLICT (id) DO NOTHING`;
+				// Defect 7: seed the FULL owner capability set so the fresh org's
+				// owner is never locked out (humans = role ∪ structural, §2).
+				for (const capability of OWNER_GRANT_CAPABILITIES_DERIVE) {
+					await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
+						VALUES (${orgId}, ${principalId}, ${capability})
+						ON CONFLICT DO NOTHING`;
+				}
 				await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
-					VALUES (${orgId}, ${principalId}, ${capability})
+					VALUES (${orgId}, ${principalId}, 'org:member')
 					ON CONFLICT DO NOTHING`;
-			}
-			await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
-				VALUES (${orgId}, ${principalId}, 'org:member')
-				ON CONFLICT DO NOTHING`;
-			const { defaultRolePayloads } = await import(
-				"../../../contracts/src/legacy/permissions"
-			);
-			const roleEvents: EventInsert[] = [];
-			for (const [roleName, permission] of Object.entries(
-				defaultRolePayloads,
-			)) {
-				const roleId = deterministicId("role", [orgId, roleName]);
-				await tx`INSERT INTO organization_role (id, organization_id, role, permission, created_at, updated_at)
-					VALUES (${roleId}, ${orgId}, ${roleName}, ${JSON.stringify(permission)}, ${now}, ${now})`;
-				roleEvents.push({
-					type: "identity:role-upserted",
-					payload: { id: roleId },
-				});
-			}
-			const [orgRow] = await tx<Record<string, unknown>[]>`
-				SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
-			const txid = await appendEvents(
-				tx,
-				orgId,
-				humanPrincipalId(creatorUserId),
-				[
-					{
-						type: "identity:organization-upserted",
-						payload: { id: orgId, row: orgRow },
-					},
-					{
-						type: "identity:member-upserted",
-						payload: { id: memberId },
-					},
-					...roleEvents,
-					{
-						type: "identity:principal-upserted",
-						payload: { id: principalId },
-					},
-					...OWNER_GRANT_CAPABILITIES_DERIVE.map((capability) => ({
-						type: "identity:grant-upserted" as const,
-						payload: { principalId, capability },
-					})),
-				],
-			);
-			return {
-				data: {
-					id: orgId,
-					name: input.name,
-					slug,
-					logo: null,
-					metadata: null,
-					description: input.description ?? null,
-					reposEnabled: false,
-					tablesEnabled: false,
-					workEnabled: false,
-					defaultResourcePrivilege: "manage",
-					aiEnabled: false,
-					aiDefaultTokenLimit: 1024,
-					aiDefaultCharacterLimit: 4000,
-					aiProviderBaseUrl: null,
-					aiProviderModel: null,
-					// aiProviderApiKey deliberately omitted: §3 OrganizationPublic
-					// allowlist never carries the provider secret.
-					createdAt: now.toISOString(),
-				} as unknown as Record<string, unknown>,
-				txid,
-			};
-		});
-	} catch (error) {
-		if (error && typeof error === "object" && "_tag" in error) throw error;
-		if (
-			error instanceof Error &&
-			error.message.includes("organization_slug_lower_unique")
-		)
-			throw conflict("Duplicate");
-		throw error;
-	}
+				const { defaultRolePayloads } = await import(
+					"../../../contracts/src/legacy/permissions"
+				);
+				const roleEvents: EventInsert[] = [];
+				for (const [roleName, permission] of Object.entries(
+					defaultRolePayloads,
+				)) {
+					const roleId = deterministicId("role", [orgId, roleName]);
+					await tx`INSERT INTO organization_role (id, organization_id, role, permission, created_at, updated_at)
+						VALUES (${roleId}, ${orgId}, ${roleName}, ${JSON.stringify(permission)}, ${now}, ${now})`;
+					roleEvents.push({
+						type: "identity:role-upserted",
+						payload: { id: roleId },
+					});
+				}
+				const [orgRow] = await tx<Record<string, unknown>[]>`
+					SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
+				const txid = await appendEvents(
+					tx,
+					orgId,
+					humanPrincipalId(creatorUserId),
+					[
+						{
+							type: "identity:organization-upserted",
+							payload: { id: orgId, row: orgRow },
+						},
+						{
+							type: "identity:member-upserted",
+							payload: { id: memberId },
+						},
+						...roleEvents,
+						{
+							type: "identity:principal-upserted",
+							payload: { id: principalId },
+						},
+						...OWNER_GRANT_CAPABILITIES_DERIVE.map((capability) => ({
+							type: "identity:grant-upserted" as const,
+							payload: { principalId, capability },
+						})),
+					],
+				);
+				return {
+					data: {
+						id: orgId,
+						name: input.name,
+						slug,
+						logo: null,
+						metadata: null,
+						description: input.description ?? null,
+						reposEnabled: false,
+						tablesEnabled: false,
+						workEnabled: false,
+						defaultResourcePrivilege: "manage",
+						aiEnabled: false,
+						aiDefaultTokenLimit: 1024,
+						aiDefaultCharacterLimit: 4000,
+						aiProviderBaseUrl: null,
+						aiProviderModel: null,
+						// aiProviderApiKey deliberately omitted: §3 OrganizationPublic
+						// allowlist never carries the provider secret.
+						createdAt: now.toISOString(),
+					} as unknown as Record<string, unknown>,
+					txid,
+				};
+			});
+		} catch (error) {
+			if (error && typeof error === "object" && "_tag" in error) throw error;
+			if (
+				error instanceof Error &&
+				error.message.includes("organization_slug_lower_unique")
+			)
+				throw conflict("Duplicate");
+			throw error;
+		}
+	});
 }
 
 export async function removeMember(
@@ -195,54 +227,57 @@ export async function removeMember(
 	orgId: string,
 	memberId: string,
 	actorPrincipalId: string,
-): Promise<MutationResult> {
-	if (!actorPrincipalId) {
-		// §3: mutations require an authenticated actor; authentication
-		// establishes actor context before any mutation runs. The error is
-		// the union's Unauthenticated member, never a Conflict code.
-		const unauthenticated: Failure = { _tag: "Unauthenticated" };
-		throw unauthenticated;
-	}
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		// Review c1 defect 1: the org argument is an org ID or slug — resolve
-		// it to the canonical org row so member scoping binds a real ID, and
-		// an unresolvable org is the same NotFound as an absent member.
-		const [org] =
-			await tx`SELECT id FROM organization WHERE id = ${orgId} OR slug = ${orgId} OR lower(slug) = lower(${orgId})`;
-		if (!org) throw notFound();
-		const [member] =
-			await tx`SELECT id, role, user_id FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
-		if (!member) throw notFound();
-		if (member.role === "owner") {
-			const owners = await tx<{ n: number }[]>`
-				SELECT count(*)::int AS n FROM organization_member
-				WHERE organization_id = ${org.id} AND role = 'owner'`;
-			if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "removeMember", orgId, async () => {
+		if (!actorPrincipalId) {
+			// §3: mutations require an authenticated actor; authentication
+			// establishes actor context before any mutation runs. The error is
+			// the union's Unauthenticated member, never a Conflict code.
+			const unauthenticated: Failure = { _tag: "Unauthenticated" };
+			throw unauthenticated;
 		}
-		await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
-		// Defect 6 (T12): revoke EVERY principal derived from this user —
-		// the human principal and every agent principal minted from their
-		// API keys — in the same transaction, with matching grant-deleted
-		// events. Session and shape-handle authorization re-read these
-		// rows per request, so access terminates now, not at cache expiry.
-		const removed = await tx<{ principal_id: string; capability: string }[]>`
-				DELETE FROM identity_grant WHERE org_id = ${org.id} AND principal_id IN
-					(SELECT id FROM principal WHERE user_id = ${String(member.user_id)})
-				RETURNING principal_id, capability`;
-		// Events live in the org's canonical-ID namespace, exactly like
-		// every other identity event — never under the caller's raw path.
-		const txid = await appendEvents(tx, org.id, actorPrincipalId, [
-			{ type: "identity:member-deleted", payload: { id: memberId } },
-			...removed.map((row) => ({
-				type: "identity:grant-deleted" as const,
-				payload: {
-					principalId: row.principal_id,
-					capability: row.capability,
-				},
-			})),
-		]);
-		return { data: { id: memberId }, txid };
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			// Review c1 defect 1: the org argument is an org ID or slug — resolve
+			// it to the canonical org row so member scoping binds a real ID, and
+			// an unresolvable org is the same NotFound as an absent member.
+			const [org] =
+				await tx`SELECT id FROM organization WHERE id = ${orgId} OR slug = ${orgId} OR lower(slug) = lower(${orgId})`;
+			if (!org) throw notFound();
+			const [member] =
+				await tx`SELECT id, role, user_id FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
+			if (!member) throw notFound();
+			if (member.role === "owner") {
+				const owners = await tx<{ n: number }[]>`
+					SELECT count(*)::int AS n FROM organization_member
+					WHERE organization_id = ${org.id} AND role = 'owner'`;
+				if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
+			}
+			await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
+			// Defect 6 (T12): revoke EVERY principal derived from this user —
+			// the human principal and every agent principal minted from their
+			// API keys — in the same transaction, with matching grant-deleted
+			// events. Session and shape-handle authorization re-read these
+			// rows per request, so access terminates now, not at cache expiry.
+			const removed = await tx<{ principal_id: string; capability: string }[]>`
+					DELETE FROM identity_grant WHERE org_id = ${org.id} AND principal_id IN
+						(SELECT id FROM principal WHERE user_id = ${String(member.user_id)})
+					RETURNING principal_id, capability`;
+			// Events live in the org's canonical-ID namespace, exactly like
+			// every other identity event — never under the caller's raw path.
+			const txid = await appendEvents(tx, org.id, actorPrincipalId, [
+				{ type: "identity:member-deleted", payload: { id: memberId } },
+				...removed.map((row) => ({
+					type: "identity:grant-deleted" as const,
+					payload: {
+						principalId: row.principal_id,
+						capability: row.capability,
+					},
+				})),
+			]);
+			return { data: { id: memberId }, txid };
+		});
 	});
 }
 
@@ -366,81 +401,84 @@ export async function updateMemberRole(
 	memberId: string,
 	role: string,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [member] = await tx`SELECT id, role FROM organization_member
-			WHERE id = ${memberId} AND organization_id = ${orgId}`;
-		if (!member) throw notFound();
-		if (member.role === "owner" && role !== "owner") {
-			const owners = await tx<{ n: number }[]>`
-				SELECT count(*)::int AS n FROM organization_member
-				WHERE organization_id = ${orgId} AND role = 'owner'`;
-			if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
-		}
-		await tx`UPDATE organization_member SET role = ${role} WHERE id = ${memberId} AND organization_id = ${orgId}`;
-		const [row] = await tx<
-			{
-				id: string;
-				organization_id: string;
-				user_id: string;
-				role: string;
-				ai_token_limit: number | null;
-				ai_character_limit: number | null;
-				joined_at: Date | string;
-			}[]
-		>`SELECT id, organization_id, user_id, role, ai_token_limit, ai_character_limit, joined_at
-			FROM organization_member WHERE id = ${memberId}`;
-		const principalId = humanPrincipalId(String(row.user_id));
-		// Defect 13: role change re-derives the user's grant set in the same
-		// transaction (grant-upserted/deleted events), so member-role → grant
-		// drift never occurs and consumers see the new powers immediately.
-		const dynamic = await loadDynamicRolesForGrants(tx, orgId);
-		const wanted = new Set<string>([
-			...roleCapabilitiesForGrants(role, dynamic),
-			"org:member",
-		]);
-		const existing = await tx<{ capability: string }[]>`
-			SELECT capability FROM identity_grant
-			WHERE org_id = ${orgId} AND principal_id = ${principalId}`;
-		const existingSet = new Set(existing.map((row) => row.capability));
-		const grantEvents: EventInsert[] = [];
-		for (const capability of wanted) {
-			if (existingSet.has(capability)) continue;
-			await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
-				VALUES (${orgId}, ${principalId}, ${capability})
-				ON CONFLICT DO NOTHING`;
-			grantEvents.push({
-				type: "identity:grant-upserted",
-				payload: { principalId, capability },
-			});
-		}
-		for (const capability of existingSet) {
-			if (wanted.has(capability)) continue;
-			await tx`DELETE FROM identity_grant
-				WHERE org_id = ${orgId} AND principal_id = ${principalId} AND capability = ${capability}`;
-			grantEvents.push({
-				type: "identity:grant-deleted",
-				payload: { principalId, capability },
-			});
-		}
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:member-upserted", payload: { id: memberId } },
-			...grantEvents,
-		]);
-		return {
-			data: {
-				id: row.id,
-				organizationId: row.organization_id,
-				userId: row.user_id,
-				role: row.role,
-				aiTokenLimit: row.ai_token_limit,
-				aiCharacterLimit: row.ai_character_limit,
-				joinedAt: toIsoRow(row.joined_at),
-				principalId,
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "updateMemberRole", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [member] = await tx`SELECT id, role FROM organization_member
+				WHERE id = ${memberId} AND organization_id = ${orgId}`;
+			if (!member) throw notFound();
+			if (member.role === "owner" && role !== "owner") {
+				const owners = await tx<{ n: number }[]>`
+					SELECT count(*)::int AS n FROM organization_member
+					WHERE organization_id = ${orgId} AND role = 'owner'`;
+				if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
+			}
+			await tx`UPDATE organization_member SET role = ${role} WHERE id = ${memberId} AND organization_id = ${orgId}`;
+			const [row] = await tx<
+				{
+					id: string;
+					organization_id: string;
+					user_id: string;
+					role: string;
+					ai_token_limit: number | null;
+					ai_character_limit: number | null;
+					joined_at: Date | string;
+				}[]
+			>`SELECT id, organization_id, user_id, role, ai_token_limit, ai_character_limit, joined_at
+				FROM organization_member WHERE id = ${memberId}`;
+			const principalId = humanPrincipalId(String(row.user_id));
+			// Defect 13: role change re-derives the user's grant set in the same
+			// transaction (grant-upserted/deleted events), so member-role → grant
+			// drift never occurs and consumers see the new powers immediately.
+			const dynamic = await loadDynamicRolesForGrants(tx, orgId);
+			const wanted = new Set<string>([
+				...roleCapabilitiesForGrants(role, dynamic),
+				"org:member",
+			]);
+			const existing = await tx<{ capability: string }[]>`
+				SELECT capability FROM identity_grant
+				WHERE org_id = ${orgId} AND principal_id = ${principalId}`;
+			const existingSet = new Set(existing.map((row) => row.capability));
+			const grantEvents: EventInsert[] = [];
+			for (const capability of wanted) {
+				if (existingSet.has(capability)) continue;
+				await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
+					VALUES (${orgId}, ${principalId}, ${capability})
+					ON CONFLICT DO NOTHING`;
+				grantEvents.push({
+					type: "identity:grant-upserted",
+					payload: { principalId, capability },
+				});
+			}
+			for (const capability of existingSet) {
+				if (wanted.has(capability)) continue;
+				await tx`DELETE FROM identity_grant
+					WHERE org_id = ${orgId} AND principal_id = ${principalId} AND capability = ${capability}`;
+				grantEvents.push({
+					type: "identity:grant-deleted",
+					payload: { principalId, capability },
+				});
+			}
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:member-upserted", payload: { id: memberId } },
+				...grantEvents,
+			]);
+			return {
+				data: {
+					id: row.id,
+					organizationId: row.organization_id,
+					userId: row.user_id,
+					role: row.role,
+					aiTokenLimit: row.ai_token_limit,
+					aiCharacterLimit: row.ai_character_limit,
+					joinedAt: toIsoRow(row.joined_at),
+					principalId,
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -454,30 +492,33 @@ export async function createRole(
 	orgId: string,
 	input: { role: string; permission: PermissionMap },
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [dupe] = await tx`SELECT id FROM organization_role
-			WHERE organization_id = ${orgId} AND role = ${input.role}`;
-		if (dupe) throw conflict("Duplicate");
-		const roleId = newId("role");
-		const now = new Date();
-		await tx`INSERT INTO organization_role (id, organization_id, role, permission, created_at, updated_at)
-			VALUES (${roleId}, ${orgId}, ${input.role}, ${JSON.stringify(input.permission)}, ${now}, ${now})`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:role-upserted", payload: { id: roleId } },
-		]);
-		return {
-			data: {
-				id: roleId,
-				organizationId: orgId,
-				role: input.role,
-				permission: input.permission,
-				createdAt: now.toISOString(),
-				updatedAt: now.toISOString(),
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "createRole", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [dupe] = await tx`SELECT id FROM organization_role
+				WHERE organization_id = ${orgId} AND role = ${input.role}`;
+			if (dupe) throw conflict("Duplicate");
+			const roleId = newId("role");
+			const now = new Date();
+			await tx`INSERT INTO organization_role (id, organization_id, role, permission, created_at, updated_at)
+				VALUES (${roleId}, ${orgId}, ${input.role}, ${JSON.stringify(input.permission)}, ${now}, ${now})`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:role-upserted", payload: { id: roleId } },
+			]);
+			return {
+				data: {
+					id: roleId,
+					organizationId: orgId,
+					role: input.role,
+					permission: input.permission,
+					createdAt: now.toISOString(),
+					updatedAt: now.toISOString(),
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -487,28 +528,31 @@ export async function updateRole(
 	roleId: string,
 	permission: PermissionMap,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const existing = await orgRoleRow(tx, orgId, roleId);
-		if (!existing) throw notFound();
-		const now = new Date();
-		await tx`UPDATE organization_role SET permission = ${JSON.stringify(permission)}, updated_at = ${now}
-			WHERE id = ${roleId} AND organization_id = ${orgId}`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:role-upserted", payload: { id: roleId } },
-		]);
-		return {
-			data: {
-				id: roleId,
-				organizationId: orgId,
-				role: existing.role,
-				permission,
-				createdAt: toIsoRow(existing.created_at),
-				updatedAt: now.toISOString(),
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "updateRole", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const existing = await orgRoleRow(tx, orgId, roleId);
+			if (!existing) throw notFound();
+			const now = new Date();
+			await tx`UPDATE organization_role SET permission = ${JSON.stringify(permission)}, updated_at = ${now}
+				WHERE id = ${roleId} AND organization_id = ${orgId}`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:role-upserted", payload: { id: roleId } },
+			]);
+			return {
+				data: {
+					id: roleId,
+					organizationId: orgId,
+					role: existing.role,
+					permission,
+					createdAt: toIsoRow(existing.created_at),
+					updatedAt: now.toISOString(),
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -517,21 +561,24 @@ export async function deleteRole(
 	orgId: string,
 	roleId: string,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const existing = await orgRoleRow(tx, orgId, roleId);
-		if (!existing) throw notFound();
-		// In-use check: any member bound to this role name.
-		const [inUse] = await tx<{ n: number }[]>`
-			SELECT count(*)::int AS n FROM organization_member
-			WHERE organization_id = ${orgId} AND role = ${existing.role}`;
-		if (Number(inUse?.n ?? 0) > 0) throw conflict("RoleInUse");
-		await tx`DELETE FROM organization_role WHERE id = ${roleId} AND organization_id = ${orgId}`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:role-deleted", payload: { id: roleId } },
-		]);
-		return { data: { id: roleId }, txid };
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "deleteRole", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const existing = await orgRoleRow(tx, orgId, roleId);
+			if (!existing) throw notFound();
+			// In-use check: any member bound to this role name.
+			const [inUse] = await tx<{ n: number }[]>`
+				SELECT count(*)::int AS n FROM organization_member
+				WHERE organization_id = ${orgId} AND role = ${existing.role}`;
+			if (Number(inUse?.n ?? 0) > 0) throw conflict("RoleInUse");
+			await tx`DELETE FROM organization_role WHERE id = ${roleId} AND organization_id = ${orgId}`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:role-deleted", payload: { id: roleId } },
+			]);
+			return { data: { id: roleId }, txid };
+		});
 	});
 }
 
@@ -576,30 +623,33 @@ export async function createTeam(
 	orgId: string,
 	input: TeamInput & { name: string },
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		await assertTeamParentOk(tx, orgId, null, input.parentTeamId ?? null);
-		const teamId = newId("team");
-		const now = new Date();
-		await tx`INSERT INTO team (id, name, organization_id, source, icon, parent_team_id, created_at, updated_at)
-			VALUES (${teamId}, ${input.name}, ${orgId}, 'stellarc', ${input.icon ?? null}, ${input.parentTeamId ?? null}, ${now}, ${now})`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:team-upserted", payload: { id: teamId } },
-		]);
-		return {
-			data: {
-				id: teamId,
-				name: input.name,
-				organizationId: orgId,
-				source: "stellarc",
-				icon: input.icon ?? null,
-				parentTeamId: input.parentTeamId ?? null,
-				createdAt: now.toISOString(),
-				updatedAt: now.toISOString(),
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "createTeam", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			await assertTeamParentOk(tx, orgId, null, input.parentTeamId ?? null);
+			const teamId = newId("team");
+			const now = new Date();
+			await tx`INSERT INTO team (id, name, organization_id, source, icon, parent_team_id, created_at, updated_at)
+				VALUES (${teamId}, ${input.name}, ${orgId}, 'stellarc', ${input.icon ?? null}, ${input.parentTeamId ?? null}, ${now}, ${now})`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:team-upserted", payload: { id: teamId } },
+			]);
+			return {
+				data: {
+					id: teamId,
+					name: input.name,
+					organizationId: orgId,
+					source: "stellarc",
+					icon: input.icon ?? null,
+					parentTeamId: input.parentTeamId ?? null,
+					createdAt: now.toISOString(),
+					updatedAt: now.toISOString(),
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -609,46 +659,49 @@ export async function updateTeam(
 	teamId: string,
 	input: TeamInput,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [team] =
-			await tx`SELECT id, name, source, icon, parent_team_id, created_at, updated_at
-			FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
-		if (!team) throw notFound();
-		await assertTeamParentOk(
-			tx,
-			orgId,
-			teamId,
-			input.parentTeamId !== undefined
-				? input.parentTeamId
-				: (team.parent_team_id as string | null),
-		);
-		const name = input.name ?? team.name;
-		const icon = input.icon !== undefined ? input.icon : team.icon;
-		const parent =
-			input.parentTeamId !== undefined
-				? input.parentTeamId
-				: team.parent_team_id;
-		const now = new Date();
-		await tx`UPDATE team SET name = ${name}, icon = ${icon}, parent_team_id = ${parent}, updated_at = ${now}
-			WHERE id = ${teamId} AND organization_id = ${orgId}`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:team-upserted", payload: { id: teamId } },
-		]);
-		return {
-			data: {
-				id: teamId,
-				name,
-				organizationId: orgId,
-				source: team.source,
-				icon,
-				parentTeamId: parent,
-				createdAt: toIsoRow(team.created_at),
-				updatedAt: now.toISOString(),
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "updateTeam", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [team] =
+				await tx`SELECT id, name, source, icon, parent_team_id, created_at, updated_at
+				FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
+			if (!team) throw notFound();
+			await assertTeamParentOk(
+				tx,
+				orgId,
+				teamId,
+				input.parentTeamId !== undefined
+					? input.parentTeamId
+					: (team.parent_team_id as string | null),
+			);
+			const name = input.name ?? team.name;
+			const icon = input.icon !== undefined ? input.icon : team.icon;
+			const parent =
+				input.parentTeamId !== undefined
+					? input.parentTeamId
+					: team.parent_team_id;
+			const now = new Date();
+			await tx`UPDATE team SET name = ${name}, icon = ${icon}, parent_team_id = ${parent}, updated_at = ${now}
+				WHERE id = ${teamId} AND organization_id = ${orgId}`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:team-upserted", payload: { id: teamId } },
+			]);
+			return {
+				data: {
+					id: teamId,
+					name,
+					organizationId: orgId,
+					source: team.source,
+					icon,
+					parentTeamId: parent,
+					createdAt: toIsoRow(team.created_at),
+					updatedAt: now.toISOString(),
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -657,34 +710,37 @@ export async function deleteTeam(
 	orgId: string,
 	teamId: string,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [team] =
-			await tx`SELECT id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
-		if (!team) throw notFound();
-		// §3: reparented child upserts + removed member deletions in same tx.
-		const children = await tx<{ id: string }[]>`
-			SELECT id FROM team WHERE parent_team_id = ${teamId} AND organization_id = ${orgId}`;
-		const members = await tx<{ id: string }[]>`
-			SELECT id FROM team_member WHERE team_id = ${teamId}`;
-		const events: EventInsert[] = [];
-		await tx`UPDATE team SET parent_team_id = NULL WHERE parent_team_id = ${teamId} AND organization_id = ${orgId}`;
-		for (const child of children)
-			events.push({
-				type: "identity:team-upserted",
-				payload: { id: child.id },
-			});
-		await tx`DELETE FROM team_member WHERE team_id = ${teamId}`;
-		for (const member of members)
-			events.push({
-				type: "identity:team-member-deleted",
-				payload: { id: member.id },
-			});
-		await tx`DELETE FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
-		events.push({ type: "identity:team-deleted", payload: { id: teamId } });
-		const txid = await appendEvents(tx, orgId, actor, events);
-		return { data: { id: teamId }, txid };
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "deleteTeam", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [team] =
+				await tx`SELECT id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
+			if (!team) throw notFound();
+			// §3: reparented child upserts + removed member deletions in same tx.
+			const children = await tx<{ id: string }[]>`
+				SELECT id FROM team WHERE parent_team_id = ${teamId} AND organization_id = ${orgId}`;
+			const members = await tx<{ id: string }[]>`
+				SELECT id FROM team_member WHERE team_id = ${teamId}`;
+			const events: EventInsert[] = [];
+			await tx`UPDATE team SET parent_team_id = NULL WHERE parent_team_id = ${teamId} AND organization_id = ${orgId}`;
+			for (const child of children)
+				events.push({
+					type: "identity:team-upserted",
+					payload: { id: child.id },
+				});
+			await tx`DELETE FROM team_member WHERE team_id = ${teamId}`;
+			for (const member of members)
+				events.push({
+					type: "identity:team-member-deleted",
+					payload: { id: member.id },
+				});
+			await tx`DELETE FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
+			events.push({ type: "identity:team-deleted", payload: { id: teamId } });
+			const txid = await appendEvents(tx, orgId, actor, events);
+			return { data: { id: teamId }, txid };
+		});
 	});
 }
 
@@ -694,34 +750,37 @@ export async function addTeamMember(
 	teamId: string,
 	userId: string,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [team] =
-			await tx`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
-		if (!team) throw notFound();
-		const [member] =
-			await tx`SELECT 1 FROM organization_member WHERE organization_id = ${orgId} AND user_id = ${userId}`;
-		if (!member) throw notFound();
-		const [dupe] =
-			await tx`SELECT id FROM team_member WHERE team_id = ${teamId} AND user_id = ${userId}`;
-		if (dupe) throw conflict("Duplicate");
-		const id = newId("tm");
-		const now = new Date();
-		await tx`INSERT INTO team_member (id, team_id, user_id, created_at) VALUES (${id}, ${teamId}, ${userId}, ${now})`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:team-member-upserted", payload: { id } },
-		]);
-		return {
-			data: {
-				id,
-				teamId,
-				userId,
-				createdAt: now.toISOString(),
-				organizationId: orgId,
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "addTeamMember", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [team] =
+				await tx`SELECT id, organization_id FROM team WHERE id = ${teamId} AND organization_id = ${orgId}`;
+			if (!team) throw notFound();
+			const [member] =
+				await tx`SELECT 1 FROM organization_member WHERE organization_id = ${orgId} AND user_id = ${userId}`;
+			if (!member) throw notFound();
+			const [dupe] =
+				await tx`SELECT id FROM team_member WHERE team_id = ${teamId} AND user_id = ${userId}`;
+			if (dupe) throw conflict("Duplicate");
+			const id = newId("tm");
+			const now = new Date();
+			await tx`INSERT INTO team_member (id, team_id, user_id, created_at) VALUES (${id}, ${teamId}, ${userId}, ${now})`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:team-member-upserted", payload: { id } },
+			]);
+			return {
+				data: {
+					id,
+					teamId,
+					userId,
+					createdAt: now.toISOString(),
+					organizationId: orgId,
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -731,18 +790,21 @@ export async function removeTeamMember(
 	_teamId: string,
 	memberId: string,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [row] = await tx`SELECT tm.id FROM team_member tm
-			JOIN team t ON t.id = tm.team_id
-			WHERE tm.id = ${memberId} AND t.organization_id = ${orgId}`;
-		if (!row) throw notFound();
-		await tx`DELETE FROM team_member WHERE id = ${memberId}`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:team-member-deleted", payload: { id: memberId } },
-		]);
-		return { data: { id: memberId }, txid };
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "removeTeamMember", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [row] = await tx`SELECT tm.id FROM team_member tm
+				JOIN team t ON t.id = tm.team_id
+				WHERE tm.id = ${memberId} AND t.organization_id = ${orgId}`;
+			if (!row) throw notFound();
+			await tx`DELETE FROM team_member WHERE id = ${memberId}`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:team-member-deleted", payload: { id: memberId } },
+			]);
+			return { data: { id: memberId }, txid };
+		});
 	});
 }
 
@@ -757,36 +819,39 @@ export async function createInvitation(
 	orgId: string,
 	input: { email: string; role: string; teamId: string | null },
 	ctx: InvitationContext,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		if (input.teamId) {
-			const [team] =
-				await tx`SELECT id FROM team WHERE id = ${input.teamId} AND organization_id = ${orgId}`;
-			if (!team) throw notFound();
-		}
-		const id = newId("inv");
-		const now = new Date();
-		const expires = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
-		await tx`INSERT INTO invitation (id, organization_id, email, role, team_id, status, expires_at, created_at, inviter_id)
-			VALUES (${id}, ${orgId}, ${input.email}, ${input.role}, ${input.teamId}, 'pending', ${expires}, ${now}, ${ctx.userId})`;
-		const txid = await appendEvents(tx, orgId, ctx.principalId, [
-			{ type: "identity:invitation-upserted", payload: { id } },
-		]);
-		return {
-			data: {
-				id,
-				organizationId: orgId,
-				email: input.email,
-				role: input.role,
-				teamId: input.teamId,
-				status: "pending",
-				expiresAt: expires.toISOString(),
-				createdAt: now.toISOString(),
-				inviterId: ctx.userId,
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "createInvitation", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			if (input.teamId) {
+				const [team] =
+					await tx`SELECT id FROM team WHERE id = ${input.teamId} AND organization_id = ${orgId}`;
+				if (!team) throw notFound();
+			}
+			const id = newId("inv");
+			const now = new Date();
+			const expires = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+			await tx`INSERT INTO invitation (id, organization_id, email, role, team_id, status, expires_at, created_at, inviter_id)
+				VALUES (${id}, ${orgId}, ${input.email}, ${input.role}, ${input.teamId}, 'pending', ${expires}, ${now}, ${ctx.userId})`;
+			const txid = await appendEvents(tx, orgId, ctx.principalId, [
+				{ type: "identity:invitation-upserted", payload: { id } },
+			]);
+			return {
+				data: {
+					id,
+					organizationId: orgId,
+					email: input.email,
+					role: input.role,
+					teamId: input.teamId,
+					status: "pending",
+					expiresAt: expires.toISOString(),
+					createdAt: now.toISOString(),
+					inviterId: ctx.userId,
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -795,18 +860,21 @@ export async function cancelInvitation(
 	orgId: string,
 	invitationId: string,
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [row] =
-			await tx`SELECT id, status FROM invitation WHERE id = ${invitationId} AND organization_id = ${orgId}`;
-		if (!row) throw notFound();
-		// §2: invitations change status through upsert, never physical delete.
-		await tx`UPDATE invitation SET status = 'canceled' WHERE id = ${invitationId}`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:invitation-upserted", payload: { id: invitationId } },
-		]);
-		return { data: { id: invitationId, status: "canceled" }, txid };
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "cancelInvitation", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [row] =
+				await tx`SELECT id, status FROM invitation WHERE id = ${invitationId} AND organization_id = ${orgId}`;
+			if (!row) throw notFound();
+			// §2: invitations change status through upsert, never physical delete.
+			await tx`UPDATE invitation SET status = 'canceled' WHERE id = ${invitationId}`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:invitation-upserted", payload: { id: invitationId } },
+			]);
+			return { data: { id: invitationId, status: "canceled" }, txid };
+		});
 	});
 }
 
@@ -814,64 +882,67 @@ export async function acceptInvitation(
 	sql: Sql,
 	invitationId: string,
 	ctx: InvitationContext,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		// Conditional status update consumes the invitation exactly once
-		// under concurrency (T18 negative control).
-		const consumed = await tx`UPDATE invitation SET status = 'accepted'
-			WHERE id = ${invitationId} AND status = 'pending' AND expires_at > now()
-			RETURNING id, organization_id, email, role, team_id, expires_at, created_at, inviter_id`;
-		const invitation = consumed[0];
-		if (!invitation) {
-			const [anyRow] =
-				await tx`SELECT organization_id FROM invitation WHERE id = ${invitationId}`;
-			if (!anyRow) throw notFound();
-			throw conflict("AlreadyAccepted");
-		}
-		const orgId = String(invitation.organization_id);
-		await lockOrg(tx, orgId);
-		// Invitee identity must match the authenticated user's email (§3
-		// authenticated matching invitee).
-		const [invitee] =
-			await tx`SELECT email FROM "user" WHERE id = ${ctx.userId}`;
-		if (!invitee || invitee.email !== invitation.email) {
-			throw forbidden();
-		}
-		const memberId = newId("member");
-		const now = new Date();
-		await tx`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
-			VALUES (${memberId}, ${orgId}, ${ctx.userId}, ${invitation.role ?? "member"}, ${now})`;
-		if (invitation.team_id) {
-			await tx`INSERT INTO team_member (id, team_id, user_id, created_at)
-				VALUES (${newId("tm")}, ${invitation.team_id}, ${ctx.userId}, ${now})
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "acceptInvitation", "", async () => {
+		return sql.begin(async (tx) => {
+			// Conditional status update consumes the invitation exactly once
+			// under concurrency (T18 negative control).
+			const consumed = await tx`UPDATE invitation SET status = 'accepted'
+				WHERE id = ${invitationId} AND status = 'pending' AND expires_at > now()
+				RETURNING id, organization_id, email, role, team_id, expires_at, created_at, inviter_id`;
+			const invitation = consumed[0];
+			if (!invitation) {
+				const [anyRow] =
+					await tx`SELECT organization_id FROM invitation WHERE id = ${invitationId}`;
+				if (!anyRow) throw notFound();
+				throw conflict("AlreadyAccepted");
+			}
+			const orgId = String(invitation.organization_id);
+			await lockOrg(tx, orgId);
+			// Invitee identity must match the authenticated user's email (§3
+			// authenticated matching invitee).
+			const [invitee] =
+				await tx`SELECT email FROM "user" WHERE id = ${ctx.userId}`;
+			if (!invitee || invitee.email !== invitation.email) {
+				throw forbidden();
+			}
+			const memberId = newId("member");
+			const now = new Date();
+			await tx`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
+				VALUES (${memberId}, ${orgId}, ${ctx.userId}, ${invitation.role ?? "member"}, ${now})`;
+			if (invitation.team_id) {
+				await tx`INSERT INTO team_member (id, team_id, user_id, created_at)
+					VALUES (${newId("tm")}, ${invitation.team_id}, ${ctx.userId}, ${now})
+					ON CONFLICT DO NOTHING`;
+			}
+			const principalId = humanPrincipalId(ctx.userId);
+			await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
+				VALUES (${principalId}, 'human', ${ctx.userId}, null)
+				ON CONFLICT (id) DO NOTHING`;
+			await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
+				VALUES (${orgId}, ${principalId}, 'org:member')
 				ON CONFLICT DO NOTHING`;
-		}
-		const principalId = humanPrincipalId(ctx.userId);
-		await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
-			VALUES (${principalId}, 'human', ${ctx.userId}, null)
-			ON CONFLICT (id) DO NOTHING`;
-		await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
-			VALUES (${orgId}, ${principalId}, 'org:member')
-			ON CONFLICT DO NOTHING`;
-		const txid = await appendEvents(tx, orgId, ctx.principalId, [
-			{ type: "identity:member-upserted", payload: { id: memberId } },
-			{ type: "identity:invitation-upserted", payload: { id: invitationId } },
-			{
-				type: "identity:grant-upserted",
-				payload: { principalId, capability: "org:member" },
-			},
-		]);
-		return {
-			data: {
-				id: memberId,
-				organizationId: orgId,
-				userId: ctx.userId,
-				role: invitation.role ?? "member",
-				joinedAt: now.toISOString(),
-				principalId,
-			},
-			txid,
-		};
+			const txid = await appendEvents(tx, orgId, ctx.principalId, [
+				{ type: "identity:member-upserted", payload: { id: memberId } },
+				{ type: "identity:invitation-upserted", payload: { id: invitationId } },
+				{
+					type: "identity:grant-upserted",
+					payload: { principalId, capability: "org:member" },
+				},
+			]);
+			return {
+				data: {
+					id: memberId,
+					organizationId: orgId,
+					userId: ctx.userId,
+					role: invitation.role ?? "member",
+					joinedAt: now.toISOString(),
+					principalId,
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -880,46 +951,49 @@ export async function updateOrganization(
 	orgId: string,
 	input: { name?: string; description?: string | null; slug?: string },
 	actor: string,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [org] =
-			await tx`SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
-		if (!org) throw notFound();
-		if (input.slug !== undefined && input.slug !== org.slug) {
-			const [taken] =
-				await tx`SELECT id FROM organization WHERE (slug = ${input.slug} OR lower(slug) = lower(${input.slug})) AND id <> ${orgId}`;
-			if (taken) throw conflict("Duplicate");
-		}
-		const name = input.name ?? org.name;
-		const description =
-			input.description !== undefined ? input.description : org.description;
-		const slug = input.slug ?? org.slug;
-		await tx`UPDATE organization SET name = ${name}, description = ${description}, slug = ${slug} WHERE id = ${orgId}`;
-		const txid = await appendEvents(tx, orgId, actor, [
-			{ type: "identity:organization-upserted", payload: { id: orgId } },
-		]);
-		return {
-			data: {
-				id: orgId,
-				name,
-				slug,
-				logo: null,
-				metadata: null,
-				description,
-				reposEnabled: false,
-				tablesEnabled: false,
-				workEnabled: false,
-				defaultResourcePrivilege: "manage",
-				aiEnabled: false,
-				aiDefaultTokenLimit: 1024,
-				aiDefaultCharacterLimit: 4000,
-				aiProviderBaseUrl: null,
-				aiProviderModel: null,
-				createdAt: toIsoRow(org.created_at),
-			},
-			txid,
-		};
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "updateOrganization", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [org] =
+				await tx`SELECT id, name, slug, description, created_at FROM organization WHERE id = ${orgId}`;
+			if (!org) throw notFound();
+			if (input.slug !== undefined && input.slug !== org.slug) {
+				const [taken] =
+					await tx`SELECT id FROM organization WHERE (slug = ${input.slug} OR lower(slug) = lower(${input.slug})) AND id <> ${orgId}`;
+				if (taken) throw conflict("Duplicate");
+			}
+			const name = input.name ?? org.name;
+			const description =
+				input.description !== undefined ? input.description : org.description;
+			const slug = input.slug ?? org.slug;
+			await tx`UPDATE organization SET name = ${name}, description = ${description}, slug = ${slug} WHERE id = ${orgId}`;
+			const txid = await appendEvents(tx, orgId, actor, [
+				{ type: "identity:organization-upserted", payload: { id: orgId } },
+			]);
+			return {
+				data: {
+					id: orgId,
+					name,
+					slug,
+					logo: null,
+					metadata: null,
+					description,
+					reposEnabled: false,
+					tablesEnabled: false,
+					workEnabled: false,
+					defaultResourcePrivilege: "manage",
+					aiEnabled: false,
+					aiDefaultTokenLimit: 1024,
+					aiDefaultCharacterLimit: 4000,
+					aiProviderBaseUrl: null,
+					aiProviderModel: null,
+					createdAt: toIsoRow(org.created_at),
+				},
+				txid,
+			};
+		});
 	});
 }
 
@@ -930,114 +1004,128 @@ export async function createApiKey(
 	orgId: string,
 	input: { name: string; permissions: PermissionMap; expiresAt: string | null },
 	ctx: InvitationContext,
+	tracer?: TracerLike,
 ): Promise<
 	MutationResult & { data: { key: Record<string, unknown>; secret: string } }
 > {
-	// §3: one-time secret, digest stored, ceiling ≤ issuer capabilities.
-	// The route layer already enforced human-session + apikey:create.
-	const secret = `stellarc_${randomBytes(24).toString("base64url")}`;
-	const digest = apiKeyDigest(secret);
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const keyId = newId("key");
-		const prefix = secret.slice(0, 12);
-		const now = new Date();
-		const expires = input.expiresAt ? new Date(input.expiresAt) : null;
-		await tx`INSERT INTO apikey (id, config_id, name, reference_id, prefix, "key", permissions, enabled, expires_at, created_at, updated_at)
+	return tracedMutation(
+		tracer,
+		"createApiKey",
+		orgId,
+		async (): Promise<
+			MutationResult & {
+				data: { key: Record<string, unknown>; secret: string };
+			}
+		> => {
+			// §3: one-time secret, digest stored, ceiling ≤ issuer capabilities.
+			// The route layer already enforced human-session + apikey:create.
+			const secret = `stellarc_${randomBytes(24).toString("base64url")}`;
+			const digest = apiKeyDigest(secret);
+			return sql.begin(async (tx) => {
+				await lockOrg(tx, orgId);
+				const keyId = newId("key");
+				const prefix = secret.slice(0, 12);
+				const now = new Date();
+				const expires = input.expiresAt ? new Date(input.expiresAt) : null;
+				await tx`INSERT INTO apikey (id, config_id, name, reference_id, prefix, "key", permissions, enabled, expires_at, created_at, updated_at)
 			VALUES (${keyId}, ${`cfg-${keyId}`}, ${input.name}, ${ctx.userId}, ${prefix}, ${digest}, ${JSON.stringify(input.permissions)}, true, ${expires}, ${now}, ${now})`;
-		// Agent principal + org grants immediately (ceiling = permissions).
-		const principalId = agentPrincipalId(keyId);
-		await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
+				// Agent principal + org grants immediately (ceiling = permissions).
+				const principalId = agentPrincipalId(keyId);
+				await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
 			VALUES (${principalId}, 'agent', ${ctx.userId}, ${keyId})
 			ON CONFLICT (id) DO NOTHING`;
-		const events: EventInsert[] = [
-			{ type: "identity:apikey-upserted", payload: { id: keyId } },
-			{
-				type: "identity:principal-upserted",
-				payload: {
-					id: principalId,
-					row: { id: principalId, kind: "agent", userId: ctx.userId },
-				},
-			},
-		];
-		await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
+				const events: EventInsert[] = [
+					{ type: "identity:apikey-upserted", payload: { id: keyId } },
+					{
+						type: "identity:principal-upserted",
+						payload: {
+							id: principalId,
+							row: { id: principalId, kind: "agent", userId: ctx.userId },
+						},
+					},
+				];
+				await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
 			VALUES (${orgId}, ${principalId}, 'org:member')
 			ON CONFLICT DO NOTHING`;
-		events.push({
-			type: "identity:grant-upserted",
-			payload: { principalId, capability: "org:member" },
-		});
-		for (const [resource, actions] of Object.entries(input.permissions)) {
-			for (const action of actions) {
-				const cap = `${resource}:${action}`;
-				await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
-					VALUES (${orgId}, ${principalId}, ${cap})
-					ON CONFLICT DO NOTHING`;
 				events.push({
 					type: "identity:grant-upserted",
-					payload: { principalId, capability: cap },
+					payload: { principalId, capability: "org:member" },
 				});
-			}
-		}
-		const txid = await appendEvents(tx, orgId, ctx.principalId, events);
-		return {
-			data: {
-				key: {
-					id: keyId,
-					configId: `cfg-${keyId}`,
-					name: input.name,
-					start: null,
-					referenceId: ctx.userId,
-					prefix,
-					refillInterval: null,
-					refillAmount: null,
-					lastRefillAt: null,
-					enabled: true,
-					rateLimitEnabled: null,
-					rateLimitTimeWindow: null,
-					rateLimitMax: null,
-					requestCount: null,
-					remaining: null,
-					lastRequest: null,
-					expiresAt: expires ? expires.toISOString() : null,
-					createdAt: now.toISOString(),
-					updatedAt: now.toISOString(),
-					permissions: input.permissions,
-					metadata: null,
-				},
-				secret,
-			},
-			txid,
-		};
-	});
+				for (const [resource, actions] of Object.entries(input.permissions)) {
+					for (const action of actions) {
+						const cap = `${resource}:${action}`;
+						await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
+					VALUES (${orgId}, ${principalId}, ${cap})
+					ON CONFLICT DO NOTHING`;
+						events.push({
+							type: "identity:grant-upserted",
+							payload: { principalId, capability: cap },
+						});
+					}
+				}
+				const txid = await appendEvents(tx, orgId, ctx.principalId, events);
+				return {
+					data: {
+						key: {
+							id: keyId,
+							configId: `cfg-${keyId}`,
+							name: input.name,
+							start: null,
+							referenceId: ctx.userId,
+							prefix,
+							refillInterval: null,
+							refillAmount: null,
+							lastRefillAt: null,
+							enabled: true,
+							rateLimitEnabled: null,
+							rateLimitTimeWindow: null,
+							rateLimitMax: null,
+							requestCount: null,
+							remaining: null,
+							lastRequest: null,
+							expiresAt: expires ? expires.toISOString() : null,
+							createdAt: now.toISOString(),
+							updatedAt: now.toISOString(),
+							permissions: input.permissions,
+							metadata: null,
+						},
+						secret,
+					},
+					txid,
+				};
+			});
+		},
+	);
 }
-
 export async function deleteApiKey(
 	sql: Sql,
 	orgId: string,
 	keyId: string,
 	ctx: InvitationContext,
-): Promise<MutationResult> {
-	return sql.begin(async (tx) => {
-		await lockOrg(tx, orgId);
-		const [key] =
-			await tx`SELECT id, reference_id FROM apikey WHERE id = ${keyId}`;
-		if (!key) throw notFound();
-		// Own key only (§3): the owner or the agent itself (same owner).
-		if (key.reference_id !== ctx.userId) throw forbidden();
-		const principalId = agentPrincipalId(keyId);
-		const removed =
-			await tx`DELETE FROM identity_grant WHERE org_id = ${orgId} AND principal_id = ${principalId} RETURNING capability`;
-		await tx`DELETE FROM apikey WHERE id = ${keyId}`;
-		const events: EventInsert[] = [
-			{ type: "identity:apikey-deleted", payload: { id: keyId } },
-		];
-		for (const row of removed)
-			events.push({
-				type: "identity:grant-deleted",
-				payload: { principalId, capability: row.capability },
-			});
-		const txid = await appendEvents(tx, orgId, ctx.principalId, events);
-		return { data: { id: keyId }, txid };
+	tracer?: TracerLike,
+) {
+	return tracedMutation(tracer, "deleteApiKey", orgId, async () => {
+		return sql.begin(async (tx) => {
+			await lockOrg(tx, orgId);
+			const [key] =
+				await tx`SELECT id, reference_id FROM apikey WHERE id = ${keyId}`;
+			if (!key) throw notFound();
+			// Own key only (§3): the owner or the agent itself (same owner).
+			if (key.reference_id !== ctx.userId) throw forbidden();
+			const principalId = agentPrincipalId(keyId);
+			const removed =
+				await tx`DELETE FROM identity_grant WHERE org_id = ${orgId} AND principal_id = ${principalId} RETURNING capability`;
+			await tx`DELETE FROM apikey WHERE id = ${keyId}`;
+			const events: EventInsert[] = [
+				{ type: "identity:apikey-deleted", payload: { id: keyId } },
+			];
+			for (const row of removed)
+				events.push({
+					type: "identity:grant-deleted",
+					payload: { principalId, capability: row.capability },
+				});
+			const txid = await appendEvents(tx, orgId, ctx.principalId, events);
+			return { data: { id: keyId }, txid };
+		});
 	});
 }

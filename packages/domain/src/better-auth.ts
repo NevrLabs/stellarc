@@ -10,6 +10,8 @@ import { postgresJsAdapter } from "./better-auth-adapter";
 // enabled, specified routes — no wildcard mount of undocumented paths.
 
 export interface BetterAuthDeps {
+	/** Optional tracer for adapter spans (Identity.authAdapter.*). */
+	tracer?: import("./identity/tracer-type").TracerLike;
 	/** Secret for session token signing. Never logged. */
 	secret: string;
 	/** Base URL the API is served from (origin only, no path). */
@@ -21,7 +23,7 @@ export function makeAuth(sql: Sql, deps: BetterAuthDeps) {
 		secret: deps.secret,
 		baseURL: deps.baseURL,
 		basePath: "/api/auth",
-		database: postgresJsAdapter(sql),
+		database: postgresJsAdapter(sql, deps.tracer),
 		emailAndPassword: {
 			enabled: true,
 			autoSignIn: false,
