@@ -614,6 +614,43 @@ test("T10/D7: status-changed emitted only on real transitions; bulkPatch/reorder
 	expect(reorderPair[0].count).toBe(before[0].count + 3);
 });
 
+test("T37-supp: every non-virtual task status has a same-board column row; every column has a board", async () => {
+	const work = await import("../../packages/domain/src/work");
+	// Self-seeded board (T23 pattern): the invariant is non-vacuous under -t
+	// filtering and coupled to no other test's fixtures.
+	const board = await work.createBoard(sql, "org-1", "user-1", {
+		id: "b-t37b",
+		name: "T37B Board",
+	});
+	await work.createTicket(sql, "org-1", "user-1", board.data.id, {
+		id: "t-t37b",
+		title: "t37b ticket",
+	});
+	// (Negative control — verified during this cycle — inserts a task row
+	// with status 'ghost-status' above this query; it reddens with
+	// "expected 1 to be +0". Invariant B cannot be violated through SQL at
+	// all: T01 pins column.board_id → board ON DELETE CASCADE, so the FK is
+	// the structural guarantee; the query still asserts restored import
+	// fixtures, which are data-only, carry zero orphans.)
+	// Invariant A: every non-virtual task status on this board resolves to a
+	// same-board column row (the fork's ON DELETE SET NULL manufactures exactly
+	// the orphans this check exists to catch; Stellarc rejects instead).
+	const orphanStatus = await sql`
+		SELECT count(*)::int AS count FROM task t
+		WHERE t.board_id = ${board.data.id} AND t.deleted_at IS NULL
+			AND NOT EXISTS (
+				SELECT 1 FROM "column" c
+				WHERE c.board_id = t.board_id AND c.slug = t.status
+			)`;
+	expect(orphanStatus[0].count).toBe(0);
+	// Invariant B: every column row references an existing board.
+	const boardlessColumns = await sql`
+		SELECT count(*)::int AS count FROM "column" c
+		LEFT JOIN "board" b ON b.id = c.board_id
+		WHERE b.id IS NULL`;
+	expect(boardlessColumns[0].count).toBe(0);
+});
+
 test("T37-supp: deleteStatus blocked with StatusInUse while any task references the slug", async () => {
 	const work = await import("../../packages/domain/src/work");
 	const board = await work.createBoard(sql, "org-1", "user-1", {
