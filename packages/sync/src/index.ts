@@ -313,10 +313,13 @@ export class ShapeEngine {
 				);
 				messages.push(...tail);
 				caughtUp = tail.length < 100;
+				// The cursor must keep the wire `seq_0` shape: it re-enters
+				// page() as a decoded offset and is re-validated against
+				// /^\d+_0$/. A bare last_seq 400s every subsequent poll —
+				// a reconnecting client could tail exactly once, never twice.
 				next =
 					tail.length > 0
-						? ((tail[tail.length - 1] as { value: { last_seq: string } }).value
-								.last_seq as string)
+						? `${(tail[tail.length - 1] as { value: { last_seq: string } }).value.last_seq}_0`
 						: offset;
 			}
 		} else if (offset === "-1" || offset.startsWith("s:")) {

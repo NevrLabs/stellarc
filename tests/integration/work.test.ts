@@ -797,3 +797,81 @@ test("T23: non-member org cannot snapshot work shapes; revoked handle stops", as
 	for (const row of boardRows.filter((r) => r.headers.operation === "insert"))
 		expect(row.value?.organizationId).toBe("org-2");
 }, 60000);
+
+// D10/T22: the snapshot race — a write committed AFTER the snapshot boundary
+// must arrive EXACTLY ONCE via the tail, never zero (lost update) and never
+// twice (snapshot/tail overlap). Sabotaging the boundary filter (dropping the
+// `seq > cursor` predicate or feeding a stale boundary) must redden this.
+test("T22: reconnecting tail receives a post-boundary write exactly once", async () => {
+	const { ShapeEngine } = await import("../../packages/sync/src/index");
+	const work = await import("../../packages/domain/src/work");
+	const engine = new ShapeEngine(sql);
+	const board = await work.createBoard(sql, "org-1", "user-1", {
+		id: `b-race-${Date.now()}`,
+		name: "Race Board",
+	});
+	const ticket = await work.createTicket(
+		sql,
+		"org-1",
+		"user-1",
+		board.data.id,
+		{ id: `t-race-${Date.now()}`, title: "race ticket" },
+	);
+	// 1) Snapshot BEFORE the extra write.
+	const snapRes = await engine.shape(
+		"org-1",
+		new URL("http://x/orgs/org-1/v1/shape?table=work_ticket&offset=-1"),
+	);
+	expect(snapRes.status).toBe(200);
+	const handle = snapRes.headers.get("electric-handle") ?? "";
+	// Page to the boundary cursor.
+	let offset = snapRes.headers.get("electric-offset") ?? "";
+	let boundary = "";
+	while (offset.startsWith("s:")) {
+		const page = await engine.shape(
+			"org-1",
+			new URL(
+				`http://x/orgs/org-1/v1/shape?table=work_ticket&offset=${offset}&handle=${handle}`,
+			),
+		);
+		offset = page.headers.get("electric-offset") ?? "";
+	}
+	boundary = offset;
+	expect(/^\d+_0$/.test(boundary)).toBe(true);
+	// 2) Write AFTER the snapshot (status transition).
+	await work.setTicketStatus(
+		sql,
+		"org-1",
+		"user-1",
+		ticket.data.id,
+		"in-progress",
+	);
+	// 3) Tail from the boundary: the transition must appear exactly once.
+	const seen: string[] = [];
+	let cursor = boundary;
+	for (let poll = 0; poll < 3; poll++) {
+		const tail = await engine.shape(
+			"org-1",
+			new URL(
+				`http://x/orgs/org-1/v1/shape?table=work_ticket&offset=${cursor}&handle=${handle}`,
+			),
+		);
+		expect(tail.status).toBe(200);
+		const rows = (await tail.json()) as Array<{
+			key: string;
+			value: { id: string; status: string; last_seq: string };
+			headers: { operation: string };
+		}>;
+		for (const r of rows) {
+			if (
+				r.value &&
+				r.value.id === ticket.data.id &&
+				r.headers.operation === "update"
+			)
+				seen.push(`${r.value.status}@${r.value.last_seq}`);
+		}
+		cursor = tail.headers.get("electric-offset") ?? cursor;
+	}
+	const transitions = seen.filter((s) => s.startsWith("in-progress"));
+	expect(transitions).toHaveLength(1);
+}, 120000);

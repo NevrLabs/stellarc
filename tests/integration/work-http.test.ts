@@ -248,6 +248,32 @@ test("T27-wire: mutations settle with txid through the HTTP envelope (awaitTxId 
 		await sql`SELECT count(*)::int AS count FROM "board" WHERE id = ${board.id}`;
 	expect(row.count).toBe(1);
 	void board;
+
+	// D10/T27 delete path: emitInTx must also settle a real committed txid.
+	const createTicket = await http.handler(
+		new Request(`http://x/api/work/boards/${board.id}/tickets`, {
+			method: "POST",
+			headers: { ...H("org-1"), "content-type": "application/json" },
+			body: JSON.stringify({ title: "doomed" }),
+		}),
+	);
+	expect(createTicket.status).toBe(200);
+	const { data: ticket } = (await createTicket.json()) as {
+		data: { id: string };
+	};
+	const del = await http.handler(
+		new Request(`http://x/api/work/tickets/${ticket.id}`, {
+			method: "DELETE",
+			headers: H("org-1"),
+		}),
+	);
+	expect(del.status).toBe(200);
+	const delBody = (await del.json()) as { data: unknown; txid: number };
+	expect(Number.isFinite(delBody.txid)).toBe(true);
+	expect(delBody.txid).toBeGreaterThan(0);
+	const [gone] =
+		await sql`SELECT count(*)::int AS count FROM task WHERE id = ${ticket.id} AND deleted_at IS NULL`;
+	expect(gone.count).toBe(0);
 });
 
 test("T07/D8: GET /api/work/boards/:id resolves id, slug, alias and KEY-seq over HTTP", async () => {
@@ -316,3 +342,46 @@ test("T07/D8: GET /api/work/boards/:id resolves id, slug, alias and KEY-seq over
 	);
 	expect(foreign.status).toBe(404);
 });
+
+// D10/T27: DELETE settles with a real txid through the HTTP envelope — the
+// spec's negative control ("omit txid on deletes") must be able to redden
+// this. The txid must match a committed PG txid that stamped deleted_at.
+test("T27-wire: DELETE /api/work/tickets/:id settles with a committed txid", async () => {
+	const H2 = { ...H("org-1"), "content-type": "application/json" };
+	const boardRes = await http.handler(
+		new Request("http://x/api/work/boards", {
+			method: "POST",
+			headers: H2,
+			body: JSON.stringify({ name: "Txid Delete Board" }),
+		}),
+	);
+	const board = ((await boardRes.json()) as { data: { id: string } }).data;
+	const ticketRes = await http.handler(
+		new Request(`http://x/api/work/boards/${board.id}/tickets`, {
+			method: "POST",
+			headers: H2,
+			body: JSON.stringify({ title: "Txid delete ticket" }),
+		}),
+	);
+	const ticket = ((await ticketRes.json()) as { data: { id: string } }).data;
+	const del = await http.handler(
+		new Request(`http://x/api/work/tickets/${ticket.id}`, {
+			method: "DELETE",
+			headers: H("org-1"),
+		}),
+	);
+	expect(del.status).toBe(200);
+	const envelope = (await del.json()) as { data: { id: string }; txid: number };
+	expect(Number.isFinite(envelope.txid)).toBe(true);
+	expect(envelope.txid).toBeGreaterThan(0);
+	expect(envelope.data.id).toBe(ticket.id);
+	// The txid names a real committed transaction: the delete event row
+	// carries exactly this txid, and the row is soft-deleted.
+	const [event] = await sql`SELECT txid::int AS txid FROM event
+		WHERE org = 'org-1' AND plugin_type = 'work:ticket-deleted'
+		AND payload->>'id' = ${ticket.id}`;
+	expect(event?.txid).toBe(envelope.txid);
+	const [row] =
+		await sql`SELECT deleted_at IS NOT NULL AS gone FROM task WHERE id = ${ticket.id}`;
+	expect(row?.gone).toBe(true);
+}, 30000);
