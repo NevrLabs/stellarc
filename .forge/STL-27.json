@@ -180,6 +180,47 @@
    "pr": 59,
    "head": "0994c3bf",
    "reason": "consolidated: 3 branches \u2192 forge/stl-27; superseded PRs [38, 36, 33] \u2014 prior cycle had PASSed implement; routed to review"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T14:06:50+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T14:06:53+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-16T14:06:54+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 323684,
+   "reason": "orphan running: watcher pid 323684 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T15:38:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T15:38:56+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-16T15:38:57+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 367899
   }
  ],
  "cycle": 5
