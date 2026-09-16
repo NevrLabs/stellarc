@@ -322,16 +322,22 @@ def tick():
     launched_light = {n for (n, st) in RUNNING if st in ("triage", "spec")}
     heavy = len({*launched_heavy, *[n for n in nums if any(last(state(n), st) == "running" for st in ("implement", "review", "merge-gate"))]})
     light = len({*launched_light, *[n for n in nums if any(last(state(n), st) == "running" for st in ("triage", "spec"))]})
+    PRIO = {"merge": 0, "review": 1, "implement": 2, "spec": 3, "triage": 4}
+    ready.sort(key=lambda x: PRIO.get(x[1], 9))
+    impl_running = len({*[n for (n, st) in RUNNING if st == "implement"], *[n for n in nums if last(state(n), "implement") == "running"]})
     for n, st in ready:
         if any(k[0] == n for k in RUNNING): continue
         if st in ("implement", "review", "merge"):
             if heavy >= PARALLEL: log("throttle", tid(n), f"{st} deferred; {heavy} heavy in flight"); continue
+            # implementers may take at most PARALLEL-1 slots so a review/merge can always get in; reviews unlock merges
+            if st == "implement" and impl_running >= PARALLEL - 1: log("throttle", tid(n), f"implement deferred; {impl_running} implementers hold the cap-1"); continue
             if not host_has_headroom(): continue
         elif light >= LIGHT_PARALLEL:
             log("throttle", tid(n), f"{st} deferred; {light} light in flight"); continue
         ok = run_stage(n, st)
         if st in ("implement", "review", "merge"): heavy += 1
-        else: light += 1
+        if st == "implement": impl_running += 1
+        if st not in ("implement", "review", "merge"): light += 1
         pass
 
 def main():

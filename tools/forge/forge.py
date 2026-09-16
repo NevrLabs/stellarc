@@ -183,6 +183,27 @@ def set_stage_label(n, repo, stage):
     label(n, repo, add=f"forge:{stage}")
 
 # ── paseo ────────────────────────────────────────────────────────────────────
+def free_branch(branch):
+    """Remove any worktree currently holding `branch` (a previous cycle's checkout the sweep hasn't reached yet).
+    Uncommitted changes there are abandoned by design: the brief's commit-cadence rule makes them the lane's loss."""
+    out = sh(["git", "worktree", "list", "--porcelain"], cwd=repo_root(), check=False).stdout
+    path = None
+    for line in out.splitlines():
+        if line.startswith("worktree "): path = line.split(" ", 1)[1]
+        elif line.startswith("branch ") and line.endswith("/" + branch) and path and path != str(repo_root()):
+            sh(["git", "worktree", "remove", "--force", path], cwd=repo_root(), check=False)
+    sh(["git", "worktree", "prune"], cwd=repo_root(), check=False)
+
+def git_retry(cmd, cwd, tries=6):
+    """Concurrent lanes race on .git/config.lock (worktree add writes upstream config). Retry with backoff."""
+    for i in range(tries):
+        r = sh(cmd, cwd=cwd, check=False)
+        if r.returncode == 0: return r
+        if "could not lock config file" in (r.stderr or "") or "index.lock" in (r.stderr or ""):
+            time.sleep(3 + 5 * i); continue
+        die(f"command failed ({r.returncode}): {' '.join(cmd)}\n{(r.stderr or r.stdout)[-1500:]}")
+    die(f"command failed after {tries} lock retries: {' '.join(cmd)}")
+
 def worktree_root():
     return Path(c_get("worktree_root") or (repo_root() / ".forge/worktrees"))
 
@@ -277,7 +298,7 @@ def dispatch(title, brief, model_spec, cwd=None, worktree=None, base=None, branc
         wt.parent.mkdir(parents=True, exist_ok=True)
         if not wt.exists():
             sh(["git", "fetch", "-q", "origin", base], cwd=repo_root(), check=False)
-            sh(["git", "worktree", "add", "-q", "-b", branch, str(wt), f"origin/{base}"], cwd=repo_root())
+            git_retry(["git", "worktree", "add", "-q", "-b", branch, str(wt), f"origin/{base}"], cwd=repo_root())
         cwd = wt
     if cwd: cmd += ["--cwd", str(cwd)]
     if extra: cmd += extra
@@ -290,14 +311,30 @@ def watch(agent_id, label_, ticket, stage):
     if PIPELINE.exists():
         sh([str(PIPELINE), "add", agent_id, label_, ticket, stage], check=False)
 
-def wait_idle(agent_id, timeout_s, worktree=None, on_question=None):
+def wait_idle(agent_id, timeout_s, worktree=None, on_question=None, branch=None):
     """Poll until idle/completed. Two mid-run interrupts are handled without ending the stage:
     - status 'permission' (edit under a read-only mode): stop + die, nobody can approve.
     - a `.forge-question.md` appearing in the worktree: the agent needs a ruling. Call on_question(text)
       to get an answer, `paseo send` it, delete the file, keep waiting. Questions are logged to the stage."""
     env = paseo_env(); t0 = time.time(); answered = 0
     qfile = (Path(worktree) / ".forge-question.md") if worktree else None
+    head0 = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1] if branch else None
+    nudged = set()
     while time.time() - t0 < timeout_s:
+        # Push checkpoints: if the remote head hasn't moved, remind the lane at 40/80/120 min; hard stop-and-push at 150.
+        if branch:
+            mins = int((time.time() - t0) // 60)
+            for mark in (40, 80, 120, 150):
+                if mins >= mark and mark not in nudged:
+                    nudged.add(mark)
+                    head = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
+                    if head == head0:
+                        msg = (f"ORCHESTRATOR CHECKPOINT ({mark} min): nothing has been pushed to {branch} this cycle. "
+                               + ("Commit every GREEN test+negative-control unit NOW and `git push origin HEAD:" + branch + "`, then continue. Exploration without commits is a wasted cycle."
+                                  if mark < 150 else
+                                  "BUDGET REACHED. Stop new work. Commit whatever is green, push to " + branch + ", update the PR body's Remaining list with exactly what is left, and reply DONE. Uncommitted work is lost when this lane is reaped."))
+                        sh([str(PASEO), "send", agent_id, "--no-wait", "--prompt", msg], env=env, check=False, timeout=90)
+                        print(f"nudged {agent_id[:8]} at {mark}m (no push yet)")
         if qfile and qfile.exists() and on_question:
             q = qfile.read_text().strip()
             ans = on_question(q, answered)
@@ -599,7 +636,8 @@ def cmd_implement(args):
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch, continues=prev_partial["cycle"], pid=os.getpid())
         # Continuation: our own git worktree checked out on the EXISTING branch (synced to origin above).
         wt = worktree_root() / f"{t.lower()}-c{cycle}"; wt.parent.mkdir(parents=True, exist_ok=True)
-        sh(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
+        free_branch(branch)
+        git_retry(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
         a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model, cwd=wt)
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     else:
@@ -614,9 +652,10 @@ def cmd_implement(args):
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch, pr=(prior or {}).get("pr"), pid=os.getpid())
         if exists:
             sh(["git", "fetch", "-q", "origin", branch], cwd=repo_root(), check=False)
+            free_branch(branch)
             sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root(), check=False)
             wt = worktree_root() / f"{t.lower()}-c{cycle}"; wt.parent.mkdir(parents=True, exist_ok=True)
-            sh(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
+            git_retry(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
             rework = (f"\n\nREWORK CYCLE {cycle}: you are on the ticket's existing branch `{branch}`"
                       + (f" with PR #{prior['pr']} open" if prior and prior.get("pr") else "")
                       + ". Fix the DEFECTS listed above IN PLACE with focused commits. Do NOT rewrite, re-scaffold, or re-implement what already passes. "
@@ -638,7 +677,7 @@ def cmd_implement(args):
 def _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before):
     """Wait for implementer `a` and record the outcome. Called by cmd_implement, and by `forge adopt`
     when a driver restart orphaned the original forge process."""
-    d = wait_idle(a, c["stage_timeout_s"]["implement"], worktree=wt, on_question=answer_question(t, c, spec))
+    d = wait_idle(a, c["stage_timeout_s"]["implement"], worktree=wt, on_question=answer_question(t, c, spec), branch=branch)
     if d.get("_answered"): record(t, "implement", "note", cycle=cycle, questions_answered=d["_answered"])
     head_after = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
     prs = json.loads(gh(["pr", "list", "--head", branch, "--json", "number,url,isDraft,state"], c["repo"]).stdout)
