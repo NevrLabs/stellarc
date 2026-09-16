@@ -603,10 +603,28 @@ def cmd_implement(args):
         a = dispatch(f"forge implement {t} c{cycle} (cont.)", brief_implement(t, c, spec, cycle, defects) + cont, model, cwd=wt)
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     else:
-        branch = f"forge/{t.lower()}-c{cycle}"
-        record(t, "implement", "running", cycle=cycle, model=model, branch=branch, pid=os.getpid())
-        a = dispatch(f"forge implement {t} c{cycle}", brief_implement(t, c, spec, cycle, defects), model,
-                     worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
+        # ONE branch per ticket. A rework cycle continues the ticket's branch and its PR; it never starts over on
+        # a fresh branch off base (that produced 5 branches / 4 PRs / 22 duplicated commits on STL-16).
+        branch = f"forge/{t.lower()}"
+        prior = next((st for st in reversed(s["stages"]) if st["stage"] == "implement" and st.get("branch") and st.get("pr")), None)
+        if prior and prior["branch"] != branch:
+            # legacy per-cycle branch with an open PR: adopt it as THE ticket branch
+            branch = prior["branch"]
+        exists = bool(sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.strip())
+        record(t, "implement", "running", cycle=cycle, model=model, branch=branch, pr=(prior or {}).get("pr"), pid=os.getpid())
+        if exists:
+            sh(["git", "fetch", "-q", "origin", branch], cwd=repo_root(), check=False)
+            sh(["git", "branch", "-f", branch, f"origin/{branch}"], cwd=repo_root(), check=False)
+            wt = worktree_root() / f"{t.lower()}-c{cycle}"; wt.parent.mkdir(parents=True, exist_ok=True)
+            sh(["git", "worktree", "add", "-q", str(wt), branch], cwd=repo_root())
+            rework = (f"\n\nREWORK CYCLE {cycle}: you are on the ticket's existing branch `{branch}`"
+                      + (f" with PR #{prior['pr']} open" if prior and prior.get("pr") else "")
+                      + ". Fix the DEFECTS listed above IN PLACE with focused commits. Do NOT rewrite, re-scaffold, or re-implement what already passes. "
+                      "Do NOT create a new branch or a new PR. `git push origin HEAD:" + branch + "` when green, update the PR body, mark it ready.")
+            a = dispatch(f"forge implement {t} c{cycle} (rework)", brief_implement(t, c, spec, cycle, defects) + rework, model, cwd=wt)
+        else:
+            a = dispatch(f"forge implement {t} c{cycle}", brief_implement(t, c, spec, cycle, defects), model,
+                         worktree=f"{t.lower()}-c{cycle}", base=c["base"], branch=branch)
         s3 = load_state(t); s3["stages"][-1]["agent"] = a; save_state(t, s3)
     watch(a, f"{t}-impl-c{cycle}", t, "implement")
     print(f"dispatched {a} on {branch} ({model}); waiting up to {c['stage_timeout_s']['implement']}s…")

@@ -3,11 +3,6 @@
  "stages": [
   {
    "stage": "triage",
-   "status": "running",
-   "at": "2026-09-10T04:06:52+00:00"
-  },
-  {
-   "stage": "triage",
    "status": "pass",
    "at": "2026-09-10T04:09:08+00:00",
    "agent": "95832080-8090-4737-bd15-49e1e1913182"
@@ -193,7 +188,97 @@
    "agent": "3ab24ddb-c0e7-4c2b-bf00-384d3e4e558f",
    "cycle": 4,
    "artifact": ".forge/STL-21.review-4.md"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-16T02:18:14+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-21-c5",
+   "pid": 16462,
+   "agent": "1aee76d4-6390-4835-abee-c61dda2fde2a",
+   "head": "8ee94a3e",
+   "reason": "orphan running: watcher pid 16462 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-16T02:57:03+00:00",
+   "agent": "1aee76d4-6390-4835-abee-c61dda2fde2a",
+   "cycle": 5,
+   "branch": "forge/stl-21-c5",
+   "pr": 52,
+   "head": "8ee94a3e",
+   "reason": "pushed 18 commits, no PR; draft opened by forge"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-16T03:01:38+00:00",
+   "cycle": 6,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-21-c5",
+   "continues": 5,
+   "pid": 35888,
+   "agent": "aedd9e56-3c8b-4071-b507-f5f5c17b1cdd",
+   "head": "8ee94a3e",
+   "reason": "orphan running: watcher pid 35888 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-16T03:18:26+00:00",
+   "agent": "aedd9e56-3c8b-4071-b507-f5f5c17b1cdd",
+   "cycle": 6,
+   "reason": "draft PR unchanged: no commits pushed this cycle"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-16T03:20:26+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-16T03:20:26+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-16T03:20:28+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-21-c7",
+   "pid": 44510,
+   "head": "",
+   "reason": "orphan running: watcher pid 44510 dead, agent gone; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-16T03:23:54+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-16T03:53:43+00:00",
+   "agent": "2c9dbd74-974e-4787-a5a3-95c79d592573",
+   "cycle": 8,
+   "reason": "draft PR unchanged: no commits pushed this cycle"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "cycle": 8,
+   "branch": "forge/stl-21",
+   "pr": 57,
+   "head": "8ee94a3e",
+   "reason": "consolidated: 3 branches \u2192 forge/stl-21; superseded PRs [52, 44, 41]"
   }
  ],
- "cycle": 4
+ "cycle": 8
 }

@@ -4020,3 +4020,684 @@
 2026-09-15T13:48:07+00:00 fail       STL-25   triage rc=1: Post "https://api.github.com/graphql": dial tcp 20.205.243.168:443: i/o timeout |  | dispatched 8dd78156-d7c7-4075-8d4e-af36d8b5ddc7; waiting…
 2026-09-15T13:48:29+00:00 orphan     STL-25   triage c watcher dead → pass
 2026-09-15T13:48:58+00:00 sweep      -        archived concluded lane 8dd78156 (forge triage STL-25)
+2026-09-15T13:50:36+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T13:50:36+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T13:50:36+00:00 start      STL-25   spec
+2026-09-15T13:50:36+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T13:55:53+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T13:55:53+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:00:05+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:00:05+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:05:10+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:05:10+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:09:21+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:09:21+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:12:25+00:00 sweep      -        archived concluded lane fa1b09be (forge spec STL-25)
+2026-09-15T14:13:20+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:13:20+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:13:20+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:15:21+00:00 ok         STL-25   spec: dispatched fa1b09be-9939-435e-905c-ef664eb109ed; waiting… | STL-25 spec → pass
+2026-09-15T14:15:36+00:00 orphan     STL-25   spec c watcher dead → pass
+2026-09-15T14:18:18+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:18:18+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:18:18+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:18:18+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:21:38+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:21:38+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:21:38+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:24:26+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:24:26+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:24:26+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:24:26+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:28:34+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:28:34+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:28:34+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:28:34+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:32:38+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:32:38+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:32:38+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:32:38+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:36:23+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:36:23+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:36:23+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:36:23+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:39:09+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:39:09+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:39:09+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:39:09+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:42:23+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:42:23+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:42:23+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:44:28+00:00 ok         STL-17   implement: forge: implement STL-17: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | dispatched ba7e6b42-ca47-4cf9-bfcb-c5df3cadad94 on forge/stl-17-c2 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-17 implement c3 → PARTIAL draft https://github.com/NevrLabs/stellarc/pull/46 (will continue)
+2026-09-15T14:44:32+00:00 fail       STL-18   implement rc=1: initdb failing again — /tmp pressure from parallel lanes. Reaping stale clusters (older than 20 min, keep live lanes): | [Shell] terminal: for pid in $(ps -eo pid,etime,cmd | grep -E "postgres -D /tmp/stellarc" | gre... | dispatched f5af5bdc-83dc-4ad2-8c13-b923e73825d7 on forge/stl-18-c3 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-15T14:44:50+00:00 orphan     STL-16   implement c5 watcher dead → partial
+2026-09-15T14:44:59+00:00 orphan     STL-17   implement c3 watcher dead → partial
+2026-09-15T14:45:09+00:00 orphan     STL-18   implement c3 watcher dead → partial
+2026-09-15T14:45:25+00:00 sweep      -        archived concluded lane ba7e6b42 (forge implement STL-17 c3 (cont.))
+2026-09-15T14:45:54+00:00 sweep      -        archived concluded lane f5af5bdc (forge implement STL-18 c3)
+2026-09-15T14:46:02+00:00 sweep      -        archived concluded lane 5b58afcd (forge implement STL-16 c5)
+2026-09-15T14:47:02+00:00 start      STL-16   implement
+2026-09-15T14:47:02+00:00 start      STL-17   implement
+2026-09-15T14:47:02+00:00 start      STL-18   implement
+2026-09-15T14:47:02+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:47:02+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:47:02+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:49:51+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:49:51+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:49:51+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:49:51+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:52:26+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:52:26+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:52:26+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:52:26+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:55:05+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:55:05+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:55:05+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:55:05+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T14:57:38+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T14:57:38+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T14:57:38+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T14:57:38+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:00:20+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:00:20+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:00:20+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:00:20+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:02:48+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:02:48+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:02:48+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:02:48+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:05:26+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:05:26+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:05:26+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:05:26+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:08:27+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:08:27+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:08:27+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:08:27+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:11:11+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:11:11+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:11:11+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:11:11+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:13:46+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:13:46+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:13:46+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:13:46+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:16:23+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:16:23+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:16:23+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:16:23+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:19:06+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:19:06+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:19:06+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:19:06+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:21:36+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:21:36+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:21:36+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:21:36+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:24:04+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:24:04+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:24:04+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:24:04+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:26:33+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:26:33+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:26:33+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:26:33+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:28:35+00:00 ok         STL-16   implement: dispatched e9923b9a-7529-494a-ab7e-ca79d6f6b76e on forge/stl-16-c4 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s… | STL-16 implement c6 → https://github.com/NevrLabs/stellarc/pull/43
+2026-09-15T15:29:18+00:00 orphan     STL-16   implement c6 watcher dead → partial
+2026-09-15T15:29:58+00:00 sweep      -        archived concluded lane e9923b9a (forge implement STL-16 c6 (cont.))
+2026-09-15T15:30:08+00:00 start      STL-16   review
+2026-09-15T15:30:08+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:30:08+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:30:08+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:30:08+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:32:33+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:32:33+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:32:33+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:32:33+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:35:40+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:35:40+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:35:40+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:35:40+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:38:27+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:38:27+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:38:27+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:38:27+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:40:57+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:40:57+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:40:57+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:40:57+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:43:22+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:43:22+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:43:22+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:43:22+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:46:00+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:46:00+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:46:00+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:46:00+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:48:01+00:00 ok         STL-16   review: forge: review STL-16: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | dispatched 4e9992b6-09c4-4dae-aa87-4c7ef18eba1a; waiting… | STL-16 review c6 → REWORK
+2026-09-15T15:48:27+00:00 orphan     STL-16   review c6 watcher dead → rework
+2026-09-15T15:49:01+00:00 sweep      -        archived concluded lane 4e9992b6 (forge review STL-16 c6)
+2026-09-15T15:49:10+00:00 start      STL-16   implement
+2026-09-15T15:49:10+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:49:10+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:49:10+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:49:10+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:52:21+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:52:21+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:52:21+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:52:21+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:54:59+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:54:59+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:54:59+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:54:59+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T15:57:39+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T15:57:39+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T15:57:39+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T15:57:39+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:00:08+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:00:08+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:00:08+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:00:08+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:02:45+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:02:45+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:02:45+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:02:45+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:05:09+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:05:09+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:05:09+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:05:09+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:07:39+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:07:39+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:07:39+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:07:39+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:10:01+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:10:01+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:10:01+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:10:01+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:12:31+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:12:31+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:12:31+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:12:31+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:15:08+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:15:08+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:15:08+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:15:08+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:18:12+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:18:13+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:18:13+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:18:13+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:21:13+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:21:13+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:21:13+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:21:13+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:23:58+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:23:58+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:23:58+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:23:58+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:26:28+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:26:28+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:26:28+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:26:28+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:28:39+00:00 orphan     STL-15   implement c4 watcher dead → partial
+2026-09-15T16:29:05+00:00 sweep      -        archived concluded lane 63e10e2b (forge implement STL-15 c4)
+2026-09-15T16:29:16+00:00 start      STL-15   implement
+2026-09-15T16:29:16+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:29:16+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:29:16+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:29:16+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:31:58+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:31:58+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:31:58+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:31:58+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:34:20+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:34:20+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:34:20+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:34:20+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:36:55+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:36:55+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:36:55+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:36:55+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:39:28+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:39:28+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:39:28+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:39:28+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:42:11+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:42:11+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:42:11+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:42:11+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:44:53+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:44:53+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:44:53+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:44:53+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:47:11+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:47:11+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:47:11+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:47:11+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:49:33+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:49:33+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:49:33+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:49:33+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:51:56+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:51:56+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:51:56+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:51:56+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:54:14+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:54:14+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:54:14+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:54:14+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:57:00+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:57:00+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:57:00+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:57:00+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T16:59:41+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T16:59:41+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T16:59:41+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T16:59:41+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T17:02:13+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T17:02:13+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T17:02:13+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T17:02:13+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T17:04:29+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T17:04:29+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T17:04:29+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T17:04:29+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T17:06:31+00:00 ok         STL-17   implement: forge: implement STL-17: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | dispatched d4df28f2-4058-4f60-8a0c-327f32f294e5 on forge/stl-17-c2 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-17 implement c4 → PARTIAL draft https://github.com/NevrLabs/stellarc/pull/46 (will continue)
+2026-09-15T17:06:34+00:00 fail       STL-16   implement rc=1: [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-16-c7 && python3 - <<'EOF' p='tests/int... | [Shell] terminal: export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH" && cd /mnt/deepvault/forg... | dispatched 235e786c-b779-4ebc-9298-0f5e7d402bf7 on forge/stl-16-c7 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-15T17:06:49+00:00 orphan     STL-16   implement c7 watcher dead → partial
+2026-09-15T17:06:58+00:00 orphan     STL-17   implement c4 watcher dead → partial
+2026-09-15T17:07:39+00:00 sweep      -        archived concluded lane 235e786c (forge implement STL-16 c7)
+2026-09-15T17:08:15+00:00 sweep      -        archived concluded lane d4df28f2 (forge implement STL-17 c4 (cont.))
+2026-09-15T17:08:29+00:00 start      STL-16   implement
+2026-09-15T17:08:29+00:00 start      STL-17   implement
+2026-09-15T17:08:29+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-15T17:08:29+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-15T17:08:29+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-15T17:08:29+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-15T17:15:59+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T17:18:23+00:00 fail       STL-15   implement rc=1: check your internet connection or https://githubstatus.com |  | dispatched 6853991b-24d8-47c8-ad74-f1feeffa8b35 on forge/stl-15-c3 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-15T17:18:47+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-15T17:19:11+00:00 fail       STL-17   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-15T17:20:04+00:00 orphan     STL-15   implement c5 watcher dead → partial
+2026-09-15T17:20:28+00:00 orphan     STL-16   implement c8 watcher dead → partial
+2026-09-15T17:20:57+00:00 orphan     STL-17   implement c5 watcher dead → partial
+2026-09-15T17:21:06+00:00 sweep      -        archived concluded lane 507c9867 (forge implement STL-16 c8 (cont.))
+2026-09-15T17:21:10+00:00 sweep      -        archived concluded lane c799796b (forge implement STL-17 c5 (cont.))
+2026-09-15T17:21:14+00:00 sweep      -        archived concluded lane 6853991b (forge implement STL-15 c5 (cont.))
+2026-09-15T17:25:55+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T17:28:19+00:00 fail       STL-18   implement rc=1: check your internet connection or https://githubstatus.com |  | dispatched 13978310-df10-4d52-b0eb-3994c0e8b45a on forge/stl-18-c3 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-15T17:29:12+00:00 orphan     STL-18   implement c4 watcher dead → partial
+2026-09-15T17:29:56+00:00 sweep      -        archived concluded lane 13978310 (forge implement STL-18 c4 (cont.))
+2026-09-15T17:34:37+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T17:41:46+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T17:49:00+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T17:56:14+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:03:24+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:10:33+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:17:42+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:24:52+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:31:57+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:39:11+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:46:22+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T18:53:34+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:00:56+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:08:07+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:15:16+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:22:25+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:29:39+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:36:49+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:43:58+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:51:07+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T19:58:32+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:05:42+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:12:51+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:20:02+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:28:47+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:35:56+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:43:05+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:50:18+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T20:57:28+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:04:37+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:11:47+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:18:57+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:26:06+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:33:15+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:40:24+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:47:34+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T21:54:43+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:01:52+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:09:02+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:16:11+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:23:26+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:30:37+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:37:47+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:44:59+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-15T22:52:08+00:00 idle       -        2/16 merged; nothing runnable (waiting on agents, blockers, or escalations)
+2026-09-16T01:12:10+00:00 boot       -        repo=/home/rpw/repos/stellarc-dev tick=120s parallel=4
+2026-09-16T01:13:22+00:00 start      STL-15   implement
+2026-09-16T01:13:22+00:00 start      STL-16   implement
+2026-09-16T01:13:22+00:00 start      STL-17   implement
+2026-09-16T01:13:22+00:00 start      STL-18   implement
+2026-09-16T01:13:22+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:13:22+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:13:22+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:13:22+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:16:23+00:00 fail       STL-17   implement rc=1: hint: After fixing the error cause you may try to fix up | hint: the remote tracking information by invoking: | hint:   git branch --set-upstream-to=origin/refs/heads/forge/stl-17-c2
+2026-09-16T01:16:55+00:00 start      STL-17   implement
+2026-09-16T01:16:55+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:16:55+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:16:55+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:16:55+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:19:08+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:19:08+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:19:08+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:19:08+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:21:09+00:00 fail       STL-15   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:21:10+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:21:11+00:00 fail       STL-18   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:21:12+00:00 fail       STL-17   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:21:13+00:00 orphan     STL-15   implement c6 watcher dead → partial
+2026-09-16T01:21:30+00:00 orphan     STL-16   implement c9 watcher dead → partial
+2026-09-16T01:21:51+00:00 orphan     STL-17   implement c6 watcher dead → partial
+2026-09-16T01:22:41+00:00 orphan     STL-18   implement c5 watcher dead → partial
+2026-09-16T01:23:10+00:00 start      STL-15   implement
+2026-09-16T01:23:10+00:00 start      STL-16   implement
+2026-09-16T01:23:10+00:00 start      STL-17   implement
+2026-09-16T01:23:10+00:00 start      STL-18   implement
+2026-09-16T01:23:10+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:23:10+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:23:10+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:23:10+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:25:11+00:00 fail       STL-16   implement rc=1: hint: After fixing the error cause you may try to fix up | hint: the remote tracking information by invoking: | hint:   git branch --set-upstream-to=origin/refs/heads/forge/stl-16-c7
+2026-09-16T01:26:20+00:00 error      -        TimeoutExpired: Command '['paseo', 'archive', '2d9f634f-1028-4c0e-9450-80e9267db11d']' timed out after 60 seconds
+2026-09-16T01:28:48+00:00 fail       STL-15   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:28:54+00:00 fail       STL-17   implement rc=1: hint: After fixing the error cause you may try to fix up | hint: the remote tracking information by invoking: | hint:   git branch --set-upstream-to=origin/refs/heads/forge/stl-17-c2
+2026-09-16T01:28:55+00:00 fail       STL-18   implement rc=1: forge: implementer b508e288-4edc-43af-a33d-ce5ee00054df pushed nothing to forge/stl-18-c3 — cycle wasted | dispatched b508e288-4edc-43af-a33d-ce5ee00054df on forge/stl-18-c3 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s…
+2026-09-16T01:28:56+00:00 orphan     STL-15   implement c7 watcher dead → partial
+2026-09-16T01:29:07+00:00 orphan     STL-18   implement c6 watcher dead → partial
+2026-09-16T01:30:14+00:00 sweep      -        archived concluded lane b508e288 (forge implement STL-18 c6 (cont.))
+2026-09-16T01:30:20+00:00 sweep      -        archived concluded lane 5ae931e3 (forge implement STL-16 c9 (cont.))
+2026-09-16T01:30:26+00:00 sweep      -        archived concluded lane 82026a13 (forge implement STL-17 c6 (cont.))
+2026-09-16T01:31:21+00:00 sweep      -        archived concluded lane 38566d67 (forge implement STL-18 c5 (cont.))
+2026-09-16T01:31:29+00:00 start      STL-15   implement
+2026-09-16T01:31:37+00:00 start      STL-16   implement
+2026-09-16T01:31:37+00:00 start      STL-17   implement
+2026-09-16T01:31:37+00:00 start      STL-18   implement
+2026-09-16T01:31:37+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:31:37+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:31:37+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:31:37+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:33:52+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:33:52+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:33:52+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:33:52+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:35:53+00:00 fail       STL-15   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:35:53+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:35:54+00:00 fail       STL-17   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:35:55+00:00 fail       STL-18   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:35:57+00:00 orphan     STL-15   implement c8 watcher dead → partial
+2026-09-16T01:36:21+00:00 orphan     STL-16   implement c10 watcher dead → partial
+2026-09-16T01:36:40+00:00 orphan     STL-17   implement c7 watcher dead → partial
+2026-09-16T01:36:41+00:00 orphan     STL-18   implement c7 watcher dead → partial
+2026-09-16T01:38:02+00:00 error      -        TimeoutExpired: Command '['paseo', 'archive', 'd4db1f3a-7111-4c59-b1aa-fffec3cb4f89']' timed out after 60 seconds
+2026-09-16T01:40:40+00:00 sweep      -        archived concluded lane 293f065a (forge implement STL-18 c7)
+2026-09-16T01:40:50+00:00 start      STL-15   implement
+2026-09-16T01:40:50+00:00 start      STL-16   implement
+2026-09-16T01:40:50+00:00 start      STL-17   implement
+2026-09-16T01:40:50+00:00 start      STL-18   implement
+2026-09-16T01:40:50+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:40:50+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:40:50+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:40:50+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:42:51+00:00 fail       STL-16   implement rc=1: hint: After fixing the error cause you may try to fix up | hint: the remote tracking information by invoking: | hint:   git branch --set-upstream-to=origin/refs/heads/forge/stl-16-c7
+2026-09-16T01:42:53+00:00 fail       STL-18   implement rc=1: hint: After fixing the error cause you may try to fix up | hint: the remote tracking information by invoking: | hint:   git branch --set-upstream-to=origin/refs/heads/forge/stl-18-c3
+2026-09-16T01:43:12+00:00 sweep      -        archived concluded lane 1fe668ea (forge implement STL-15 c8 (cont.))
+2026-09-16T01:43:19+00:00 sweep      -        archived concluded lane 52693418 (forge implement STL-15 c7 (cont.))
+2026-09-16T01:43:28+00:00 start      STL-16   implement
+2026-09-16T01:43:28+00:00 start      STL-18   implement
+2026-09-16T01:43:28+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:43:28+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:43:28+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:43:28+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:45:41+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:45:41+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:45:41+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:45:41+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:48:28+00:00 ok         STL-15   implement: dispatched a7dc38fb-8419-43ff-96c6-93bb08323c20 on forge/stl-15-c3 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-15 implement c9 → https://github.com/NevrLabs/stellarc/pull/42
+2026-09-16T01:48:29+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:48:30+00:00 fail       STL-18   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:48:35+00:00 orphan     STL-15   implement c9 watcher dead → partial
+2026-09-16T01:48:37+00:00 orphan     STL-16   implement c11 watcher dead → partial
+2026-09-16T01:48:56+00:00 orphan     STL-18   implement c8 watcher dead → partial
+2026-09-16T01:50:00+00:00 sweep      -        archived concluded lane a7dc38fb (forge implement STL-15 c9 (cont.))
+2026-09-16T01:50:06+00:00 sweep      -        archived concluded lane c21ffd06 (forge implement STL-16 c10 (cont.))
+2026-09-16T01:50:15+00:00 start      STL-15   review
+2026-09-16T01:50:15+00:00 start      STL-16   implement
+2026-09-16T01:50:15+00:00 start      STL-18   implement
+2026-09-16T01:50:15+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:50:15+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:50:15+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:50:15+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:52:16+00:00 fail       STL-17   implement rc=1: forge: implement STL-17: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implementer b3a11db7-503d-4952-b5cc-1018fb346c09 pushed nothing to forge/stl-17-c2 — cycle wasted | dispatched b3a11db7-503d-4952-b5cc-1018fb346c09 on forge/stl-17-c2 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T01:52:17+00:00 fail       STL-15   review rc=1: forge: review STL-15: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 2s)"}} | forge: review STL-15: skipping hermes:accept_edits/ocg/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/glm-5.3] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached. Resets | forge: review STL-15: no reviewer model available
+2026-09-16T01:52:26+00:00 orphan     STL-17   implement c8 watcher dead → partial
+2026-09-16T01:53:32+00:00 error      -        TimeoutExpired: Command '['paseo', 'archive', '3cde5193-028f-4eef-964c-e41b8fb013de']' timed out after 60 seconds
+2026-09-16T01:55:35+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T01:55:36+00:00 orphan     STL-16   implement c12 watcher dead → partial
+2026-09-16T01:55:58+00:00 sweep      -        archived concluded lane b3a11db7 (forge implement STL-17 c8 (cont.))
+2026-09-16T01:56:08+00:00 start      STL-15   review
+2026-09-16T01:56:08+00:00 start      STL-16   implement
+2026-09-16T01:56:08+00:00 start      STL-17   implement
+2026-09-16T01:56:08+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:56:08+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:56:08+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:56:08+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T01:58:09+00:00 fail       STL-18   implement rc=1: forge: implementer 03899fc4-0cd3-4774-9e91-7b9bf8ecf225 pushed nothing to forge/stl-18-c3 — cycle wasted | dispatched 03899fc4-0cd3-4774-9e91-7b9bf8ecf225 on forge/stl-18-c3 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T01:58:16+00:00 orphan     STL-18   implement c9 watcher dead → partial
+2026-09-16T01:58:36+00:00 sweep      -        archived concluded lane 03899fc4 (forge implement STL-18 c9 (cont.))
+2026-09-16T01:58:47+00:00 sweep      -        archived concluded lane 900bba64 (forge implement STL-18 c8 (cont.))
+2026-09-16T01:58:56+00:00 start      STL-18   implement
+2026-09-16T01:58:56+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T01:58:56+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T01:58:56+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T01:58:56+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:01:25+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T02:01:25+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:01:25+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:01:25+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:03:51+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T02:03:51+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:03:51+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:03:51+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:06:08+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T02:06:08+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:06:08+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:06:08+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:08:37+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T02:08:37+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:08:37+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:08:37+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:11:30+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T02:11:30+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:11:30+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:11:30+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:14:04+00:00 throttle   STL-21   implement deferred; 4 heavy in flight
+2026-09-16T02:14:04+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:14:04+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:14:04+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:16:12+00:00 fail       STL-15   review rc=1: forge: review STL-15: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | forge: reviewer wrote nothing — `paseo logs 5514dcb9-207b-42f1-8691-fa2e0227cb1b` | dispatched 5514dcb9-207b-42f1-8691-fa2e0227cb1b; waiting…
+2026-09-16T02:16:13+00:00 fail       STL-16   implement rc=1: forge: implementer be637bb2-6488-4d5f-8a80-0923de23314b pushed nothing to forge/stl-16-c7 — cycle wasted | dispatched be637bb2-6488-4d5f-8a80-0923de23314b on forge/stl-16-c7 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T02:16:14+00:00 fail       STL-17   implement rc=1: - Unit 4 if time: importer. | Let me look at how the test server builds the full handler so I can extend it with the new group, and check what existing HTTP tests look like (foundation.test.ts has shape/probe tests through test-server). | dispatched 1ca49d0e-e416-4b34-ae77-8b299a22d5a7 on forge/stl-17-c9 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T02:16:14+00:00 escalate   STL-17   implement — human needed; delete .forge/STL-17.escalation to resume
+2026-09-16T02:16:17+00:00 fail       STL-18   implement rc=1: Let me push. | [Shell] terminal: export PATH="$HOME/.bun/bin:$PATH" && cd /mnt/deepvault/forge-worktrees/stl-1... | dispatched a636e6a1-cf1b-416d-a4c3-e3a80cdff215 on forge/stl-18-c10 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s…
+2026-09-16T02:16:18+00:00 orphan     STL-15   review c9 watcher dead → fail
+2026-09-16T02:16:26+00:00 orphan     STL-16   implement c13 watcher dead → partial
+2026-09-16T02:16:34+00:00 orphan     STL-17   implement c9 watcher dead → partial
+2026-09-16T02:16:39+00:00 orphan     STL-18   implement c10 watcher dead → partial
+2026-09-16T02:17:41+00:00 sweep      -        archived concluded lane a636e6a1 (forge implement STL-18 c10)
+2026-09-16T02:17:48+00:00 sweep      -        archived concluded lane be637bb2 (forge implement STL-16 c13 (cont.))
+2026-09-16T02:17:53+00:00 sweep      -        archived concluded lane 1ca49d0e (forge implement STL-17 c9)
+2026-09-16T02:17:58+00:00 sweep      -        archived concluded lane 5514dcb9 (forge review STL-15 c9)
+2026-09-16T02:18:03+00:00 sweep      -        archived concluded lane 81d61d0e (forge implement STL-16 c12 (cont.))
+2026-09-16T02:18:11+00:00 start      STL-15   review
+2026-09-16T02:18:11+00:00 start      STL-16   implement
+2026-09-16T02:18:11+00:00 start      STL-18   implement
+2026-09-16T02:18:11+00:00 start      STL-21   implement
+2026-09-16T02:18:11+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:18:11+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:18:11+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:20:12+00:00 fail       STL-16   implement rc=1: hint: After fixing the error cause you may try to fix up | hint: the remote tracking information by invoking: | hint:   git branch --set-upstream-to=origin/refs/heads/dev
+2026-09-16T02:20:13+00:00 orphan     STL-16   implement c14 watcher dead → partial
+2026-09-16T02:20:27+00:00 start      STL-16   implement
+2026-09-16T02:20:27+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:20:27+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:20:27+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:22:43+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:22:43+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:22:43+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:25:06+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:25:06+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:25:06+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:27:49+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:27:49+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:27:49+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:30:21+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:30:21+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:30:21+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:33:44+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:33:44+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:33:44+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:35:45+00:00 fail       STL-16   implement rc=1: forge: implement STL-16: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implementer 3f47d719-a996-4cdd-b63f-8a7aa75990d8 pushed nothing to forge/stl-16-c7 — cycle wasted | dispatched 3f47d719-a996-4cdd-b63f-8a7aa75990d8 on forge/stl-16-c7 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T02:36:08+00:00 orphan     STL-16   implement c15 watcher dead → partial
+2026-09-16T02:36:45+00:00 sweep      -        archived concluded lane 3f47d719 (forge implement STL-16 c15 (cont.))
+2026-09-16T02:36:55+00:00 start      STL-16   implement
+2026-09-16T02:36:55+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:36:55+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:36:55+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:40:10+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:40:10+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:40:10+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:43:00+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:43:00+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:43:00+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:45:46+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:45:46+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:45:46+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:48:31+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:48:31+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:48:31+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:51:14+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:51:14+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:51:14+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:54:00+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:54:00+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:54:00+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:56:33+00:00 throttle   STL-22   review deferred; 4 heavy in flight
+2026-09-16T02:56:33+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:56:33+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T02:58:33+00:00 fail       STL-15   review rc=1: forge: review STL-15: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | forge: reviewer wrote nothing — `paseo logs c82242bd-dcb1-430d-a2b2-dbc4d03727aa` | dispatched c82242bd-dcb1-430d-a2b2-dbc4d03727aa; waiting…
+2026-09-16T02:58:33+00:00 escalate   STL-15   review — human needed; delete .forge/STL-15.escalation to resume
+2026-09-16T02:58:37+00:00 fail       STL-21   implement rc=1: [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-21-c5 && python3 - <<'PYEOF' src = open... | [Shell] terminal: export PATH="$HOME/.bun/bin:$PATH"; cd /mnt/deepvault/forge-worktrees/stl-21-... | dispatched 1aee76d4-6390-4835-abee-c61dda2fde2a on forge/stl-21-c5 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T02:58:38+00:00 fail       STL-16   implement rc=1: [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-16-c16 && cat apps/stellarc-ui/src/fetc... | [Shell] terminal: cd /mnt/deepvault/forge-worktrees/stl-16-c16 && sed -n 1,60p apps/stellarc-ap... | dispatched e432e88e-9e1a-434f-bbdf-6640f8cc3a96 on forge/stl-16-c16 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T02:58:39+00:00 orphan     STL-15   review c9 watcher dead → fail
+2026-09-16T02:58:47+00:00 orphan     STL-16   implement c16 watcher dead → partial
+2026-09-16T02:58:53+00:00 orphan     STL-21   implement c5 watcher dead → partial
+2026-09-16T02:59:02+00:00 sweep      -        archived concluded lane e432e88e (forge implement STL-16 c16)
+2026-09-16T02:59:07+00:00 sweep      -        archived concluded lane 1aee76d4 (forge implement STL-21 c5)
+2026-09-16T02:59:12+00:00 sweep      -        archived concluded lane c82242bd (forge review STL-15 c9)
+2026-09-16T02:59:21+00:00 start      STL-16   implement
+2026-09-16T02:59:21+00:00 start      STL-21   implement
+2026-09-16T02:59:21+00:00 start      STL-22   review
+2026-09-16T02:59:21+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T02:59:21+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:01:22+00:00 fail       STL-22   review rc=1: forge: review STL-22: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 2s)"}} | forge: review STL-22: skipping hermes:accept_edits/ocg/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/glm-5.3] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached. Resets | forge: review STL-22: no reviewer model available
+2026-09-16T03:01:41+00:00 start      STL-22   review
+2026-09-16T03:01:41+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:01:41+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:04:07+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:04:07+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:06:08+00:00 fail       STL-16   implement rc=1: forge: implementer b660bd73-d7be-4bff-b3d3-af7f4085c669 pushed nothing to forge/stl-16-c16 — cycle wasted | dispatched b660bd73-d7be-4bff-b3d3-af7f4085c669 on forge/stl-16-c16 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T03:06:17+00:00 orphan     STL-16   implement c17 watcher dead → partial
+2026-09-16T03:06:26+00:00 sweep      -        archived concluded lane b660bd73 (forge implement STL-16 c17 (cont.))
+2026-09-16T03:06:36+00:00 start      STL-16   implement
+2026-09-16T03:06:36+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:06:36+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:08:36+00:00 fail       STL-16   implement rc=1: forge: implement STL-16: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implement STL-16: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 3s)"}} | forge: implement STL-16: no model available (all preflights failed)
+2026-09-16T03:08:53+00:00 start      STL-16   implement
+2026-09-16T03:08:53+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:08:53+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:11:18+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:11:18+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:14:09+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:14:21+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:16:38+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:16:38+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:18:39+00:00 ok         STL-18   implement: forge: implement STL-18: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | dispatched c6d1b161-a4e0-48ba-bca1-a2754ac72881 on forge/stl-18-c10 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s… | STL-18 implement c11 → PARTIAL draft https://github.com/NevrLabs/stellarc/pull/50 (will continue)
+2026-09-16T03:18:41+00:00 fail       STL-21   implement rc=1: forge: implementer aedd9e56-3c8b-4071-b507-f5f5c17b1cdd pushed nothing to forge/stl-21-c5 — cycle wasted | dispatched aedd9e56-3c8b-4071-b507-f5f5c17b1cdd on forge/stl-21-c5 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s…
+2026-09-16T03:18:42+00:00 fail       STL-16   implement rc=1: [Shell] terminal: ls /usr/local/bin/bun ~/.bun/bin/bun 2>&1; echo PATH=$PATH | tr ':' '\n' | gr... | [Shell] terminal: export PATH="$HOME/.bun/bin:$PATH"; bun --version && bun install --frozen-loc... | dispatched 768fbff8-e66d-4b63-9711-d3b50a004d0a on forge/stl-16-c18 (hermes:accept_edits/glm/glm-5.3-flash); waiting up to 10800s…
+2026-09-16T03:18:58+00:00 orphan     STL-16   implement c18 watcher dead → partial
+2026-09-16T03:19:11+00:00 orphan     STL-18   implement c11 watcher dead → partial
+2026-09-16T03:19:21+00:00 orphan     STL-21   implement c6 watcher dead → partial
+2026-09-16T03:19:44+00:00 sweep      -        archived concluded lane 768fbff8 (forge implement STL-16 c18)
+2026-09-16T03:19:58+00:00 sweep      -        archived concluded lane aedd9e56 (forge implement STL-21 c6 (cont.))
+2026-09-16T03:20:14+00:00 sweep      -        archived concluded lane c6d1b161 (forge implement STL-18 c11 (cont.))
+2026-09-16T03:20:25+00:00 start      STL-16   implement
+2026-09-16T03:20:25+00:00 start      STL-18   implement
+2026-09-16T03:20:25+00:00 start      STL-21   implement
+2026-09-16T03:20:25+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:20:25+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:22:26+00:00 fail       STL-16   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T03:22:27+00:00 fail       STL-21   implement rc=1:     "message": "Failed to create agent: Timeout waiting for message (60000ms)" |   } | }
+2026-09-16T03:22:30+00:00 orphan     STL-16   implement c19 watcher dead → partial
+2026-09-16T03:22:31+00:00 orphan     STL-21   implement c7 watcher dead → partial
+2026-09-16T03:23:40+00:00 sweep      -        archived concluded lane 3a5f2c69 (forge implement STL-16 c19)
+2026-09-16T03:23:53+00:00 start      STL-16   implement
+2026-09-16T03:23:53+00:00 start      STL-21   implement
+2026-09-16T03:23:53+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:23:53+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:26:22+00:00 sweep      -        archived concluded lane 2c9dbd74 (forge implement STL-21 c8 (cont.))
+2026-09-16T03:26:34+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:26:34+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:29:37+00:00 sweep      -        archived concluded lane 4c295431 (forge implement STL-21 c7)
+2026-09-16T03:29:51+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:29:51+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:33:06+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:33:06+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:35:48+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:35:48+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:38:29+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:38:29+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:40:31+00:00 fail       STL-16   implement rc=1: forge: implement STL-16: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implementer 4e0ded42-789b-4037-a2f9-50324de63b73 pushed nothing to forge/stl-16-c16 — cycle wasted | dispatched 4e0ded42-789b-4037-a2f9-50324de63b73 on forge/stl-16-c16 (hermes:accept_edits/glm/glm-5.3); waiting up to 10800s…
+2026-09-16T03:40:52+00:00 orphan     STL-16   implement c20 watcher dead → partial
+2026-09-16T03:41:25+00:00 sweep      -        archived concluded lane 4e0ded42 (forge implement STL-16 c20 (cont.))
+2026-09-16T03:41:35+00:00 start      STL-16   implement
+2026-09-16T03:41:35+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:41:35+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:43:36+00:00 fail       STL-22   review rc=1: forge: review STL-22: no cross-family reviewer answers preflight; using same-family hermes:accept_edits/glm/glm-5.3 (flagged) | forge: agent cf8d5747-04a8-48fc-bd74-c5db132c5182 did not go idle within 2400s — `paseo logs cf8d5747-04a8-48fc-bd74-c5db132c5182 | tail` | dispatched cf8d5747-04a8-48fc-bd74-c5db132c5182; waiting…
+2026-09-16T03:43:38+00:00 fail       STL-16   implement rc=1: forge: implement STL-16: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 2s)"}} | forge: command failed (128): git worktree add -q /mnt/deepvault/forge-worktrees/stl-16-c21 forge/stl-16-c16 | fatal: 'forge/stl-16-c16' is already checked out at '/mnt/deepvault/forge-worktrees/stl-16-c20'
+2026-09-16T03:43:40+00:00 orphan     STL-16   implement c21 watcher dead → partial
+2026-09-16T03:43:40+00:00 orphan     STL-22   review c5 watcher dead → rework
+2026-09-16T03:44:11+00:00 sweep      -        archived concluded lane cf8d5747 (forge review STL-22 c5)
+2026-09-16T03:44:23+00:00 start      STL-16   implement
+2026-09-16T03:44:23+00:00 start      STL-22   implement
+2026-09-16T03:44:23+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:44:23+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:46:24+00:00 fail       STL-16   implement rc=1: forge: implement STL-16: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implement STL-16: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 14s)"}} | forge: implement STL-16: no model available (all preflights failed)
+2026-09-16T03:46:25+00:00 fail       STL-22   implement rc=1: forge: implement STL-22: skipping hermes:accept_edits/ocg/deepseek-v4-pro — preflight failed: HTTP 503: {"error":{"message":"[opencode-go/deepseek-v4-pro] [429]: {\"type\":\"error\",\"error\":{\"type\":\"GoUsageLimitError\",\"message\":\"Weekly usage limit reached | forge: implement STL-22: skipping hermes:accept_edits/glm/glm-5.3 — preflight failed: HTTP 503: {"error":{"message":"[glm/glm-5.3] [429]: {\"error\":{\"code\":\"1302\",\"message\":\"Rate limit reached for requests\"}} (reset after 14s)"}} | forge: implement STL-22: no model available (all preflights failed)
+2026-09-16T03:46:39+00:00 start      STL-16   implement
+2026-09-16T03:46:39+00:00 start      STL-22   implement
+2026-09-16T03:46:39+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:46:39+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:48:40+00:00 fail       STL-16   implement rc=1: forge: command failed (128): git worktree add -q /mnt/deepvault/forge-worktrees/stl-16-c22 forge/stl-16-c16 | fatal: 'forge/stl-16-c16' is already checked out at '/mnt/deepvault/forge-worktrees/stl-16-c20'
+2026-09-16T03:48:41+00:00 fail       STL-22   implement rc=1: forge: command failed (128): git worktree add -q /mnt/deepvault/forge-worktrees/stl-22-c6 forge/stl-22-c1 | fatal: 'forge/stl-22-c1' is already checked out at '/mnt/deepvault/forge-worktrees/stl-22-c5'
+2026-09-16T03:48:43+00:00 orphan     STL-16   implement c22 watcher dead → partial
+2026-09-16T03:48:43+00:00 orphan     STL-22   implement c6 watcher dead → partial
+2026-09-16T03:49:09+00:00 start      STL-16   implement
+2026-09-16T03:49:09+00:00 start      STL-22   implement
+2026-09-16T03:49:09+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:49:09+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:51:31+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:51:31+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:54:21+00:00 throttle   STL-25   implement deferred; 4 heavy in flight
+2026-09-16T03:54:21+00:00 throttle   STL-27   review deferred; 4 heavy in flight
+2026-09-16T03:56:21+00:00 paused     -        driver.pause present
+2026-09-16T03:58:21+00:00 paused     -        driver.pause present

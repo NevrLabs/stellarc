@@ -3,19 +3,9 @@
  "stages": [
   {
    "stage": "triage",
-   "status": "running",
-   "at": "2026-09-10T13:26:19+00:00"
-  },
-  {
-   "stage": "triage",
    "status": "pass",
    "at": "2026-09-10T13:29:04+00:00",
    "agent": "38a790e8-c567-4c86-b734-c315434cbfe7"
-  },
-  {
-   "stage": "spec",
-   "status": "running",
-   "at": "2026-09-10T13:32:19+00:00"
   },
   {
    "stage": "spec",
@@ -181,6 +171,15 @@
    "at": "2026-09-15T06:04:50+00:00",
    "agent": "3ae3849f-8307-4d71-ab2e-7794d9342b26",
    "reason": "no review file [infra: reviewer model ocg/deepseek weekly-quota 429, zero model calls; preflight-blocked reclass]"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "cycle": 5,
+   "branch": "forge/stl-27",
+   "pr": 59,
+   "head": "0994c3bf",
+   "reason": "consolidated: 3 branches \u2192 forge/stl-27; superseded PRs [38, 36, 33]"
   }
  ],
  "cycle": 5

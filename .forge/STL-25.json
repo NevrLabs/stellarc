@@ -34,9 +34,17 @@
   },
   {
    "stage": "spec",
-   "status": "running",
+   "status": "pass",
    "at": "2026-09-15T13:51:29+00:00",
-   "pid": 2354952
+   "pid": 2354952,
+   "reason": "orphan running: watcher pid 2354952 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-15T14:12:20+00:00",
+   "agent": "fa1b09be-9939-435e-905c-ef664eb109ed",
+   "artifact": ".forge/STL-25.spec.md"
   }
  ],
  "cycle": 0

@@ -244,6 +244,17 @@ def in_flight_count(nums, stages=("implement", "review")):
 
 RUNNING = {}   # (ticket, stage) -> Popen. The driver must not block on a 3-hour implement; it launches and returns.
 
+def host_has_headroom():
+    """Don't launch a heavy stage when the box is already saturated. The host hard-reset at 22:56 under 4 lanes
+    (bun test + vite build + disposable PG each) with no swap; 15G RAM, 2 cores."""
+    try:
+        load1 = float(open("/proc/loadavg").read().split()[0])
+        avail_kb = next(int(l.split()[1]) for l in open("/proc/meminfo") if l.startswith("MemAvailable"))
+    except Exception: return True
+    ok = load1 < 6.0 and avail_kb > 4 * 1024 * 1024
+    if not ok: log("headroom", "-", f"deferring heavy launch: load1={load1:.1f} avail={avail_kb//1024}M")
+    return ok
+
 def run_stage(n, stage):
     """Launch `forge <stage> <n>` detached and return immediately. Completion is handled by reap_runs() on later
     ticks: exit code → ok/fail log, escalation, git push of state. Synchronous run_stage was why 'parallel 4' only
@@ -315,6 +326,7 @@ def tick():
         if any(k[0] == n for k in RUNNING): continue
         if st in ("implement", "review", "merge"):
             if heavy >= PARALLEL: log("throttle", tid(n), f"{st} deferred; {heavy} heavy in flight"); continue
+            if not host_has_headroom(): continue
         elif light >= LIGHT_PARALLEL:
             log("throttle", tid(n), f"{st} deferred; {light} light in flight"); continue
         ok = run_stage(n, st)
