@@ -54,7 +54,32 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 	expect(principal[0]?.kind).toBe("human");
 	const grants =
 		await sql`SELECT capability FROM identity_grant WHERE principal_id = ${principal[0]?.id}`;
-	expect(grants.map((g) => g.capability)).toEqual(["org:member"]);
+	// Review-9 defect-7 remedy: the owner is seeded with the FULL capability
+	// set (humans = role \u222a structural, \u00a72) so a fresh org's owner is never
+	// locked out \u2014 not a bare org:member row. Asserted sorted and spelled out
+	// so any seeding regression (union removed, entry dropped) goes red.
+	expect(grants.map((g) => g.capability).sort()).toEqual([
+		"apikey:create",
+		"apikey:delete",
+		"apikey:update",
+		"invitation:create",
+		"invitation:read",
+		"invitation:update",
+		"member:create",
+		"member:delete",
+		"member:read",
+		"member:update",
+		"org:member",
+		"organization:manage_connections",
+		"organization:manage_members",
+		"organization:manage_settings",
+		"organization:read",
+		"organization:update",
+		"team:create",
+		"team:delete",
+		"team:read",
+		"team:update",
+	]);
 
 	// Events for the new org, sanitized public payloads. The actor is the
 	// caller's stable principal id (human:<userId>), not the raw user id.
@@ -62,15 +87,19 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 	const events =
 		await sql`SELECT plugin_type, actor FROM event WHERE org = ${orgId} ORDER BY seq`;
 	for (const event of events) expect(event.actor).toBe("human:u-create-1");
-	expect(events.map((e) => e.plugin_type).sort()).toEqual([
-		"identity:grant-upserted",
-		"identity:member-upserted",
+	// 20 owner-grant upserts (one per seeded capability) + the org, member,
+	// principal and three default-role upserts = 26 events total.
+	expect(
+		events.map((e) => e.plugin_type).filter((t) => t !== "identity:grant-upserted"),
+	).toEqual([
 		"identity:organization-upserted",
+		"identity:member-upserted",
+		"identity:role-upserted",
+		"identity:role-upserted",
+		"identity:role-upserted",
 		"identity:principal-upserted",
-		"identity:role-upserted",
-		"identity:role-upserted",
-		"identity:role-upserted",
 	]);
+	expect(events.filter((e) => e.plugin_type === "identity:grant-upserted")).toHaveLength(20);
 	const payloads = await sql`SELECT payload FROM event WHERE org = ${orgId}`;
 	for (const event of payloads) {
 		const text = JSON.stringify(event.payload);
