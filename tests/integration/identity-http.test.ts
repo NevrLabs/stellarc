@@ -301,12 +301,38 @@ async function seedAgentKey(
 		"../../packages/domain/src/identity/auth"
 	);
 	const raw = `stl15-agent-raw-${opts.keyId ?? Math.random().toString(36).slice(2)}`;
-	await sql`INSERT INTO apikey (id, config_id, name, reference_id, prefix, "key", permissions, enabled, created_at, updated_at)
-		VALUES (${opts.keyId ?? "key-c4-1"}, 'cfg-c4', 'Agent Key', ${USER}, 'stl15_', ${apiKeyDigest(raw)}, ${permissions}, true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
 	if (opts.banned) {
+		// Banned owners never reach the mutation path; the raw key must fail
+		// authentication outright (T03), so mint nothing.
 		await sql`UPDATE "user" SET banned = true WHERE id = ${USER}`;
+		const { apiKeyDigest: bannedDigest } = await import(
+			"../../packages/domain/src/identity/auth"
+		);
+		await sql`INSERT INTO apikey (id, config_id, name, reference_id, prefix, "key", permissions, enabled, created_at, updated_at)
+			VALUES ('key-c4-banned', 'cfg-c4', 'Agent Key', ${USER}, 'stl15_', ${bannedDigest(raw)}, ${permissions}, true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
+		return { raw, keyId: "key-c4-banned" };
 	}
-	return raw;
+	// Rework c10 (defects 4/5): authenticateApiKey is read-only, so the
+	// agent principal + ceiling-derived grants exist ONLY through the
+	// createApiKey mutation path. The fixture provisions through that same
+	// path and reports the minted id (no FK-circular renames).
+	const { createApiKey } = await import(
+		"../../packages/domain/src/identity/mutations"
+	);
+	const parsed = permissions === null ? {} : JSON.parse(permissions);
+	const created = await createApiKey(
+		sql,
+		ORG,
+		{ name: "Agent Key", permissions: parsed, expiresAt: null },
+		{ principalId: `human:${USER}`, kind: "human", userId: USER },
+	);
+	const mintedId = String(
+		(created.data.key as { id: string; secret: string }).id,
+	);
+	// Pin the stored digest to the fixture's raw key so the suite signs with
+	// it; the id stays the minted one.
+	await sql`UPDATE apikey SET "key" = ${apiKeyDigest(raw)} WHERE id = ${mintedId}`;
+	return { raw, keyId: mintedId };
 }
 
 function agentGet(path: string, rawKey: string) {
@@ -323,7 +349,7 @@ test("D2 agent key with read-only ceiling cannot remove members (no owner author
 		VALUES ('u-http-2', 'Second', 'second@test.invalid', true, '2026-01-01 00:00:00', '2026-01-01 00:00:00')`;
 	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
 		VALUES ('mem-http-2', ${ORG}, 'u-http-2', 'member', '2026-01-01 00:00:00')`;
-	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }));
+	const { raw } = await seedAgentKey(JSON.stringify({ organization: ["read"] }));
 	const res = await handler(
 		new Request(
 			`http://127.0.0.1:4173/api/identity/orgs/${ORG}/members/mem-http-2`,
@@ -345,14 +371,14 @@ test("D2 agent key with manage_members ceiling CAN remove members; reads work wi
 	await sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at)
 		VALUES ('mem-http-2', ${ORG}, 'u-http-2', 'member', '2026-01-01 00:00:00')`;
 	// read ceiling grants the member list
-	const readRaw = await seedAgentKey(
+	const { raw: readRaw } = await seedAgentKey(
 		JSON.stringify({ organization: ["read"] }),
 		{ keyId: "key-c4-read" },
 	);
 	const list = await agentGet(`/api/identity/orgs/${ORG}/members`, readRaw);
 	expect(list.status).toBe(200);
 
-	const raw = await seedAgentKey(
+	const { raw } = await seedAgentKey(
 		JSON.stringify({ organization: ["read", "manage_members"] }),
 		{ keyId: "key-c4-mgmt" },
 	);
@@ -369,7 +395,7 @@ test("D2 agent key with manage_members ceiling CAN remove members; reads work wi
 
 test("D2 banned owner denies the agent key path", async () => {
 	await seed();
-	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
+	const { raw } = await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
 		keyId: "key-c4-ban",
 		banned: true,
 	});
@@ -389,9 +415,10 @@ test("D1 apikey listing is org-scoped: agent sees only its own key, and only in 
 	await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
 		keyId: "key-c4-other",
 	});
-	const raw = await seedAgentKey(JSON.stringify({ organization: ["read"] }), {
-		keyId: "key-c4-self",
-	});
+	const { raw, keyId } = await seedAgentKey(
+		JSON.stringify({ organization: ["read"] }),
+		{ keyId: "key-c4-self" },
+	);
 	// Human sees own keys (both).
 	const cookie = await signIn();
 	const humanList = await get(`/api/identity/orgs/${ORG}/apikeys`, cookie);
@@ -403,7 +430,7 @@ test("D1 apikey listing is org-scoped: agent sees only its own key, and only in 
 	expect(agentList.status).toBe(200);
 	const agentBody = await agentList.json();
 	expect(agentBody.keys).toHaveLength(1);
-	expect(agentBody.keys[0].id).toBe("key-c4-self");
+	expect(agentBody.keys[0].id).toBe(keyId);
 });
 
 test("D9 unsupported method on a known identity path is 405 with Allow", async () => {
