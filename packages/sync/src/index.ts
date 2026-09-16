@@ -18,6 +18,11 @@ async function runEffect<A>(
 
 import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
+import {
+	hydrateIdentityRow,
+	identityRelation,
+	identityShapeDefs,
+} from "./identity-shapes";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
 
 export class ShapeEngine {
@@ -26,17 +31,29 @@ export class ShapeEngine {
 		string,
 		{
 			org: string;
-			rows: ProbeRow[];
+			table: string;
+			pk: string;
+			rows: Array<Record<string, unknown>>;
 			boundary: string;
 			expires: number;
 			cursors: Map<string, string>;
 		}
 	>();
+	private identityDefs: Map<
+		string,
+		{
+			events: readonly string[];
+			pk: string;
+			snapshot: (org: string) => Promise<Array<Record<string, unknown>>>;
+		}
+	>;
 	constructor(
 		private sql: Sql,
 		private upcasters = new UpcasterRegistry(),
 		private telemetry?: (entry: { org: string; log: string }) => void,
-	) {}
+	) {
+		this.identityDefs = identityShapeDefs(sql);
+	}
 	shapeEffect = Effect.fn("Sync.shape")(
 		(org: string, url: URL, signal?: AbortSignal) => {
 			const self = this;
@@ -173,8 +190,10 @@ export class ShapeEngine {
 		]);
 		if ([...q.keys()].some((k) => !allowed.has(k)))
 			return new Response(null, { status: 400 });
-		if (q.get("table") !== "sync_probe")
-			return new Response(null, { status: 404 });
+		const table = q.get("table") ?? "";
+		const isProbe = table === "sync_probe";
+		const isIdentity = this.identityDefs.has(table);
+		if (!isProbe && !isIdentity) return new Response(null, { status: 404 });
 		if (q.has("log") && !["full", "changes_only"].includes(q.get("log") ?? ""))
 			return new Response(null, { status: 400 });
 		let offset = q.get("offset");
@@ -187,15 +206,22 @@ export class ShapeEngine {
 			const snapshot = await this.sql.begin(
 				"isolation level repeatable read",
 				async (tx) => {
-					const rows = await tx<
-						ProbeRow[]
-					>`SELECT org,id,value,last_seq::text FROM sync_probe WHERE org=${org} ORDER BY id`;
+					// Identity tables read their explicit projections; the frozen
+					// probe path stays byte-identical.
+					const def = this.identityDefs.get(table);
+					const rows = def
+						? await def.snapshot(org)
+						: await tx<
+								ProbeRow[]
+							>`SELECT org,id,value,last_seq::text FROM sync_probe WHERE org=${org} ORDER BY id`;
 					await this.afterProjectionRead?.();
 					const [counter] =
 						await tx`SELECT seq::text FROM org_event_counter WHERE org=${org}`;
 					return {
 						org,
-						rows: [...rows],
+						table,
+						pk: def?.pk ?? "id",
+						rows: rows as Array<Record<string, unknown>>,
 						boundary: counter?.seq ?? "0",
 						expires: Date.now() + 300000,
 						cursors: new Map<string, string>(),
@@ -232,11 +258,12 @@ export class ShapeEngine {
 		if (offset === "-1" || offset.startsWith("s:")) {
 			const index = offset === "-1" ? 0 : Number(offset.slice(2));
 			const rows = snapshot.rows.slice(index, index + 100);
+			const relation = identityRelation(table);
 			for (const row of rows)
 				messages.push({
-					key: key(org, row.id),
+					key: key(org, String(row[snapshot.pk] ?? "")),
 					value: row,
-					headers: { operation: "insert", relation: ["public", "sync_probe"] },
+					headers: { operation: "insert", relation },
 				});
 			next =
 				index + 100 < snapshot.rows.length
@@ -251,12 +278,11 @@ export class ShapeEngine {
 			next = offset;
 			for (const event of events.slice(0, 100)) {
 				next = `${event.seq}_0`;
-				if (
-					!["foundation:probe-upserted", "foundation:probe-deleted"].includes(
-						event.plugin_type,
-					)
-				)
-					continue;
+				const def = this.identityDefs.get(table);
+				const allowed = def
+					? def.events
+					: ["foundation:probe-upserted", "foundation:probe-deleted"];
+				if (!allowed.includes(event.plugin_type)) continue;
 				let payload: ProbePayload;
 				try {
 					payload = this.upcasters.decode(
@@ -269,6 +295,26 @@ export class ShapeEngine {
 						{ _tag: "Unavailable", message: "Unsupported event schema" },
 						{ status: 503, headers: { "cache-control": "no-store" } },
 					);
+				}
+				if (def) {
+					// identity:* events carry ids; the public row is hydrated at
+					// delivery time from the live projection.
+					const record = payload as unknown as Record<string, unknown>;
+					const deleted = event.plugin_type.endsWith("-deleted");
+					const rowId = String(record.id ?? record[def.pk] ?? "");
+					let value: Record<string, unknown> | undefined;
+					if (!deleted && rowId)
+						value = await hydrateIdentityRow(def, org, rowId);
+					messages.push({
+						key: key(org, rowId),
+						value: deleted || !value ? { org, id: rowId } : value,
+						headers: {
+							operation: deleted || !value ? "delete" : "update",
+							relation: identityRelation(table),
+							txids: [Number(event.txid)],
+						},
+					});
+					continue;
 				}
 				const deleted = event.plugin_type === "foundation:probe-deleted";
 				messages.push({

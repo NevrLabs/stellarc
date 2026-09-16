@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { IdentityEventPayloadSchemas } from "../../contracts/src/identity/events";
 
 const Upsert = Schema.Struct({
 	id: Schema.NonEmptyString,
@@ -36,7 +37,8 @@ export class UpcasterRegistry {
 	supports(pluginType: string) {
 		return (
 			pluginType === "foundation:probe-upserted" ||
-			pluginType === "foundation:probe-deleted"
+			pluginType === "foundation:probe-deleted" ||
+			pluginType in IdentityEventPayloadSchemas
 		);
 	}
 
@@ -54,6 +56,23 @@ export class UpcasterRegistry {
 				const upcast = this.chains.get(pluginType)?.get(step);
 				if (!upcast) throw new UnsupportedEventSchema();
 				current = upcast(current);
+			}
+			if (pluginType.startsWith("identity:")) {
+				// identity:* payloads are { id } or { id, row } on the wire; the
+				// shape engine hydrates the public row at delivery time.
+				const decoded = Schema.decodeUnknownSync(
+					Schema.Union(
+						Schema.Struct({ id: Schema.NonEmptyString }),
+						Schema.Struct({
+							id: Schema.NonEmptyString,
+							row: Schema.Record({
+								key: Schema.String,
+								value: Schema.Unknown,
+							}),
+						}),
+					),
+				)(current);
+				return decoded as ProbePayload;
 			}
 			return pluginType === "foundation:probe-upserted"
 				? Schema.decodeUnknownSync(Upsert)(current)
