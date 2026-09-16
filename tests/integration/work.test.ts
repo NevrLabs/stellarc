@@ -778,7 +778,9 @@ test("T23: non-member org cannot snapshot work shapes; revoked handle stops", as
 	const inserts = rows.filter((r) => r.headers.operation === "insert");
 	const org1Boards =
 		await sql`SELECT id FROM "board" WHERE organization_id = 'org-1'`;
-	const org1BoardIds = new Set(org1Boards.map((b: { id: string }) => b.id));
+	const org1BoardIds = new Set(
+		org1Boards.map((b: { id?: string }) => String(b.id)),
+	);
 	for (const row of inserts) {
 		expect(row.value?.org).toBe("org-2");
 		expect(org1BoardIds.has(String(row.value?.boardId))).toBe(false);
