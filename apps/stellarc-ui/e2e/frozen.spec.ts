@@ -4,6 +4,9 @@ import { stubOrgShell, stubSignIn } from "./fixtures";
 // Screens mandated by §6 whose fixture surface is not yet served end to end
 // (owning slices must ship the missing stub endpoints and promote these to
 // captured baselines). §5e.3: never skip silently.
+// STL-15 surfaces (members/teams/roles/API keys) left this list: they are
+// promoted to LIVE captured baselines in e2e/identity.spec.ts (real handler,
+// real disposable PostgreSQL, imported fixture — §6 pixel criterion).
 const pendingScreens: Array<[string, string, string, string]> = [
   [
     "/dashboard/organization/foundation/my-tasks",
@@ -84,7 +87,6 @@ const pendingScreens: Array<[string, string, string, string]> = [
     "Pull requests",
     "STL-18",
   ],
-  ["/dashboard/settings/account/developer", "developer", "API Keys", "STL-15"],
 ];
 
 for (const [path, screen, title, owner] of pendingScreens) {

@@ -13,7 +13,7 @@ export interface IdentityFixture {
 }
 
 export async function identityFixtureSource(
-	name: string,
+	_name: string,
 ): Promise<IdentityFixture> {
 	const db = await disposablePostgres();
 	await runMigration(db.sql);

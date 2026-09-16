@@ -64,6 +64,22 @@ type ErrorBody =
 
 const NO_STORE = { "cache-control": "no-store" };
 
+// Rework c13 (D10/e2e): cookie credentials only for the configured origin
+// (§3). Empty by default — same-origin deployments send no CORS headers —
+// and the e2e harness sets it to the Playwright preview origin.
+const CORS_ORIGIN = process.env.IDENTITY_CORS_ORIGIN ?? "";
+
+function corsHeaders(): Record<string, string> {
+	return CORS_ORIGIN
+		? {
+				"access-control-allow-origin": CORS_ORIGIN,
+				"access-control-allow-credentials": "true",
+				"access-control-allow-headers": "content-type",
+				"access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+			}
+		: {};
+}
+
 function json(
 	body: unknown,
 	status: number,
@@ -71,7 +87,12 @@ function json(
 ): Response {
 	return new Response(JSON.stringify(body), {
 		status,
-		headers: { "content-type": "application/json", ...NO_STORE, ...headers },
+		headers: {
+			"content-type": "application/json",
+			...NO_STORE,
+			...corsHeaders(),
+			...headers,
+		},
 	});
 }
 
@@ -331,6 +352,9 @@ export function identityHandler(
 	tracer: TracerLike = identityTracer(),
 ) {
 	const dispatch = async (request: Request): Promise<Response> => {
+		if (CORS_ORIGIN && request.method === "OPTIONS") {
+			return new Response(null, { status: 204, headers: corsHeaders() });
+		}
 		const url = new URL(request.url);
 		const path = url.pathname;
 		if (!path.startsWith("/api/identity/"))
@@ -592,8 +616,30 @@ export function identityHandler(
 					"content-length": String(avatar.size),
 					"x-content-type-options": "nosniff",
 					"cache-control": "no-store",
+					...corsHeaders(),
 				},
 			});
+		}
+
+		// GET /api/identity/orgs/:org (rework c13, D10): org public projection
+		// for the resolved scope (length-2 path — before the :org/... guard).
+		if (
+			segments[0] === "orgs" &&
+			segments.length === 2 &&
+			method("GET", request)
+		) {
+			const orgArg = decodeURIComponent(segments[1] ?? "");
+			if (!validId(orgArg)) return errorResponse("NotFound", 404);
+			try {
+				const resolved = await orgRouter(sql, ctx.userId, orgArg);
+				const [row] = await sql<
+					OrgRow[]
+				>`SELECT * FROM organization WHERE id = ${resolved.orgId}`;
+				if (!row) return errorResponse("NotFound", 404);
+				return json(orgPublic(row), 200);
+			} catch (error) {
+				return identityError(error);
+			}
 		}
 
 		// /api/identity/orgs/:org/...
@@ -630,13 +676,34 @@ export function identityHandler(
 					? null
 					: errorResponse("Forbidden", 403);
 
-			// GET /orgs/:org (rework c13, D10): the org public projection for
-			// the resolved scope — the lifted full-organization hook's base row.
-			if (rest.length === 0 && method("GET", request)) {
-				const [row] = await sql<
-					OrgRow[]
-				>`SELECT * FROM organization WHERE id = ${org.id}`;
-				return json(orgPublic(row), 200);
+			// GET /orgs/:org/principals (rework c13, D10): PrincipalPublic rows
+			// restricted to the current org, joined with public user fields for
+			// the lifted assignee/agent pickers.
+			if (
+				rest.length === 1 &&
+				rest[0] === "principals" &&
+				method("GET", request)
+			) {
+				const rows = await sql`
+					SELECT p.id, p.kind, p.user_id, u.name, u.email, u.image
+					FROM principal p JOIN "user" u ON u.id = p.user_id
+					WHERE EXISTS (
+						SELECT 1 FROM identity_grant g
+						WHERE g.principal_id = p.id AND g.org_id = ${org.id}
+					) ORDER BY p.id`;
+				return json(
+					{
+						principals: rows.map((row) => ({
+							id: row.id,
+							kind: row.kind === "agent" ? "agent" : "user",
+							name: row.name,
+							email: row.email,
+							image: row.image,
+							userId: row.user_id,
+						})),
+					},
+					200,
+				);
 			}
 
 			// GET /orgs/:org/members

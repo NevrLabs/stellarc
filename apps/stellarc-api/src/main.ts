@@ -55,12 +55,42 @@ export const api = Effect.gen(function* () {
 	});
 	const authHandler = makeAuthHandler(auth, authConfig.publicOrigin, tracer);
 	const identityRoutes = identityHandler(sql, auth, tracer);
-	const dispatch = (request: Request): Promise<Response> => {
+	// Rework c13 (e2e/D10): when an origin is configured, every response
+	// carries CORS so the built UI can talk to this API cross-origin.
+	const corsOrigin = process.env.IDENTITY_CORS_ORIGIN ?? "";
+	const withCors = (response: Response): Response => {
+		if (!corsOrigin) return response;
+		const headers = new Headers(response.headers);
+		headers.set("access-control-allow-origin", corsOrigin);
+		headers.set("access-control-allow-credentials", "true");
+		headers.set("access-control-allow-headers", "content-type");
+		headers.set(
+			"access-control-allow-methods",
+			"GET,POST,PATCH,DELETE,OPTIONS",
+		);
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
+		});
+	};
+	const dispatch = async (request: Request): Promise<Response> => {
+		if (corsOrigin && request.method === "OPTIONS") {
+			return new Response(null, {
+				status: 204,
+				headers: {
+					"access-control-allow-origin": corsOrigin,
+					"access-control-allow-credentials": "true",
+					"access-control-allow-headers": "content-type",
+					"access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+				},
+			});
+		}
 		const path = new URL(request.url).pathname;
 		if (path.startsWith("/api/auth/") || path === "/api/auth")
 			return authHandler(request);
 		if (path.startsWith("/api/identity/")) return identityRoutes(request);
-		return http.handler(request);
+		return withCors(await http.handler(request));
 	};
 	yield* Effect.acquireRelease(
 		Effect.sync(() =>

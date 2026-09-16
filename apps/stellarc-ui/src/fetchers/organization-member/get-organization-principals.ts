@@ -1,4 +1,4 @@
-import { getApiUrl } from "@/fetchers/get-api-url";
+import { identityGet, orgPath } from "@/lib/identity-client";
 
 export type PrincipalKind = "user" | "agent";
 
@@ -11,21 +11,15 @@ export type OrganizationPrincipal = {
 };
 
 /**
- * KFL-160: Better Auth's `organization.listMembers` hard-codes its user
- * projection to {id,name,email,image}, so `user.role` — the only record of
- * agent-ness — never reaches the client. The assignee picker's
- * Users/Agents/Teams grouping needs that discriminator, so it reads the
- * dedicated principals endpoint instead of listMembers.
+ * KFL-160: the assignee picker's Users/Agents/Teams grouping needs the
+ * agent discriminator, which the members projection does not carry. Read the
+ * org's principal projection (human + agent rows, §3 PrincipalPublic).
  */
 async function getOrganizationPrincipals(organizationId: string) {
-  const response = await fetch(
-    getApiUrl(`/organization/${encodeURIComponent(organizationId)}/principals`),
-    { credentials: "include" },
-  );
-
-  if (!response.ok) throw new Error(await response.text());
-
-  return (await response.json()) as OrganizationPrincipal[];
+  const { principals } = await identityGet<{
+    principals: OrganizationPrincipal[];
+  }>(orgPath(organizationId, "principals"));
+  return principals;
 }
 
 export default getOrganizationPrincipals;
