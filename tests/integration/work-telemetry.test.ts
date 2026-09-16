@@ -119,3 +119,85 @@ test("T25: no span attribute or log leaks title/description/note/SQL text", asyn
 		expect(body).not.toContain("INSERT INTO");
 	}
 }, 15000);
+
+// D6/T26: every work service method is Effect.fn-wrapped ("Work.<method>" span
+// named after the function) and the span lands INSIDE the inbound request
+// trace — same traceId as stellarc.http.request, not a detached root span.
+test("T26: service methods carry Work.<name> spans inside the request trace", async () => {
+	spans.reset();
+	const response = await http.handler(
+		new Request("http://x/api/work/boards", {
+			method: "POST",
+			headers: { ...H("org-1"), "content-type": "application/json" },
+			body: JSON.stringify({ name: "Span Board" }),
+		}),
+	);
+	expect(response.status).toBe(200);
+	const finished = spans.getFinishedSpans();
+	const request = finished.find((s) => s.name === "stellarc.http.request");
+	expect(request).toBeDefined();
+	const service = finished.find((s) => s.name === "Work.createBoard");
+	// RED until createBoard is Effect.fn-wrapped with that exact span name.
+	expect(service).toBeDefined();
+	expect(service?.spanContext().traceId).toBe(request?.spanContext().traceId);
+}, 15000);
+
+// D6 coverage guard: one mutating path per aggregate (board/status/ticket/
+// label/template/flag) must show its Work.<name> service span.
+test("T26: one Work.<name> span per aggregate mutation path", async () => {
+	const post = async (path: string, body: unknown, method = "POST") => {
+		spans.reset();
+		const response = await http.handler(
+			new Request(`http://x${path}`, {
+				method,
+				headers: { ...H("org-1"), "content-type": "application/json" },
+				body: body === undefined ? undefined : JSON.stringify(body),
+			}),
+		);
+		return { response, names: spans.getFinishedSpans().map((s) => s.name) };
+	};
+	const board = await post("/api/work/boards", { name: "Agg Board" });
+	expect(board.response.status).toBe(200);
+	expect(board.names).toContain("Work.createBoard");
+	const boardId = ((await board.response.json()) as { data: { id: string } })
+		.data.id;
+	const status = await post(`/api/work/boards/${boardId}/statuses`, {
+		name: "Agg Status",
+	});
+	expect(status.response.status).toBe(200);
+	expect(status.names).toContain("Work.createStatus");
+	const ticket = await post(`/api/work/boards/${boardId}/tickets`, {
+		title: "Agg ticket",
+	});
+	expect(ticket.response.status).toBe(200);
+	expect(ticket.names).toContain("Work.createTicket");
+	const ticketId = ((await ticket.response.json()) as { data: { id: string } })
+		.data.id;
+	const label = await post("/api/work/labels", {
+		name: "agg",
+		color: "#123456",
+		taskId: ticketId,
+	});
+	expect(label.response.status).toBe(200);
+	expect(label.names).toContain("Work.createLabel");
+	const template = await post("/api/work/templates", {
+		organizationId: "org-1",
+		name: "agg",
+		data: { title: "agg" },
+	});
+	expect(template.response.status).toBe(200);
+	expect(template.names).toContain("Work.createTemplate");
+	const flagType = await post("/api/work/flag-types", {
+		boardId,
+		name: "agg",
+	});
+	expect(flagType.response.status).toBe(200);
+	expect(flagType.names).toContain("Work.createFlagType");
+	const flag = await post(`/api/work/tickets/${ticketId}/flags`, {
+		flagTypeId: ((await flagType.response.json()) as { data: { id: string } })
+			.data.id,
+		targetUserId: "user-1",
+	});
+	expect(flag.response.status).toBe(200);
+	expect(flag.names).toContain("Work.createTicketFlag");
+}, 30000);

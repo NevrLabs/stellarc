@@ -353,11 +353,30 @@ export function labelPublic(row: Record<string, unknown>) {
 }
 
 export function templatePublic(row: Record<string, unknown>) {
+	// jsonb round-trips drop absent optional keys; the contract requires the
+	// four core members present (null = absent). Normalize once at the mapper
+	// so every encode surface (HTTP + events) carries the full shape.
+	const stored = (row.data ?? {}) as Record<string, unknown>;
+	const data = {
+		title: stored.title,
+		description: stored.description ?? null,
+		priority: stored.priority ?? null,
+		startDate: stored.startDate ?? null,
+		dueDate: stored.dueDate ?? null,
+		...(stored.status !== undefined ? { status: stored.status } : {}),
+		...(stored.labels !== undefined ? { labels: stored.labels } : {}),
+		...(stored.startDateOffset !== undefined
+			? { startDateOffset: stored.startDateOffset }
+			: {}),
+		...(stored.dueDateOffset !== undefined
+			? { dueDateOffset: stored.dueDateOffset }
+			: {}),
+	};
 	return {
 		id: row.id as string,
 		organizationId: row.organization_id as string,
 		name: row.name as string,
-		data: row.data,
+		data,
 		createdAt: iso(row.created_at),
 		updatedAt: iso(row.updated_at),
 	};

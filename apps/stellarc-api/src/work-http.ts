@@ -127,6 +127,27 @@ function pruneRateBuckets(window: number) {
 	publicRateCurrentWindow = window;
 }
 
+// D6/T26: Work.<serviceMethod> span wrapper. Effect.fn names the span after
+// the SERVICE method (ADR 0010), not the HTTP handler, so traces read
+// Domain.call-shaped regardless of route verb. Reads keep their handler name.
+const SERVICE_SPAN_NAMES: Record<string, string> = {
+	listBoards: "listBoards",
+	getBoard: "resolveBoardRef",
+	unarchiveBoard: "archiveBoard",
+	putBoardKey: "setBoardKey",
+	putTicketStatus: "setTicketStatus",
+	deleteTicket: "softDeleteTicket",
+	putTicketArchived: "setTicketArchived",
+	putLabelTask: "assignLabelTask",
+};
+const serviceSpan = (name: string) => {
+	const traced = Effect.fn(`Work.${name}`);
+	return (effect: Effect.Effect<unknown, unknown>) =>
+		traced(function* () {
+			return yield* effect;
+		})();
+};
+
 /** All work endpoints (§3). Org identity rides the authorization token. */
 export function workHandler(
 	sql: Sql,
@@ -643,8 +664,12 @@ export function workHandler(
 			).handleRaw(name, (ctx: unknown) =>
 				// tryPromise's catch channel is re-failed by handleRaw (500); the
 				// error must land in the SUCCESS channel for success-variant encode.
-				Effect.tryPromise(() => handler(ctx as Ctx)).pipe(
-					Effect.catchAll((error) => Effect.succeed(toWorkError(error))),
+				// D6/T26 (ADR 0010): every service call runs inside a
+				// Work.<serviceMethod> span nested in the inbound request trace.
+				serviceSpan(SERVICE_SPAN_NAMES[name] ?? name)(
+					Effect.tryPromise(() => handler(ctx as Ctx)).pipe(
+						Effect.catchAll((error) => Effect.succeed(toWorkError(error))),
+					),
 				),
 			);
 		}
