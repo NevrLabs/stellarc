@@ -160,16 +160,19 @@ export async function effectiveCapabilities(
 		return caps;
 	}
 
+	// Defect 7 (§2): humans use membership role PLUS structural grant — a
+	// union, not an intersection. The structural org:member row gates org
+	// visibility; role powers are effective immediately (a fresh org owner
+	// cannot be locked out of organization:update). Agents keep the strict
+	// ceiling ∩ structural intersection above (T06).
 	const [member] = await sql<{ role: string }[]>`
 		SELECT role FROM organization_member
 		WHERE organization_id = ${orgId} AND user_id = ${ctx.userId}`;
 	if (!member) return new Set();
+	if (!structural.has("org:member")) return new Set();
 	const dynamic = await loadDynamicRoles(sql, orgId);
-	const roleCaps = roleCapabilities(member.role, dynamic);
-	const caps = new Set<string>();
-	for (const cap of roleCaps) if (structural.has(cap)) caps.add(cap);
-	if (structural.has("org:member")) caps.add("org:member");
-	return caps;
+	const caps = roleCapabilities(member.role, dynamic);
+	return new Set([...caps, "org:member"]);
 }
 
 export function has(caps: ReadonlySet<string>, capability: string): boolean {

@@ -441,9 +441,15 @@ export function identityHandler(sql: Sql, _auth: AuthLike) {
 				principalContext(ctx),
 				String(org.id),
 			);
+			// Rework c10 (defect 5): with mint-on-auth removed, an
+			// authenticated agent has real capabilities only where
+			// createApiKey/importer grants exist. Visibility is gated on the
+			// structural org:member row (present here via the seed); a
+			// capabilities-empty principal is Forbidden, not "absent org".
 			if (!caps.has("org:member") && caps.size === 0)
 				return errorResponse("NotFound", 404);
-			if (caps.size === 0) return errorResponse("NotFound", 404);
+			if (!caps.has("org:member"))
+				return errorResponse("Forbidden", 403);
 			const rest = segments.slice(2);
 			// Guards accept equivalent capability aliases: the fork's key
 			// ceiling vocabulary (organization:manage_members) and the

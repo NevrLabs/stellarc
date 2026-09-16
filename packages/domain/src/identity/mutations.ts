@@ -104,6 +104,13 @@ export async function createOrganization(
 			await tx`INSERT INTO principal (id, kind, user_id, apikey_id)
 				VALUES (${principalId}, 'human', ${creatorUserId}, null)
 				ON CONFLICT (id) DO NOTHING`;
+			// Defect 7: seed the FULL owner capability set so the fresh org's
+			// owner is never locked out (humans = role ∪ structural, §2).
+			for (const capability of OWNER_GRANT_CAPABILITIES_DERIVE) {
+				await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
+					VALUES (${orgId}, ${principalId}, ${capability})
+					ON CONFLICT DO NOTHING`;
+			}
 			await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
 				VALUES (${orgId}, ${principalId}, 'org:member')
 				ON CONFLICT DO NOTHING`;
@@ -142,10 +149,10 @@ export async function createOrganization(
 						type: "identity:principal-upserted",
 						payload: { id: principalId },
 					},
-					{
-						type: "identity:grant-upserted",
-						payload: { principalId, capability: "org:member" },
-					},
+					...OWNER_GRANT_CAPABILITIES_DERIVE.map((capability) => ({
+						type: "identity:grant-upserted" as const,
+						payload: { principalId, capability },
+					})),
 				],
 			);
 			return {
@@ -205,7 +212,7 @@ export async function removeMember(
 			await tx`SELECT id FROM organization WHERE id = ${orgId} OR slug = ${orgId} OR lower(slug) = lower(${orgId})`;
 		if (!org) throw notFound();
 		const [member] =
-			await tx`SELECT id, role FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
+			await tx`SELECT id, role, user_id FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
 		if (!member) throw notFound();
 		if (member.role === "owner") {
 			const owners = await tx<{ n: number }[]>`
@@ -213,14 +220,116 @@ export async function removeMember(
 				WHERE organization_id = ${org.id} AND role = 'owner'`;
 			if (Number(owners[0]?.n ?? 0) <= 1) throw conflict("LastOwner");
 		}
-		await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
-		// Events live in the org's canonical-ID namespace, exactly like every
-		// other identity event — never under the caller's raw path argument.
-		const txid = await appendEvents(tx, org.id, actorPrincipalId, [
-			{ type: "identity:member-deleted", payload: { id: memberId } },
-		]);
-		return { data: { id: memberId }, txid };
+			await tx`DELETE FROM organization_member WHERE id = ${memberId} AND organization_id = ${org.id}`;
+			// Defect 6 (T12): revoke EVERY principal derived from this user —
+			// the human principal and every agent principal minted from their
+			// API keys — in the same transaction, with matching grant-deleted
+			// events. Session and shape-handle authorization re-read these
+			// rows per request, so access terminates now, not at cache expiry.
+			const removed = await tx<{ principal_id: string; capability: string }[]>`
+				DELETE FROM identity_grant WHERE org_id = ${org.id} AND principal_id IN
+					(SELECT id FROM principal WHERE user_id = ${String(member.user_id)})
+				RETURNING principal_id, capability`;
+			// Events live in the org's canonical-ID namespace, exactly like
+			// every other identity event — never under the caller's raw path.
+			const txid = await appendEvents(tx, org.id, actorPrincipalId, [
+				{ type: "identity:member-deleted", payload: { id: memberId } },
+				...removed.map((row) => ({
+					type: "identity:grant-deleted" as const,
+					payload: {
+						principalId: row.principal_id,
+						capability: row.capability,
+					},
+				})),
+			]);
+			return { data: { id: memberId }, txid };
 	});
+}
+
+// --- grant re-derivation helpers (rework c10 defects 7/13) -------------------
+
+const OWNER_GRANT_CAPABILITIES_DERIVE: readonly string[] = [
+	"org:member",
+	"organization:read",
+	"organization:update",
+	"organization:manage_settings",
+	"organization:manage_connections",
+	"organization:manage_members",
+	"member:read",
+	"member:create",
+	"member:update",
+	"member:delete",
+	"invitation:read",
+	"invitation:create",
+	"invitation:update",
+	"team:read",
+	"team:create",
+	"team:update",
+	"team:delete",
+	"apikey:create",
+	"apikey:update",
+	"apikey:delete",
+];
+
+const MEMBER_GRANT_CAPABILITIES_DERIVE: readonly string[] = [
+	"organization:read",
+	"member:read",
+	"team:read",
+	"apikey:create",
+	"apikey:update",
+	"apikey:delete",
+];
+
+async function loadDynamicRolesForGrants(
+	tx: Sql,
+	orgId: string,
+): Promise<ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>> {
+	const rows = await tx<{ role: string; permission: string }[]>`
+		SELECT role, permission FROM organization_role WHERE organization_id = ${orgId}`;
+	const map = new Map<string, Readonly<Record<string, readonly string[]>>>();
+	for (const row of rows) {
+		try {
+			const parsed: unknown = JSON.parse(row.permission);
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				const payload: Record<string, readonly string[]> = {};
+				for (const [resource, actions] of Object.entries(
+					parsed as Record<string, unknown>,
+				)) {
+					if (!Array.isArray(actions)) continue;
+					payload[resource] = actions.filter(
+						(action): action is string => typeof action === "string",
+					);
+				}
+				map.set(row.role, payload);
+			}
+		} catch {
+			// malformed permission row is not a capability source
+		}
+	}
+	return map;
+}
+
+/** Static-role capability derivation for grant re-computation (mirrors the
+ * capabilities.ts static table; org:member is added by callers). */
+function roleCapabilitiesForGrants(
+	role: string,
+	dynamicRoles: ReadonlyMap<
+		string,
+		Readonly<Record<string, readonly string[]>>
+	>,
+): readonly string[] {
+	const dynamic = dynamicRoles.get(role);
+	if (dynamic) {
+		const caps: string[] = [];
+		for (const [resource, actions] of Object.entries(dynamic)) {
+			for (const action of actions) caps.add(`${resource}:${action}`);
+		}
+		return caps;
+	}
+	if (role === "owner" || role === "admin")
+		return OWNER_GRANT_CAPABILITIES_DERIVE;
+	if (role === "member") return MEMBER_GRANT_CAPABILITIES_DERIVE;
+	return ["organization:read", "member:read", "team:read"];
 }
 
 export function newId(prefix: string): string {
@@ -284,14 +393,41 @@ export async function updateMemberRole(
 		>`SELECT id, organization_id, user_id, role, ai_token_limit, ai_character_limit, joined_at
 			FROM organization_member WHERE id = ${memberId}`;
 		const principalId = humanPrincipalId(String(row.user_id));
-		// Owner-grant follows the role change structurally.
-		if (role === "owner") {
+		// Defect 13: role change re-derives the user's grant set in the same
+		// transaction (grant-upserted/deleted events), so member-role → grant
+		// drift never occurs and consumers see the new powers immediately.
+		const dynamic = await loadDynamicRolesForGrants(tx, orgId);
+		const wanted = new Set<string>([
+			...roleCapabilitiesForGrants(role, dynamic),
+			"org:member",
+		]);
+		const existing = await tx<{ capability: string }[]>`
+			SELECT capability FROM identity_grant
+			WHERE org_id = ${orgId} AND principal_id = ${principalId}`;
+		const existingSet = new Set(existing.map((row) => row.capability));
+		const grantEvents: EventInsert[] = [];
+		for (const capability of wanted) {
+			if (existingSet.has(capability)) continue;
 			await tx`INSERT INTO identity_grant (org_id, principal_id, capability)
-				VALUES (${orgId}, ${principalId}, 'org:member')
+				VALUES (${orgId}, ${principalId}, ${capability})
 				ON CONFLICT DO NOTHING`;
+			grantEvents.push({
+				type: "identity:grant-upserted",
+				payload: { principalId, capability },
+			});
+		}
+		for (const capability of existingSet) {
+			if (wanted.has(capability)) continue;
+			await tx`DELETE FROM identity_grant
+				WHERE org_id = ${orgId} AND principal_id = ${principalId} AND capability = ${capability}`;
+			grantEvents.push({
+				type: "identity:grant-deleted",
+				payload: { principalId, capability },
+			});
 		}
 		const txid = await appendEvents(tx, orgId, actor, [
 			{ type: "identity:member-upserted", payload: { id: memberId } },
+			...grantEvents,
 		]);
 		return {
 			data: {
