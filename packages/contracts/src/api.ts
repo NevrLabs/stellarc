@@ -5,7 +5,7 @@ import { Health, Rank } from "./projects";
 const Id = Schema.NonEmptyString.pipe(Schema.maxLength(128));
 const NullString = Schema.NullOr(Schema.String);
 
-const PathOrg = Schema.Struct({ organizationId: Id });
+const _PathOrg = Schema.Struct({ organizationId: Id });
 const PathProject = Schema.Struct({ projectId: Id });
 const PathMilestone = Schema.Struct({ projectId: Id, milestoneId: Id });
 const PathUpdate = Schema.Struct({ projectId: Id, updateId: Id });

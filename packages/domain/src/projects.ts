@@ -1,4 +1,3 @@
-import { Effect, Runtime } from "effect";
 import type { Sql } from "postgres";
 import { PROJECT_SLUG_PATTERN } from "../../contracts/src/projects";
 

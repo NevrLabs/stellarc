@@ -227,10 +227,6 @@ export function foundationHandler(
 			{ _tag: "Conflict", message: "Conflict" },
 			{ status: 409, headers: { "cache-control": "no-store" } },
 		);
-	const tagOf = (error: unknown) =>
-		typeof error === "object" && error !== null && "_tag" in error
-			? String((error as { _tag: unknown })._tag)
-			: "";
 	const fail = (error: unknown) => {
 		// The error arrives wrapped several layers deep depending on where it
 		// was raised: Effect tryPromise -> UnknownException(.error), nested
