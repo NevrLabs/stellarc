@@ -56,7 +56,8 @@ test("A4 valid signature appends exactly one repo.webhook_received event", async
 		}),
 	);
 	expect(result.status).toBe(200);
-	const events = await sql`SELECT plugin_type, payload, schema_version FROM event
+	const events =
+		await sql`SELECT plugin_type, payload, schema_version FROM event
     WHERE org=${orgId} ORDER BY seq`;
 	expect(events).toHaveLength(1);
 	expect(events[0]?.plugin_type).toBe("repo.webhook_received");
@@ -127,6 +128,7 @@ test("A4 duplicate delivery is idempotent (no second event)", async () => {
 		);
 		expect(result.status).toBe(200);
 	}
-	const events = await sql`SELECT count(*)::int AS n FROM event WHERE org=${orgId}`;
+	const events =
+		await sql`SELECT count(*)::int AS n FROM event WHERE org=${orgId}`;
 	expect(events[0]?.n).toBe(1);
 });

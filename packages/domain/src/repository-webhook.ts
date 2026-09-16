@@ -44,42 +44,47 @@ export function verifyGithubSignature(
 
 const DELIVERY_EVENT = "repo.webhook_received";
 
-export const githubWebhookEffect = Effect.fn("Domain.githubWebhook")(
-	function* (sql: Sql, org: string, actor: string, delivery: WebhookDelivery) {
-		if (!verifyGithubSignature(delivery.secret, delivery.body, delivery.signature))
-			return { status: 401, duplicate: false } satisfies WebhookResult;
-		// Idempotency by delivery id: GitHub redelivers; the second delivery
-		// must not append a second event.
-		const seen = yield* Effect.tryPromise({
-			try: () =>
-				sql`SELECT 1 FROM event
+export const githubWebhookEffect = Effect.fn("Domain.githubWebhook")(function* (
+	sql: Sql,
+	org: string,
+	actor: string,
+	delivery: WebhookDelivery,
+) {
+	if (
+		!verifyGithubSignature(delivery.secret, delivery.body, delivery.signature)
+	)
+		return { status: 401, duplicate: false } satisfies WebhookResult;
+	// Idempotency by delivery id: GitHub redelivers; the second delivery
+	// must not append a second event.
+	const seen = yield* Effect.tryPromise({
+		try: () =>
+			sql`SELECT 1 FROM event
 				    WHERE org=${org} AND plugin_type=${DELIVERY_EVENT}
 				      AND payload->>'deliveryId'=${delivery.deliveryId}` as unknown as Promise<
-					unknown[]
-				>,
-			catch: (cause) => cause,
-		});
-		if (Array.isArray(seen) && seen.length > 0)
-			return { status: 200, duplicate: true } satisfies WebhookResult;
-		yield* Effect.tryPromise({
-			try: async () => {
-				await sql.begin(async (tx) => {
-					await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
-					const [counter] =
-						await tx`UPDATE org_event_counter SET seq=seq+1 WHERE org=${org} RETURNING seq::text`;
-					const [transaction] =
-						await tx`SELECT pg_current_xact_id()::text AS txid`;
-					const seq = BigInt(counter.seq);
-					await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+				unknown[]
+			>,
+		catch: (cause) => cause,
+	});
+	if (Array.isArray(seen) && seen.length > 0)
+		return { status: 200, duplicate: true } satisfies WebhookResult;
+	yield* Effect.tryPromise({
+		try: async () => {
+			await sql.begin(async (tx) => {
+				await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
+				const [counter] =
+					await tx`UPDATE org_event_counter SET seq=seq+1 WHERE org=${org} RETURNING seq::text`;
+				const [transaction] =
+					await tx`SELECT pg_current_xact_id()::text AS txid`;
+				const seq = BigInt(counter.seq);
+				await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
 				        VALUES (${org},${seq.toString()},${DELIVERY_EVENT},${actor},
 				          ${tx.json({
-				          	event: delivery.event,
-				          	deliveryId: delivery.deliveryId,
-				          } as never)},1,${transaction.txid})`;
-				});
-			},
-			catch: (cause) => cause,
-		});
-		return { status: 200, duplicate: false } satisfies WebhookResult;
-	},
-);
+										event: delivery.event,
+										deliveryId: delivery.deliveryId,
+									} as never)},1,${transaction.txid})`;
+			});
+		},
+		catch: (cause) => cause,
+	});
+	return { status: 200, duplicate: false } satisfies WebhookResult;
+});
