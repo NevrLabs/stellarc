@@ -58,9 +58,9 @@ test("T01a core project tables exist with exact columns and constraints", async 
 		ORDER BY conname
 	`;
 	const byName = Object.fromEntries(constraints.map((c) => [c.conname, c.def]));
-	expect(byName["project_status_check"]).toContain("planned");
-	expect(byName["project_milestone_completion_pair_check"]).toBeDefined();
-	expect(byName["project_update_health_check"]).toContain("on-track");
+	expect(byName.project_status_check).toContain("planned");
+	expect(byName.project_milestone_completion_pair_check).toBeDefined();
+	expect(byName.project_update_health_check).toContain("on-track");
 	const indexes = await db.sql`
 		SELECT indexdef FROM pg_indexes
 		WHERE schemaname = 'public' AND indexdef ILIKE '%project%'
@@ -98,7 +98,6 @@ afterEach(async () => {
 import {
 	completeProjectMilestone,
 	createProjectMilestone,
-	listProjectMilestones,
 	reopenProjectMilestone,
 } from "../../packages/domain/src/project-milestones";
 import {
@@ -124,9 +123,9 @@ async function seedOrg(
 	org: string,
 	user: string,
 ) {
-	await db.sql`INSERT INTO "user" (id, name, email) VALUES (${user}, ${user + "-name"}, ${user + "@x.test"}) ON CONFLICT DO NOTHING`;
-	await db.sql`INSERT INTO organization (id, name, slug, created_at) VALUES (${org}, ${org + "-name"}, ${org}, now()) ON CONFLICT DO NOTHING`;
-	await db.sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at) VALUES (${user + "-m"}, ${org}, ${user}, ${"'admin'"}, now()) ON CONFLICT DO NOTHING`;
+	await db.sql`INSERT INTO "user" (id, name, email) VALUES (${user}, ${`${user}-name`}, ${`${user}@x.test`}) ON CONFLICT DO NOTHING`;
+	await db.sql`INSERT INTO organization (id, name, slug, created_at) VALUES (${org}, ${`${org}-name`}, ${org}, now()) ON CONFLICT DO NOTHING`;
+	await db.sql`INSERT INTO organization_member (id, organization_id, user_id, role, joined_at) VALUES (${`${user}-m`}, ${org}, ${user}, ${"'admin'"}, now()) ON CONFLICT DO NOTHING`;
 }
 
 test("T03/T04 create + list: slug normalize, default planned, event atomic, lead validation", async () => {
