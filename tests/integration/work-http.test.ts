@@ -260,7 +260,9 @@ test("T07/D8: GET /api/work/boards/:id resolves id, slug, alias and KEY-seq over
 		}),
 	);
 	expect(created.status).toBe(200);
-	const { data } = (await created.json()) as { data: { id: string; slug: string } };
+	const { data } = (await created.json()) as {
+		data: { id: string; slug: string };
+	};
 	const id = data.id;
 	const slug = data.slug;
 	// A ticket on the board: KEY-seq resolution requires number 1 to exist.
