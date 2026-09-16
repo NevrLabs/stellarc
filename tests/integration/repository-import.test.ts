@@ -40,16 +40,23 @@ async function runImport() {
 
 test("T08 importer copies all six tables preserving source ids and values", async () => {
 	await runImport();
-	const repos = await sql`SELECT id, organization_id, provider, owner FROM repo ORDER BY id`;
+	const repos =
+		await sql`SELECT id, organization_id, provider, owner FROM repo ORDER BY id`;
 	expect(repos).toHaveLength(2);
 	expect(repos[0]).toMatchObject({ id: "repo-a1", organization_id: SRC_ORG_A });
-	const issues = (await sql`SELECT id, repo_id, number, state, labels FROM repo_issue ORDER BY id`) as unknown as Array<{ id: string; labels: unknown }>;
+	const issues =
+		(await sql`SELECT id, repo_id, number, state, labels FROM repo_issue ORDER BY id`) as unknown as Array<{
+			id: string;
+			labels: unknown;
+		}>;
 	expect(issues.map((i) => i.id)).toEqual(["issue-a1", "issue-a2"]);
 	expect(issues[0].labels).toEqual([{ name: "sync", color: "2563eb" }]);
-	const prs = await sql`SELECT id, state, is_draft, merged_at FROM repo_pull_request ORDER BY id`;
+	const prs =
+		await sql`SELECT id, state, is_draft, merged_at FROM repo_pull_request ORDER BY id`;
 	expect(prs[0]).toMatchObject({ id: "pr-a1", state: "merged" });
 	expect(prs[1]).toMatchObject({ id: "pr-b1", is_draft: true });
-	const inst = await sql`SELECT id, installation_id, account_login FROM organization_github_installation`;
+	const inst =
+		await sql`SELECT id, installation_id, account_login FROM organization_github_installation`;
 	expect(inst).toHaveLength(1);
 	const grants = await sql`SELECT id, access_token FROM github_user_grant`;
 	expect(grants[0].access_token).toBe("gho_source_secret_token"); // A3: unchanged
@@ -72,7 +79,9 @@ test("T08 malformed FK aborts atomically (no partial rows)", async () => {
 	await sql`INSERT INTO kaneo_src.repo (id, organization_id, provider, owner, name, url)
     VALUES ('repo-orphan', 'org-ghost', 'github', 'x', 'y', 'https://x.test/y')`;
 	await expect(runImport()).rejects.toThrow();
-	const repos = (await sql`SELECT id FROM repo`) as unknown as Array<{ id: string }>;
+	const repos = (await sql`SELECT id FROM repo`) as unknown as Array<{
+		id: string;
+	}>;
 	expect(repos.map((r) => r.id)).toEqual([]);
 });
 
@@ -87,7 +96,11 @@ test("T08 duplicate mirror key aborts atomically", async () => {
 test("T09 re-import is idempotent: no duplicate events, ids stable", async () => {
 	await runImport();
 	const countEvents = async () =>
-		((await sql`SELECT count(*)::int AS n FROM event WHERE plugin_type LIKE 'repository:%'`) as unknown as Array<{ n: number }>)[0].n;
+		(
+			(await sql`SELECT count(*)::int AS n FROM event WHERE plugin_type LIKE 'repository:%'`) as unknown as Array<{
+				n: number;
+			}>
+		)[0].n;
 	const idsAfterFirst = await sql`SELECT id FROM repo ORDER BY id`;
 	const first = await countEvents();
 	await runImport();

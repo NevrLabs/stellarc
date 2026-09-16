@@ -153,9 +153,7 @@ const ListIntegrations = HttpApiEndpoint.get(
 	"/api/identity/orgs/:org/integrations",
 )
 	.setPath(PathOrg)
-	.addSuccess(
-		Schema.Struct({ integrations: Schema.Array(IntegrationPublic) }),
-	)
+	.addSuccess(Schema.Struct({ integrations: Schema.Array(IntegrationPublic) }))
 	.addError(RepositoryError);
 
 const PutIntegration = HttpApiEndpoint.put(
