@@ -11,6 +11,19 @@ async function eventCount(org: string) {
 	return row.count;
 }
 
+// D6-fix (rework c40): per-test self-seeding (T23's pattern). Every test
+// creates the board/tickets it consumes so `-t` filtering and per-test
+// sabotage workflows never depend on earlier tests' fixtures.
+async function seedBoard(id: string, name: string) {
+	const work = await import("../../packages/domain/src/work");
+	return work.createBoard(sql, "org-1", "user-1", { id, name });
+}
+
+async function seedTicket(boardId: string, id: string, title: string) {
+	const work = await import("../../packages/domain/src/work");
+	return work.createTicket(sql, "org-1", "user-1", boardId, { id, title });
+}
+
 beforeAll(async () => {
 	const db = await disposablePostgres();
 	sql = db.sql;
@@ -63,31 +76,41 @@ test("T04: board create seeds exactly 4 statuses positionally, done isFinal, ato
 
 test("T05: same-org case-insensitive duplicate slug rejected as DuplicateSlug", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t05";
+	await seedBoard(`b-${u}`, `Alpha ${u}`);
 	await expect(
 		work.createBoard(sql, "org-1", "user-1", {
-			id: "b1-dup",
-			name: "ALPHA BOARD",
+			id: `b-${u}-dup`,
+			name: `ALPHA ${u.toUpperCase()}`,
 		}),
 	).rejects.toThrow();
 	const [row] =
-		await sql`SELECT count(*)::int AS count FROM "board" WHERE id = 'b1-dup'`;
+		await sql`SELECT count(*)::int AS count FROM "board" WHERE id = ${`b-${u}-dup`}`;
 	expect(row.count).toBe(0);
 });
 
 test("T06: board update/archive commits row+event under one txid; archive stamps archived_at", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t06";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
 	const before = await eventCount("org-1");
-	const updated = await work.updateBoard(sql, "org-1", "user-1", "b1", {
+	const updated = await work.updateBoard(sql, "org-1", "user-1", board.id, {
 		description: "updated",
 	});
 	expect(updated.data.description).toBe("updated");
-	const archived = await work.archiveBoard(sql, "org-1", "user-1", "b1", true);
+	const archived = await work.archiveBoard(
+		sql,
+		"org-1",
+		"user-1",
+		board.id,
+		true,
+	);
 	expect(archived.data.archivedAt).not.toBeNull();
 	const unarchived = await work.archiveBoard(
 		sql,
 		"org-1",
 		"user-1",
-		"b1",
+		board.id,
 		false,
 	);
 	expect(unarchived.data.archivedAt).toBeNull();
@@ -96,10 +119,13 @@ test("T06: board update/archive commits row+event under one txid; archive stamps
 
 test("T08: number claim self-heals drifted counter (counter 12, max 13 → 14)", async () => {
 	const work = await import("../../packages/domain/src/work");
-	await sql`UPDATE "board" SET last_task_number = 12 WHERE id = 'b1'`;
-	await sql`INSERT INTO task (id, board_id, title, number, created_at, updated_at) VALUES ('t-drift', 'b1', 'Drift max', 13, now(), now())`;
-	const result = await work.createTicket(sql, "org-1", "user-1", "b1", {
-		id: "t-heal",
+	const u = "t08";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, `t-drift-${u}`, "Drift max");
+	await sql`UPDATE "board" SET last_task_number = 12 WHERE id = ${board.id}`;
+	await sql`UPDATE task SET number = 13 WHERE id = ${`t-drift-${u}`}`;
+	const result = await work.createTicket(sql, "org-1", "user-1", board.id, {
+		id: `t-heal-${u}`,
 		title: "Healed",
 	});
 	expect(result.data.number).toBe(14);
@@ -107,10 +133,15 @@ test("T08: number claim self-heals drifted counter (counter 12, max 13 → 14)",
 
 test("T09: 20 concurrent creates get 20 unique consecutive numbers, no errors", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t09";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, `t-drift-${u}`, "Drift max");
+	await sql`UPDATE "board" SET last_task_number = 12 WHERE id = ${board.id}`;
+	await sql`UPDATE task SET number = 13 WHERE id = ${`t-drift-${u}`}`;
 	const results = await Promise.all(
 		Array.from({ length: 20 }, (_, i) =>
-			work.createTicket(sql, "org-1", "user-1", "b1", {
-				id: `t-cc-${i}`,
+			work.createTicket(sql, "org-1", "user-1", board.id, {
+				id: `t-cc-${u}-${i}`,
 				title: `CC ${i}`,
 			}),
 		),
@@ -119,19 +150,24 @@ test("T09: 20 concurrent creates get 20 unique consecutive numbers, no errors", 
 		.map((r) => r.data.number)
 		.sort((a, b) => (a ?? 0) - (b ?? 0));
 	expect(new Set(numbers).size).toBe(20);
-	// After the drift-heal claim (14) the next 20 are 15..34.
-	expect(numbers[0]).toBe(15);
-	expect(numbers[19]).toBe(34);
+	// Self-seeded drift: max(number)=13 heals to 14; the concurrent claims
+	// include 14..33 (createTicket pre-validates, then the locked claim heals
+	// to GREATEST(counter, max)+1 — one ticket may take 14 itself).
+	expect(numbers[0]).toBe(14);
+	expect(numbers[19]).toBe(33);
 });
 
 test("T10: invalid status → ValidationError, no row/event write", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t10";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, `t-heal-${u}`, "Healed");
 	const before = await eventCount("org-1");
 	await expect(
-		work.setTicketStatus(sql, "org-1", "user-1", "t-heal", "bogus-status"),
+		work.setTicketStatus(sql, "org-1", "user-1", `t-heal-${u}`, "bogus-status"),
 	).rejects.toThrow();
 	expect(await eventCount("org-1")).toBe(before);
-	const [row] = await sql`SELECT status FROM task WHERE id = 't-heal'`;
+	const [row] = await sql`SELECT status FROM task WHERE id = ${`t-heal-${u}`}`;
 	expect(row.status).toBe("to-do");
 });
 
@@ -140,18 +176,20 @@ test("T11: archival orthogonal to status; closed status seals history + status-c
 	const { CLOSED_STATUS_SLUGS } = await import(
 		"../../packages/domain/src/status-taxonomy"
 	);
-	await work.updateTicket(sql, "org-1", "user-1", "t-heal", {
-		description: "v1",
-	});
-	await work.setTicketArchived(sql, "org-1", "user-1", "t-heal", true);
+	const u = "t11";
+	const heal = `t-heal-${u}`;
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, heal, "Healed");
+	await work.updateTicket(sql, "org-1", "user-1", heal, { description: "v1" });
+	await work.setTicketArchived(sql, "org-1", "user-1", heal, true);
 	let [row] =
-		await sql`SELECT status, archived_at FROM task WHERE id = 't-heal'`;
+		await sql`SELECT status, archived_at FROM task WHERE id = ${heal}`;
 	expect(row.status).toBe("to-do"); // status untouched
 	expect(row.archived_at).not.toBeNull();
-	await work.setTicketArchived(sql, "org-1", "user-1", "t-heal", false);
-	await work.setTicketStatus(sql, "org-1", "user-1", "t-heal", "done");
+	await work.setTicketArchived(sql, "org-1", "user-1", heal, false);
+	await work.setTicketStatus(sql, "org-1", "user-1", heal, "done");
 	[row] =
-		await sql`SELECT status, description_history, archived_at FROM task WHERE id = 't-heal'`;
+		await sql`SELECT status, description_history, archived_at FROM task WHERE id = ${heal}`;
 	expect(row.status).toBe("done");
 	expect(row.archived_at).toBeNull();
 	// Closing sealed the description history.
@@ -160,9 +198,9 @@ test("T11: archival orthogonal to status; closed status seals history + status-c
 	).toBe(true);
 	expect(CLOSED_STATUS_SLUGS).toContain("done");
 	const [event] =
-		await sql`SELECT payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed' ORDER BY seq DESC LIMIT 1`;
+		await sql`SELECT payload FROM event WHERE org = 'org-1' AND plugin_type = 'work:ticket-status-changed' AND payload->>'id' = ${heal} ORDER BY seq DESC LIMIT 1`;
 	expect(event.payload).toMatchObject({
-		id: "t-heal",
+		id: heal,
 		from: "to-do",
 		to: "done",
 	});
@@ -170,37 +208,51 @@ test("T11: archival orthogonal to status; closed status seals history + status-c
 
 test("T12: move board→board claims destination number, remaps status to first column, single tx", async () => {
 	const work = await import("../../packages/domain/src/work");
-	await work.createBoard(sql, "org-1", "user-1", {
-		id: "b2",
-		name: "Beta Board",
+	const u = "t12";
+	const heal = `t-heal-${u}`;
+	const cc1 = `t-cc-${u}-1`;
+	const { data: source } = await seedBoard(`b-${u}-src`, `Alpha ${u}`);
+	// 'done' at seed time: the move must remap to the destination board's
+	// own 'done' column row (same-name column wins — fork semantics).
+	const work2 = await import("../../packages/domain/src/work");
+	await work2.createTicket(sql, "org-1", "user-1", source.id, {
+		id: heal,
+		title: "Healed",
+		status: "done",
 	});
-	const result = await work.moveTicket(sql, "org-1", "user-1", "t-heal", "b2");
-	expect(result.data.boardId).toBe("b2");
+	await seedTicket(source.id, cc1, "CC 1");
+	const { data: dest } = await seedBoard(`b-${u}-dst`, `Beta ${u}`);
+	const result = await work.moveTicket(sql, "org-1", "user-1", heal, dest.id);
+	expect(result.data.boardId).toBe(dest.id);
 	expect(result.data.number).toBe(1); // fresh counter on destination
-	// b2 has a matching 'done' column → same-name column wins (fork semantics).
+	// Destination has a matching 'done' column → same-name column wins (fork semantics).
 	expect(result.data.status).toBe("done");
 	// A virtual source status (planned) is valid on any destination → survives.
-	await work.setTicketStatus(sql, "org-1", "user-1", "t-cc-1", "planned");
-	const moved2 = await work.moveTicket(sql, "org-1", "user-1", "t-cc-1", "b2");
+	await work.setTicketStatus(sql, "org-1", "user-1", cc1, "planned");
+	const moved2 = await work.moveTicket(sql, "org-1", "user-1", cc1, dest.id);
 	expect(moved2.data.status).toBe("planned");
-	const [source] =
-		await sql`SELECT last_task_number FROM "board" WHERE id = 'b1'`;
-	expect(source.last_task_number).toBe(34); // unchanged by the move
+	const [src] =
+		await sql`SELECT last_task_number FROM "board" WHERE id = ${source.id}`;
+	expect(src.last_task_number).toBe(2); // unchanged by the move
 	const [events] =
-		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND payload->>'id' = 't-heal' AND plugin_type = 'work:ticket-upserted'`;
+		await sql`SELECT count(*)::int AS count FROM event WHERE org = 'org-1' AND payload->>'id' = ${heal} AND plugin_type = 'work:ticket-upserted'`;
 	// Exactly one upsert streamed for the move (plus create/update events before).
 	expect(events.count).toBeGreaterThanOrEqual(1);
 });
 
 test("T13: reorder persists positions; status change through validation path", async () => {
 	const work = await import("../../packages/domain/src/work");
-	const tickets = await work.listTickets(sql, "org-1", "b1", {});
+	const u = "t13";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	for (const i of ["0", "1", "2"])
+		await seedTicket(board.id, `t-r-${u}-${i}`, `R ${i}`);
+	const tickets = await work.listTickets(sql, "org-1", board.id, {});
 	const ids = tickets.tickets.slice(0, 3).map((t) => t.id);
 	await work.reorderTickets(
 		sql,
 		"org-1",
 		"user-1",
-		"b1",
+		board.id,
 		ids.map((id, i) => ({ id, position: 100 + i })),
 	);
 	for (const [i, id] of ids.entries()) {
@@ -208,7 +260,7 @@ test("T13: reorder persists positions; status change through validation path", a
 		expect(row.position).toBe(100 + i);
 	}
 	await expect(
-		work.reorderTickets(sql, "org-1", "user-1", "b1", [
+		work.reorderTickets(sql, "org-1", "user-1", board.id, [
 			{ id: ids[0], position: 0, status: "bogus" },
 		]),
 	).rejects.toThrow();
@@ -216,66 +268,70 @@ test("T13: reorder persists positions; status change through validation path", a
 
 test("T14: label scope rules + uniqueness", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t14";
+	const cc = ["0", "1", "2"].map((i) => `t-cc-${u}-${i}`);
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	for (const [i, id] of cc.entries()) await seedTicket(board.id, id, `CC ${i}`);
 	// exactly-one-scope
 	await expect(
 		work.createLabel(sql, "org-1", "user-1", {
-			id: "l0",
+			id: `l-${u}-0`,
 			name: "Both",
 			color: "#000",
-			taskId: "t-cc-0",
+			taskId: cc[0],
 			organizationId: "org-1",
 		}),
 	).rejects.toThrow();
 	await expect(
 		work.createLabel(sql, "org-1", "user-1", {
-			id: "l0b",
+			id: `l-${u}-0b`,
 			name: "Neither",
 			color: "#000",
 		}),
 	).rejects.toThrow();
 	await work.createLabel(sql, "org-1", "user-1", {
-		id: "l1",
-		name: "Bug",
+		id: `l-${u}-1`,
+		name: `Bug ${u}`,
 		color: "#f00",
-		taskId: "t-cc-0",
+		taskId: cc[0],
 	});
 	// per-task name unique
 	await expect(
 		work.createLabel(sql, "org-1", "user-1", {
-			id: "l2",
-			name: "Bug",
+			id: `l-${u}-2`,
+			name: `Bug ${u}`,
 			color: "#0f0",
-			taskId: "t-cc-0",
+			taskId: cc[0],
 		}),
 	).rejects.toThrow();
 	// org-global
 	await work.createLabel(sql, "org-1", "user-1", {
-		id: "l3",
-		name: "Global",
+		id: `l-${u}-3`,
+		name: `Global ${u}`,
 		color: "#00f",
 		organizationId: "org-1",
 	});
 	// org-global unique only when task-scoped null: same name task-scoped is fine
 	await work.createLabel(sql, "org-1", "user-1", {
-		id: "l4",
-		name: "Global",
+		id: `l-${u}-4`,
+		name: `Global ${u}`,
 		color: "#00f",
-		taskId: "t-cc-1",
+		taskId: cc[1],
 	});
 	// unassign + reassign
 	const moved = await work.assignLabelTask(
 		sql,
 		"org-1",
 		"user-1",
-		"l3",
-		"t-cc-2",
+		`l-${u}-3`,
+		cc[2],
 	);
-	expect(moved.data.taskId).toBe("t-cc-2");
+	expect(moved.data.taskId).toBe(cc[2]);
 	const unassigned = await work.assignLabelTask(
 		sql,
 		"org-1",
 		"user-1",
-		"l3",
+		`l-${u}-3`,
 		null,
 	);
 	expect(unassigned.data.taskId).toBeNull();
@@ -283,29 +339,31 @@ test("T14: label scope rules + uniqueness", async () => {
 
 test("T15: template validates data shape; apply fills defaults incl. board assignee", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t15";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
 	await expect(
 		work.createTemplate(sql, "org-1", "user-1", {
-			id: "tmpl-bad",
+			id: `tmpl-${u}-bad`,
 			organizationId: "org-1",
-			name: "Bad",
+			name: `Bad ${u}`,
 			data: { title: "x", priority: "cosmic" },
 		}),
 	).rejects.toThrow();
 	await expect(
 		work.createTemplate(sql, "org-1", "user-1", {
-			id: "tmpl-bad2",
+			id: `tmpl-${u}-bad2`,
 			organizationId: "org-1",
-			name: "Bad2",
+			name: `Bad2 ${u}`,
 			data: "not-an-object",
 		}),
 	).rejects.toThrow();
-	await work.updateBoard(sql, "org-1", "user-1", "b1", {
+	await work.updateBoard(sql, "org-1", "user-1", board.id, {
 		defaultAssigneeId: "user-2",
 	});
 	await work.createTemplate(sql, "org-1", "user-1", {
-		id: "tmpl-1",
+		id: `tmpl-${u}`,
 		organizationId: "org-1",
-		name: "Bug report",
+		name: `Bug report ${u}`,
 		data: {
 			title: "Templated",
 			description: "From template",
@@ -317,10 +375,10 @@ test("T15: template validates data shape; apply fills defaults incl. board assig
 			labels: [],
 		},
 	});
-	const result = await work.createTicket(sql, "org-1", "user-1", "b1", {
-		id: "t-tmpl",
+	const result = await work.createTicket(sql, "org-1", "user-1", board.id, {
+		id: `t-tmpl-${u}`,
 		title: "ignored",
-		templateId: "tmpl-1",
+		templateId: `tmpl-${u}`,
 	});
 	expect(result.data.title).toBe("Templated");
 	expect(result.data.description).toBe("From template");
@@ -332,87 +390,107 @@ test("T15: template validates data shape; apply fills defaults incl. board assig
 
 test("T16: flag target XOR enforced; flag-type delete blocked while referenced", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t16";
+	const cc0 = `t-cc-${u}-0`;
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, cc0, "CC 0");
 	await work.createFlagType(sql, "org-1", "user-1", {
-		id: "ft-1",
-		boardId: "b1",
+		id: `ft-${u}`,
+		boardId: board.id,
 		name: "Attention",
 	});
 	await expect(
-		work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", {
-			id: "f0",
-			flagTypeId: "ft-1",
+		work.createTicketFlag(sql, "org-1", "user-1", cc0, {
+			id: `f-${u}-0`,
+			flagTypeId: `ft-${u}`,
 		}),
 	).rejects.toThrow();
 	await expect(
-		work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", {
-			id: "f0b",
-			flagTypeId: "ft-1",
+		work.createTicketFlag(sql, "org-1", "user-1", cc0, {
+			id: `f-${u}-0b`,
+			flagTypeId: `ft-${u}`,
 			targetUserId: "user-1",
 			targetTeamId: "team-1",
 		}),
 	).rejects.toThrow();
-	const flag = await work.createTicketFlag(sql, "org-1", "user-1", "t-cc-0", {
-		id: "f1",
-		flagTypeId: "ft-1",
+	const flag = await work.createTicketFlag(sql, "org-1", "user-1", cc0, {
+		id: `f-${u}-1`,
+		flagTypeId: `ft-${u}`,
 		targetUserId: "user-2",
 		note: "please review",
 	});
 	expect(flag.data.targetUserId).toBe("user-2");
 	await expect(
-		work.deleteFlagType(sql, "org-1", "user-1", "ft-1"),
+		work.deleteFlagType(sql, "org-1", "user-1", `ft-${u}`),
 	).rejects.toThrow();
 });
 
 test("T17: resolve requires nonempty note, stamps resolver, keeps row, idempotent re-resolve rejected", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t17";
+	const cc0 = `t-cc-${u}-0`;
+	const flagId = `f-${u}-1`;
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, cc0, "CC 0");
+	await work.createFlagType(sql, "org-1", "user-1", {
+		id: `ft-${u}`,
+		boardId: board.id,
+		name: "Attention",
+	});
+	await work.createTicketFlag(sql, "org-1", "user-1", cc0, {
+		id: flagId,
+		flagTypeId: `ft-${u}`,
+		targetUserId: "user-2",
+		note: "please review",
+	});
 	await expect(
-		work.resolveTicketFlag(sql, "org-1", "user-1", "f1", ""),
+		work.resolveTicketFlag(sql, "org-1", "user-1", flagId, ""),
 	).rejects.toThrow();
 	await expect(
-		work.resolveTicketFlag(sql, "org-1", "user-1", "f1", "   "),
+		work.resolveTicketFlag(sql, "org-1", "user-1", flagId, "   "),
 	).rejects.toThrow();
 	const resolved = await work.resolveTicketFlag(
 		sql,
 		"org-1",
 		"user-1",
-		"f1",
+		flagId,
 		"done reviewing",
 	);
 	expect(resolved.data.resolveNote).toBe("done reviewing");
 	expect(resolved.data.resolvedBy).toBe("user-1");
 	expect(resolved.data.resolvedAt).not.toBeNull();
 	await expect(
-		work.resolveTicketFlag(sql, "org-1", "user-1", "f1", "again"),
+		work.resolveTicketFlag(sql, "org-1", "user-1", flagId, "again"),
 	).rejects.toThrow();
-	const flags = await work.listTicketFlags(sql, "org-1", "t-cc-0");
+	const flags = await work.listTicketFlags(sql, "org-1", cc0);
 	expect(flags.flags).toHaveLength(1); // row kept
 });
 
 test("T21: board delete blocked BoardNotEmpty when tickets exist; empty board cascades aliases", async () => {
 	const work = await import("../../packages/domain/src/work");
+	const u = "t21";
+	const { data: board } = await seedBoard(`b-${u}`, `Alpha ${u}`);
+	await seedTicket(board.id, `t-${u}`, "Blocks delete");
 	// Tickets block deletion (BoardNotEmpty).
 	await expect(
-		work.deleteBoard(sql, "org-1", "user-1", "b1"),
+		work.deleteBoard(sql, "org-1", "user-1", board.id),
 	).rejects.toThrow();
 	// Statuses are seeded structural chrome: ticket-free board deletes and
 	// cascades its statuses + aliases (fork's ticket cascade is the foot-gun;
 	// the guard protects tickets only).
-	await sql`DELETE FROM task WHERE board_id = 'b1'`;
-	await work.deleteBoard(sql, "org-1", "user-1", "b1");
+	await sql`DELETE FROM task WHERE board_id = ${board.id}`;
+	await work.deleteBoard(sql, "org-1", "user-1", board.id);
 	const [cols] =
-		await sql`SELECT count(*)::int AS count FROM "column" WHERE board_id = 'b1'`;
+		await sql`SELECT count(*)::int AS count FROM "column" WHERE board_id = ${board.id}`;
 	expect(cols.count).toBe(0);
-	await work.createBoard(sql, "org-1", "user-1", {
-		id: "b-empty",
-		name: "Empty",
-	});
-	await work.setBoardKey(sql, "org-1", "user-1", "b-empty", "EMPT");
+	const { data: bEmpty } = await seedBoard(`b-${u}-empty`, "Empty");
+	await work.setBoardKey(sql, "org-1", "user-1", bEmpty.id, "EMPT");
 	const [alias] =
-		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = 'b-empty'`;
+		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = ${bEmpty.id}`;
 	expect(alias.count).toBe(1);
-	await work.deleteBoard(sql, "org-1", "user-1", "b-empty");
+	await work.deleteBoard(sql, "org-1", "user-1", bEmpty.id);
 	const [gone] =
-		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = 'b-empty'`;
+		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE board_id = ${bEmpty.id}`;
 	expect(gone.count).toBe(0);
 });
 
