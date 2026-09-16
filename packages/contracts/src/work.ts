@@ -426,6 +426,12 @@ export const WorkApi = HttpApi.make("work").add(
 				.addSuccess(WorkErrorVariants as never),
 		)
 		.add(
+			HttpApiEndpoint.del("removeBoardKey", "/api/work/board-keys/:id")
+				.setPath(Schema.Struct({ id: ID }))
+				.addSuccess(M(DeletedId))
+				.addSuccess(WorkErrorVariants as never),
+		)
+		.add(
 			HttpApiEndpoint.put("putBoardKey", "/api/work/boards/:id/key")
 				.setPath(Schema.Struct({ id: ID }))
 				.setPayload(PutBoardKeyRequest)

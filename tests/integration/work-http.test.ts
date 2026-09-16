@@ -419,3 +419,58 @@ test("D3: prod-composed work handler stamps the bearer principal as event actor"
 		await prod.dispose();
 	}
 });
+
+// D2-fix (rework c40): the previously-dead `work:board-key-deleted` contract
+// gains its producer — DELETE /api/work/board-keys/:id. Renames an old board
+// key (creating an alias), then removes that alias: one tx, {id} payload.
+test("D2: DELETE /api/work/board-keys/:id removes the alias and streams work:board-key-deleted", async () => {
+	const H2 = { ...H("org-1"), "content-type": "application/json" };
+	const boardRes = await http.handler(
+		new Request("http://x/api/work/boards", {
+			method: "POST",
+			headers: H2,
+			body: JSON.stringify({ name: "D2 Board" }),
+		}),
+	);
+	const board = (
+		(await boardRes.json()) as { data: { id: string; slug: string } }
+	).data;
+	// Rename → prior slug becomes an alias row.
+	const keyRes = await http.handler(
+		new Request(`http://x/api/work/boards/${board.id}/key`, {
+			method: "PUT",
+			headers: H2,
+			body: JSON.stringify({ key: "D2KEY" }),
+		}),
+	);
+	expect(keyRes.status).toBe(200);
+	const [alias] = await sql`SELECT id FROM board_key_alias
+		WHERE organization_id = 'org-1' AND board_id = ${board.id} AND key = ${board.slug}`;
+	expect(alias?.id).toBeTruthy();
+	// Remove the alias through the new endpoint.
+	const del = await http.handler(
+		new Request(`http://x/api/work/board-keys/${alias.id}`, {
+			method: "DELETE",
+			headers: H("org-1"),
+		}),
+	);
+	expect(del.status).toBe(200);
+	const delBody = (await del.json()) as { data: { id: string }; txid: number };
+	expect(delBody.data.id).toBe(alias.id);
+	// The delete event carries {id} and settles with the same committed txid.
+	const [event] = await sql`SELECT txid::int AS txid, payload FROM event
+		WHERE org = 'org-1' AND plugin_type = 'work:board-key-deleted'`;
+	expect(event?.payload).toEqual({ id: alias.id });
+	expect(event?.txid).toBe(delBody.txid);
+	const [gone] =
+		await sql`SELECT count(*)::int AS count FROM board_key_alias WHERE id = ${alias.id}`;
+	expect(gone.count).toBe(0);
+	// Foreign-org alias ≡ absent (post-auth 404).
+	const foreign = await http.handler(
+		new Request(`http://x/api/work/board-keys/${alias.id}`, {
+			method: "DELETE",
+			headers: H("org-2"),
+		}),
+	);
+	expect(foreign.status).toBe(404);
+});

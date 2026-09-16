@@ -135,6 +135,7 @@ const SERVICE_SPAN_NAMES: Record<string, string> = {
 	getBoard: "resolveBoardRef",
 	unarchiveBoard: "archiveBoard",
 	putBoardKey: "setBoardKey",
+	removeBoardKey: "removeBoardKey",
 	putTicketStatus: "setTicketStatus",
 	deleteTicket: "softDeleteTicket",
 	putTicketArchived: "setTicketArchived",
@@ -237,6 +238,13 @@ export function workHandler(
 			if (isWorkError(s)) return s;
 			return ok(
 				await work.archiveBoard(sql, s.org, s.principal, ctx.path.id, false),
+			);
+		},
+		removeBoardKey: async (ctx) => {
+			const s = auth(ctx);
+			if (isWorkError(s)) return s;
+			return ok(
+				await work.removeBoardKey(sql, s.org, s.principal, ctx.path.id),
 			);
 		},
 		putBoardKey: async (ctx) => {
@@ -715,6 +723,7 @@ const WORK_ROUTES: Array<[RegExp, string]> = [
 	[/^\/api\/work\/boards\/([^/]+)\/key$/, "/api/work/boards/:id/key"],
 	[/^\/api\/work\/boards\/([^/]+)$/, "/api/work/boards/:id"],
 	[/^\/api\/work\/boards$/, "/api/work/boards"],
+	[/^\/api\/work\/board-keys\/([^/]+)$/, "/api/work/board-keys/:id"],
 	[/^\/api\/work\/statuses\/([^/]+)$/, "/api/work/statuses/:id"],
 	[/^\/api\/work\/tickets\/bulk$/, "/api/work/tickets/bulk"],
 	[/^\/api\/work\/tickets\/([^/]+)\/status$/, "/api/work/tickets/:id/status"],

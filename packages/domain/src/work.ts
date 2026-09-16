@@ -738,6 +738,25 @@ export async function updateStatus(
 	});
 }
 
+/** D2-fix (rework c40): alias removal — the producer of the previously-dead
+ * `work:board-key-deleted` contract. Removes one alias row owned by `org`,
+ * emitting `{id}` on the same transaction (§2). Unknown/foreign aliases 404. */
+export async function removeBoardKey(
+	sql: Sql,
+	org: string,
+	actor: string,
+	aliasId: string,
+) {
+	return runTx(sql, org, actor, async (tx, { txid, emit }) => {
+		const [row] =
+			await tx`SELECT * FROM board_key_alias WHERE id = ${aliasId} AND organization_id = ${org}`;
+		if (!row) throw new WorkNotFound();
+		await tx`DELETE FROM board_key_alias WHERE id = ${aliasId}`;
+		await emit("work:board-key-deleted", { id: aliasId });
+		return { data: { id: aliasId }, txid };
+	});
+}
+
 export async function deleteStatus(
 	sql: Sql,
 	org: string,
