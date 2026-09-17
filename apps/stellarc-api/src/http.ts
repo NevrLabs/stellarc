@@ -122,7 +122,6 @@ export function foundationHandler(
 								url,
 								undefined,
 								() => authorize(path.org, request.headers, principal) === "ok",
-								(pageUrl) => enginePage(engine, path.org, pageUrl),
 							)
 							.pipe(
 								Effect.map((response) =>
