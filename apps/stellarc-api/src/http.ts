@@ -9,6 +9,7 @@ import { Effect, Layer } from "effect";
 import type { Sql } from "postgres";
 import { FoundationApi } from "../../../packages/contracts/src/api";
 import type { ShapeEngine } from "../../../packages/sync/src/index";
+import { negotiateSse } from "../../../packages/sync/src/sse";
 import { errorResponse } from "./errors";
 
 export type AuthzResult = "ok" | "unauthenticated" | "forbidden";
@@ -111,10 +112,38 @@ export function foundationHandler(
 									? "Unauthenticated"
 									: "Forbidden",
 						});
-					const response = yield* engine.shapeEffect(
-						path.org,
-						new URL(request.url, "http://localhost"),
-					);
+					const url = new URL(request.url, "http://localhost");
+					// STL-25: qualifying requests upgrade to a held-open SSE
+					// stream; everything else keeps the JSON long-poll path.
+					if (negotiateSse(url, request.headers.accept)) {
+						return yield* engine
+							.sseEffect(
+								path.org,
+								url,
+								undefined,
+								() => authorize(path.org, request.headers, principal) === "ok",
+								(pageUrl) => enginePage(engine, path.org, pageUrl),
+							)
+							.pipe(
+								Effect.map((response) =>
+									response instanceof Response && response.status === 200
+										? HttpServerResponse.raw(response.body, {
+												status: 200,
+												headers: principalHeaders(
+													Object.fromEntries(response.headers),
+													principal,
+												),
+											})
+										: errorResponse({
+												_tag: "Conflict",
+											}),
+								),
+								Effect.catchAll((error) =>
+									Effect.succeed(errorResponse(error)),
+								),
+							);
+					}
+					const response = yield* engine.shapeEffect(path.org, url);
 					const resumed = authorize(path.org, request.headers, principal);
 					if (resumed !== "ok")
 						return errorResponse({
@@ -157,6 +186,15 @@ export function foundationHandler(
 		},
 	);
 }
+
+// STL-25: run one engine page fetch inside the handler Effect context so
+// spans/metrics stay in the request trace (sseEffect receives it as a callable).
+const enginePage = (
+	engine: ShapeEngine,
+	org: string,
+	pageUrl: URL,
+): Promise<Response> =>
+	engine.shape(org, pageUrl).catch(() => new Response(null, { status: 503 }));
 
 // The bearer token doubles as the test principal ("Bearer <org> <id>"); real
 // identity arrives with STL-15. The grammar lives in the test-composed server

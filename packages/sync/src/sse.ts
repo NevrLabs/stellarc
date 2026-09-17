@@ -140,6 +140,7 @@ export async function runSseStream(
 	let sawUpToDate = false;
 	let position = url.searchParams.get("offset") ?? "-1";
 	let frames = 0;
+	let firstPage = true;
 	let summary: SseStreamSummary = { frames: 0, fallback: true, durationMs: 0 };
 	const start = Date.now();
 	try {
@@ -156,11 +157,16 @@ export async function runSseStream(
 				emit(encodeDataFrame(message));
 				frames++;
 			}
+			const hadChanges = result.messages.length > 0;
 			position = result.nextCursor;
-			if (result.caughtUp) {
-				// A quiet stream emits its up-to-date boundary at cycle close; a
-				// stream that just caught up mid-cycle emits one immediately so the
-				// stock client flushes buffered change frames to subscribers.
+			// Tail from the advanced position on the next page fetch so writes
+			// during the held-open stream are picked up (client tracks position
+			// via our up-to-date frames, our pages advance via this).
+			url.searchParams.set("offset", result.nextCursor);
+			if (hadChanges) {
+				// Changes must flush to subscribers now: an up-to-date boundary
+				// right behind them (the stock client only publishes on
+				// up-to-date frames in SSE mode).
 				emit(
 					encodeDataFrame({
 						headers: {
@@ -171,6 +177,24 @@ export async function runSseStream(
 				);
 				frames++;
 				sawUpToDate = true;
+			}
+			if (firstPage) {
+				// The stream opened mid-log (tailing from an issued offset): the
+				// first quiet page still owes the client one boundary so its
+				// LiveState offset advances off the SSE frame.
+				firstPage = false;
+				if (!hadChanges) {
+					emit(
+						encodeDataFrame({
+							headers: {
+								control: "up-to-date",
+								global_last_seen_lsn: position.split("_")[0] ?? "0",
+							},
+						}),
+					);
+					frames++;
+					sawUpToDate = true;
+				}
 			}
 			// Idle keep-alive: comments at the interval while nothing else flows.
 			const idleFor = Date.now() - lastEmit;

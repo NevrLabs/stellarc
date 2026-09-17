@@ -18,6 +18,7 @@ async function runEffect<A>(
 
 import type { Sql } from "postgres";
 import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
+import { recordSseMetrics, runSseStream } from "./sse";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
 
 export class ShapeEngine {
@@ -114,13 +115,32 @@ export class ShapeEngine {
 			),
 		)();
 	}
+	private async ssePageFromResponse(
+		response: Response,
+	): Promise<import("./sse").SsePageResult> {
+		if (response.status !== 200)
+			throw new SsePageError(
+				response.status,
+				response.status === 409 ? "must-refetch" : "error",
+			);
+		const messages = (await response.clone().json()) as Array<{
+			headers: { operation?: string; control?: string };
+		}>;
+		return {
+			messages: messages.filter((m) => m.headers.operation),
+			nextCursor: response.headers.get("electric-offset") ?? "0_0",
+			caughtUp: messages.some((m) => m.headers.control === "up-to-date"),
+			schemaHeader: response.headers.get("electric-schema"),
+		};
+	}
+
 	/** STL-25: one SSE page fetch, parsed for the streaming branch. Throws on
 	 * SQL/driver failure so the stream driver maps it to must-refetch. */
 	async ssePage(org: string, url: URL): Promise<import("./sse").SsePageResult> {
 		const response = await this.page(org, url);
 		if (response.status !== 200) {
-			const body = response.status === 409 ? "must-refetch" : "error";
-			throw new SsePageError(response.status, body);
+			const detail = response.status === 409 ? "must-refetch" : "error";
+			throw new SsePageError(response.status, detail);
 		}
 		const messages = (await response.clone().json()) as Array<{
 			headers: { operation?: string; control?: string };
@@ -134,6 +154,71 @@ export class ShapeEngine {
 			schemaHeader: response.headers.get("electric-schema"),
 		};
 	}
+
+	/**
+	 * STL-25: the SSE response for a qualifying request. The stream runs the
+	 * existing page loop with cycle close at the 20s deadline; metrics record
+	 * through `runtime` so OTel owns them (ADR 0010). Authorization is
+	 * re-checked by the caller at cycle boundaries via `authorize`.
+	 */
+	sseEffect = Effect.fn("stellarc.shape.sse")(
+		(
+			org: string,
+			url: URL,
+			signal: AbortSignal | undefined,
+			authorize: () => boolean,
+			page: (pageUrl: URL) => Promise<Response>,
+		) => {
+			const self = this;
+			return Effect.gen(function* () {
+				const rt = yield* Effect.runtime<never>();
+				const cursor = crypto.randomUUID();
+				// Pre-stream page: an expired handle must surface the JSON 409
+				// contract, never a stream (spec §3).
+				const first = yield* Effect.tryPromise(() =>
+					self.ssePage(org, url),
+				).pipe(Effect.mapError((error) => error as Error));
+				const headers = new Headers({
+					"content-type": "text/event-stream",
+					"cache-control": "no-store",
+					"electric-handle": url.searchParams.get("handle") ?? "",
+					"electric-offset": url.searchParams.get("offset") ?? "-1",
+					"electric-schema":
+						first.schemaHeader ?? JSON.stringify(electricSchema),
+					"electric-cursor": cursor,
+					"X-Accel-Buffering": "no",
+				});
+				const stream = new ReadableStream<Uint8Array>({
+					async start(controller) {
+						try {
+							const summary = await runSseStream(
+								url,
+								signal,
+								(chunk) => {
+									controller.enqueue(chunk);
+								},
+								{
+									page: (pageUrl) =>
+										runEffect(rt, self.pageEffect(org, pageUrl)).then(
+											(response) => self.ssePageFromResponse(response),
+										),
+									authorize,
+								},
+							);
+							await Runtime.runPromise(rt)(recordSseMetrics(summary));
+						} catch {
+							// client disconnect mid-stream: release quietly
+						} finally {
+							try {
+								controller.close();
+							} catch {}
+						}
+					},
+				});
+				return new Response(stream, { status: 200, headers });
+			});
+		},
+	);
 
 	private async runShape(
 		_org: string,
@@ -336,4 +421,9 @@ export class SsePageError extends Error {
 	) {
 		super(`SSE page error: ${status}`);
 	}
+}
+
+/** Pre-stream conflict (expired handle) mapped to the JSON 409 contract. */
+export class ConflictError extends Error {
+	_tag = "Conflict";
 }
