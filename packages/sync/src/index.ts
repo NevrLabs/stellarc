@@ -167,7 +167,6 @@ export class ShapeEngine {
 			url: URL,
 			signal: AbortSignal | undefined,
 			authorize: () => boolean,
-			page: (pageUrl: URL) => Promise<Response>,
 		) => {
 			const self = this;
 			return Effect.gen(function* () {

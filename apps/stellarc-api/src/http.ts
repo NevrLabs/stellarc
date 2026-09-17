@@ -187,15 +187,6 @@ export function foundationHandler(
 	);
 }
 
-// STL-25: run one engine page fetch inside the handler Effect context so
-// spans/metrics stay in the request trace (sseEffect receives it as a callable).
-const enginePage = (
-	engine: ShapeEngine,
-	org: string,
-	pageUrl: URL,
-): Promise<Response> =>
-	engine.shape(org, pageUrl).catch(() => new Response(null, { status: 503 }));
-
 // The bearer token doubles as the test principal ("Bearer <org> <id>"); real
 // identity arrives with STL-15. The grammar lives in the test-composed server
 // only — production parses no tokens (§3).
