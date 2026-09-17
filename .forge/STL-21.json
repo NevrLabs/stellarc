@@ -455,12 +455,64 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-17T17:31:29+00:00",
    "cycle": 13,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1013891
+   "pid": 1013891,
+   "reason": "orphan running: watcher pid 1013891 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-17T18:41:03+00:00",
+   "agent": "7bbcf826-bf1d-4c51-869f-d1db0ab572b0",
+   "cycle": 13,
+   "artifact": ".forge/STL-21.review-13.md"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T18:44:17+00:00",
+   "cycle": 14,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-21",
+   "pr": 57,
+   "pid": 1066771,
+   "agent": "259fd638-9898-4103-90da-b0158e0b3345",
+   "head": "dca27869",
+   "reason": "orphan running: watcher pid 1066771 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-17T19:50:04+00:00",
+   "agent": "259fd638-9898-4103-90da-b0158e0b3345",
+   "cycle": 14,
+   "pr": 57,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/57",
+   "branch": "forge/stl-21"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-17T19:52:20+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-17T19:52:22+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-17T19:52:23+00:00",
+   "cycle": 14,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1116049
   }
  ],
- "cycle": 13
+ "cycle": 14
 }
