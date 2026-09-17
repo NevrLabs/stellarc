@@ -482,7 +482,8 @@ export function foundationHandler(
 			)
 			.handleRaw("getProject", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
 					const row = await timed("db.projects.get-project", () =>
@@ -500,7 +501,8 @@ export function foundationHandler(
 					const payload = await jsonBody(request);
 					if (!payload || typeof payload !== "object") return invalid();
 					const p = payload as Record<string, unknown>;
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
 					const row = await runEffect(
@@ -535,7 +537,8 @@ export function foundationHandler(
 					const payload = await jsonBody(request);
 					if (!payload || typeof payload !== "object") return invalid();
 					const p = payload as Record<string, unknown>;
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
 					const row = await runEffect(
@@ -555,7 +558,8 @@ export function foundationHandler(
 			)
 			.handleRaw("archiveProject", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
 					const row = await runEffect(
@@ -574,7 +578,8 @@ export function foundationHandler(
 			)
 			.handleRaw("unarchiveProject", ({ path, request }) =>
 				Effect.tryPromise(async () => {
-					const org = queryOrg(request);
+					const org = await scopedOrg(request, path.projectId);
+					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
 					const row = await runEffect(

@@ -177,6 +177,14 @@ async function stubIdentity(page: Page) {
       path === "/api/auth/organization/has-permission"
     ) {
       await route.fulfill({ json: { success: true, error: null } });
+    } else if (process.env.SABOTAGE_STATIC_FIXTURE) {
+      // NEGATIVE CONTROL (T16): intercept project traffic with a static
+      // fixture — the parity counters must fail the suite.
+      if (path.startsWith("/api/project")) {
+        await route.fulfill({ json: [] });
+        return;
+      }
+      await route.fallback();
     } else {
       await route.fallback();
     }
@@ -231,5 +239,115 @@ test("project detail renders live overview with milestones and updates tabs", as
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveScreenshot("project-detail-live.png");
   // Parity evidence for the detail surface.
+  expect(projectRequests()).toBeGreaterThan(hitsBefore);
+});
+
+test("create-project modal creates a live project and navigates to it", async ({
+  page,
+}) => {
+  const { uiUrl, projectRequests } = await harness();
+  const hitsBefore = projectRequests();
+  await stubIdentity(page);
+  await page.goto(`${uiUrl}/dashboard/organization/foundation/projects`);
+  await expect(
+    page.getByRole("button", { name: "New project" }).first(),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "New project" })
+    .first()
+    .click();
+  // Modal open (frozen CreateProjectModal shape: name/summary/lead + submit).
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("projects-create-modal.png");
+  await page
+    .getByPlaceholder("Name")
+    .fill("Live Parity Probe");
+  await page.getByPlaceholder("Summary").fill("Created through the modal.");
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "Ada" }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+  // The mutation settled: navigation lands on the new project's detail
+  // (created.slug — the live API response drove the router, not a fixture).
+  await expect(page.getByTestId("project-overview")).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(page).toHaveURL(/\/projects\/live-parity-probe$/);
+  await expect(page.getByText("Created through the modal.").first()).toBeVisible();
+  // Parity evidence: POST + resolve hit the live API.
+  expect(projectRequests()).toBeGreaterThan(hitsBefore + 1);
+});
+
+test("archive row action hides the live project until include-archived", async ({
+  page,
+}, info) => {
+  const { uiUrl, projectRequests } = await harness();
+  const hitsBefore = projectRequests();
+  await stubIdentity(page);
+  await page.goto(`${uiUrl}/dashboard/organization/foundation/projects`);
+  if (info.project.name.startsWith("mobile")) {
+    // The frozen ProjectList renders a md:table only; below md there is no
+    // archive affordance to exercise (fork-identical). Desktop/tablet carry it.
+    test.info().annotations.push({ type: "skip", description: "no mobile list" });
+    return;
+  }
+  const foundationRow = page
+    .getByTestId("project-row")
+    .filter({ hasText: "Sync Foundation" });
+  await expect(foundationRow).toBeVisible();
+  // Scope the archive action to the Sync Foundation row (earlier tests in
+  // this worker created additional live projects).
+  await foundationRow
+    .getByRole("button", { name: "Archive" })
+    .click();
+  // Live mutation settled: row leaves the active list (refetch after
+  // invalidation, no interception).
+  await expect(page.getByText("Sync Foundation")).toHaveCount(0);
+  await expect(page.getByTestId("project-list-table")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("projects-after-archive.png");
+  // includeArchived: the archived project re-enters the list via a fresh
+  // live query (frozen checkbox refetches with includeArchived=true).
+  await page.getByRole("checkbox", { name: "Include archived" }).check();
+  await expect(page.getByText("Sync Foundation").first()).toBeVisible();
+  await expect(page).toHaveScreenshot("projects-include-archived.png");
+  // Unarchive restores the active row (same live path).
+  await page
+    .getByTestId("project-row")
+    .filter({ hasText: "Sync Foundation" })
+    .getByRole("button", { name: "Unarchive" })
+    .click();
+  await page.getByRole("checkbox", { name: "Include archived" }).uncheck();
+  await expect(page.getByText("Sync Foundation").first()).toBeVisible();
+  expect(projectRequests()).toBeGreaterThan(hitsBefore + 1);
+});
+
+test("updates tab publishes a live update with health picklist", async ({
+  page,
+}) => {
+  const { uiUrl, projectRequests } = await harness();
+  const hitsBefore = projectRequests();
+  await stubIdentity(page);
+  await page.goto(
+    `${uiUrl}/dashboard/organization/foundation/projects/foundation-lab`,
+  );
+  // The updates route is URL-reachable (frozen §6 surface); at the pinned
+  // fork commit no in-app tab links here yet — ProjectTabs lists
+  // overview/tickets only, so parity drives the route directly.
+  await page.goto(
+    `${uiUrl}/dashboard/organization/foundation/projects/foundation-lab/updates`,
+  );
+  await expect(page.getByTestId("project-updates-panel")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("project-updates-tab.png");
+  await page.getByPlaceholder("Share an update").fill("Parity probe update.");
+  await page.getByRole("combobox").click();
+  await page.getByRole("option", { name: "At risk" }).click();
+  await page.getByRole("button", { name: "Post update" }).click();
+  await expect(page.getByText("Parity probe update.").first()).toBeVisible({
+    timeout: 15000,
+  });
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("project-updates-published.png");
   expect(projectRequests()).toBeGreaterThan(hitsBefore);
 });
