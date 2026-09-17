@@ -2,7 +2,6 @@ import { Effect } from "effect";
 import type { Sql } from "postgres";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import {
-	createSourceSchema,
 	reconciliationViolations,
 	repositoryFixture,
 	SRC_ORG_A,

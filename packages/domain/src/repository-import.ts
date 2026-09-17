@@ -332,7 +332,7 @@ function rowDigest(row: DumpRow): string {
 }
 
 /** Compare-first: ids and digests of the current destination rows. */
-async function existingDigests(
+async function _existingDigests(
 	tx: Parameters<Parameters<Sql["begin"]>[1]>[0],
 	table: string,
 ): Promise<Map<string, string>> {

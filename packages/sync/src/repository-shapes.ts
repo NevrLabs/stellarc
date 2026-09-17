@@ -208,7 +208,7 @@ const integrationSpec: ShapeTableSpec = {
 		created_at: { type: "timestamp", not_null: true },
 		updated_at: { type: "timestamp", not_null: true },
 	},
-	snapshot: async (tx, org) => {
+	snapshot: async (tx, _org) => {
 		// The board table belongs to STL-16; until it exists, org scoping for
 		// integrations is enforced through the event payload's safe metadata.
 		return (await tx`SELECT id, board_id, type, is_active, created_at, updated_at

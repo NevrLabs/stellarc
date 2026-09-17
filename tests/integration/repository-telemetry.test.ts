@@ -13,7 +13,13 @@ let close: () => Promise<void>;
 let server: {
 	url: string;
 	telemetry: {
-		spans: { getFinishedSpans: () => Array<{ name: string; attributes: Record<string, unknown>; spanContext: () => { traceId: string } }> };
+		spans: {
+			getFinishedSpans: () => Array<{
+				name: string;
+				attributes: Record<string, unknown>;
+				spanContext: () => { traceId: string };
+			}>;
+		};
 	};
 	close: () => Promise<void>;
 };

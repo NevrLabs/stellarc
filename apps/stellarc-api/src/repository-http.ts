@@ -11,6 +11,7 @@ import type { Sql } from "postgres";
 import { RepositoryApiGroup } from "../../../packages/contracts/src/repository-http";
 
 const RepositoryApi = HttpApi.make("repository").add(RepositoryApiGroup);
+
 import {
 	grantDeleteEffect,
 	installationDeleteEffect,
@@ -21,7 +22,7 @@ import {
 	repoUpsertEffect,
 } from "../../../packages/domain/src/repository";
 import { errorResponse } from "./errors";
-import type { AuthzResult, Authorize } from "./http";
+import type { Authorize, AuthzResult } from "./http";
 
 // STL-18 §3: repository HTTP surface served from the same Effect HTTP
 // machinery as http.ts (T0). One raw handler per §3 route over the domain
@@ -45,7 +46,10 @@ const ROUTES: Array<[RegExp, string]> = [
 		/^\/api\/identity\/orgs\/([^/]+)\/github\/installations(\/[^/]+)?$/,
 		"/api/identity/orgs/:org/github/installations",
 	],
-	[/^\/api\/identity\/github\/grants(\/[^/]+)?$/, "/api/identity/github/grants"],
+	[
+		/^\/api\/identity\/github\/grants(\/[^/]+)?$/,
+		"/api/identity/github/grants",
+	],
 	[
 		/^\/api\/identity\/orgs\/([^/]+)\/integrations(\/[^/]+)?$/,
 		"/api/identity/orgs/:org/integrations",
@@ -159,7 +163,9 @@ function decodeBody(
 
 class HttpValidationError extends Error {}
 
-const httpValidation = (error: unknown): HttpServerResponse.HttpServerResponse =>
+const httpValidation = (
+	error: unknown,
+): HttpServerResponse.HttpServerResponse =>
 	error instanceof HttpValidationError
 		? validationError(error.message)
 		: classify(error);
@@ -183,7 +189,9 @@ const validId = (id: string): string => {
 // --- row → public DTO (camelCase wire; secrets redacted) ------------------
 
 const iso = (value: unknown): string | null =>
-	value instanceof Date ? value.toISOString() : (value as string | null) ?? null;
+	value instanceof Date
+		? value.toISOString()
+		: ((value as string | null) ?? null);
 
 async function repoPublic(sql: Sql, row: Row) {
 	const [counts] = (await sql`SELECT
@@ -328,12 +336,14 @@ export function repositoryHandler(
 							(active === null || String(r.is_active) === active),
 					);
 					return ok(
-						{ repos: yield* Effect.forEach(filtered, (r) => Effect.promise(() => repoPublic(sql, r))) },
+						{
+							repos: yield* Effect.forEach(filtered, (r) =>
+								Effect.promise(() => repoPublic(sql, r)),
+							),
+						},
 						principal,
 					);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("create-repo", ({ path, request }) =>
 				Effect.gen(function* () {
@@ -359,21 +369,26 @@ export function repositoryHandler(
 					if (!PROVIDERS.has(str(body.provider)))
 						throw new HttpValidationError("Unsupported provider");
 					const id = crypto.randomUUID();
-					const created = yield* repoUpsertEffect(sql, path.org, principal || "actor-unknown", {
-						id,
-						provider: str(body.provider),
-						owner: str(body.owner),
-						name: str(body.name),
-						url: str(body.url),
-						externalId: body.externalId as string | null,
-						description: body.description as string | null,
-						defaultBranch: body.defaultBranch as string | null,
-						isPrivate: body.isPrivate as boolean | null,
-						isActive: body.isActive as boolean | null,
-						config: body.config as string | null,
-						orgPrivilege: body.orgPrivilege as string | null,
-						origin: "live",
-					});
+					const created = yield* repoUpsertEffect(
+						sql,
+						path.org,
+						principal || "actor-unknown",
+						{
+							id,
+							provider: str(body.provider),
+							owner: str(body.owner),
+							name: str(body.name),
+							url: str(body.url),
+							externalId: body.externalId as string | null,
+							description: body.description as string | null,
+							defaultBranch: body.defaultBranch as string | null,
+							isPrivate: body.isPrivate as boolean | null,
+							isActive: body.isActive as boolean | null,
+							config: body.config as string | null,
+							orgPrivilege: body.orgPrivilege as string | null,
+							origin: "live",
+						},
+					);
 					const [row] = (yield* Effect.tryPromise({
 						try: () =>
 							sql`SELECT * FROM repo WHERE id=${id} AND organization_id=${path.org}` as unknown as Promise<
@@ -381,7 +396,13 @@ export function repositoryHandler(
 							>,
 						catch: (cause) => cause,
 					})) as Row[];
-					return ok({ data: yield* Effect.promise(() => repoPublic(sql, row)), txid: created.txid }, principal);
+					return ok(
+						{
+							data: yield* Effect.promise(() => repoPublic(sql, row)),
+							txid: created.txid,
+						},
+						principal,
+					);
 				}).pipe(
 					Effect.catchAll((error) => Effect.succeed(httpValidation(error))),
 				),
@@ -406,7 +427,13 @@ export function repositoryHandler(
 					const body = decodeBody(
 						yield* request.json,
 						[],
-						["description", "defaultBranch", "isActive", "orgPrivilege", "config"],
+						[
+							"description",
+							"defaultBranch",
+							"isActive",
+							"orgPrivilege",
+							"config",
+						],
 					);
 					const result = yield* repoUpsertEffect(
 						sql,
@@ -419,12 +446,18 @@ export function repositoryHandler(
 							name: str(existing.name),
 							url: str(existing.url),
 							externalId: existing.external_id as string | null,
-							description: (body.description ?? existing.description) as string | null,
-							defaultBranch: (body.defaultBranch ?? existing.default_branch) as string | null,
+							description: (body.description ?? existing.description) as
+								| string
+								| null,
+							defaultBranch: (body.defaultBranch ?? existing.default_branch) as
+								| string
+								| null,
 							isPrivate: existing.is_private as boolean | null,
 							config: (body.config ?? existing.config) as string | null,
 							isActive: (body.isActive ?? existing.is_active) as boolean | null,
-							orgPrivilege: (body.orgPrivilege ?? existing.org_privilege) as string | null,
+							orgPrivilege: (body.orgPrivilege ?? existing.org_privilege) as
+								| string
+								| null,
 							origin: "live",
 						},
 					);
@@ -436,7 +469,10 @@ export function repositoryHandler(
 						catch: (cause) => cause,
 					})) as Row[];
 					return ok(
-						{ data: yield* Effect.promise(() => repoPublic(sql, row)), txid: result.txid },
+						{
+							data: yield* Effect.promise(() => repoPublic(sql, row)),
+							txid: result.txid,
+						},
 						principal,
 					);
 				}).pipe(
@@ -459,9 +495,7 @@ export function repositoryHandler(
 						path.id,
 					);
 					return ok({ data: { id: path.id }, txid: result.txid }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("list-issues", ({ path, request }) =>
 				Effect.gen(function* () {
@@ -496,7 +530,8 @@ export function repositoryHandler(
 					return ok(
 						{
 							items,
-							nextCursor: rows.length === limit ? rows[rows.length - 1].id : null,
+							nextCursor:
+								rows.length === limit ? rows[rows.length - 1].id : null,
 						},
 						principal,
 					);
@@ -537,7 +572,8 @@ export function repositoryHandler(
 					return ok(
 						{
 							items,
-							nextCursor: rows.length === limit ? rows[rows.length - 1].id : null,
+							nextCursor:
+								rows.length === limit ? rows[rows.length - 1].id : null,
 						},
 						principal,
 					);
@@ -561,9 +597,7 @@ export function repositoryHandler(
 						catch: (cause) => cause,
 					})) as Row[];
 					return ok({ installations: rows.map(installationPublic) }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("create-installation", ({ path, request }) =>
 				Effect.gen(function* () {
@@ -602,7 +636,10 @@ export function repositoryHandler(
 							>,
 						catch: (cause) => cause,
 					})) as Row[];
-					return ok({ data: installationPublic(row), txid: created.txid }, principal);
+					return ok(
+						{ data: installationPublic(row), txid: created.txid },
+						principal,
+					);
 				}).pipe(
 					Effect.catchAll((error) => Effect.succeed(httpValidation(error))),
 				),
@@ -623,9 +660,7 @@ export function repositoryHandler(
 						path.id,
 					);
 					return ok({ data: { id: path.id }, txid: result.txid }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("list-grants", ({ request }) =>
 				Effect.gen(function* () {
@@ -636,7 +671,10 @@ export function repositoryHandler(
 						.replace(/^Bearer\s+/i, "")
 						.trim();
 					const tokenOrg = token.split(" ")[0] ?? "";
-					const principal = principalFrom(tokenOrg, request.headers.authorization);
+					const principal = principalFrom(
+						tokenOrg,
+						request.headers.authorization,
+					);
 					const decision = authorize(tokenOrg, request.headers, principal);
 					if (decision !== "ok") return authError(decision);
 					if (!principal) return authError("unauthenticated");
@@ -648,9 +686,7 @@ export function repositoryHandler(
 						catch: (cause) => cause,
 					})) as Row[];
 					return ok({ grants: rows.map(grantPublic) }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("delete-grant", ({ path, request }) =>
 				Effect.gen(function* () {
@@ -658,7 +694,10 @@ export function repositoryHandler(
 						.replace(/^Bearer\s+/i, "")
 						.trim();
 					const tokenOrg = token.split(" ")[0] ?? "";
-					const principal = principalFrom(tokenOrg, request.headers.authorization);
+					const principal = principalFrom(
+						tokenOrg,
+						request.headers.authorization,
+					);
 					const decision = authorize(tokenOrg, request.headers, principal);
 					if (decision !== "ok") return authError(decision);
 					if (!principal) return authError("unauthenticated");
@@ -671,9 +710,7 @@ export function repositoryHandler(
 						path.id,
 					);
 					return ok({ data: { id: path.id }, txid: result.txid }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("list-integrations", ({ path, request }) =>
 				Effect.gen(function* () {
@@ -691,9 +728,7 @@ export function repositoryHandler(
 						catch: (cause) => cause,
 					})) as Row[];
 					return ok({ integrations: rows.map(integrationPublic) }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			)
 			.handleRaw("put-integration", ({ path, request }) =>
 				Effect.gen(function* () {
@@ -739,7 +774,10 @@ export function repositoryHandler(
 							>,
 						catch: (cause) => cause,
 					})) as Row[];
-					return ok({ data: integrationPublic(row), txid: result.txid }, principal);
+					return ok(
+						{ data: integrationPublic(row), txid: result.txid },
+						principal,
+					);
 				}).pipe(
 					Effect.catchAll((error) => Effect.succeed(httpValidation(error))),
 				),
@@ -760,9 +798,7 @@ export function repositoryHandler(
 						path.id,
 					);
 					return ok({ data: { id: path.id }, txid: result.txid }, principal);
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(classify(error))),
-				),
+				}).pipe(Effect.catchAll((error) => Effect.succeed(classify(error)))),
 			),
 	);
 

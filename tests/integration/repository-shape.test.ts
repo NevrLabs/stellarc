@@ -48,7 +48,7 @@ async function engineWithShapes() {
 }
 
 function shapeUrl(
-	org: string,
+	_org: string,
 	table: string,
 	params: Record<string, string> = {},
 ) {

@@ -17,7 +17,7 @@ async function runEffect<A>(
 }
 
 import type { Sql } from "postgres";
-import { electricSchema, key, type ProbeRow } from "../../contracts/src/shape";
+import { electricSchema, key } from "../../contracts/src/shape";
 import { type ProbePayload, UpcasterRegistry } from "./upcasters";
 
 /**

@@ -94,7 +94,10 @@ test("T02 list repos is org-scoped and honours ?active=", async () => {
 		}),
 	});
 
-	const all = await fetch(`${server.url}/api/identity/orgs/${ORG}/repos`, authed(ORG));
+	const all = await fetch(
+		`${server.url}/api/identity/orgs/${ORG}/repos`,
+		authed(ORG),
+	);
 	expect(all.status).toBe(200);
 	const allBody = (await all.json()) as { repos: Array<{ name: string }> };
 	expect(allBody.repos.map((r) => r.name).sort()).toEqual(["archive", "probe"]);
@@ -103,7 +106,9 @@ test("T02 list repos is org-scoped and honours ?active=", async () => {
 		`${server.url}/api/identity/orgs/${ORG}/repos?active=true`,
 		authed(ORG),
 	);
-	const activeBody = (await active.json()) as { repos: Array<{ name: string }> };
+	const activeBody = (await active.json()) as {
+		repos: Array<{ name: string }>;
+	};
 	expect(activeBody.repos.map((r) => r.name)).toEqual(["probe"]);
 });
 
@@ -148,16 +153,19 @@ test("T02 PATCH updates mutable metadata and DELETE returns Mutation<{id}>", asy
 });
 
 test("T02 foreign-org repo id returns 404 (never 403)", async () => {
-	const created = await fetch(`${server.url}/api/identity/orgs/${OTHER}/repos`, {
-		method: "POST",
-		headers: { "content-type": "application/json", ...authed(OTHER).headers },
-		body: JSON.stringify({
-			provider: "github",
-			owner: "other",
-			name: "foreign",
-			url: "https://example.test/other/foreign",
-		}),
-	});
+	const created = await fetch(
+		`${server.url}/api/identity/orgs/${OTHER}/repos`,
+		{
+			method: "POST",
+			headers: { "content-type": "application/json", ...authed(OTHER).headers },
+			body: JSON.stringify({
+				provider: "github",
+				owner: "other",
+				name: "foreign",
+				url: "https://example.test/other/foreign",
+			}),
+		},
+	);
 	const { data } = (await created.json()) as { data: { id: string } };
 	const response = await fetch(
 		`${server.url}/api/identity/orgs/${ORG}/repos/${data.id}`,
@@ -274,7 +282,10 @@ test("T06 grants are self-only and never expose tokens", async () => {
 			origin: "live",
 		}),
 	);
-	const mine = await fetch(`${server.url}/api/identity/github/grants`, authed(ORG));
+	const mine = await fetch(
+		`${server.url}/api/identity/github/grants`,
+		authed(ORG),
+	);
 	expect(mine.status).toBe(200);
 	const body = (await mine.json()) as { grants: Record<string, unknown>[] };
 	expect(body.grants).toHaveLength(1);
@@ -282,10 +293,13 @@ test("T06 grants are self-only and never expose tokens", async () => {
 	expect(body.grants[0]).not.toHaveProperty("accessToken");
 	expect(body.grants[0]).not.toHaveProperty("refreshToken");
 
-	const del = await fetch(`${server.url}/api/identity/github/grants/grant-http-1`, {
-		method: "DELETE",
-		...authed(ORG, "user-http-other"),
-	});
+	const del = await fetch(
+		`${server.url}/api/identity/github/grants/grant-http-1`,
+		{
+			method: "DELETE",
+			...authed(ORG, "user-http-other"),
+		},
+	);
 	expect(del.status).toBe(404);
 });
 
@@ -324,16 +338,19 @@ test("T05 installations: create, list, delete with same-org ownership", async ()
 });
 
 test("PUT integration upserts by (boardId,type) and DELETE removes", async () => {
-	const put = await fetch(`${server.url}/api/identity/orgs/${ORG}/integrations`, {
-		method: "PUT",
-		headers: { "content-type": "application/json", ...authed(ORG).headers },
-		body: JSON.stringify({
-			boardId: "board-http-1",
-			type: "github",
-			config: '{"installationId":1001}',
-			isActive: true,
-		}),
-	});
+	const put = await fetch(
+		`${server.url}/api/identity/orgs/${ORG}/integrations`,
+		{
+			method: "PUT",
+			headers: { "content-type": "application/json", ...authed(ORG).headers },
+			body: JSON.stringify({
+				boardId: "board-http-1",
+				type: "github",
+				config: '{"installationId":1001}',
+				isActive: true,
+			}),
+		},
+	);
 	expect(put.status).toBe(200);
 	const first = (await put.json()) as { data: { id: string } };
 	expect(first.data.id).toBeTruthy();
