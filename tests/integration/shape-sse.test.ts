@@ -337,3 +337,71 @@ test("S15 gauge counts SSE exactly once across frames; duration recorded at cycl
 		.find((span) => span.name === "stellarc.shape.tail");
 	expect(closed?.spanContext().traceId).toBe(tail?.spanContext().traceId);
 });
+
+test("S05 awaitTxId settles over SSE: mutation during subscription delivers headers.txids", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("org-a", "a-1", "v1");
+	const stream = new ShapeStream({
+		url: `${server.url}/orgs/org-a/v1/shape`,
+		params: { table: "sync_probe" },
+		liveSse: true,
+		headers: { authorization: "Bearer org-a" },
+	});
+	const collector = new Collector(stream);
+	try {
+		await collector.until(
+			(m) => latest(m, "1") !== undefined && m.some(isUpToDate),
+		);
+		// Mutate DURING the held-open subscription: the change frame must carry
+		// the mutation's txid or awaitTxId stalls (documented failure mode).
+		const mutation = await server.write("org-a", "a-2", "v2");
+		const messages = await collector.until(
+			(m) => latest(m, "2") !== undefined,
+		);
+		const change = latest(messages, "2");
+		expect(change?.headers.txids).toEqual([mutation.txid]);
+	} finally {
+		stream.unsubscribeAll();
+	}
+});
+
+test("S07 revocation closes the stream within the cycle/ka interval; reconnect gets sanitized 401/403", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	server.sseTiming = { cycleMs: 60000, kaMs: 300 }; // long cycle, fast ka
+	await server.write("org-a", "a-1", "v1");
+	const { reader } = await openSse(server, "org-a");
+	const received: string[] = [];
+	const readLoop = (async () => {
+		try {
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				received.push(new TextDecoder().decode(value));
+			}
+		} catch {}
+	})();
+	// Sanity: frames flow, then revoke mid-stream.
+	await expect
+		.poll(() => received.length > 0, { timeout: 10000 })
+		.toBe(true);
+	server.revokeAll = true;
+	// Stream must close ≤ ka interval (300ms) + slack, not wait the 60s cycle.
+	const closedAt = Date.now();
+	await readLoop;
+	expect(Date.now() - closedAt).toBeLessThanOrEqual(4000);
+	// The reconnect hits the sanitized JSON error path (401: token now denied).
+	const base = `${server.url}/orgs/org-a/v1/shape?table=sync_probe`;
+	const headers = { authorization: "Bearer org-a", accept: "text/event-stream" };
+	const initial = await fetch(`${base}&offset=-1`, { headers });
+	expect([401, 403]).toContain(initial.status);
+	expect(initial.headers.get("content-type")).toContain("application/json");
+	const body = (await initial.json()) as { _tag: string };
+	expect(["Unauthenticated", "Forbidden"]).toContain(body._tag);
+	await server.telemetry.reader.forceFlush();
+	const closes = sseSpans(server)
+		.map((span) => span.attributes["stellarc.shape.sse.close"])
+		.filter((k) => k === "revocation");
+	expect(closes.length).toBeGreaterThan(0);
+});

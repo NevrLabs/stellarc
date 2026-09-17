@@ -280,7 +280,12 @@ export class ShapeEngine {
 											.pipe(Effect.provideService(Tracer.ParentSpan, span)),
 									).then((response) => self.ssePageFromResponse(response)),
 								authorize,
-								...(self.sseTiming ?? {}),
+								...(self.sseTiming
+									? {
+											cycleMs: self.sseTiming.cycleMs,
+											kaIntervalMs: self.sseTiming.kaMs,
+										}
+									: {}),
 							},
 						);
 						frames = summary.frames;
