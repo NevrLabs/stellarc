@@ -110,3 +110,48 @@ test("T02c import: atomic rollback leaves no partial rows (sabotage-detectable)"
 		await source.close();
 	}
 });
+
+// T17 (projects obligation): the supplementary reconciliation fixture is not a
+// dead artifact — every statement EXECUTES against the migrated + imported
+// destination and must return its zero-defect count. (All-14 canon + three
+// full imports remain wave-2-gated; see .forge-question.md Q2.)
+test("T02d reconciliation: supplementary projects fixture executes clean", async () => {
+	const { importProjects } = await import("../../tools/import-projects");
+	const { dest, source } = await setupPair();
+	try {
+		await importProjects(dest.sql, source.sql, "source-fixture");
+
+		const fixture = readFileSync(
+			repo("tests/fixtures/projects-reconciliation.sql"),
+			"utf8",
+		);
+		// Strip full-line comments BEFORE splitting: the fixture's header
+		// comment contains a semicolon, so naive splitting cuts mid-comment.
+		const statements = fixture
+			.split("\n")
+			.filter((line) => !line.trim().startsWith("--"))
+			.join("\n")
+			.split(";")
+			.map((statement) => statement.trim())
+			.filter((statement) => statement.length > 0);
+		// Frozen fixture shape: round-trip, orphan leads, orphan orgs.
+		expect(statements.length).toBe(3);
+
+		const results: Array<Record<string, unknown>> = [];
+		for (const statement of statements) {
+			const [row] = await dest.sql.unsafe(statement);
+			results.push(row as Record<string, unknown>);
+		}
+		const [roundTrip, orphanLeads, orphanOrgs] = results;
+
+		// The imported project round-trips with all 21 columns intact.
+		expect(Number(roundTrip.projects_checked)).toBe(1);
+		expect(Number(roundTrip.all_21_columns)).toBe(1);
+		// Lead + org integrity: zero orphans after import.
+		expect(Number(orphanLeads.orphan_leads)).toBe(0);
+		expect(Number(orphanOrgs.orphan_orgs)).toBe(0);
+	} finally {
+		await dest.close();
+		await source.close();
+	}
+});
