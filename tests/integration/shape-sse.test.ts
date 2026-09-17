@@ -105,6 +105,9 @@ test("S01 raw qualifying request negotiates 200 text/event-stream with immediate
 	const server = await startTestServer();
 	resources.push(server.close);
 	await server.write("org-a", "a-1", "v1");
+	// Short cycle: the assert needs a clean cycle close, not the production
+	// 20s cadence (the default flaked a 30s budget under loaded CI runners).
+	server.sseTiming = { cycleMs: 1500 };
 	const base = `${server.url}/orgs/org-a/v1/shape?table=sync_probe`;
 	const headers = {
 		authorization: "Bearer org-a",
