@@ -61,15 +61,31 @@ export async function disposablePostgres() {
 	});
 	return {
 		sql,
+		// Unix socket directory for the cluster (additional pooled connections
+		// in tests that must race the primary one, e.g. SKIP LOCKED claims).
+		socketDir: root,
+		connect(opts?: { max?: number }) {
+			return postgres({
+				host: root,
+				username: "stellarc_owner",
+				database: "postgres",
+				max: opts?.max ?? 2,
+				onnotice: () => {},
+			});
+		},
 		async close() {
 			live.delete(data);
 			await sql.end();
-			execFileSync(
-				join(bin, "pg_ctl"),
-				["-D", data, "-m", "immediate", "-w", "stop"],
-				{ stdio: "pipe" },
-			);
-			await rm(root, { recursive: true });
+			try {
+				execFileSync(
+					join(bin, "pg_ctl"),
+					["-D", data, "-m", "immediate", "-w", "stop"],
+					{ stdio: "pipe" },
+				);
+			} catch {
+				// already stopped (idempotent close)
+			}
+			await rm(root, { recursive: true, force: true });
 		},
 	};
 }

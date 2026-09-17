@@ -73,23 +73,18 @@ export const requestTelemetry = (
 		return response;
 	})();
 
-export function foundationHandler(
-	sql: Sql,
-	engine: ShapeEngine,
-	authorize: Authorize,
-	healthQuery?: Effect.Effect<unknown, unknown>,
-	telemetry: Layer.Layer<never> = Layer.empty,
-	// Share one memo map across every build of `telemetry` (handler + fixture
-	// server runtime): OTel metric readers reject a second MeterProvider bind.
-	memoMap?: Layer.MemoMap,
-	// Test-principal extraction ("Bearer <org> <id>") is injected by the
-	// test-composed server; production passes nothing and parses no tokens (§3).
-	principalFrom: (
-		org: string,
-		authorization: string | undefined,
-	) => string = () => "",
-) {
-	const group = HttpApiBuilder.group(FoundationApi, "foundation", (handlers) =>
+/** Foundation group (health + shape) as a Handlers layer, so the composed
+ * StellarcApi handler (activity-notification-http.ts) can mount it beside the
+ * STL-17 group. foundationHandler keeps its previous signature. */
+export function foundationGroup(opts: {
+	sql: Sql;
+	engine: ShapeEngine;
+	authorize: Authorize;
+	healthQuery?: Effect.Effect<unknown, unknown>;
+	principalFrom: (org: string, authorization?: string) => string;
+}) {
+	const { sql, engine, authorize, healthQuery, principalFrom } = opts;
+	return HttpApiBuilder.group(FoundationApi, "foundation", (handlers) =>
 		handlers
 			.handleRaw("health", () =>
 				(healthQuery ?? Effect.tryPromise(() => sql`SELECT 1`)).pipe(
@@ -145,6 +140,31 @@ export function foundationHandler(
 				),
 			),
 	);
+}
+
+export function foundationHandler(
+	sql: Sql,
+	engine: ShapeEngine,
+	authorize: Authorize,
+	healthQuery?: Effect.Effect<unknown, unknown>,
+	telemetry: Layer.Layer<never> = Layer.empty,
+	// Share one memo map across every build of `telemetry` (handler + fixture
+	// server runtime): OTel metric readers reject a second MeterProvider bind.
+	memoMap?: Layer.MemoMap,
+	// Test-principal extraction ("Bearer <org> <id>") is injected by the
+	// test-composed server; production passes nothing and parses no tokens (§3).
+	principalFrom: (
+		org: string,
+		authorization: string | undefined,
+	) => string = () => "",
+) {
+	const group = foundationGroup({
+		sql,
+		engine,
+		authorize,
+		healthQuery,
+		principalFrom,
+	});
 	return HttpApiBuilder.toWebHandler(
 		Layer.mergeAll(
 			HttpApiBuilder.api(FoundationApi).pipe(Layer.provide(group)),

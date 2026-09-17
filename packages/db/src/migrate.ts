@@ -9,6 +9,10 @@ import type { Sql } from "postgres";
 const MIGRATIONS = [
 	{ version: "0001_foundation", file: "../migrations/0001_foundation.sql" },
 	{ version: "0002_identity", file: "../migrations/0002_identity.sql" },
+	{
+		version: "0004_activity_notifications",
+		file: "../migrations/0004_activity_notifications.sql",
+	},
 ] as const;
 
 /** Owner-only provisioning; the runtime principal must already exist. */
@@ -43,6 +47,21 @@ export async function grantRuntime(sql: Sql, role: string) {
 		await tx.unsafe(
 			`GRANT SELECT, INSERT, UPDATE, DELETE ON sync_probe TO "${role}"`,
 		);
+		for (const table of [
+			"comment",
+			"activity_projection",
+			"notification",
+			"workflow_rule",
+			"user_notification_preference",
+			"user_notification_org_rule",
+			"user_notification_org_board",
+			"notification_outbox",
+			"activity_import",
+		]) {
+			await tx.unsafe(
+				`GRANT SELECT, INSERT, UPDATE, DELETE ON ${table} TO "${role}"`,
+			);
+		}
 	});
 }
 
