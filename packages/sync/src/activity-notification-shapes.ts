@@ -485,7 +485,7 @@ export class ActivityNotificationShapes {
 
 	/** Snapshot rows under the SAME scope predicates the tail enforces (§4). */
 	private async snapshotRows(
-		kind: "org" | "private",
+		_kind: "org" | "private",
 		owner: string,
 		table: string,
 		q: URLSearchParams,

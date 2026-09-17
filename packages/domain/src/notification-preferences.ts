@@ -15,7 +15,6 @@ import {
 	newId,
 } from "./activity-events";
 import {
-	makeNotificationSecrets,
 	maskSecret,
 	type NotificationSecrets,
 	normalizeOptionalString,
@@ -483,7 +482,7 @@ export const upsertOrganizationRule = (
 							throw new DomainValidation("enable webhook globally first");
 						const now = new Date();
 						const ruleId = newId();
-						const rows = await tx<{ id: string }[]>`
+						await tx`
               INSERT INTO user_notification_org_rule
                 (id, user_id, organization_id, is_active, email_enabled, ntfy_enabled,
                  gotify_enabled, webhook_enabled, board_mode, created_at, updated_at)

@@ -166,7 +166,7 @@ export async function runImport(options: ImportOptions): Promise<ImportReport> {
 			);
 			await tx`
         INSERT INTO activity_projection (org_id, id, ticket_id, type, created_at, updated_at, user_id, content, edit_history, event_data, external_user_name, external_user_avatar, external_source, external_url, last_seq)
-        VALUES (${org}, ${pk}, ${String(row.ticket_id)}, ${String(row.type)}, ${row.created_at as Date}, ${row.updated_at as Date}, ${str(row.user_id)}, ${str(row.content)}, ${tx.json(editHistory as never)}, ${row.event_data === null || row.event_data === undefined ? null : tx.json(row.event_data as never)}, ${str(row.external_user_name)}, ${str(row.external_user_avatar)}, ${str(row.external_source)}, ${str(row.external_url)}, ${seq})
+        VALUES (${org}, ${pk}, ${String(row.ticket_id)}, ${String(row.type)}, ${row.created_at as Date}, ${row.updated_at as Date}, ${str(row.user_id)}, ${str(row.content)}, ${tx.json(editHistory as never)}, ${row.event_data === null || row.event_data === undefined ? null : tx.json(row.event_data as never)}, ${str(row.external_user_name)}, ${str(row.external_user_avatar)}, ${str(row.external_source)}, ${str(row.external_url)}, ${seq.toString()})
         ON CONFLICT (org_id, id) DO NOTHING`;
 		};
 		planned.push({ table: "activity", pk, digest, exec: plan });

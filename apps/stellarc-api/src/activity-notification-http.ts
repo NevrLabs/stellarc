@@ -170,6 +170,7 @@ type PayloadResult<T> =
  * schema violations all return 400 ValidationError; the decoded value is the
  * contract type. No SQL/PII is echoed back.
  */
+// biome-ignore lint/suspicious/noExplicitAny: generic schema bound requires any for variance across contract schemas
 async function readPayload<S extends Schema.Schema<any, any, never>>(
 	request: HttpServerRequest.HttpServerRequest,
 	schema: S,
@@ -803,7 +804,6 @@ export async function composeStellarcHandler(args: ComposeArgs) {
 				),
 				LayerValue.provide(group),
 			),
-			// biome-ignore lint/suspicious/noExplicitAny: layer variance at the compose seam
 			LayerValue.empty,
 			args.telemetry as never,
 		) as never,

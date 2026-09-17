@@ -113,7 +113,7 @@ test("T20 upsert validates vocabulary, board permission, status-in-board; concur
 		expect(up.data.statusId).toBe("st-todo");
 		expect(up.txid).toBeGreaterThan(0);
 		// same pair upserts (updates status), never duplicates
-		const up2 = await fx.run(
+		await fx.run(
 			upsertWorkflowRule(fx.sql, fx.deps, {
 				org: fx.org,
 				boardId: fx.boardId,
