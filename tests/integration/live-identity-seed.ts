@@ -10,18 +10,23 @@
 //
 // NOTE: @effect/sql statements are Effects, not promises — awaiting one is a
 // no-op. Every statement is therefore executed with Effect.runPromise.
-import { Effect } from "effect";
+
 import type { PgClient } from "@effect/sql-pg";
-import { hashApiKey, KNOWN_ANSWER_RAWS } from "../../tools/reconciliation/canon";
+import { Effect } from "effect";
+import {
+	hashApiKey,
+	KNOWN_ANSWER_RAWS,
+} from "../../tools/reconciliation/canon";
 
 export async function importLegacyIdentityFixture(
 	sql: PgClient.PgClient,
 ): Promise<void> {
-	await Effect.runPromise(Effect.gen(function* () {
-		// idempotent re-import: remove the rows this fixture is about to write so
+	await Effect.runPromise(
+		Effect.gen(function* () {
+			// idempotent re-import: remove the rows this fixture is about to write so
 			// a second live run over an already-imported destination is a no-op
 			// (real importers upsert by source_pk).
-		yield* sql.unsafe(`
+			yield* sql.unsafe(`
 -- the import replaces the destination identity ledger wholesale
 DELETE FROM public.identity_import;
 DELETE FROM public.identity_grant WHERE org_id = 'o1' AND principal_id IN ('p1','p2');
@@ -37,10 +42,10 @@ DELETE FROM public.organization WHERE id IN ('o1','o2');
 DELETE FROM public.account WHERE id = 'a1';
 DELETE FROM public."user" WHERE id IN ('u1','u2');
 `);
-		// destination identity rows imported from the snapshot (PKs preserved);
-		// defaulted columns are set explicitly so 0002 defaults never fire —
-		// a correct import copies legacy values (incl. NULLs) verbatim.
-		yield* sql.unsafe(`
+			// destination identity rows imported from the snapshot (PKs preserved);
+			// defaulted columns are set explicitly so 0002 defaults never fire —
+			// a correct import copies legacy values (incl. NULLs) verbatim.
+			yield* sql.unsafe(`
 INSERT INTO public."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, created_at, updated_at) VALUES
   ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
   ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
@@ -63,21 +68,21 @@ INSERT INTO public.invitation (id, organization_id, email, status, inviter_id, e
 INSERT INTO public.user_avatar (id, user_id, mime_type, size, data, created_at, updated_at) VALUES
   ('av1','u1','image/png',4,decode('89504e47','hex'),'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 `);
-		// apikeys preserve the fork hash verbatim (query #14 arm (a))
-		yield* sql.unsafe(
-			`INSERT INTO public.apikey (id, name, reference_id, prefix, "key", enabled, rate_limit_enabled, permissions, created_at, updated_at) VALUES
+			// apikeys preserve the fork hash verbatim (query #14 arm (a))
+			yield* sql.unsafe(
+				`INSERT INTO public.apikey (id, name, reference_id, prefix, "key", enabled, rate_limit_enabled, permissions, created_at, updated_at) VALUES
   ('k1','key-1','u1','sk-a','${hashApiKey(KNOWN_ANSWER_RAWS[0])}',true,true,'{"*":["*"]}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
   ('k2','key-2','u2','sk-b','${hashApiKey(KNOWN_ANSWER_RAWS[1])}',true,true,'{"*":["*"]}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');`,
-		);
-		// principals + grants per the identity contracts
-		yield* sql.unsafe(`
+			);
+			// principals + grants per the identity contracts
+			yield* sql.unsafe(`
 INSERT INTO public.principal (id, kind, user_id, apikey_id) VALUES
   ('p1','human','u1',NULL), ('p2','agent','u1','k2');
 INSERT INTO public.identity_grant (org_id, principal_id, capability) VALUES
   ('o1','p1','manage');
 `);
-		// the ledger: one row per imported identity row (query #13 bijection)
-		yield* sql.unsafe(`
+			// the ledger: one row per imported identity row (query #13 bijection)
+			yield* sql.unsafe(`
 INSERT INTO public.identity_import (source_id, table_name, source_pk, digest) VALUES
   ('live-1','user','u1','d1'), ('live-1','user','u2','d2'),
   ('live-1','account','a1','d3'),
@@ -85,7 +90,8 @@ INSERT INTO public.identity_import (source_id, table_name, source_pk, digest) VA
   ('live-1','organization_member','m1','d6'), ('live-1','organization_member','m2','d7'),
   ('live-1','organization_role','r1','d8');
 `);
-	}));
+		}),
+	);
 }
 
 /**

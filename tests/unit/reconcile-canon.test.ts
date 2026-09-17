@@ -89,15 +89,19 @@ describe("R19 fixture linkage (defect 7)", () => {
 		);
 		const seed = destinationSeedSql();
 		const manifest = await loadManifest();
-		for (const { raw, reference_id } of manifest.known_answers.apikey_sha256_base64url) {
+		for (const { raw, reference_id } of manifest.known_answers
+			.apikey_sha256_base64url) {
 			// the seed materializes the apikey row for this reference_id
 			expect(seed).toContain(`'${reference_id}','sk-`);
 			// ...with the hash of the manifest-declared raw (exact row content)
 			expect(seed).toContain(`'${hashApiKey(raw)}'`);
 		}
 		// negative control: a hypothetical wrong algorithm (truncated sha512,
-			// also 43 chars) must NOT appear anywhere in the seed
-		const wrong = createHash("sha512").update(KNOWN_ANSWER_RAWS[0]).digest("base64url").slice(0, 43);
+		// also 43 chars) must NOT appear anywhere in the seed
+		const wrong = createHash("sha512")
+			.update(KNOWN_ANSWER_RAWS[0])
+			.digest("base64url")
+			.slice(0, 43);
 		expect(wrong).toHaveLength(43);
 		expect(destinationSeedSql()).not.toContain(`'${wrong}'`);
 	});

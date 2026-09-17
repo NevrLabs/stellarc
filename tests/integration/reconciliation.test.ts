@@ -5,7 +5,6 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { migrate } from "../../packages/db/src/migrate";
 import {
-	hashApiKey,
 	loadManifest,
 	loadQueryText,
 	type Manifest,
@@ -110,9 +109,7 @@ async function withRollback<T>(
 //                STL-15 importer satisfies).
 // - "missing" -> points at a module that does not exist, so detection
 //                resolves null and identity queries go blocked (STL-15 unmerged).
-function withLiveIdentityTarget(
-	kind: "seed" | "missing" | "noop",
-): () => void {
+function withLiveIdentityTarget(kind: "seed" | "missing" | "noop"): () => void {
 	const previous = liveIdentityTarget.current;
 	liveIdentityTarget.current =
 		kind === "seed"
@@ -487,48 +484,48 @@ describe("R03 fixture freshness and determinism", () => {
 		// comparison against the committed golden is unequal — proving the
 		// logicalDump comparison can actually fail.
 		// The comparison baseline must be a clone of the SAME template, not the
-			// template-connected template itself: two clones vs each other isolates
-			// the single tampered row as the only difference.
-			const tampered = `recon_regen_${Date.now()}`;
-			const clean = `recon_regen_${Date.now() + 1}`;
-			await cluster.sql.unsafe(`CREATE DATABASE ${clean} TEMPLATE ${templateDb}`);
-			await cluster.sql.unsafe(
-				`CREATE DATABASE ${tampered} TEMPLATE ${templateDb}`,
+		// template-connected template itself: two clones vs each other isolates
+		// the single tampered row as the only difference.
+		const tampered = `recon_regen_${Date.now()}`;
+		const clean = `recon_regen_${Date.now() + 1}`;
+		await cluster.sql.unsafe(`CREATE DATABASE ${clean} TEMPLATE ${templateDb}`);
+		await cluster.sql.unsafe(
+			`CREATE DATABASE ${tampered} TEMPLATE ${templateDb}`,
+		);
+		const cleanRt = makeRuntime(cluster.sql.options.host[0], clean);
+		const tamperedRt = makeRuntime(cluster.sql.options.host[0], tampered);
+		try {
+			const mut = await tamperedRt.runPromise(PgClient.PgClient);
+			// Effect statements are not promises: awaiting one is a no-op. The
+			// mutation must be executed through the runtime.
+			await tamperedRt.runPromise(
+				mut.unsafe(
+					`UPDATE public.board SET name = '__TAMPERED__' WHERE id = 'b1'`,
+				),
 			);
-			const cleanRt = makeRuntime(cluster.sql.options.host[0], clean);
-			const tamperedRt = makeRuntime(cluster.sql.options.host[0], tampered);
-			try {
-				const mut = await tamperedRt.runPromise(PgClient.PgClient);
-				// Effect statements are not promises: awaiting one is a no-op. The
-				// mutation must be executed through the runtime.
-				await tamperedRt.runPromise(
-					mut.unsafe(
-						`UPDATE public.board SET name = '__TAMPERED__' WHERE id = 'b1'`,
-					),
-				);
-				const base = await cleanRt.runPromise(PgClient.PgClient);
-				const a = await logicalDump(
-					base,
-					(e) => cleanRt.runPromise(e),
-					"public",
-					["board"],
-				);
-				const b = await logicalDump(
-					mut,
-					(e) => tamperedRt.runPromise(e),
-					"public",
-					["board"],
-				);
-				expect(
-					b,
-					"tampered dump must NOT compare equal to the committed golden",
-				).not.toBe(a);
-			} finally {
-				await cleanRt.dispose();
-				await tamperedRt.dispose();
-				await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${clean}`);
-				await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${tampered}`);
-			}
+			const base = await cleanRt.runPromise(PgClient.PgClient);
+			const a = await logicalDump(
+				base,
+				(e) => cleanRt.runPromise(e),
+				"public",
+				["board"],
+			);
+			const b = await logicalDump(
+				mut,
+				(e) => tamperedRt.runPromise(e),
+				"public",
+				["board"],
+			);
+			expect(
+				b,
+				"tampered dump must NOT compare equal to the committed golden",
+			).not.toBe(a);
+		} finally {
+			await cleanRt.dispose();
+			await tamperedRt.dispose();
+			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${clean}`);
+			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${tampered}`);
+		}
 	});
 });
 
