@@ -42,10 +42,13 @@ export interface LiveImporterModule {
 	module: string;
 	member: string;
 }
-// biome-ignore lint/style/useConst: test seam — tests reassign this binding.
-export let liveIdentityTarget: LiveImporterModule | null = {
-	module: "packages/domain/src/identity/import.ts",
-	member: "importLegacyIdentity",
+export const liveIdentityTarget: {
+	current: LiveImporterModule | null;
+} = {
+	current: {
+		module: "packages/domain/src/identity/import.ts",
+		member: "importLegacyIdentity",
+	},
 };
 
 export interface QueryResult {
@@ -199,11 +202,11 @@ const detectIdentityImporter = Effect.fn("ReconcileRunner.detectImporter")(
 	(): Effect.Effect<LegacyIdentityImporter | null> =>
 		Effect.tryPromise({
 			try: async () => {
-				if (liveIdentityTarget === null) return null;
+				if (liveIdentityTarget.current === null) return null;
 				const mod = (await import(
-					/* webpackIgnore: true */ liveIdentityTarget.module
+					/* webpackIgnore: true */ liveIdentityTarget.current.module
 				)) as Record<string, unknown>;
-				const fn = mod[liveIdentityTarget.member];
+				const fn = mod[liveIdentityTarget.current.member];
 				if (typeof fn !== "function") return null;
 				return {
 					importLegacyIdentity:
@@ -258,7 +261,11 @@ export async function restoreFixtures(url: {
 	database: string;
 }) {
 	const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
-	const fixtures = join(repoRoot(), "tests", "fixtures", "reconciliation");
+	// Same override the generators honor: lets tests point the runner at an
+	// alternative fixture directory without touching the committed tree.
+	const fixtures =
+		process.env.RECON_FIXTURE_DIR ??
+		join(repoRoot(), "tests", "fixtures", "reconciliation");
 	for (const dump of [
 		"legacy-snapshot.pgdump",
 		"stellarc-destination-golden.pgdump",
@@ -320,7 +327,7 @@ export function sqlLayer(socketDir: string, database = "postgres") {
 	);
 }
 
-async function main() {
+export async function main() {
 	const manifest = await loadManifest();
 	const mode = (process.argv[2] ?? "canon-proof") as Mode;
 	const db = await disposablePostgres();

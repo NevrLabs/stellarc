@@ -11,10 +11,14 @@ The harness has two modes:
 - **canon-proof** — a synthetic golden source/destination pair (committed pg_dumps under
   `tests/fixtures/reconciliation/`) proves each query's *detection logic*. Verdicts are
   labelled `canon-proof` and are **never** reported as wave reconciliation PASS.
-- **live** — real merged importers run against the restored snapshot. At this ticket's
-  merge point live mode covers identity only (blocked-by STL-15, importer unmerged); the
-  rest report `blocked`. The only source of reconciliation PASS for the wave; STL-21 owns
-  the final all-14 production-snapshot gate.
+- **live** — the legacy snapshot IS restored into the destination cluster, the merged
+  identity importer is detected (`packages/domain/src/identity/import.ts`,
+  `importLegacyIdentity`) and invoked against it, and only then do the queries reconcile.
+  At this ticket's merge point live mode covers identity only: with no merged importer the
+  identity queries (#1–#3, #13, #14) report `blocked` with a reason naming STL-15, and the
+  remaining slices report `blocked` with their owner. Canon-proof data is never relabelled
+  as live green. Live mode is the only source of reconciliation PASS for the wave; STL-21
+  owns the final all-14 production-snapshot gate.
 
 ## Provenance and supersession
 
@@ -53,6 +57,24 @@ Canon #13 reads the `<slice>_import` ledger family — as merged:
 preserve source PKs verbatim (STL-15 §2), so #13 joins `ledger.source_pk → destination PK`.
 `destination_id` is required only where PK preservation does not hold. **If a merged ledger
 neither preserves PKs nor records `destination_id`, the harness reports `blocked` (never green).**
+
+### Event contract: `identity:apikey-reissued` (STL-15 deliverable)
+
+Defined by this ticket (§2), emitted by STL-15; query #14's fallback arm requires it.
+
+| Field | Value |
+|---|---|
+| `plugin_type` | `identity:apikey-reissued` |
+| pluginId | `identity` |
+| `schema_version` | `1` |
+| payload | `{ id, principalId, reason: "legacy-reissue" }` — `id` = re-issued apikey id, `principalId` = acting/owning principal, `reason` fixed |
+| scope | org-scoped: appended to `event` under the owning org's `org_event_counter` sequence |
+| visibility | not browser-visible (mirrors `identity:grant-upserted` privacy rules) |
+
+Contract: for every legacy apikey whose stored hash is NOT preserved verbatim,
+there is exactly one such event; a preserved hash must have none (never neither,
+never both). Until STL-15 implements the emitter, #14's re-issue sabotage variant
+reports blocked-with-reason rather than green.
 
 ### External legacy inventory caveat (not a blocker)
 

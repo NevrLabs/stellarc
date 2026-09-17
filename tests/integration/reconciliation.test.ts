@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { PgClient } from "@effect/sql-pg";
 import { Effect, Layer, ManagedRuntime } from "effect";
@@ -12,6 +13,7 @@ import {
 import {
 	aggregate,
 	applySabotage,
+	liveIdentityTarget,
 	type QueryResult,
 	restoreFixtures,
 	runCanonProofEffect,
@@ -98,6 +100,31 @@ async function withRollback<T>(
 		await scratchRuntime.dispose();
 		await cluster.sql.unsafe(`DROP DATABASE ${name}`);
 	}
+}
+
+// D2 test seam: swap the live runner's importer target for the duration of a
+// test and restore the production binding afterwards. Returns the restore fn.
+// - "seed"    -> points at tests/integration/live-identity-seed.ts, whose
+//                importLegacyIdentityFixture materializes a correct identity
+//                import of the restored snapshot (the contract the merged
+//                STL-15 importer satisfies).
+// - "missing" -> points at a module that does not exist, so detection
+//                resolves null and identity queries go blocked (STL-15 unmerged).
+function withLiveIdentityTarget(kind: "seed" | "missing"): () => void {
+	const previous = liveIdentityTarget.current;
+	liveIdentityTarget.current =
+		kind === "seed"
+			? {
+					module: "tests/integration/live-identity-seed.ts",
+					member: "importLegacyIdentityFixture",
+				}
+			: {
+					module: "./no-such-identity-importer-module.ts",
+					member: "importLegacyIdentity",
+				};
+	return () => {
+		liveIdentityTarget.current = previous;
+	};
 }
 
 async function verdicts(sql: PgClient.PgClient) {
@@ -569,32 +596,160 @@ describe("R04 blocked semantics and R21 live mode", () => {
 		}
 	});
 
-	test("R21 live mode: restored golden pair driven through the live runner is green for merged-identity coverage", async () => {
-		// At this merge point the identity importer is unmerged; the live runner
-		// still must reconcile a correctly-imported destination when one exists.
-		// The golden pair IS that destination, so the live arm over it must report
-		// mode=live green for identity queries (1-3, 13, 14) and never blocked.
-		const results = await runtime.runPromise(
-			Effect.gen(function* () {
-				const sql = yield* PgClient.PgClient;
-				return yield* runLiveEffect(sql, manifest);
-			}),
-		);
-		for (const id of [1, 2, 3, 13, 14]) {
-			const r = resultFor(results, id);
-			expect(r.mode).toBe("live");
-			expect(r.verdict, `query ${id} in live mode`).toBe("green");
-		}
-	});
-
 	test("R21 live mode negative control: 13b sabotage on the live destination turns #13 red", async () => {
 		await withRollback(async (tx, run) => {
 			await applySabotage(tx, "tests/fixtures/reconciliation/sabotage/13b.sql");
-			const results = await run(runLiveEffect(tx, manifest));
-			const r = resultFor(results, 13);
-			expect(r.mode).toBe("live");
-			expect(r.verdict).toBe("red");
+			// injected importer: the sabotage sits in the destination the importer
+			// (conceptually) produced, so #13 must turn red through the live runner.
+			const restore = withLiveIdentityTarget("seed");
+			try {
+				const results = await run(runLiveEffect(tx, manifest));
+				const r = resultFor(results, 13);
+				expect(r.mode).toBe("live");
+				expect(r.verdict).toBe("red");
+				expect(r.violations).toBeGreaterThan(0);
+			} finally {
+				restore();
+			}
 		});
+	});
+
+	test("R21 live mode: snapshot restored into a live T0 destination, merged importer detected + invoked, identity queries reconcile green", {
+		timeout: 60_000,
+	}, async () => {
+		// D2: live mode (a) restores the LEGACY SNAPSHOT into the T0 destination
+		// cluster, (b) detects the merged identity importer, (c) invokes it, and
+		// only then reconciles. The injected importer materializes the golden
+		// identity state from the restored snapshot — exactly the integration
+		// point a real STL-15 importer plugs into.
+		const name = `recon_live_${crypto.randomUUID().replace(/-/g, "")}`;
+		await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE postgres`);
+		const liveRuntime = makeRuntime(cluster.sql.options.host[0], name);
+		try {
+			// (a) T0 + merged migrations, then the LEGACY SNAPSHOT restored into
+			// the same database (its `legacy` schema coexists with `public`).
+			const tmp = await import("postgres").then((m) =>
+				m.default({
+					host: cluster.sql.options.host[0],
+					username: "stellarc_owner",
+					database: name,
+					max: 4,
+					onnotice: () => {},
+				}),
+			);
+			await migrate(tmp);
+			await tmp.end();
+			const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
+			const { execFileSync } = await import("node:child_process");
+			execFileSync(
+				join(bin, "pg_restore"),
+				[
+					"-h",
+					cluster.sql.options.host[0],
+					"-U",
+					"stellarc_owner",
+					"-d",
+					name,
+					"--no-owner",
+					join(
+						repoRootFromModule(),
+						"tests",
+						"fixtures",
+						"reconciliation",
+						"legacy-snapshot.pgdump",
+					),
+				],
+				{ stdio: "pipe" },
+			);
+			// (b)+(c) importer is detected and invoked from the restored snapshot.
+			// The seed MUST reflect a correct import of the snapshot (PKs preserved),
+			// so this fake is exactly the contract the merged importer satisfies.
+			const restore = withLiveIdentityTarget("seed");
+			try {
+				const results = await liveRuntime.runPromise(
+					Effect.gen(function* () {
+						const sql = yield* PgClient.PgClient;
+						return yield* runLiveEffect(sql, manifest);
+					}),
+				);
+				for (const id of [1, 2, 3, 13, 14]) {
+					const r = resultFor(results, id);
+					expect(r.mode, `query ${id}`).toBe("live");
+					expect(r.verdict, `query ${id} after importer ran`).toBe("green");
+				}
+				// non-identity slices stay blocked in live mode at this merge point
+				for (const id of [4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+					expect(resultFor(results, id).verdict, `query ${id}`).toBe("blocked");
+				}
+			} finally {
+				restore();
+			}
+		} finally {
+			await liveRuntime.dispose();
+			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${name}`);
+		}
+	});
+
+	test("R21/D2: with no merged importer, live mode restores the snapshot but identity queries report blocked naming STL-15", async () => {
+		const name = `recon_live_${crypto.randomUUID().replace(/-/g, "")}`;
+		await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE postgres`);
+		const liveRuntime = makeRuntime(cluster.sql.options.host[0], name);
+		try {
+			const tmp = await import("postgres").then((m) =>
+				m.default({
+					host: cluster.sql.options.host[0],
+					username: "stellarc_owner",
+					database: name,
+					max: 4,
+					onnotice: () => {},
+				}),
+			);
+			await migrate(tmp);
+			await tmp.end();
+			const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
+			const { execFileSync } = await import("node:child_process");
+			execFileSync(
+				join(bin, "pg_restore"),
+				[
+					"-h",
+					cluster.sql.options.host[0],
+					"-U",
+					"stellarc_owner",
+					"-d",
+					name,
+					"--no-owner",
+					join(
+						repoRootFromModule(),
+						"tests",
+						"fixtures",
+						"reconciliation",
+						"legacy-snapshot.pgdump",
+					),
+				],
+				{ stdio: "pipe" },
+			);
+			// detection must come up empty: point the target at the real STL-15
+			// importer path, which is NOT merged in this tree.
+			const restore = withLiveIdentityTarget("missing");
+			try {
+				const results = await liveRuntime.runPromise(
+					Effect.gen(function* () {
+						const sql = yield* PgClient.PgClient;
+						return yield* runLiveEffect(sql, manifest);
+					}),
+				);
+				for (const id of [1, 2, 3, 13, 14]) {
+					const r = resultFor(results, id);
+					expect(r.verdict, `query ${id}`).toBe("blocked");
+					expect(r.blockedReason, `query ${id}`).toMatch(/STL-15/);
+				}
+			} finally {
+				restore();
+			}
+		} finally {
+			await liveRuntime.dispose();
+			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${name}`);
+		}
 	});
 });
 
@@ -700,6 +855,200 @@ describe("R22 negative control", () => {
 			expect(spans).toHaveLength(0);
 		} finally {
 			await rt.dispose();
+		}
+	});
+});
+
+describe("R23 report and exit contract", () => {
+	// Drives run.ts main() end to end in a child process — the same entry CI
+	// uses — and asserts §3: JSON report in the artifacts dir, exit 0 on green,
+	// nonzero on any red AND on all-blocked, no PII in the report.
+	const bun = process.execPath;
+	const runCli = (
+		mode: string,
+		artifacts: string,
+		fixtureDir?: string,
+	): number => {
+		try {
+			execFileSync(bun, ["--bun", "tools/reconciliation/run.ts", mode], {
+				cwd: repoRootFromModule(),
+				env: {
+					...process.env,
+					ARTIFACTS_DIR: artifacts,
+					...(fixtureDir ? { RECON_FIXTURE_DIR: fixtureDir } : {}),
+				},
+				stdio: "pipe",
+				timeout: 110_000,
+			});
+			return 0;
+		} catch (error) {
+			const status = (error as { status?: number }).status;
+			return status ?? 1;
+		}
+	};
+
+	test("green canon-proof run: report written, all 14 green, exit 0, no PII", {
+		timeout: 120_000,
+	}, async () => {
+		const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const artifacts = await mkdtemp(join(tmpdir(), "stl27-r23-"));
+		try {
+			const status = runCli("canon-proof", artifacts);
+			expect(status, "green run must exit 0").toBe(0);
+			const report = JSON.parse(
+				await readFile(join(artifacts, "reconciliation-report.json"), "utf8"),
+			) as Array<{
+				id: number;
+				mode: string;
+				verdict: string;
+				violations: number;
+			}>;
+			expect(report).toHaveLength(14);
+			for (const r of report) {
+				expect(r.mode).toBe("canon-proof");
+				expect(r.verdict).toBe("green");
+				expect(r.violations).toBe(0);
+			}
+			const raw = JSON.stringify(report);
+			expect(raw).not.toMatch(/a@x\.com|bcrypt-hash|gh-token|sk-a/);
+		} finally {
+			await rm(artifacts, { recursive: true, force: true });
+		}
+	});
+
+	test("all-blocked live run: nonzero exit (all-blocked is a harness failure)", {
+		timeout: 120_000,
+	}, async () => {
+		const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const artifacts = await mkdtemp(join(tmpdir(), "stl27-r23-"));
+		try {
+			// live mode with the importer target pointing at a nonexistent
+			// module = every query blocked = all-blocked = MUST exit nonzero.
+			const status = runCliWithNoImporter("live", artifacts);
+			expect(status, "all-blocked run must not exit 0").not.toBe(0);
+			const report = JSON.parse(
+				await readFile(join(artifacts, "reconciliation-report.json"), "utf8"),
+			) as Array<{ verdict: string; blockedReason?: string }>;
+			expect(report).toHaveLength(14);
+			for (const r of report) {
+				expect(r.verdict).toBe("blocked");
+				expect(r.blockedReason).toMatch(/STL-15/);
+			}
+		} finally {
+			await rm(artifacts, { recursive: true, force: true });
+		}
+	});
+
+	// Spawns the CLI with the importer target overridden to a nonexistent module
+	// via a tiny bootstrap that patches the seam before importing run.ts.
+	function runCliWithNoImporter(mode: string, artifacts: string): number {
+		const script = [
+			'const run = await import("./tools/reconciliation/run.ts");',
+			"run.liveIdentityTarget.current = {",
+			'  module: "./no-such-identity-importer-module.ts",',
+			'  member: "importLegacyIdentity",',
+			"};",
+			"process.argv[2] = process.env.R23_MODE;",
+			"process.env.ARTIFACTS_DIR = process.env.R23_ARTIFACTS;",
+			"await run.mainForTests();",
+		].join("\n");
+		const scriptDir = join(repoRootFromModule(), "tools", "reconciliation");
+		try {
+			execFileSync(bun, ["--bun", "eval", script], {
+				cwd: repoRootFromModule(),
+				env: {
+					...process.env,
+					R23_MODE: mode,
+					R23_ARTIFACTS: artifacts,
+				},
+				stdio: "pipe",
+				timeout: 110_000,
+			});
+			void scriptDir;
+			return 0;
+		} catch (error) {
+			const status = (error as { status?: number }).status;
+			return status ?? 1;
+		}
+	}
+
+	test("red run (sabotaged dump copy): nonzero exit, report carries the red verdict", {
+		timeout: 180_000,
+	}, async () => {
+		const { execFileSync: efs } = await import("node:child_process");
+		const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const bin = process.env.PG_BIN ?? "/usr/lib/postgresql/15/bin";
+		const artifacts = await mkdtemp(join(tmpdir(), "stl27-r23-"));
+		const fixtures = await mkdtemp(join(tmpdir(), "stl27-r23-fx-"));
+		try {
+			// 1. regenerate BOTH dumps into the fixture dir (RECON_FIXTURE_DIR)
+			const env = { ...process.env, RECON_FIXTURE_DIR: fixtures };
+			efs(bun, ["--bun", "tools/reconciliation/make-legacy-fixture.ts"], {
+				cwd: repoRootFromModule(),
+				env,
+				stdio: "pipe",
+				timeout: 90_000,
+			});
+			efs(bun, ["--bun", "tools/reconciliation/make-destination-golden.ts"], {
+				cwd: repoRootFromModule(),
+				env,
+				stdio: "pipe",
+				timeout: 90_000,
+			});
+			// 2. tamper with the destination dump COPY: restore it, sabotage,
+			// dump it back. The committed tree is never touched.
+			const tamper = await disposablePostgres();
+			try {
+				efs(
+					join(bin, "pg_restore"),
+					[
+						"-h",
+						tamper.sql.options.host[0],
+						"-U",
+						"stellarc_owner",
+						"-d",
+						"postgres",
+						"--no-owner",
+						join(fixtures, "stellarc-destination-golden.pgdump"),
+					],
+					{ stdio: "pipe" },
+				);
+				await tamper.sql.unsafe(
+					`UPDATE public."user" SET name = '__SABOTAGE__' WHERE id = 'u1'`,
+				);
+				efs(
+					join(bin, "pg_dump"),
+					[
+						"-h",
+						tamper.sql.options.host[0],
+						"-U",
+						"stellarc_owner",
+						"-d",
+						"postgres",
+						"--format=custom",
+						"--file",
+						join(fixtures, "stellarc-destination-golden.pgdump"),
+					],
+					{ stdio: "pipe" },
+				);
+			} finally {
+				await tamper.close();
+			}
+			// 3. run the CLI against the tampered copies -> query #1 red
+			const status = runCli("canon-proof", artifacts, fixtures);
+			expect(status, "red run must exit nonzero").not.toBe(0);
+			const report = JSON.parse(
+				await readFile(join(artifacts, "reconciliation-report.json"), "utf8"),
+			) as Array<{ id: number; verdict: string; violations: number }>;
+			const first = report.find((r) => r.id === 1);
+			expect(first?.verdict).toBe("red");
+			expect(first?.violations).toBeGreaterThan(0);
+		} finally {
+			await rm(artifacts, { recursive: true, force: true });
+			await rm(fixtures, { recursive: true, force: true });
 		}
 	});
 });

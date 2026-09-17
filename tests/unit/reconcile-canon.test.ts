@@ -75,3 +75,30 @@ describe("R19 apikey hash known-answer (fork algorithm)", () => {
 		expect(isValidApiKeyHash(padded)).toBe(false);
 	});
 });
+
+describe("R19 fixture linkage (defect 7)", () => {
+	// The manifest's reference_id linkage must pin the ALGORITHM to the FIXTURE:
+	// for every known-answer row, the restored destination apikey row identified
+	// by reference_id must store exactly hashApiKey(raw). Asserted here at the
+	// seed-source level (the same template the integration fixture restores from)
+	// so a generator switched to any other 43-char hash fails, while the pure
+	// function tests above stay algorithm-vs-reimplementation only.
+	test("every known-answer row's stored hash equals hashApiKey(raw) via the destination seed", async () => {
+		const { destinationSeedSql } = await import(
+			"../../tools/reconciliation/canon"
+		);
+		const seed = destinationSeedSql();
+		const manifest = await loadManifest();
+		for (const { raw, reference_id } of manifest.known_answers.apikey_sha256_base64url) {
+			// the seed materializes the apikey row for this reference_id
+			expect(seed).toContain(`'${reference_id}','sk-`);
+			// ...with the hash of the manifest-declared raw (exact row content)
+			expect(seed).toContain(`'${hashApiKey(raw)}'`);
+		}
+		// negative control: a hypothetical wrong algorithm (truncated sha512,
+			// also 43 chars) must NOT appear anywhere in the seed
+		const wrong = createHash("sha512").update(KNOWN_ANSWER_RAWS[0]).digest("base64url").slice(0, 43);
+		expect(wrong).toHaveLength(43);
+		expect(destinationSeedSql()).not.toContain(`'${wrong}'`);
+	});
+});

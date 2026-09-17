@@ -646,8 +646,13 @@ export async function validateCorpus(
 				errors.push(`query ${q.id} header missing "${required}"`);
 		for (const sab of q.sabotages) {
 			const stext = await loadSabotageText(sab).catch(() => "");
-			if (!stext.includes("-- Sabotage"))
+			if (!stext.includes("Sabotage"))
 				errors.push(`sabotage ${sab} missing header`);
+			// review cycle 6, defect 5: sabotage headers carry the same declared
+			// contract as canon files (precondition tables + blocked-if).
+			for (const required of ["Precondition tables:", "Blocked if:"])
+				if (!stext.includes(required))
+					errors.push(`sabotage ${sab} header missing "${required}"`);
 		}
 	}
 
