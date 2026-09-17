@@ -150,17 +150,69 @@ export async function startProjectsFixtureServer(): Promise<ProjectsFixtureServe
 		health: "on-track",
 	});
 
-	const server = Bun.serve({
-		port: 0,
-		hostname: "127.0.0.1",
-		idleTimeout: 30,
-		fetch: (request) => http.handler(request),
-	});
+	// Playwright test workers run under Node even when the runner is launched
+	// through bun (CI: `bun run e2e`); serve the API with whichever runtime
+	// primitive exists instead of assuming the Bun global.
+	let url: string;
+	let stopServer: () => Promise<void>;
+	const serve = async (request: Request) => http.handler(request);
+	if (typeof Bun !== "undefined" && typeof Bun.serve === "function") {
+		const server = Bun.serve({
+			port: 0,
+			hostname: "127.0.0.1",
+			idleTimeout: 30,
+			fetch: (request: Request) => serve(request),
+		});
+		url = server.url.origin;
+		stopServer = async () => {
+			server.stop(true);
+		};
+	} else {
+		const { createServer } = await import("node:http");
+		const nodeServer = createServer(async (req, res) => {
+			try {
+				const response = await serve(
+					new Request(`http://127.0.0.1${req.url}`, {
+						method: req.method,
+						headers: req.headers as Record<string, string>,
+						body: ["GET", "HEAD"].includes(req.method ?? "GET")
+							? undefined
+							: await new Promise<Uint8Array>((resolve) => {
+									const chunks: Uint8Array[] = [];
+									req.on("data", (c) => chunks.push(c));
+									req.on("end", () =>
+										resolve(Buffer.concat(chunks.map((c) => Buffer.from(c)))),
+									);
+								}),
+					}),
+				);
+				const headers: Record<string, string> = {};
+				response.headers.forEach((v, k) => {
+					headers[k] = v;
+				});
+				const buf = Buffer.from(await response.arrayBuffer());
+				res.writeHead(response.status, headers);
+				res.end(buf);
+			} catch {
+				res.writeHead(500);
+				res.end();
+			}
+		});
+		await new Promise<void>((resolve) =>
+			nodeServer.listen(0, "127.0.0.1", resolve),
+		);
+		const address = nodeServer.address();
+		const port = typeof address === "object" && address ? address.port : 0;
+		url = `http://127.0.0.1:${port}`;
+		stopServer = async () => {
+			await new Promise<void>((resolve) => nodeServer.close(() => resolve()));
+		};
+	}
 	return {
-		url: server.url.origin,
+		url,
 		sql: db.sql,
 		async close() {
-			server.stop(true);
+			await stopServer();
 			await http.dispose();
 			await runtime.dispose();
 			await db.close();

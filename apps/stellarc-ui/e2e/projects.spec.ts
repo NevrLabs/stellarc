@@ -24,45 +24,98 @@ async function harness() {
     const server = await startProjectsFixtureServer();
     let projectHits = 0;
     const dist = `${process.cwd()}/apps/stellarc-ui/dist`;
-    const ui = Bun.serve({
-      port: 0,
-      hostname: "127.0.0.1",
-      fetch: async (request) => {
-        const url = new URL(request.url);
-        if (url.pathname.startsWith("/api/")) {
-          if (url.pathname.startsWith("/api/project")) projectHits += 1;
-          const upstream = await fetch(
-            `${server.url}${url.pathname}${url.search}`,
-            {
-              method: request.method,
-              headers: request.headers,
-              body: ["GET", "HEAD"].includes(request.method)
-                ? undefined
-                : await request.text(),
-            },
-          );
-          return new Response(upstream.body, upstream);
-        }
-        const path = url.pathname === "/" ? "/index.html" : url.pathname;
+    // Playwright test workers run under Node even when the test runner is
+    // launched through bun (CI: `bun run e2e`), so the static-UI + API proxy
+    // must not depend on the Bun global. Use whichever server primitive the
+    // current runtime exposes.
+    const handler = async (request: Request): Promise<Response> => {
+      const url = new URL(request.url);
+      if (url.pathname.startsWith("/api/")) {
+        if (url.pathname.startsWith("/api/project")) projectHits += 1;
+        const upstream = await fetch(
+          `${server.url}${url.pathname}${url.search}`,
+          {
+            method: request.method,
+            headers: request.headers,
+            body: ["GET", "HEAD"].includes(request.method)
+              ? undefined
+              : await request.text(),
+          },
+        );
+        return new Response(upstream.body, upstream);
+      }
+      const path = url.pathname === "/" ? "/index.html" : url.pathname;
+      try {
+        const file = readFileSync(`${dist}${path}`);
+        const type = path.endsWith(".html")
+          ? "text/html"
+          : path.endsWith(".js")
+            ? "text/javascript"
+            : path.endsWith(".css")
+              ? "text/css"
+              : "application/octet-stream";
+        return new Response(file, { headers: { "content-type": type } });
+      } catch {
+        return new Response(readFileSync(`${dist}/index.html`), {
+          headers: { "content-type": "text/html" },
+        });
+      }
+    };
+    let origin: string;
+    let closeUi: () => Promise<void>;
+    if (typeof Bun !== "undefined" && typeof Bun.serve === "function") {
+      const ui = Bun.serve({
+        port: 0,
+        hostname: "127.0.0.1",
+        fetch: (request: Request) => handler(request),
+      });
+      origin = ui.url.origin;
+      closeUi = async () => {
+        await ui.stop(true);
+      };
+    } else {
+      const { createServer } = await import("node:http");
+      const httpServer = createServer(async (req, res) => {
         try {
-          const file = readFileSync(`${dist}${path}`);
-          const type = path.endsWith(".html")
-            ? "text/html"
-            : path.endsWith(".js")
-              ? "text/javascript"
-              : path.endsWith(".css")
-                ? "text/css"
-                : "application/octet-stream";
-          return new Response(file, { headers: { "content-type": type } });
-        } catch {
-          return new Response(readFileSync(`${dist}/index.html`), {
-            headers: { "content-type": "text/html" },
+          const response = await handler(
+            new Request(`http://127.0.0.1${req.url}`, {
+              method: req.method,
+              headers: req.headers as Record<string, string>,
+              body: ["GET", "HEAD"].includes(req.method ?? "GET")
+                ? undefined
+                : await new Promise<Uint8Array>((resolve) => {
+                    const chunks: Uint8Array[] = [];
+                    req.on("data", (c) => chunks.push(c));
+                    req.on("end", () =>
+                      resolve(Buffer.concat(chunks.map((c) => Buffer.from(c)))),
+                    );
+                  }),
+            }),
+          );
+          const headers: Record<string, string> = {};
+          response.headers.forEach((v, k) => {
+            headers[k] = v;
           });
+          const buf = Buffer.from(await response.arrayBuffer());
+          res.writeHead(response.status, headers);
+          res.end(buf);
+        } catch {
+          res.writeHead(500);
+          res.end();
         }
-      },
-    });
+      });
+      await new Promise<void>((resolve) =>
+        httpServer.listen(0, "127.0.0.1", resolve),
+      );
+      const address = httpServer.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      origin = `http://127.0.0.1:${port}`;
+      closeUi = async () => {
+        await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      };
+    }
     return {
-      uiUrl: ui.url.origin,
+      uiUrl: origin,
       projectRequests: () => projectHits,
     };
   })();
