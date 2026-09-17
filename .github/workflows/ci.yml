@@ -18,6 +18,13 @@ jobs:
           bun-version: 1.4.0
       - name: Install disposable PostgreSQL binaries
         run: |
+          # ubuntu-22.04 runners ship only postgresql-14; the disposable
+          # integration fixtures require PG15 binaries (tests/helpers/postgres.ts
+          # defaults PG_BIN to /usr/lib/postgresql/15/bin), so add the PGDG apt
+          # repository before installing postgresql-15.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-15
       - run: bun install --frozen-lockfile
