@@ -96,3 +96,16 @@ STL-18 owns reconciliation **#10 only**. #1–#3 are STL-15; #4–#6 STL-16; #7 
 4. Add transactional CRUD/events/txids, org revocation, reconnect semantics, and span assertions (T05–T07, T11, T13).
 5. Add installation, grant, integration configuration, provider adapter and safe DTOs; prove secret isolation and negative controls.
 6. Run canonical #10 plus importer idempotency, full gates and live Playwright evidence; hand to different-family adversarial review. The orchestrator alone merges, commits, and updates the tracker.
+
+
+## Orchestrator amendments (2026-09-15) — answers to blocker-c1
+
+**A1 — Dependency premise.** Build order §8 item 1 is corrected: rebind to **merged T0 (STL-14) and T1a (STL-31, `0002_identity.sql`) only**. T2/T3 are NOT prerequisites of T4: `repo`, `repo_issue`, `repo_pull_request`, `github_installation`, `github_user_grant`, `github_integration` have FK edges into `organization`/`user` only. Links from repo items to tickets are T5's (`repo_item_link`); do not create them here. Your migration is `0003_repository.sql`; if T2/T3 land `0003`/`0004` first, renumber yours to the next free number at rebase — numbering is by merge order, not by ticket.
+
+**A2 — Canonical reconciliation #10 (supplied).** Against a production dump restored as `kaneo_src`, for each org: `count(repo)`, `count(repo_issue)`, `count(repo_pull_request)`, `count(github_installation)`, `count(github_user_grant)`, and `sum(length(coalesce(body,'')))` over issues+PRs must equal the same aggregates over the imported Stellarc tables, joined by imported `id`. Column-exact: every imported row's non-secret columns byte-equal (`encode(digest(row_to_json(t)::text,'sha256'),'hex')` with the secret columns nulled on both sides). Secret columns (`access_token`, `refresh_token`, `webhook_secret`, `installation_token`) are excluded from the digest and compared only as `is null` parity. Register as query #10 in T13's harness (STL-27 owns the harness; you own the query text and its fixture).
+
+**A3 — Token/config encryption.** Deferred to a numbered follow-up (orchestrator files it). For T4: store secret columns **as imported, unchanged** (the fork stores them plaintext today; parity means parity), mark them `-- SECRET: encryption pending STL-xx` in the migration, and exclude them from every shape, HTTP response, span attribute and log. A test asserts the exclusion (sabotage: add the column to a shape → red).
+
+**A4 — Webhook ownership.** T4 owns the GitHub webhook *receiver* endpoint (signature verify → event append). Fan-out to notifications/activity is T3's via the outbox; T4 emits `repo.webhook_received` and stops.
+
+Proceed. The blocker is answered; do not re-raise items 3–5.

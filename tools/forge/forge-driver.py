@@ -77,7 +77,7 @@ def state(n):
         log("error", tid(n), "state file corrupt and no committed copy"); return {"stages": [], "cycle": 0}
 def last(s, stage):
     for st in reversed(s["stages"]):
-        if st["stage"] == stage: return st["status"]
+        if st["stage"] == stage and st["status"] != "note": return st["status"]
     return None
 
 def blockers(n, key2num):
@@ -196,6 +196,9 @@ def is_done(n):
     s = state(n)
     return last(s, "merged") == "pass" or (REPO_ROOT / f".forge/{tid(n)}.skip").exists()
 
+def idx_of(s, stage, status):
+    return max([i for i, x in enumerate(s["stages"]) if x["stage"] == stage and x["status"] == status], default=-1)
+
 def next_stage(n):
     """Which forge command should run next for ticket n, or None if waiting/done/escalated."""
     if (REPO_ROOT / f".forge/{tid(n)}.escalation").exists(): return None
@@ -206,7 +209,7 @@ def next_stage(n):
         return None
     if last(s, "merged") == "pass": return None
     if last(s, "merge-gate") == "pass": return None                    # merged is recorded by forge merge itself
-    if last(s, "review") == "pass": return "merge"
+    if last(s, "review") == "pass" and idx_of(s, "review", "pass") > max(idx_of(s, "merge-gate", "fail"), idx_of(s, "implement", "running")): return "merge"
     def idx(stage, status):
         for i in range(len(s["stages"]) - 1, -1, -1):
             x = s["stages"][i]
@@ -214,6 +217,9 @@ def next_stage(n):
         return -1
     if last(s, "review") == "rework" and idx("implement", "pass") < idx("review", "rework"): return "implement"
     if last(s, "implement") == "pass": return "review"
+    if last(s, "review") == "blocked":
+        lr = next(x for x in reversed(s["stages"]) if x["stage"] == "review")
+        if "preflight" in str(lr.get("reason", "")): return "review"
     if last(s, "spec") == "pass": return "implement"
     if last(s, "implement") == "blocked":
         li = next(x for x in reversed(s["stages"]) if x["stage"] == "implement")
@@ -236,22 +242,52 @@ def failures(n, stage):
 def in_flight_count(nums, stages=("implement", "review")):
     return sum(1 for n in nums if any(last(state(n), st) == "running" for st in stages))
 
+RUNNING = {}   # (ticket, stage) -> Popen. The driver must not block on a 3-hour implement; it launches and returns.
+
+def host_has_headroom():
+    """Don't launch a heavy stage when the box is already saturated. The host hard-reset at 22:56 under 4 lanes
+    (bun test + vite build + disposable PG each) with no swap; 15G RAM, 2 cores."""
+    try:
+        load1 = float(open("/proc/loadavg").read().split()[0])
+        avail_kb = next(int(l.split()[1]) for l in open("/proc/meminfo") if l.startswith("MemAvailable"))
+    except Exception: return True
+    ok = load1 < 6.0 and avail_kb > 4 * 1024 * 1024
+    if not ok: log("headroom", "-", f"deferring heavy launch: load1={load1:.1f} avail={avail_kb//1024}M")
+    return ok
+
 def run_stage(n, stage):
+    """Launch `forge <stage> <n>` detached and return immediately. Completion is handled by reap_runs() on later
+    ticks: exit code → ok/fail log, escalation, git push of state. Synchronous run_stage was why 'parallel 4' only
+    ever produced one lane — the driver sat inside a single implement for hours."""
     t = tid(n); log("start", t, stage)
-    r = subprocess.run([str(FORGE), stage, str(n)], cwd=REPO_ROOT, env=env(), capture_output=True, text=True,
-                       timeout=cfg()["stage_timeout_s"].get(stage, 3600) + 600)
-    tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
-    if r.returncode == 0:
-        log("ok", t, f"{stage}: {' | '.join(tail)}")
-    else:
-        log("fail", t, f"{stage} rc={r.returncode}: {' | '.join(tail)}")
-        if failures(n, stage) >= RETRIES or "exceeded" in (r.stdout + r.stderr):
-            (REPO_ROOT / f".forge/{t}.escalation").write_text(f"{now()} {stage} failed {failures(n, stage)}x\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}\n")
-            log("escalate", t, f"{stage} — human needed; delete .forge/{t}.escalation to resume")
-            gh("issue", "comment", str(n), "--body", f"### forge-driver · **ESCALATED** at `{stage}`\n\nFailed {failures(n, stage)}× — driver has stopped touching this ticket. Delete `.forge/{t}.escalation` after fixing to resume.\n\n```\n{' | '.join(tail)}\n```")
-    # forge commits stage files on spec/review; make sure state changes reach origin
-    subprocess.run(["git", "push", "-q", "origin", cfg()["base"]], cwd=REPO_ROOT, env=env(), capture_output=True)
-    return r.returncode == 0
+    logf = open(REPO_ROOT / f".forge/runs/{t}-{stage}-{int(time.time())}.log", "w")
+    (REPO_ROOT / ".forge/runs").mkdir(exist_ok=True)
+    p = subprocess.Popen([str(FORGE), stage, str(n)], cwd=REPO_ROOT, env=env(), stdout=logf, stderr=subprocess.STDOUT,
+                         start_new_session=True)
+    RUNNING[(n, stage)] = (p, logf, time.time(), cfg()["stage_timeout_s"].get(stage, 3600) + 600)
+    return True
+
+def reap_runs():
+    for key, (p, logf, t0, limit) in list(RUNNING.items()):
+        n, stage = key; t = tid(n)
+        rc = p.poll()
+        if rc is None:
+            if time.time() - t0 > limit:
+                p.kill(); rc = -9
+            else: continue
+        logf.close(); RUNNING.pop(key)
+        try: tail = Path(logf.name).read_text().strip().splitlines()[-3:]
+        except Exception: tail = []
+        if rc == 0:
+            log("ok", t, f"{stage}: {' | '.join(tail)}")
+        else:
+            log("fail", t, f"{stage} rc={rc}: {' | '.join(tail)}")
+            body = " ".join(tail)
+            if failures(n, stage) >= RETRIES or "exceeded" in body:
+                (REPO_ROOT / f".forge/{t}.escalation").write_text(f"{now()} {stage} failed {failures(n, stage)}x\n{body[-3000:]}\n")
+                log("escalate", t, f"{stage} — human needed; delete .forge/{t}.escalation to resume")
+                gh("issue", "comment", str(n), "--body", f"### forge-driver · **ESCALATED** at `{stage}`\n\nFailed {failures(n, stage)}× — driver has stopped touching this ticket. Delete `.forge/{t}.escalation` after fixing to resume.\n\n```\n{' | '.join(tail)}\n```")
+        subprocess.run(["git", "push", "-q", "origin", cfg()["base"]], cwd=REPO_ROOT, env=env(), capture_output=True)
 
 def tick():
     if (REPO_ROOT / ".forge/driver.pause").exists():
@@ -259,6 +295,7 @@ def tick():
     subprocess.run(["git", "pull", "-q", "--ff-only", "origin", cfg()["base"]], cwd=REPO_ROOT, env=env(), capture_output=True)
     wm = wave_map(); nums = sorted(wm.values())
     ready = []
+    reap_runs()
     for n in nums: reap_orphans(n)
     sweep_lanes(nums)
     for n in nums:
@@ -281,17 +318,27 @@ def tick():
         log("idle", "-", f"{done}/{len(nums)} merged; nothing runnable (waiting on agents, blockers, or escalations)")
         return
     # throttle heavy stages
-    heavy = in_flight_count(nums)
-    light = in_flight_count(nums, stages=("triage", "spec"))
+    launched_heavy = {n for (n, st) in RUNNING if st in ("implement", "review", "merge")}
+    launched_light = {n for (n, st) in RUNNING if st in ("triage", "spec")}
+    heavy = len({*launched_heavy, *[n for n in nums if any(last(state(n), st) == "running" for st in ("implement", "review", "merge-gate"))]})
+    light = len({*launched_light, *[n for n in nums if any(last(state(n), st) == "running" for st in ("triage", "spec"))]})
+    PRIO = {"merge": 0, "review": 1, "implement": 2, "spec": 3, "triage": 4}
+    ready.sort(key=lambda x: PRIO.get(x[1], 9))
+    impl_running = len({*[n for (n, st) in RUNNING if st == "implement"], *[n for n in nums if last(state(n), "implement") == "running"]})
     for n, st in ready:
-        if st in ("implement", "review"):
+        if any(k[0] == n for k in RUNNING): continue
+        if st in ("implement", "review", "merge"):
             if heavy >= PARALLEL: log("throttle", tid(n), f"{st} deferred; {heavy} heavy in flight"); continue
+            # implementers may take at most PARALLEL-1 slots so a review/merge can always get in; reviews unlock merges
+            if st == "implement" and impl_running >= PARALLEL - 1: log("throttle", tid(n), f"implement deferred; {impl_running} implementers hold the cap-1"); continue
+            if not host_has_headroom(): continue
         elif light >= LIGHT_PARALLEL:
             log("throttle", tid(n), f"{st} deferred; {light} light in flight"); continue
         ok = run_stage(n, st)
-        if st in ("implement", "review"): heavy += 1
-        else: light += 1
-        if not ok and st == "triage": break   # a systemic triage failure is probably infra; don't spam
+        if st in ("implement", "review", "merge"): heavy += 1
+        if st == "implement": impl_running += 1
+        if st not in ("implement", "review", "merge"): light += 1
+        pass
 
 def main():
     log("boot", "-", f"repo={REPO_ROOT} tick={TICK_S}s parallel={PARALLEL}")

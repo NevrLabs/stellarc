@@ -3,11 +3,6 @@
  "stages": [
   {
    "stage": "triage",
-   "status": "running",
-   "at": "2026-09-10T12:55:21+00:00"
-  },
-  {
-   "stage": "triage",
    "status": "note",
    "at": "2026-09-10T12:55:22+00:00",
    "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
@@ -23,6 +18,33 @@
    "status": "note",
    "at": "2026-09-10T12:55:23+00:00",
    "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-15T13:41:57+00:00",
+   "pid": 2349786,
+   "reason": "orphan running: watcher pid 2349786 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "triage",
+   "status": "pass",
+   "at": "2026-09-15T13:45:20+00:00",
+   "agent": "8dd78156-d7c7-4075-8d4e-af36d8b5ddc7"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-15T13:51:29+00:00",
+   "pid": 2354952,
+   "reason": "orphan running: watcher pid 2354952 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "at": "2026-09-15T14:12:20+00:00",
+   "agent": "fa1b09be-9939-435e-905c-ef664eb109ed",
+   "artifact": ".forge/STL-25.spec.md"
   }
  ],
  "cycle": 0
