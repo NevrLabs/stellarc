@@ -243,6 +243,16 @@ export async function stubOrgShell(page: Page) {
     "/api/identity/organizations": { organizations: [organization] },
     "/api/identity/orgs/fixture-org": { ...organization },
     "/api/identity/orgs/fixture-org/members": { members },
+    // KFL-160 assignee picker: principals projection (human + agent rows).
+    "/api/identity/orgs/fixture-org/principals": {
+      principals: users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image ?? null,
+        kind: "user" as const,
+      })),
+    },
     "/api/identity/orgs/fixture-org/teams": { teams: [] },
     "/api/identity/orgs/fixture-org/invitations": { invitations: [] },
     "/api/identity/orgs/fixture-org/roles": { roles: [] },
@@ -380,6 +390,16 @@ export async function stubOrgShell(page: Page) {
       path === "/api/auth/organization/has-permission"
     ) {
       await route.fulfill({ json: { success: true, error: null } });
+    } else if (
+      request.method() === "POST" &&
+      path === "/api/auth/organization/set-active"
+    ) {
+      // The project-detail tree syncs the Better Auth active organization
+      // (KFL-160 assignee picker consumes the principal projection). Fulfil
+      // with the stub org so no frozen fixture request aborts.
+      await route.fulfill({
+        json: { success: true, error: null, data: organization },
+      });
     } else {
       await route.fallback();
     }

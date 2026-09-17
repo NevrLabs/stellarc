@@ -198,9 +198,16 @@ test.beforeAll(async () => {
   // UI end of the live path: sign in through the REAL handler with the
   // imported bcrypt hash; the cookie the browser will use comes from the
   // same Better Auth session the UI's authClient reads.
+  // The browser always sends Origin on cross-origin POSTs; Better Auth's
+  // CSRF check (1.7) rejects Origin-less mutations with
+  // MISSING_OR_NULL_ORIGIN. Send the configured trusted origin exactly as
+  // the frozen sign-in form's fetch would.
   const signIn = await fetch(`${API_BASE}/api/auth/sign-in/email`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      origin: "http://127.0.0.1:4173",
+    },
     body: JSON.stringify({
       email: "owner@fixture.test",
       password: "imported-password-1",
@@ -217,7 +224,11 @@ test.beforeAll(async () => {
   // the browser session lands on the fixture org.
   await fetch(`${API_BASE}/api/identity/active-org`, {
     method: "POST",
-    headers: { "content-type": "application/json", cookie: cookiePair },
+    headers: {
+      "content-type": "application/json",
+      cookie: cookiePair,
+      origin: "http://127.0.0.1:4173",
+    },
     body: JSON.stringify({ organizationId: "o-fx" }),
   });
 });
@@ -288,11 +299,14 @@ for (const [path, screen] of SCREENS) {
       },
     ]);
     await page.clock.setFixedTime(new Date("2026-01-02T12:00:00.000Z"));
-    await page.goto(path, { waitUntil: "networkidle" });
+    // "load", not "networkidle": the signed-in app keeps long-lived
+    // connections (auth session polling, board websocket retries) that
+    // never let networkidle settle. A bounded settle window lets react-query
+    // resolve the live identity data before the pixel comparison; the
+    // members screen additionally asserts fixture text is rendered first.
+    await page.goto(path, { waitUntil: "load" });
     await page.evaluate(() => document.fonts.ready);
-    // Let react-query settle: remaining inflight refetches mutate the DOM.
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1500);
     // Live-content proof: the imported fixture user must be rendered by the
     // frozen Members surface reading its real data source (blank shells fail).
     if (screen === "members") {

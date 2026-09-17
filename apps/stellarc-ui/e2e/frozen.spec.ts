@@ -58,24 +58,6 @@ const pendingScreens: Array<[string, string, string, string]> = [
     "STL-16",
   ],
   [
-    "/dashboard/organization/foundation/settings/organization/members",
-    "members",
-    "Members",
-    "STL-15",
-  ],
-  [
-    "/dashboard/organization/foundation/settings/organization/teams",
-    "teams",
-    "Teams",
-    "STL-15",
-  ],
-  [
-    "/dashboard/organization/foundation/settings/organization/roles",
-    "roles",
-    "Roles",
-    "STL-15",
-  ],
-  [
     "/dashboard/organization/foundation/repo",
     "repo-list",
     "Repositories",
