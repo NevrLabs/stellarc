@@ -76,6 +76,33 @@ there is exactly one such event; a preserved hash must have none (never neither,
 never both). Until STL-15 implements the emitter, #14's re-issue sabotage variant
 reports blocked-with-reason rather than green.
 
+### Declared HTTP arms (spec §5 rows 9 and 12)
+
+Queries #9 (asset rows ↔ S3 objects bijection) and #12 (cross-org isolation)
+each have a second, HTTP-side arm the SQL cannot prove: **every asset URL
+resolves 200** and the **cross-org HTTP leak probe**. These arms are DECLARED
+in the harness hook registry (`httpArmRegistry` / `registerHttpArm` in
+`tools/reconciliation/run.ts`) and owned by STL-20:
+
+| # | Arm | Owner | State |
+|---|---|---|---|
+| 9 | every asset URL resolves 200 against the object store | STL-20 | declared, hook unregistered |
+| 12 | cross-org isolation probe (no principal-readable row, grant, or shape leaks across orgs over HTTP) | STL-20 | declared, hook unregistered |
+
+Semantics:
+
+- **canon-proof mode** records the arm state on the query result
+  (`httpArm: { state: "declared", owner: "STL-20", … }`) — the missing arm is
+  visible in every report, never silent, and never fakes or suppresses a
+  verdict.
+- **live mode** BLOCKS #9/#12 with a reason naming STL-20 until an
+  implementation is registered: a live green over an unprobed HTTP surface
+  would be exactly the canon-proof/live conflation the spec forbids.
+- **A registered hook is load-bearing in both modes**: a red hook verdict
+  turns the query red even when the SQL side found zero violations, and a
+  throwing hook fails CLOSED (red). STL-20 registers its probe via
+  `registerHttpArm(queryId, hook)`; pass `null` to unregister.
+
 ### External legacy inventory caveat (not a blocker)
 
 If a legacy inventory document exists outside this repo, the orchestrator must diff it

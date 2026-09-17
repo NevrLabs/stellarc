@@ -12,8 +12,10 @@ import {
 import {
 	aggregate,
 	applySabotage,
+	httpArmRegistry,
 	liveIdentityTarget,
 	type QueryResult,
+	registerHttpArm,
 	restoreFixtures,
 	runCanonProofEffect,
 	runLiveEffect,
@@ -794,6 +796,88 @@ describe("R04 blocked semantics and R21 live mode", () => {
 		} finally {
 			await liveRuntime.dispose();
 			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${name}`);
+		}
+	});
+});
+
+// D4 (review c5 major #4): spec §5 rows 9 and 12 require "SQL + declared
+// harness hook" — the HTTP arms asset-URL-resolves-200 (#9) and cross-org
+// HTTP leak probe (#12). The registry must DECLARE both arms; until STL-20
+// registers implementations they are declared-but-inactive in canon-proof
+// (recorded, never silent) and BLOCK live green with a reason naming STL-20.
+describe("D4 declared HTTP arms (spec §5 rows 9 and 12)", () => {
+	test("registry declares exactly the #9 and #12 arms, owned by STL-20, hooks unregistered", () => {
+		const arms = httpArmRegistry();
+		expect(arms.map((a) => a.queryId)).toEqual([9, 12]);
+		for (const arm of arms) {
+			expect(arm.owner).toBe("STL-20");
+			expect(arm.description.length).toBeGreaterThan(0);
+			expect(arm.hook).toBeNull();
+		}
+	});
+
+	test("canon-proof: declared arms keep #9/#12 green while recording the arm state (never silent, never faked)", async () => {
+		await withRollback(async (tx) => {
+			const results = await verdicts(tx);
+			for (const id of [9, 12]) {
+				const r = resultFor(results, id);
+				expect(r.verdict).toBe("green");
+				expect(r.httpArm?.state).toBe("declared");
+				expect(r.httpArm?.owner).toBe("STL-20");
+				expect(r.httpArm?.description.length).toBeGreaterThan(0);
+			}
+			// arms exist ONLY for 9 and 12 — no other result carries one
+			for (const r of results) {
+				if (r.id !== 9 && r.id !== 12) {
+					expect(r.httpArm).toBeUndefined();
+				}
+			}
+		});
+	});
+
+	test("a REGISTERED hook is load-bearing: red arm turns the query red despite green SQL; clearing restores declared", async () => {
+		const arms = httpArmRegistry();
+		for (const arm of arms) {
+			registerHttpArm(arm.queryId, async () => ({
+				verdict: "red" as const,
+				violations: 2,
+			}));
+		}
+		try {
+			await withRollback(async (tx) => {
+				const results = await verdicts(tx);
+				for (const id of [9, 12]) {
+					const r = resultFor(results, id);
+					expect(r.verdict).toBe("red");
+					expect(r.violations).toBeGreaterThan(0);
+					expect(r.httpArm?.state).toBe("registered");
+					expect(r.httpArm?.verdict).toBe("red");
+				}
+			});
+		} finally {
+			for (const arm of arms) registerHttpArm(arm.queryId, null);
+		}
+		await withRollback(async (tx) => {
+			const r = resultFor(await verdicts(tx), 9);
+			expect(r.verdict).toBe("green");
+			expect(r.httpArm?.state).toBe("declared");
+		});
+	});
+
+	test("live mode: unregistered arms block #9/#12 with a reason naming STL-20 (no fake live green)", async () => {
+		const restore = withLiveIdentityTarget("noop");
+		try {
+			await withRollback(async (tx, run) => {
+				const results = await run(runLiveEffect(tx, manifest));
+				for (const id of [9, 12]) {
+					const r = resultFor(results, id);
+					expect(r.mode).toBe("live");
+					expect(r.verdict).toBe("blocked");
+					expect(r.blockedReason).toMatch(/STL-20/);
+				}
+			});
+		} finally {
+			restore();
 		}
 	});
 });

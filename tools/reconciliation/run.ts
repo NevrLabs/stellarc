@@ -57,6 +57,79 @@ export interface QueryResult {
 	verdict: Verdict;
 	violations: number;
 	blockedReason?: string;
+	httpArm?: HttpArmState;
+}
+
+// --- D4: declared HTTP arms (spec §5 rows 9 and 12) ------------------------------
+//
+// Spec §5 rows 9 and 12 are "SQL + declared harness hook": the SQL lives in
+// 09-asset.sql / 12-isolation.sql, and the HTTP arm (every asset URL resolves
+// 200; cross-org leak probe over HTTP) is a DECLARED hook owned by STL-20.
+// Until STL-20 registers an implementation:
+//   - canon-proof mode records the arm state on the result (state "declared")
+//     and never lets the missing arm fake or suppress a verdict;
+//   - live mode BLOCKS the query with a reason naming STL-20 — a live green
+//     over an unprobed HTTP surface would be exactly the conflation the spec
+//     forbids. A REGISTERED hook is load-bearing in both modes: a red hook
+//     turns the query red even when the SQL side is green.
+
+export interface HttpArmHookResult {
+	verdict: "green" | "red";
+	violations: number;
+}
+
+export type HttpArmHook = () => Promise<HttpArmHookResult>;
+
+interface DeclaredHttpArm {
+	queryId: number;
+	owner: string;
+	description: string;
+}
+
+const DECLARED_HTTP_ARMS: readonly DeclaredHttpArm[] = [
+	{
+		queryId: 9,
+		owner: "STL-20",
+		description:
+			"HTTP arm: every asset URL resolves 200 against the object store",
+	},
+	{
+		queryId: 12,
+		owner: "STL-20",
+		description:
+			"HTTP arm: cross-org isolation probe (no principal-readable row, grant, or shape leaks across orgs over HTTP)",
+	},
+];
+
+const httpArmHooks = new Map<number, HttpArmHook>();
+
+/** STL-20 registers its HTTP probe implementation here; null unregisters. */
+export function registerHttpArm(
+	queryId: number,
+	hook: HttpArmHook | null,
+): void {
+	if (hook === null) {
+		httpArmHooks.delete(queryId);
+	} else {
+		httpArmHooks.set(queryId, hook);
+	}
+}
+
+export function httpArmRegistry(): Array<
+	DeclaredHttpArm & { hook: HttpArmHook | null }
+> {
+	return DECLARED_HTTP_ARMS.map((arm) => ({
+		...arm,
+		hook: httpArmHooks.get(arm.queryId) ?? null,
+	}));
+}
+
+export interface HttpArmState {
+	state: "declared" | "registered";
+	owner: string;
+	description: string;
+	verdict?: "green" | "red";
+	violations?: number;
 }
 
 function quoteIdent(qualified: string): string {
@@ -121,9 +194,66 @@ const runQuery = Effect.fn("ReconcileRunner.runQuery")(
 					blockedReason: missing,
 				};
 			}
+			const arm = DECLARED_HTTP_ARMS.find((a) => a.queryId === id);
+			const hook = arm === undefined ? null : (httpArmHooks.get(id) ?? null);
+			if (arm !== undefined && mode === "live" && hook === null) {
+				// Live green over an unprobed HTTP surface would fake the wave
+				// reconciliation PASS; blocked-with-reason is the honest verdict.
+				const blockedReason = `HTTP arm not registered (expected from ${arm.owner}: ${arm.description})`;
+				yield* Effect.annotateCurrentSpan("stellarc.reconcile.query_id", id);
+				yield* Effect.annotateCurrentSpan("stellarc.reconcile.mode", mode);
+				yield* Effect.annotateCurrentSpan(
+					"stellarc.reconcile.verdict",
+					"blocked",
+				);
+				yield* Effect.annotateCurrentSpan("stellarc.reconcile.violations", 0);
+				return {
+					id,
+					mode,
+					verdict: "blocked" as const,
+					violations: 0,
+					blockedReason,
+					httpArm: {
+						state: "declared" as const,
+						owner: arm.owner,
+						description: arm.description,
+					},
+				};
+			}
 			const rows = yield* sql.unsafe(text);
-			const violations = Array.isArray(rows) ? rows.length : 0;
-			const verdict: Verdict = violations === 0 ? "green" : "red";
+			let violations = Array.isArray(rows) ? rows.length : 0;
+			let verdict: Verdict = violations === 0 ? "green" : "red";
+			let httpArm: HttpArmState | undefined;
+			if (arm !== undefined && hook !== null) {
+				// A registered hook is load-bearing in BOTH modes: its red flips
+				// the query red even when the SQL side found zero violations. A
+				// throwing hook fails CLOSED (red), never silently green.
+				const hookResult = yield* Effect.tryPromise(() => hook()).pipe(
+					Effect.catchAll(() =>
+						Effect.succeed({
+							verdict: "red" as const,
+							violations: 1,
+						}),
+					),
+				);
+				httpArm = {
+					state: "registered",
+					owner: arm.owner,
+					description: arm.description,
+					verdict: hookResult.verdict,
+					violations: hookResult.violations,
+				};
+				if (hookResult.verdict === "red") {
+					verdict = "red";
+					violations += hookResult.violations;
+				}
+			} else if (arm !== undefined) {
+				httpArm = {
+					state: "declared",
+					owner: arm.owner,
+					description: arm.description,
+				};
+			}
 			yield* Effect.annotateCurrentSpan("stellarc.reconcile.query_id", id);
 			yield* Effect.annotateCurrentSpan("stellarc.reconcile.mode", mode);
 			yield* Effect.annotateCurrentSpan("stellarc.reconcile.verdict", verdict);
@@ -131,7 +261,7 @@ const runQuery = Effect.fn("ReconcileRunner.runQuery")(
 				"stellarc.reconcile.violations",
 				violations,
 			);
-			return { id, mode, verdict, violations };
+			return { id, mode, verdict, violations, httpArm };
 		}).pipe(Effect.withSpan("stellarc.reconcile.query")),
 );
 
