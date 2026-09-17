@@ -1,6 +1,7 @@
+import { Cause, Effect, Exit, type Runtime } from "effect";
 import type { Sql } from "postgres";
-import { appendEvent } from "./project-milestones";
 import { NotFound, ValidationError } from "./projects";
+import { appendProjectEventEffect, opService } from "./projects-events";
 
 const HEALTHS = ["on-track", "at-risk", "off-track"];
 
@@ -60,15 +61,34 @@ ORDER BY u.created_at DESC`,
 	return rows.map(mapUpdate);
 }
 
+export type CreateProjectUpdateInput = {
+	organizationId?: string;
+	projectId: string;
+	authorId: string;
+	content: string;
+	health: string;
+};
+
+export const createProjectUpdateEffect = opService(
+	"ProjectUpdates.createProjectUpdate",
+	createProjectUpdateImpl,
+);
+
 export async function createProjectUpdate(
 	sql: Sql,
-	input: {
-		organizationId?: string;
-		projectId: string;
-		authorId: string;
-		content: string;
-		health: string;
-	},
+	input: CreateProjectUpdateInput,
+): Promise<UpdateRow> {
+	const exit = await Effect.runPromiseExit(
+		createProjectUpdateEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function createProjectUpdateImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: CreateProjectUpdateInput,
 ): Promise<UpdateRow> {
 	if (!HEALTHS.includes(input.health))
 		throw new ValidationError("Invalid health");
@@ -79,7 +99,7 @@ export async function createProjectUpdate(
 		const id = crypto.randomUUID();
 		await tx`INSERT INTO project_update (id, organization_id, project_id, author_id, content, health)
 			VALUES (${id}, ${project.organization_id}, ${input.projectId}, ${input.authorId}, ${input.content}, ${input.health})`;
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.authorId,
@@ -88,6 +108,7 @@ export async function createProjectUpdate(
 				id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		const rows = await selectUpdates(tx, input.projectId, "AND u.id = $2", [
 			id,
@@ -96,16 +117,35 @@ export async function createProjectUpdate(
 	});
 }
 
+export type UpdateProjectUpdateInput = {
+	id: string;
+	organizationId?: string;
+	projectId: string;
+	userId: string;
+	content?: string;
+	health?: string;
+};
+
+export const updateProjectUpdateEffect = opService(
+	"ProjectUpdates.updateProjectUpdate",
+	updateProjectUpdateImpl,
+);
+
 export async function updateProjectUpdate(
 	sql: Sql,
-	input: {
-		id: string;
-		organizationId?: string;
-		projectId: string;
-		userId: string;
-		content?: string;
-		health?: string;
-	},
+	input: UpdateProjectUpdateInput,
+): Promise<UpdateRow> {
+	const exit = await Effect.runPromiseExit(
+		updateProjectUpdateEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function updateProjectUpdateImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: UpdateProjectUpdateInput,
 ): Promise<UpdateRow> {
 	if (input.health !== undefined && !HEALTHS.includes(input.health))
 		throw new ValidationError("Invalid health");
@@ -136,7 +176,7 @@ export async function updateProjectUpdate(
 			edit_history = ${JSON.stringify(history)}::jsonb,
 			updated_at = now()
 			WHERE id = ${input.id}`;
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.userId,
@@ -145,6 +185,7 @@ export async function updateProjectUpdate(
 				id: input.id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		const rows = await selectUpdates(tx, input.projectId, "AND u.id = $2", [
 			input.id,
@@ -153,14 +194,33 @@ export async function updateProjectUpdate(
 	});
 }
 
+export type DeleteProjectUpdateInput = {
+	id: string;
+	organizationId?: string;
+	projectId: string;
+	userId: string;
+};
+
+export const deleteProjectUpdateEffect = opService(
+	"ProjectUpdates.deleteProjectUpdate",
+	deleteProjectUpdateImpl,
+);
+
 export async function deleteProjectUpdate(
 	sql: Sql,
-	input: {
-		id: string;
-		organizationId?: string;
-		projectId: string;
-		userId: string;
-	},
+	input: DeleteProjectUpdateInput,
+): Promise<{ id: string }> {
+	const exit = await Effect.runPromiseExit(
+		deleteProjectUpdateEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function deleteProjectUpdateImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: DeleteProjectUpdateInput,
 ): Promise<{ id: string }> {
 	return sql.begin(async (tx) => {
 		const [project] =
@@ -170,7 +230,7 @@ export async function deleteProjectUpdate(
 			WHERE id = ${input.id} AND project_id = ${input.projectId}
 			RETURNING id`;
 		if (rows.length === 0) throw new NotFound();
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.userId,
@@ -179,6 +239,7 @@ export async function deleteProjectUpdate(
 				id: input.id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		return { id: input.id };
 	});

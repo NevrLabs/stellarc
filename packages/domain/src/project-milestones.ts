@@ -1,5 +1,7 @@
+import { Cause, Effect, Exit, type Runtime } from "effect";
 import type { Sql } from "postgres";
 import { NotFound, ValidationError } from "./projects";
+import { appendProjectEventEffect, opService } from "./projects-events";
 
 export type MilestoneRow = {
 	id: string;
@@ -41,21 +43,6 @@ const MILESTONE_COLUMNS = `m.id, m.project_id, m.name, m.description, m.target_d
 m.rank, m.completed_at, m.completed_by AS completed_by_id, u.name AS completed_by_name,
 m.created_at, m.updated_at`;
 
-export async function appendEvent(
-	tx: Sql,
-	org: string,
-	actor: string,
-	type: string,
-	payload: Record<string, unknown>,
-): Promise<void> {
-	await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
-	const [counter] =
-		await tx`UPDATE org_event_counter SET seq = seq + 1 WHERE org = ${org} RETURNING seq::text`;
-	const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
-	await tx`INSERT INTO event(org, seq, plugin_type, actor, payload, schema_version, txid)
-		VALUES (${org}, ${counter.seq}, ${type}, ${actor}, ${tx.json(payload as never)}, 1, ${transaction.txid})`;
-}
-
 async function selectMilestones(
 	sql: Sql,
 	projectId: string,
@@ -73,16 +60,35 @@ ORDER BY m.rank, m.created_at`,
 	return rows.map(mapMilestone);
 }
 
+export type CreateProjectMilestoneInput = {
+	projectId: string;
+	name: string;
+	description?: string | null;
+	targetDate?: string | null;
+	rank?: number;
+	userId: string;
+};
+
+export const createProjectMilestoneEffect = opService(
+	"ProjectMilestones.createProjectMilestone",
+	createProjectMilestoneImpl,
+);
+
 export async function createProjectMilestone(
 	sql: Sql,
-	input: {
-		projectId: string;
-		name: string;
-		description?: string | null;
-		targetDate?: string | null;
-		rank?: number;
-		userId: string;
-	},
+	input: CreateProjectMilestoneInput,
+): Promise<MilestoneRow> {
+	const exit = await Effect.runPromiseExit(
+		createProjectMilestoneEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function createProjectMilestoneImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: CreateProjectMilestoneInput,
 ): Promise<MilestoneRow> {
 	if (
 		input.rank !== undefined &&
@@ -96,7 +102,7 @@ export async function createProjectMilestone(
 		const id = crypto.randomUUID();
 		await tx`INSERT INTO project_milestone (id, project_id, name, description, target_date, rank)
 			VALUES (${id}, ${input.projectId}, ${input.name}, ${input.description ?? null}, ${input.targetDate ?? null}, ${input.rank ?? 0})`;
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.userId,
@@ -105,6 +111,7 @@ export async function createProjectMilestone(
 				id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		const rows = await selectMilestones(tx, input.projectId, "AND m.id = $2", [
 			id,
@@ -113,17 +120,36 @@ export async function createProjectMilestone(
 	});
 }
 
+export type UpdateProjectMilestoneInput = {
+	id: string;
+	projectId: string;
+	name?: string;
+	description?: string | null;
+	targetDate?: string | null;
+	rank?: number;
+	userId: string;
+};
+
+export const updateProjectMilestoneEffect = opService(
+	"ProjectMilestones.updateProjectMilestone",
+	updateProjectMilestoneImpl,
+);
+
 export async function updateProjectMilestone(
 	sql: Sql,
-	input: {
-		id: string;
-		projectId: string;
-		name?: string;
-		description?: string | null;
-		targetDate?: string | null;
-		rank?: number;
-		userId: string;
-	},
+	input: UpdateProjectMilestoneInput,
+): Promise<MilestoneRow> {
+	const exit = await Effect.runPromiseExit(
+		updateProjectMilestoneEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function updateProjectMilestoneImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: UpdateProjectMilestoneInput,
 ): Promise<MilestoneRow> {
 	return sql.begin(async (tx) => {
 		const [project] =
@@ -136,7 +162,7 @@ export async function updateProjectMilestone(
 			rank = COALESCE(${input.rank ?? null}, rank),
 			updated_at = now()
 			WHERE id = ${input.id} AND project_id = ${input.projectId}`;
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.userId,
@@ -145,6 +171,7 @@ export async function updateProjectMilestone(
 				id: input.id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		const rows = await selectMilestones(tx, input.projectId, "AND m.id = $2", [
 			input.id,
@@ -153,14 +180,33 @@ export async function updateProjectMilestone(
 	});
 }
 
+export type DeleteProjectMilestoneInput = {
+	id: string;
+	projectId: string;
+	organizationId?: string;
+	userId: string;
+};
+
+export const deleteProjectMilestoneEffect = opService(
+	"ProjectMilestones.deleteProjectMilestone",
+	deleteProjectMilestoneImpl,
+);
+
 export async function deleteProjectMilestone(
 	sql: Sql,
-	input: {
-		id: string;
-		projectId: string;
-		organizationId?: string;
-		userId: string;
-	},
+	input: DeleteProjectMilestoneInput,
+): Promise<{ id: string }> {
+	const exit = await Effect.runPromiseExit(
+		deleteProjectMilestoneEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function deleteProjectMilestoneImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: DeleteProjectMilestoneInput,
 ): Promise<{ id: string }> {
 	return sql.begin(async (tx) => {
 		const [project] =
@@ -169,7 +215,7 @@ export async function deleteProjectMilestone(
 		const rows =
 			await tx`DELETE FROM project_milestone WHERE id = ${input.id} AND project_id = ${input.projectId} RETURNING id`;
 		if (rows.length === 0) throw new NotFound();
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.userId,
@@ -178,19 +224,39 @@ export async function deleteProjectMilestone(
 				id: input.id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		return { id: input.id };
 	});
 }
 
+export type CompleteProjectMilestoneInput = {
+	id: string;
+	projectId: string;
+	userId: string;
+	organizationId?: string;
+};
+
+export const completeProjectMilestoneEffect = opService(
+	"ProjectMilestones.completeProjectMilestone",
+	completeProjectMilestoneImpl,
+);
+
 export async function completeProjectMilestone(
 	sql: Sql,
-	input: {
-		id: string;
-		projectId: string;
-		userId: string;
-		organizationId?: string;
-	},
+	input: CompleteProjectMilestoneInput,
+): Promise<MilestoneRow> {
+	const exit = await Effect.runPromiseExit(
+		completeProjectMilestoneEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function completeProjectMilestoneImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: CompleteProjectMilestoneInput,
 ): Promise<MilestoneRow> {
 	return sql.begin(async (tx) => {
 		const [project] =
@@ -198,7 +264,7 @@ export async function completeProjectMilestone(
 		if (!project) throw new NotFound();
 		await tx`UPDATE project_milestone SET completed_at = now(), completed_by = ${input.userId}, updated_at = now()
 			WHERE id = ${input.id} AND project_id = ${input.projectId}`;
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id as string,
 			input.userId,
@@ -207,6 +273,7 @@ export async function completeProjectMilestone(
 				id: input.id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		const rows = await selectMilestones(tx, input.projectId, "AND m.id = $2", [
 			input.id,
@@ -215,14 +282,33 @@ export async function completeProjectMilestone(
 	});
 }
 
+export type ReopenProjectMilestoneInput = {
+	id: string;
+	projectId: string;
+	userId?: string;
+	organizationId?: string;
+};
+
+export const reopenProjectMilestoneEffect = opService(
+	"ProjectMilestones.reopenProjectMilestone",
+	reopenProjectMilestoneImpl,
+);
+
 export async function reopenProjectMilestone(
 	sql: Sql,
-	input: {
-		id: string;
-		projectId: string;
-		userId?: string;
-		organizationId?: string;
-	},
+	input: ReopenProjectMilestoneInput,
+): Promise<MilestoneRow> {
+	const exit = await Effect.runPromiseExit(
+		reopenProjectMilestoneEffect(sql, input),
+	);
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function reopenProjectMilestoneImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: ReopenProjectMilestoneInput,
 ): Promise<MilestoneRow> {
 	return sql.begin(async (tx) => {
 		const [project] =
@@ -230,7 +316,7 @@ export async function reopenProjectMilestone(
 		if (!project) throw new NotFound();
 		await tx`UPDATE project_milestone SET completed_at = NULL, completed_by = NULL, updated_at = now()
 			WHERE id = ${input.id} AND project_id = ${input.projectId}`;
-		await appendEvent(
+		await appendProjectEventEffect(
 			tx,
 			project.organization_id,
 			input.userId ?? "system",
@@ -239,6 +325,7 @@ export async function reopenProjectMilestone(
 				id: input.id,
 				projectId: input.projectId,
 			},
+			runtime,
 		);
 		const rows = await selectMilestones(tx, input.projectId, "AND m.id = $2", [
 			input.id,

@@ -9,28 +9,28 @@ import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import type { Sql } from "postgres";
 import { FoundationApi } from "../../../packages/contracts/src/api";
 import {
-	completeProjectMilestone,
-	createProjectMilestone,
-	deleteProjectMilestone,
+	completeProjectMilestoneEffect,
+	createProjectMilestoneEffect,
+	deleteProjectMilestoneEffect,
 	listProjectMilestones,
-	reopenProjectMilestone,
-	updateProjectMilestone,
+	reopenProjectMilestoneEffect,
+	updateProjectMilestoneEffect,
 } from "../../../packages/domain/src/project-milestones";
 import {
-	createProjectUpdate,
-	deleteProjectUpdate,
+	createProjectUpdateEffect,
+	deleteProjectUpdateEffect,
 	listProjectUpdates,
-	updateProjectUpdate,
+	updateProjectUpdateEffect,
 } from "../../../packages/domain/src/project-updates";
 import {
-	archiveProject,
-	createProject,
+	archiveProjectEffect,
+	createProjectEffect,
 	getProject,
 	listProjects,
-	renameProjectSlug,
+	renameProjectSlugEffect,
 	resolveProject,
-	unarchiveProject,
-	updateProject,
+	unarchiveProjectEffect,
+	updateProjectEffect,
 } from "../../../packages/domain/src/projects";
 import type { ShapeEngine } from "../../../packages/sync/src/index";
 import { errorResponse } from "./errors";
@@ -234,13 +234,16 @@ export function foundationHandler(
 		// Peel every .error/.cause layer, then classify by constructor name
 		// (instanceof is unreliable across module instances) or _tag.
 		let current = error;
-		for (let depth = 0; depth < 6; depth += 1) {
+		for (let depth = 0; depth < 8; depth += 1) {
 			if (current === null || typeof current !== "object") break;
+			// NOTE: Effect's FiberFailure keeps .cause on its prototype (not an
+			// own enumerable), and Cause objects keep .error the same way — read
+			// through `in` so wrapped domain errors still classify.
 			const carrier = current as { error?: unknown; cause?: unknown };
 			const next =
-				carrier.error !== undefined
+				"error" in carrier && carrier.error !== undefined
 					? carrier.error
-					: carrier.cause !== undefined
+					: "cause" in carrier && carrier.cause !== undefined
 						? carrier.cause
 						: undefined;
 			if (next === undefined || next === null || next === current) break;
@@ -283,6 +286,21 @@ export function foundationHandler(
 		const exit = await (rt
 			? rt.runPromiseExit(effect)
 			: Effect.runPromiseExit(effect));
+		if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+		return exit.value;
+	};
+	// Run a domain Effect (Effect.fn service) on the handler's telemetry
+	// runtime inside a db.* span — service + nested event-append spans then
+	// join the same trace as the http request span (ADR 0010).
+	const runEffect = async <A, E>(
+		name: string,
+		effect: Effect.Effect<A, E>,
+	): Promise<A> => {
+		const withSpan = effect.pipe(Effect.withSpan(name));
+		const rt = runtimeFor();
+		const exit = await (rt
+			? rt.runPromiseExit(withSpan)
+			: Effect.runPromiseExit(withSpan));
 		if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
 		return exit.value;
 	};
@@ -420,8 +438,9 @@ export function foundationHandler(
 					const org = str(p.organizationId);
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
-					const row = await timed("db.projects.create-project", () =>
-						createProject(sql, {
+					const row = await runEffect(
+						"db.projects.create-project",
+						createProjectEffect(sql, {
 							organizationId: org,
 							name: str(p.name),
 							summary: str(p.summary),
@@ -484,8 +503,9 @@ export function foundationHandler(
 					const org = queryOrg(request);
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
-					const row = await timed("db.projects.update-project", () =>
-						updateProject(sql, {
+					const row = await runEffect(
+						"db.projects.update-project",
+						updateProjectEffect(sql, {
 							id: path.projectId,
 							organizationId: org,
 							updatedBy: principal,
@@ -518,8 +538,9 @@ export function foundationHandler(
 					const org = queryOrg(request);
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
-					const row = await timed("db.projects.rename-project-slug", () =>
-						renameProjectSlug(sql, {
+					const row = await runEffect(
+						"db.projects.rename-project-slug",
+						renameProjectSlugEffect(sql, {
 							id: path.projectId,
 							organizationId: org,
 							slug: str(p.slug),
@@ -537,8 +558,9 @@ export function foundationHandler(
 					const org = queryOrg(request);
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
-					const row = await timed("db.projects.archive-project", () =>
-						archiveProject(sql, {
+					const row = await runEffect(
+						"db.projects.archive-project",
+						archiveProjectEffect(sql, {
 							id: path.projectId,
 							organizationId: org,
 							userId: principal,
@@ -555,8 +577,9 @@ export function foundationHandler(
 					const org = queryOrg(request);
 					const principal = guard(org, request);
 					if (!principal) return deny(org, request);
-					const row = await timed("db.projects.unarchive-project", () =>
-						unarchiveProject(sql, {
+					const row = await runEffect(
+						"db.projects.unarchive-project",
+						unarchiveProjectEffect(sql, {
 							id: path.projectId,
 							organizationId: org,
 							userId: principal,
@@ -589,8 +612,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const row = await timed("db.projects.create-milestone", () =>
-						createProjectMilestone(sql, {
+					const row = await runEffect(
+						"db.projects.create-milestone",
+						createProjectMilestoneEffect(sql, {
 							projectId: path.projectId,
 							name: str(p.name),
 							description: nul<string | null>(p.description),
@@ -614,8 +638,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const row = await timed("db.projects.update-milestone", () =>
-						updateProjectMilestone(sql, {
+					const row = await runEffect(
+						"db.projects.update-milestone",
+						updateProjectMilestoneEffect(sql, {
 							id: path.milestoneId,
 							projectId: path.projectId,
 							name: opt<string>(p.name),
@@ -637,8 +662,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const result = await timed("db.projects.delete-milestone", () =>
-						deleteProjectMilestone(sql, {
+					const result = await runEffect(
+						"db.projects.delete-milestone",
+						deleteProjectMilestoneEffect(sql, {
 							id: path.milestoneId,
 							projectId: path.projectId,
 							userId: principal,
@@ -656,8 +682,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const row = await timed("db.projects.complete-milestone", () =>
-						completeProjectMilestone(sql, {
+					const row = await runEffect(
+						"db.projects.complete-milestone",
+						completeProjectMilestoneEffect(sql, {
 							id: path.milestoneId,
 							projectId: path.projectId,
 							userId: principal,
@@ -675,8 +702,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const row = await timed("db.projects.reopen-milestone", () =>
-						reopenProjectMilestone(sql, {
+					const row = await runEffect(
+						"db.projects.reopen-milestone",
+						reopenProjectMilestoneEffect(sql, {
 							id: path.milestoneId,
 							projectId: path.projectId,
 							userId: principal,
@@ -709,8 +737,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const row = await timed("db.projects.create-update", () =>
-						createProjectUpdate(sql, {
+					const row = await runEffect(
+						"db.projects.create-update",
+						createProjectUpdateEffect(sql, {
 							projectId: path.projectId,
 							authorId: principal,
 							content: str(p.content),
@@ -732,8 +761,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const row = await timed("db.projects.update-update", () =>
-						updateProjectUpdate(sql, {
+					const row = await runEffect(
+						"db.projects.update-update",
+						updateProjectUpdateEffect(sql, {
 							id: path.updateId,
 							projectId: path.projectId,
 							userId: principal,
@@ -753,8 +783,9 @@ export function foundationHandler(
 					if (!org) return notFound();
 					const principal = guard(org, request);
 					if (!principal) return notFound();
-					const result = await timed("db.projects.delete-update", () =>
-						deleteProjectUpdate(sql, {
+					const result = await runEffect(
+						"db.projects.delete-update",
+						deleteProjectUpdateEffect(sql, {
 							id: path.updateId,
 							projectId: path.projectId,
 							userId: principal,

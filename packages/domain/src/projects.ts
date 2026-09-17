@@ -1,5 +1,7 @@
+import { Cause, Effect, Exit, type Runtime } from "effect";
 import type { Sql } from "postgres";
 import { PROJECT_SLUG_PATTERN } from "../../contracts/src/projects";
+import { appendProjectEventEffect, opService } from "./projects-events";
 
 /** Fork semantics: name -> slug (lowercase kebab, trim, collapse, max 63). */
 export function slugifyProject(name: string): string {
@@ -119,42 +121,42 @@ async function selectProjects(
 	return rows.map(mapRow);
 }
 
-async function appendProjectEvent(
-	tx: Sql,
-	org: string,
-	actor: string,
-	type: string,
-	payload: Record<string, unknown>,
-): Promise<number> {
-	await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
-	const [counter] =
-		await tx`UPDATE org_event_counter SET seq = seq + 1 WHERE org = ${org} RETURNING seq::text`;
-	const [transaction] = await tx`SELECT pg_current_xact_id()::text AS txid`;
-	const txid = Number(BigInt(transaction.txid));
-	await tx`INSERT INTO event(org, seq, plugin_type, actor, payload, schema_version, txid)
-		VALUES (${org}, ${counter.seq}, ${type}, ${actor}, ${tx.json(payload as never)}, 1, ${transaction.txid})`;
-	return txid;
-}
+export type CreateProjectInput = {
+	organizationId: string;
+	name: string;
+	summary: string;
+	leadUserId: string;
+	leadTeamId?: string | null;
+	createdBy: string;
+	slug?: string;
+	status?: string;
+	priority?: string | null;
+	icon?: string | null;
+	color?: string | null;
+	description?: string | null;
+	successCriteria?: string | null;
+	startDate?: string | null;
+	targetDate?: string | null;
+};
+
+export const createProjectEffect = opService(
+	"Projects.createProject",
+	createProjectImpl,
+);
 
 export async function createProject(
 	sql: Sql,
-	input: {
-		organizationId: string;
-		name: string;
-		summary: string;
-		leadUserId: string;
-		leadTeamId?: string | null;
-		createdBy: string;
-		slug?: string;
-		status?: string;
-		priority?: string | null;
-		icon?: string | null;
-		color?: string | null;
-		description?: string | null;
-		successCriteria?: string | null;
-		startDate?: string | null;
-		targetDate?: string | null;
-	},
+	input: CreateProjectInput,
+): Promise<ProjectRow> {
+	const exit = await Effect.runPromiseExit(createProjectEffect(sql, input));
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function createProjectImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: CreateProjectInput,
 ): Promise<ProjectRow> {
 	const status = input.status ?? "planned";
 	if (!["planned", "started", "completed", "canceled"].includes(status))
@@ -185,7 +187,7 @@ export async function createProject(
 		const id = crypto.randomUUID();
 		await tx`INSERT INTO project (id, organization_id, slug, name, summary, lead_user_id, lead_team_id, status, priority, icon, color, description, success_criteria, start_date, target_date, created_by)
 			VALUES (${id}, ${input.organizationId}, ${slug}, ${input.name}, ${input.summary}, ${input.leadUserId}, ${input.leadTeamId ?? null}, ${status}, ${input.priority ?? null}, ${input.icon ?? null}, ${input.color ?? null}, ${input.description ?? null}, ${input.successCriteria ?? null}, ${input.startDate ?? null}, ${input.targetDate ?? null}, ${input.createdBy})`;
-		await appendProjectEvent(
+		await appendProjectEventEffect(
 			tx,
 			input.organizationId,
 			input.createdBy,
@@ -194,6 +196,7 @@ export async function createProject(
 				id,
 				organizationId: input.organizationId,
 			},
+			runtime,
 		);
 		const rows = await selectProjects(
 			tx,
@@ -248,9 +251,31 @@ export async function resolveProject(
 	return null;
 }
 
+export type RenameProjectSlugInput = {
+	id: string;
+	organizationId: string;
+	slug: string;
+	userId: string;
+};
+
+export const renameProjectSlugEffect = opService(
+	"Projects.renameProjectSlug",
+	renameProjectSlugImpl,
+);
+
 export async function renameProjectSlug(
 	sql: Sql,
-	input: { id: string; organizationId: string; slug: string; userId: string },
+	input: RenameProjectSlugInput,
+): Promise<ProjectRow> {
+	const exit = await Effect.runPromiseExit(renameProjectSlugEffect(sql, input));
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function renameProjectSlugImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: RenameProjectSlugInput,
 ): Promise<ProjectRow> {
 	const slug = normalizeProjectSlug(input.slug);
 	if (slug.length < 2 || slug.length > 63 || !PROJECT_SLUG_PATTERN.test(slug))
@@ -276,7 +301,7 @@ export async function renameProjectSlug(
 		await tx`INSERT INTO project_slug_alias (id, organization_id, project_id, slug)
 			VALUES (${crypto.randomUUID()}, ${input.organizationId}, ${input.id}, ${current.slug})`;
 		await tx`UPDATE project SET slug = ${slug}, updated_at = now() WHERE id = ${input.id}`;
-		await appendProjectEvent(
+		await appendProjectEventEffect(
 			tx,
 			input.organizationId,
 			input.userId,
@@ -285,8 +310,9 @@ export async function renameProjectSlug(
 				id: input.id,
 				organizationId: input.organizationId,
 			},
+			runtime,
 		);
-		await appendProjectEvent(
+		await appendProjectEventEffect(
 			tx,
 			input.organizationId,
 			input.userId,
@@ -297,6 +323,7 @@ export async function renameProjectSlug(
 				organizationId: input.organizationId,
 				slug: current.slug,
 			},
+			runtime,
 		);
 		const rows2 = await selectProjects(
 			tx,
@@ -308,26 +335,43 @@ export async function renameProjectSlug(
 	});
 }
 
+export type UpdateProjectInput = {
+	id: string;
+	organizationId: string;
+	updatedBy: string;
+	name: string;
+	summary: string;
+	status: string;
+	priority: string | null;
+	icon: string | null;
+	color: string | null;
+	description: string | null;
+	successCriteria: string | null;
+	leadUserId: string;
+	leadTeamId: string | null;
+	startDate: string | null;
+	targetDate: string | null;
+	orgPrivilege: string | null;
+};
+
+export const updateProjectEffect = opService(
+	"Projects.updateProject",
+	updateProjectImpl,
+);
+
 export async function updateProject(
 	sql: Sql,
-	input: {
-		id: string;
-		organizationId: string;
-		updatedBy: string;
-		name: string;
-		summary: string;
-		status: string;
-		priority: string | null;
-		icon: string | null;
-		color: string | null;
-		description: string | null;
-		successCriteria: string | null;
-		leadUserId: string;
-		leadTeamId: string | null;
-		startDate: string | null;
-		targetDate: string | null;
-		orgPrivilege: string | null;
-	},
+	input: UpdateProjectInput,
+): Promise<ProjectRow> {
+	const exit = await Effect.runPromiseExit(updateProjectEffect(sql, input));
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function updateProjectImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: UpdateProjectInput,
 ): Promise<ProjectRow> {
 	if (!["planned", "started", "completed", "canceled"].includes(input.status))
 		throw new ValidationError("Invalid status");
@@ -374,7 +418,7 @@ export async function updateProject(
 			org_privilege = ${input.orgPrivilege},
 			updated_at = now()
 		WHERE id = ${input.id} AND organization_id = ${input.organizationId}`;
-		await appendProjectEvent(
+		await appendProjectEventEffect(
 			tx,
 			input.organizationId,
 			input.updatedBy,
@@ -383,6 +427,7 @@ export async function updateProject(
 				id: input.id,
 				organizationId: input.organizationId,
 			},
+			runtime,
 		);
 		const rows = await selectProjects(
 			tx,
@@ -394,9 +439,30 @@ export async function updateProject(
 	});
 }
 
+export type ArchiveProjectInput = {
+	id: string;
+	organizationId: string;
+	userId: string;
+};
+
+export const archiveProjectEffect = opService(
+	"Projects.archiveProject",
+	archiveProjectImpl,
+);
+
 export async function archiveProject(
 	sql: Sql,
-	input: { id: string; organizationId: string; userId: string },
+	input: ArchiveProjectInput,
+): Promise<ProjectRow> {
+	const exit = await Effect.runPromiseExit(archiveProjectEffect(sql, input));
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function archiveProjectImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: ArchiveProjectInput,
 ): Promise<ProjectRow> {
 	return sql.begin(async (tx) => {
 		const rows0 = await selectProjects(
@@ -408,7 +474,7 @@ export async function archiveProject(
 		if (!rows0[0]) throw new NotFound();
 		await tx`UPDATE project SET archived_at = now(), archived_by = ${input.userId}, updated_at = now()
 			WHERE id = ${input.id} AND organization_id = ${input.organizationId}`;
-		await appendProjectEvent(
+		await appendProjectEventEffect(
 			tx,
 			input.organizationId,
 			input.userId,
@@ -417,6 +483,7 @@ export async function archiveProject(
 				id: input.id,
 				organizationId: input.organizationId,
 			},
+			runtime,
 		);
 		const rows = await selectProjects(
 			tx,
@@ -428,9 +495,30 @@ export async function archiveProject(
 	});
 }
 
+export type UnarchiveProjectInput = {
+	id: string;
+	organizationId: string;
+	userId: string;
+};
+
+export const unarchiveProjectEffect = opService(
+	"Projects.unarchiveProject",
+	unarchiveProjectImpl,
+);
+
 export async function unarchiveProject(
 	sql: Sql,
-	input: { id: string; organizationId: string; userId: string },
+	input: UnarchiveProjectInput,
+): Promise<ProjectRow> {
+	const exit = await Effect.runPromiseExit(unarchiveProjectEffect(sql, input));
+	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+	return exit.value;
+}
+
+async function unarchiveProjectImpl(
+	runtime: Runtime.Runtime<never>,
+	sql: Sql,
+	input: UnarchiveProjectInput,
 ): Promise<ProjectRow> {
 	return sql.begin(async (tx) => {
 		const rows0 = await selectProjects(
@@ -442,7 +530,7 @@ export async function unarchiveProject(
 		if (!rows0[0]) throw new NotFound();
 		await tx`UPDATE project SET archived_at = NULL, archived_by = NULL, updated_at = now()
 			WHERE id = ${input.id} AND organization_id = ${input.organizationId}`;
-		await appendProjectEvent(
+		await appendProjectEventEffect(
 			tx,
 			input.organizationId,
 			input.userId,
@@ -451,6 +539,7 @@ export async function unarchiveProject(
 				id: input.id,
 				organizationId: input.organizationId,
 			},
+			runtime,
 		);
 		const rows = await selectProjects(
 			tx,

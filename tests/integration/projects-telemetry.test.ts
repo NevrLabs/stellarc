@@ -189,6 +189,70 @@ test("T15a every projects HTTP path carries an annotated request span and db spa
 	void seen;
 });
 
+test("T15c project services run as Effect.fn with an instrumented event append (review-4 defect 8)", async () => {
+	const server = await startTelemetryServer();
+	resources.push(server.close);
+	const sql: Sql = server.sql;
+	await sql`INSERT INTO "user" (id, name, email) VALUES ('u1', 'Ada', 'u1@example.test')`;
+	await sql`INSERT INTO organization (id, name, slug, created_at) VALUES ('orgA', 'Org A', 'orga', now())`;
+	await sql`INSERT INTO organization_member (id, organization_id, user_id, joined_at) VALUES ('m1', 'orgA', 'u1', now())`;
+
+	// A mutation whose event append must surface as a stellarc.event.append
+	// span, nested under a Projects.* service span, on the telemetry runtime.
+	const created = await server.web.handler(
+		new Request("http://test/api/project?organizationId=orgA", {
+			method: "POST",
+			headers: authHeaders("u1"),
+			body: JSON.stringify({
+				organizationId: "orgA",
+				name: "Effect Fn",
+				summary: "s",
+				leadUserId: "u1",
+			}),
+		}),
+	);
+	expect(created.status).toBe(200);
+	await created.text();
+	const archived = await server.web.handler(
+		new Request(
+			"http://test/api/project/p-effect/archive?organizationId=orgA",
+			{
+				method: "PUT",
+				headers: authHeaders("u1"),
+			},
+		),
+	);
+	expect(archived.status).toBeLessThan(500);
+	await archived.text();
+	await new Promise((r) => setTimeout(r, 150));
+
+	const spans = server.telemetry.spans.getFinishedSpans();
+	const serviceSpans = spans.filter(
+		(s) =>
+			s.name.startsWith("Projects.") ||
+			s.name.startsWith("ProjectMilestones.") ||
+			s.name.startsWith("ProjectUpdates."),
+	);
+	expect(serviceSpans.length).toBeGreaterThan(0);
+	expect(new Set(serviceSpans.map((s) => s.name))).toContain(
+		"Projects.createProject",
+	);
+
+	const appendSpans = spans.filter((s) => s.name === "stellarc.event.append");
+	expect(appendSpans.length).toBeGreaterThan(0);
+	for (const span of appendSpans) {
+		expect(span.attributes["stellarc.event.type"]).toBe("project:created");
+		expect(typeof span.attributes["stellarc.event.seq"]).toBe("string");
+		expect(typeof span.attributes["stellarc.event.txid"]).toBe("number");
+	}
+	// The appender span nests under its Projects.* service span (same trace).
+	const serviceTraceIds = new Set(
+		serviceSpans.map((s) => s.spanContext().traceId),
+	);
+	for (const span of appendSpans)
+		expect(serviceTraceIds).toContain(span.spanContext().traceId);
+});
+
 test("T15b no console.* on any projects module (static)", () => {
 	const files = [
 		"apps/stellarc-api/src/http.ts",
