@@ -4,7 +4,6 @@ dist/
 .env
 .env.*
 !.env.example
-!apps/stellarc-ui/.env
 test-results/
 playwright-report/
 .forge-question.md

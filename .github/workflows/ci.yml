@@ -32,7 +32,11 @@ jobs:
       - run: bun run typecheck
       - name: Unit and real PostgreSQL integration bridge
         run: bun test
-      - run: bun run build
+      # VITE_API_URL is baked at build time; the e2e parity harness (§6) serves
+      # the API same-origin through the preview proxy, so the built bundle must
+      # ship the relative "/api" base (tracked .env.example documents it —
+      # review c13 D9: no whitelisted .env in a shared repo).
+      - run: VITE_API_URL=/api bun run build
       - name: Install pinned Chromium and system dependencies
         run: bun x playwright install --with-deps chromium
       - name: Built UI four-viewport smoke and screenshot comparison
