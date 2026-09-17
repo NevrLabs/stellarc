@@ -206,79 +206,17 @@ CREATE TABLE legacy.resource_grant (
 
 // --- destination (Stellarc) schema, in schema `public` ----------------------------
 // T0 foundation (event/org_event_counter/sync_probe) is applied via migrate.ts;
-// these domain + ledger tables are the reconciliation destination materialized by
-// the golden generator per the sibling-spec contracts.
-export const DESTINATION_SCHEMA_SQL = `
-CREATE TABLE public."user" (
-  id text PRIMARY KEY, name text NOT NULL, email text NOT NULL,
-  email_verified boolean NOT NULL DEFAULT false, image text, locale text,
-  created_at timestamp, updated_at timestamp, is_anonymous boolean, role text,
-  banned boolean, ban_reason text, ban_expires timestamp
-);
-CREATE TABLE public.account (
-  id text PRIMARY KEY, account_id text NOT NULL, provider_id text NOT NULL,
-  user_id text NOT NULL, access_token text, refresh_token text, id_token text,
-  access_token_expires_at timestamp, refresh_token_expires_at timestamp,
-  scope text, password text, created_at timestamp, updated_at timestamp
-);
-CREATE TABLE public.organization (
-  id text PRIMARY KEY, name text NOT NULL, slug text NOT NULL, logo text,
-  metadata text, description text, repos_enabled boolean NOT NULL DEFAULT false,
-  tables_enabled boolean NOT NULL DEFAULT false,
-  default_resource_privilege text NOT NULL DEFAULT 'manage',
-  ai_enabled boolean NOT NULL DEFAULT false, ai_default_token_limit integer NOT NULL DEFAULT 1024,
-  ai_default_character_limit integer NOT NULL DEFAULT 4000,
-  ai_provider_base_url text, ai_provider_model text, ai_provider_api_key text,
-  created_at timestamp
-);
-CREATE TABLE public.organization_member (
-  id text PRIMARY KEY, organization_id text NOT NULL, user_id text NOT NULL,
-  role text NOT NULL DEFAULT 'member', ai_token_limit integer,
-  ai_character_limit integer, joined_at timestamp
-);
-CREATE TABLE public.organization_role (
-  id text PRIMARY KEY, organization_id text NOT NULL, role text NOT NULL,
-  permission text NOT NULL, created_at timestamp, updated_at timestamp
-);
-CREATE TABLE public.team (
-  id text PRIMARY KEY, name text NOT NULL, organization_id text NOT NULL,
-  source text NOT NULL DEFAULT 'kaneo', icon text, parent_team_id text,
-  created_at timestamp, updated_at timestamp
-);
-CREATE TABLE public.team_member (
-  id text PRIMARY KEY, team_id text NOT NULL, user_id text NOT NULL, created_at timestamp
-);
-CREATE TABLE public.invitation (
-  id text PRIMARY KEY, organization_id text NOT NULL, email text NOT NULL,
-  role text, team_id text, status text NOT NULL DEFAULT 'pending',
-  expires_at timestamp, created_at timestamp, inviter_id text NOT NULL
-);
-CREATE TABLE public.user_avatar (
-  id text PRIMARY KEY, user_id text NOT NULL, mime_type text NOT NULL,
-  size integer NOT NULL, data bytea NOT NULL, created_at timestamp, updated_at timestamp
-);
-CREATE TABLE public.apikey (
-  id text PRIMARY KEY, config_id text NOT NULL DEFAULT 'default', name text,
-  start text, reference_id text NOT NULL, prefix text, key text NOT NULL,
-  user_id text, refill_interval integer, refill_amount integer,
-  last_refill_at timestamp, enabled boolean DEFAULT true,
-  rate_limit_enabled boolean DEFAULT true, rate_limit_time_window integer DEFAULT 86400000,
-  rate_limit_max integer DEFAULT 10, request_count integer DEFAULT 0, remaining integer,
-  last_request timestamp, expires_at timestamp, created_at timestamp, updated_at timestamp,
-  permissions text, metadata text
-);
-CREATE TABLE public.principal (
-  id text PRIMARY KEY, kind text NOT NULL CHECK (kind IN ('human','agent')),
-  user_id text, apikey_id text
-);
-CREATE TABLE public.identity_grant (
-  org_id text NOT NULL, principal_id text NOT NULL, capability text NOT NULL,
-  PRIMARY KEY (org_id, principal_id, capability)
-);
-CREATE TABLE public.identity_import (
-  source_id text NOT NULL, table_name text NOT NULL, source_pk text NOT NULL,
-  digest text NOT NULL, PRIMARY KEY (source_id, table_name, source_pk)
-);
+// non-migration destination machinery materialized by the golden generator per
+// the sibling-spec contracts. Identity tables are NOT here: the merged migrations
+// own them (see the mirror guard below).
+export const DESTINATION_EXTRA_DDL = `
+-- Identity tables (public."user", account, organization, organization_member,
+-- organization_role, principal, identity_grant, identity_import) are NOT created
+-- here: they are owned by the MERGED migrations (packages/db/migrations/
+-- 0002_identity.sql) which the golden generator applies via migrate(). Re-issuing
+-- that DDL collides with the migration on any cluster where 0002 has run
+-- (review cycle 6, defect 1). The mirror guard in assertIdentityMirror() proves
+-- the migration really produced them before anything seeds or queries.
 CREATE TABLE public.board (
   id text PRIMARY KEY, organization_id text NOT NULL, slug text NOT NULL,
   icon text DEFAULT 'Layout', name text NOT NULL, description text,
@@ -381,34 +319,105 @@ CREATE TABLE public.resource_grant (
 );
 `;
 
+// --- merged-migration mirror guard (review cycle 6, defect 1) ---------------------
+// Destination identity tables are owned by the merged migrations. This guard
+// proves they exist with the schema the reconciliation canon expects: every
+// legacy identity table must have a public counterpart, and every legacy identity
+// column must exist on the destination with the same data type. Drift FAILS
+// (returned as errors) — it is never silently skipped.
+export const MIRRORED_IDENTITY_TABLES = [
+	"user",
+	"account",
+	"organization",
+	"organization_member",
+	"organization_role",
+] as const;
+
+type MirrorClient = { unsafe: (query: string) => Promise<unknown> };
+
+interface MirrorColumn {
+	table_name: string;
+	column_name: string;
+	data_type: string;
+}
+
+export async function assertIdentityMirror(
+	sql: MirrorClient,
+): Promise<string[]> {
+	const drift: string[] = [];
+	const rows = (await sql.unsafe(`
+SELECT table_name, column_name, data_type
+  FROM information_schema.columns
+ WHERE table_schema IN ('legacy','public')
+   AND table_name IN ('user','account','organization','organization_member',
+                      'organization_role','principal','identity_grant','identity_import')
+ ORDER BY table_schema, table_name, column_name
+`)) as Array<MirrorColumn>;
+	const byTable = new Map<string, Map<string, string>>();
+	for (const r of rows) {
+		const cols = byTable.get(r.table_name) ?? new Map<string, string>();
+		cols.set(r.column_name, r.data_type);
+		byTable.set(r.table_name, cols);
+	}
+	for (const t of [
+		...MIRRORED_IDENTITY_TABLES,
+		"principal",
+		"identity_grant",
+		"identity_import",
+	]) {
+		if (!byTable.get(t)?.size)
+			drift.push(
+				`public.${t}: missing (merged migration 0002 did not create it)`,
+			);
+	}
+	for (const t of MIRRORED_IDENTITY_TABLES) {
+		const legacy = byTable.get(t);
+		if (!legacy?.size) {
+			drift.push(`legacy.${t}: missing from legacy schema (generator bug)`);
+			continue;
+		}
+		const dest = byTable.get(t) ?? new Map<string, string>();
+		for (const [col, type] of legacy) {
+			const d = dest.get(col);
+			if (!d)
+				drift.push(
+					`public.${t}.${col}: column drift (legacy declares it, destination does not)`,
+				);
+			else if (d !== type)
+				drift.push(`public.${t}.${col}: type drift ${d} != legacy ${type}`);
+		}
+	}
+	return drift;
+}
+
 // --- seed data. Identity/board/repo/asset/relation PKs and values are preserved
 // verbatim between legacy and destination (STL-15 "preserve source identifiers");
 // task maps to ticket with a PREFIX-seq key; the four link tables unify into
 // entity_link; activity maps to comment/event via activity_import.
 export function legacySeedSql(): string {
 	return `
-INSERT INTO legacy."user" (id, name, email, email_verified, role) VALUES
-  ('u1','Alice','a@x.com',true,'admin'),
-  ('u2','Bob','b@x.com',true,'admin');
-INSERT INTO legacy.account (id, account_id, provider_id, user_id, password) VALUES
-  ('a1','cred-1','credential','u1','bcrypt-hash-1');
-INSERT INTO legacy.organization (id, name, slug) VALUES
-  ('o1','Org A','org-a'), ('o2','Org B','org-b');
-INSERT INTO legacy.organization_member (id, organization_id, user_id, role) VALUES
-  ('m1','o1','u1','owner'), ('m2','o2','u2','owner');
-INSERT INTO legacy.organization_role (id, organization_id, role, permission) VALUES
-  ('r1','o1','owner','{}');
-INSERT INTO legacy.team (id, name, organization_id) VALUES
-  ('t1','Team A','o1'), ('t2','Team B','o2');
+INSERT INTO legacy."user" (id, name, email, email_verified, role, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO legacy.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
+  ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO legacy.organization (id, name, slug, created_at) VALUES
+  ('o1','Org A','org-a','2026-01-01T00:00:00Z'), ('o2','Org B','org-b','2026-01-01T00:00:00Z');
+INSERT INTO legacy.organization_member (id, organization_id, user_id, role, joined_at) VALUES
+  ('m1','o1','u1','owner','2026-01-02T00:00:00Z'), ('m2','o2','u2','owner','2026-01-02T00:00:00Z');
+INSERT INTO legacy.organization_role (id, organization_id, role, permission, created_at) VALUES
+  ('r1','o1','owner','{}','2026-01-01T00:00:00Z');
+INSERT INTO legacy.team (id, name, organization_id, created_at) VALUES
+  ('t1','Team A','o1','2026-01-01T00:00:00Z'), ('t2','Team B','o2','2026-01-01T00:00:00Z');
 INSERT INTO legacy.team_member (id, team_id, user_id) VALUES
   ('tm1','t1','u1'), ('tm2','t2','u2');
-INSERT INTO legacy.invitation (id, organization_id, email, status, inviter_id) VALUES
-  ('inv1','o1','c@x.com','pending','u1');
-INSERT INTO legacy.user_avatar (id, user_id, mime_type, size, data) VALUES
-  ('av1','u1','image/png',4,decode('89504e47','hex'));
-INSERT INTO legacy.apikey (id, name, reference_id, prefix, key, enabled, rate_limit_enabled, permissions) VALUES
-  ('k1','key-1','u1','sk-a','${hashApiKey(KNOWN_ANSWER_RAWS[0])}',true,true,'{"*":["*"]}'),
-  ('k2','key-2','u2','sk-b','${hashApiKey(KNOWN_ANSWER_RAWS[1])}',true,true,'{"*":["*"]}');
+INSERT INTO legacy.invitation (id, organization_id, email, status, inviter_id, expires_at, created_at) VALUES
+  ('inv1','o1','c@x.com','pending','u1','2027-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO legacy.user_avatar (id, user_id, mime_type, size, data, created_at, updated_at) VALUES
+  ('av1','u1','image/png',4,decode('89504e47','hex'),'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO legacy.apikey (id, name, reference_id, prefix, key, enabled, rate_limit_enabled, permissions, created_at, updated_at) VALUES
+  ('k1','key-1','u1','sk-a','${hashApiKey(KNOWN_ANSWER_RAWS[0])}',true,true,'{"*":["*"]}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('k2','key-2','u2','sk-b','${hashApiKey(KNOWN_ANSWER_RAWS[1])}',true,true,'{"*":["*"]}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO legacy.board (id, organization_id, slug, name, last_task_number) VALUES
   ('b1','o1','eng','Engineering',2), ('b2','o2','ops','Operations',1);
 INSERT INTO legacy.board_key_alias (id, organization_id, board_id, key) VALUES
@@ -453,30 +462,32 @@ INSERT INTO legacy.resource_grant (id, organization_id, resource_type, resource_
 
 export function destinationSeedSql(): string {
 	return `
-INSERT INTO public."user" (id, name, email, email_verified, role) VALUES
-  ('u1','Alice','a@x.com',true,'admin'),
-  ('u2','Bob','b@x.com',true,'admin');
-INSERT INTO public.account (id, account_id, provider_id, user_id, password) VALUES
-  ('a1','cred-1','credential','u1','bcrypt-hash-1');
-INSERT INTO public.organization (id, name, slug) VALUES
-  ('o1','Org A','org-a'), ('o2','Org B','org-b');
-INSERT INTO public.organization_member (id, organization_id, user_id, role) VALUES
-  ('m1','o1','u1','owner'), ('m2','o2','u2','owner');
-INSERT INTO public.organization_role (id, organization_id, role, permission) VALUES
-  ('r1','o1','owner','{}');
-INSERT INTO public.team (id, name, organization_id) VALUES
-  ('t1','Team A','o1'), ('t2','Team B','o2');
+INSERT INTO public."user" (id, name, email, email_verified, role, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
+  ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public.organization (id, name, slug, work_enabled, created_at) VALUES
+  ('o1','Org A','org-a',false,'2026-01-01T00:00:00Z'), ('o2','Org B','org-b',false,'2026-01-01T00:00:00Z');
+INSERT INTO public.organization_member (id, organization_id, user_id, role, joined_at) VALUES
+  ('m1','o1','u1','owner','2026-01-02T00:00:00Z'), ('m2','o2','u2','owner','2026-01-02T00:00:00Z');
+INSERT INTO public.organization_role (id, organization_id, role, permission, created_at, updated_at) VALUES
+  ('r1','o1','owner','{}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public.team (id, name, organization_id, created_at) VALUES
+  ('t1','Team A','o1','2026-01-01T00:00:00Z'), ('t2','Team B','o2','2026-01-01T00:00:00Z');
 INSERT INTO public.team_member (id, team_id, user_id) VALUES
   ('tm1','t1','u1'), ('tm2','t2','u2');
-INSERT INTO public.invitation (id, organization_id, email, status, inviter_id) VALUES
-  ('inv1','o1','c@x.com','pending','u1');
-INSERT INTO public.user_avatar (id, user_id, mime_type, size, data) VALUES
-  ('av1','u1','image/png',4,decode('89504e47','hex'));
-INSERT INTO public.apikey (id, name, reference_id, prefix, key, enabled, rate_limit_enabled, permissions) VALUES
-  ('k1','key-1','u1','sk-a','${hashApiKey(KNOWN_ANSWER_RAWS[0])}',true,true,'{"*":["*"]}'),
-  ('k2','key-2','u2','sk-b','${hashApiKey(KNOWN_ANSWER_RAWS[1])}',true,true,'{"*":["*"]}');
+INSERT INTO public.invitation (id, organization_id, email, status, inviter_id, expires_at, created_at) VALUES
+  ('inv1','o1','c@x.com','pending','u1','2027-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public.user_avatar (id, user_id, mime_type, size, data, created_at, updated_at) VALUES
+  ('av1','u1','image/png',4,decode('89504e47','hex'),'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public.apikey (id, name, reference_id, prefix, key, enabled, rate_limit_enabled, permissions, created_at, updated_at) VALUES
+  ('k1','key-1','u1','sk-a','${hashApiKey(KNOWN_ANSWER_RAWS[0])}',true,true,'{"*":["*"]}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('k2','key-2','u2','sk-b','${hashApiKey(KNOWN_ANSWER_RAWS[1])}',true,true,'{"*":["*"]}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+-- merged 0002: principal.user_id is NOT NULL for both kinds (the partial unique
+-- index only constrains humans); the agent principal carries the owning user.
 INSERT INTO public.principal (id, kind, user_id, apikey_id) VALUES
-  ('p1','human','u1',NULL), ('p2','agent',NULL,'k1');
+  ('p1','human','u1',NULL), ('p2','agent','u1','k2');
 INSERT INTO public.identity_grant (org_id, principal_id, capability) VALUES
   ('o1','p1','manage');
 INSERT INTO public.identity_import (source_id, table_name, source_pk, digest) VALUES
@@ -525,10 +536,10 @@ INSERT INTO public.integration (id, board_id, type, config) VALUES
 INSERT INTO public.resource_grant (id, organization_id, resource_type, resource_id, user_id, privilege) VALUES
   ('rg1','o1','board','b1','u1','edit');
 -- org_event_counter rows for the two orgs (event log appends need them)
-INSERT INTO public.org_event_counter (org, seq) VALUES ('o1', 1), ('o2', 0);
+INSERT INTO public.org_event_counter (org, seq) VALUES ('o1', 2), ('o2', 0);
 -- the imported domain event for activity 'act2' (status-changed), seq 1 on o1
 INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid, created_at) VALUES
-  ('o1', 1, 'activity:status-changed', 'u1', '{"id":"act2"}', 1, 1, '2026-01-01T00:00:00Z');
+  ('o1', 2, 'activity:status-changed', 'u1', '{"id":"act2"}', 1, 1, '2026-01-01T00:00:01Z');
 `;
 }
 

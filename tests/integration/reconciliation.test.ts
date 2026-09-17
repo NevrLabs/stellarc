@@ -4,6 +4,7 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { migrate } from "../../packages/db/src/migrate";
 import {
+	hashApiKey,
 	loadManifest,
 	loadQueryText,
 	type Manifest,
@@ -315,6 +316,9 @@ describe("R20b #14 re-issue contract strictness (review D8)", () => {
 });
 
 describe("R03 fixture freshness and determinism", () => {
+	// Scratch database used by the freshness test's regenerated-dump restore;
+	// declared here so the finally-block can drop it even on failure.
+	let scratchName: string | null = null;
 	// Regenerate both dumps into a tmp dir via the committed generators, restore
 	// them side by side with the committed fixtures, and compare every table as a
 	// normalized multiset of rows. RED if a committed dump was mutated by hand or
@@ -350,7 +354,9 @@ describe("R03 fixture freshness and determinism", () => {
 		return parts.join("\n");
 	}
 
-	test("regenerated dumps are logically equivalent to the committed fixtures", async () => {
+	test("regenerated dumps are logically equivalent to the committed fixtures", {
+		timeout: 120_000,
+	}, async () => {
 		const { execFileSync } = await import("node:child_process");
 		const { mkdtemp, rm } = await import("node:fs/promises");
 		const { tmpdir } = await import("node:os");
@@ -363,6 +369,26 @@ describe("R03 fixture freshness and determinism", () => {
 			RECON_FIXTURE_DIR: gen,
 			PATH: process.env.PATH ?? "",
 		};
+		const restore = (dump: string): void => {
+			if (!scratchName) throw new Error("scratchName not initialised");
+			restoreInto(scratchName, dump);
+		};
+		const restoreInto = (database: string, dump: string): void => {
+			execFileSync(
+				join(bin, "pg_restore"),
+				[
+					"-h",
+					cluster.sql.options.host[0],
+					"-U",
+					"stellarc_owner",
+					"-d",
+					database,
+					"--no-owner",
+					dump,
+				],
+				{ stdio: "pipe" },
+			);
+		};
 		try {
 			execFileSync(
 				process.execPath,
@@ -374,42 +400,21 @@ describe("R03 fixture freshness and determinism", () => {
 				["--bun", "tools/reconciliation/make-destination-golden.ts"],
 				{ cwd: repoRootFromModule(), env, stdio: "pipe" },
 			);
-
-			// restore regenerated + committed into two databases and compare
-			const regen = await disposablePostgres();
-			const regenRuntime = ManagedRuntime.make(
-				sqlLayer(regen.sql.options.host[0]),
+			// Restore the regenerated pair into a scratch database cloned from the
+			// golden template's sibling (empty clone of postgres), not over the
+			// committed fixtures. Destroys nothing.
+			scratchName = `recon_regen_${Date.now()}`;
+			await cluster.sql.unsafe(
+				`CREATE DATABASE ${scratchName} TEMPLATE postgres`,
 			);
-			const regenPg = await regenRuntime.runPromise(PgClient.PgClient);
+			restore(join(gen, "legacy-snapshot.pgdump"));
+			restore(join(gen, "stellarc-destination-golden.pgdump"));
+			const scratchRuntime = makeRuntime(
+				cluster.sql.options.host[0],
+				scratchName,
+			);
 			try {
-				execFileSync(
-					join(bin, "pg_restore"),
-					[
-						"-h",
-						regen.sql.options.host[0],
-						"-U",
-						"stellarc_owner",
-						"-d",
-						"postgres",
-						"--no-owner",
-						join(gen, "legacy-snapshot.pgdump"),
-					],
-					{ stdio: "pipe" },
-				);
-				execFileSync(
-					join(bin, "pg_restore"),
-					[
-						"-h",
-						regen.sql.options.host[0],
-						"-U",
-						"stellarc_owner",
-						"-d",
-						"postgres",
-						"--no-owner",
-						join(gen, "stellarc-destination-golden.pgdump"),
-					],
-					{ stdio: "pipe" },
-				);
+				const regenPg = await scratchRuntime.runPromise(PgClient.PgClient);
 				for (const [side, tables] of [
 					["legacy", Object.keys(manifest.legacy_tables)],
 					["public", Object.keys(manifest.destination_tables)],
@@ -422,18 +427,52 @@ describe("R03 fixture freshness and determinism", () => {
 					);
 					const b = await logicalDump(
 						regenPg,
-						(e) => regenRuntime.runPromise(e),
+						(e) => scratchRuntime.runPromise(e),
 						side,
 						tables,
 					);
 					expect(b, `regenerated ${side} differs from committed`).toBe(a);
 				}
 			} finally {
-				await regenRuntime.dispose();
-				await regen.close();
+				await scratchRuntime.dispose();
 			}
 		} finally {
+			if (scratchName) {
+				await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${scratchName}`);
+				scratchName = null;
+			}
 			await rm(gen, { recursive: true, force: true });
+		}
+	});
+	test("R03 negative control: a one-row mutation of the committed dump is detected", {
+		timeout: 60_000,
+	}, async () => {
+		// Reproduce the defect-8 RED condition: a committed dump tampered with by a
+		// hand edit must fail the freshness comparison. Clone the template (fast),
+		// apply a one-row semantic mutation to the destination side, and assert the
+		// comparison against the committed golden is unequal — proving the
+		// logicalDump comparison can actually fail.
+		const name = `recon_regen_${Date.now()}`;
+		await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE ${templateDb}`);
+		const rt = makeRuntime(cluster.sql.options.host[0], name);
+		try {
+			const mut = await rt.runPromise(PgClient.PgClient);
+			await mut.unsafe(
+				`UPDATE public.board SET name = '__TAMPERED__' WHERE id = 'b1'`,
+			);
+			const a = await logicalDump(pg, (e) => runtime.runPromise(e), "public", [
+				"board",
+			]);
+			const b = await logicalDump(mut, (e) => rt.runPromise(e), "public", [
+				"board",
+			]);
+			expect(
+				b,
+				"tampered dump must NOT compare equal to the committed golden",
+			).not.toBe(a);
+		} finally {
+			await rt.dispose();
+			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${name}`);
 		}
 	});
 });

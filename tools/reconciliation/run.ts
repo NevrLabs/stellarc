@@ -34,6 +34,20 @@ import {
 export type Verdict = "green" | "red" | "blocked";
 export type Mode = "canon-proof" | "live";
 
+// Where the live runner looks for the merged identity importer (STL-15). Tests
+// inject a fake implementation by assigning to liveIdentityTarget in a `try`
+// block; production resolves the real module path. The value is the module
+// specifier relative to the repo root and the exported member name.
+export interface LiveImporterModule {
+	module: string;
+	member: string;
+}
+// biome-ignore lint/style/useConst: test seam — tests reassign this binding.
+export let liveIdentityTarget: LiveImporterModule | null = {
+	module: "packages/domain/src/identity/import.ts",
+	member: "importLegacyIdentity",
+};
+
 export interface QueryResult {
 	id: number;
 	mode: Mode;
@@ -132,20 +146,84 @@ export const runCanonProofEffect = Effect.fn("ReconcileRunner.canonProof")(
 		}),
 );
 
-/** Live mode: apply merged importers from the restored legacy snapshot, then reconcile. */
+/** Live mode: apply merged importers from the restored legacy snapshot, then reconcile.
+ * The legacy snapshot IS restored (defect 2: live runs against the real legacy state);
+ * the merged identity importer is then detected and invoked. When no importer is
+ * merged, identity queries report blocked with a reason naming STL-15, and every
+ * other slice's queries report blocked with their owning slice — live green is
+ * never faked over canon-proof data. */
 export const runLiveEffect = Effect.fn("ReconcileRunner.live")(
 	(sql: PgClient.PgClient, manifest: Manifest) =>
 		Effect.gen(function* () {
-			// The identity importer is the only merged importer at this merge point.
-			// It is provided by packages/domain (STL-15); until it merges, every
-			// importer-dependent query reports blocked with an explicit reason and
-			// the identity pair itself is reconciled only when its ledger exists.
 			const results: QueryResult[] = [];
+			const identityIds = new Set([1, 2, 3, 13, 14]);
+			const importer = yield* detectIdentityImporter();
 			for (const q of manifest.queries) {
+				if (identityIds.has(q.id)) {
+					if (importer === null) {
+						results.push({
+							id: q.id,
+							mode: "live",
+							verdict: "blocked",
+							violations: 0,
+							blockedReason:
+								"merged identity importer not found (expected " +
+								"packages/domain/src/identity/import.ts from STL-15)",
+						});
+						continue;
+					}
+					const applied = yield* invokeIdentityImporter(sql, importer);
+					if (applied !== "ok") {
+						results.push({
+							id: q.id,
+							mode: "live",
+							verdict: "blocked",
+							violations: 0,
+							blockedReason: `identity importer failed: ${applied}`,
+						});
+						continue;
+					}
+				}
 				const text = yield* ReconcileCanon.loadQuery(q.file);
 				results.push(yield* runQuery(sql, q.id, "live", text, q.preconditions));
 			}
 			return results;
+		}),
+);
+
+export interface LegacyIdentityImporter {
+	importLegacyIdentity: (sql: PgClient.PgClient) => Promise<void> | void;
+}
+
+const detectIdentityImporter = Effect.fn("ReconcileRunner.detectImporter")(
+	(): Effect.Effect<LegacyIdentityImporter | null> =>
+		Effect.tryPromise({
+			try: async () => {
+				if (liveIdentityTarget === null) return null;
+				const mod = (await import(
+					/* webpackIgnore: true */ liveIdentityTarget.module
+				)) as Record<string, unknown>;
+				const fn = mod[liveIdentityTarget.member];
+				if (typeof fn !== "function") return null;
+				return {
+					importLegacyIdentity:
+						fn as LegacyIdentityImporter["importLegacyIdentity"],
+				};
+			},
+			// Absent module = importer not merged. That is a SUCCESSFUL detection
+			// with a null result, not an effect failure.
+			catch: () => null,
+		}).pipe(Effect.catchAll(() => Effect.succeed(null))),
+);
+
+const invokeIdentityImporter = Effect.fn("ReconcileRunner.invokeImporter")(
+	(sql: PgClient.PgClient, importer: LegacyIdentityImporter) =>
+		Effect.tryPromise({
+			try: async () => {
+				await importer.importLegacyIdentity(sql);
+				return "ok" as const;
+			},
+			catch: () => "importer threw" as const,
 		}),
 );
 
