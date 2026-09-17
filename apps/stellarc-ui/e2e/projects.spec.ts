@@ -377,6 +377,46 @@ test("archive row action hides the live project until include-archived", async (
   expect(projectRequests()).toBeGreaterThan(hitsBefore + 1);
 });
 
+// review c14 D7: spec §6 names the rename-slug dialog; the frozen surface is
+// the properties form's slug row (fork-identical component, PUT /project/:id/slug).
+// Renaming turns the old slug into an alias row server-side; the detail route
+// resolves aliases and replaces the URL with the canonical slug — this proves
+// the full live loop: rename -> invalidation -> alias resolution -> redirect.
+test("rename-slug renames live and the old slug resolves as an alias", async ({
+  page,
+}) => {
+  const { uiUrl, projectRequests } = await harness();
+  const hitsBefore = projectRequests();
+  await stubIdentity(page);
+  await page.goto(
+    `${uiUrl}/dashboard/organization/foundation/projects/foundation-lab`,
+  );
+  await expect(page.getByTestId("project-overview")).toBeVisible();
+  const slugInput = page.getByLabel("Rename slug");
+  await expect(slugInput).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot("project-rename-slug.png");
+  await slugInput.fill("foundation-renamed");
+  await page.getByRole("button", { name: "Rename slug" }).click();
+  // PUT /:id/slug committed, project queries invalidated, project-resolve
+  // (keyed by the OLD slug) returns usedSlugAlias=true -> route replaces to
+  // the canonical slug. Live API only, never intercepted.
+  await expect(page).toHaveURL(/\/projects\/foundation-renamed$/, {
+    timeout: 15000,
+  });
+  // The old slug is now an alias: a fresh navigation resolves it and
+  // redirects back to canonical (server-owned alias machinery).
+  await page.goto(`${uiUrl}/dashboard/organization/foundation`);
+  await page.goto(
+    `${uiUrl}/dashboard/organization/foundation/projects/foundation-lab`,
+  );
+  await expect(page).toHaveURL(/\/projects\/foundation-renamed$/, {
+    timeout: 15000,
+  });
+  await expect(page.getByTestId("project-overview")).toBeVisible();
+  expect(projectRequests()).toBeGreaterThan(hitsBefore + 1);
+});
+
 test("updates tab publishes a live update with health picklist", async ({
   page,
 }) => {
