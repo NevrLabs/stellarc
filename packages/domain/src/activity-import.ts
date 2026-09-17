@@ -342,3 +342,63 @@ export async function runImport(options: ImportOptions): Promise<ImportReport> {
 
 	return { imported, skipped };
 }
+
+/**
+ * Rebuild activity_projection from the committed event log (§7 T25): replays
+ * comment-created/updated, legacy-recorded and comment-deleted events in seq
+ * order per org. Mixed imported + live history reproduces exactly.
+ */
+export async function rebuildActivityProjection(sql: Sql): Promise<number> {
+	const events = await sql<
+		Array<{
+			org: string;
+			seq: string;
+			plugin_type: string;
+			payload: unknown;
+		}>
+	>`SELECT org, seq::text, plugin_type, payload FROM event
+     WHERE plugin_type IN ('activity:comment-created','activity:comment-updated','activity:legacy-recorded','activity:comment-deleted')
+     ORDER BY org, seq`;
+	let count = 0;
+	await sql.begin(async (tx) => {
+		await tx`DELETE FROM activity_projection`;
+		for (const event of events) {
+			const payload =
+				typeof event.payload === "string"
+					? (JSON.parse(event.payload) as {
+							id: string;
+							row?: Record<string, unknown>;
+						})
+					: (event.payload as { id: string; row?: Record<string, unknown> });
+			if (event.plugin_type === "activity:comment-deleted") {
+				await tx`DELETE FROM activity_projection WHERE org_id = ${event.org} AND id = ${payload.id}`;
+				continue;
+			}
+			const row = payload.row;
+			if (!row) continue;
+			const editHistory =
+				row.editHistory === null || row.editHistory === undefined
+					? "[]"
+					: tx.json(row.editHistory as never);
+			const eventData =
+				row.eventData === null || row.eventData === undefined
+					? null
+					: tx.json(row.eventData as never);
+			await tx`
+        INSERT INTO activity_projection (org_id, id, ticket_id, type, created_at, updated_at, user_id, content, edit_history, event_data, external_user_name, external_user_avatar, external_source, external_url, last_seq)
+        VALUES (${event.org}, ${String(row.id)}, ${String(row.ticketId)}, ${String(row.type)}, ${row.createdAt as Date}, ${row.updatedAt as Date}, ${typeof row.userId === "string" ? row.userId : null}, ${typeof row.content === "string" ? row.content : null}, ${editHistory}, ${eventData},
+          ${typeof row.externalUserName === "string" ? row.externalUserName : null},
+          ${typeof row.externalUserAvatar === "string" ? row.externalUserAvatar : null},
+          ${typeof row.externalSource === "string" ? row.externalSource : null},
+          ${typeof row.externalUrl === "string" ? row.externalUrl : null},
+          ${event.seq})
+        ON CONFLICT (org_id, id) DO UPDATE SET
+          ticket_id = EXCLUDED.ticket_id, type = EXCLUDED.type, updated_at = EXCLUDED.updated_at,
+          content = EXCLUDED.content, edit_history = EXCLUDED.edit_history, event_data = EXCLUDED.event_data,
+          external_user_name = EXCLUDED.external_user_name, external_user_avatar = EXCLUDED.external_user_avatar,
+          external_source = EXCLUDED.external_source, external_url = EXCLUDED.external_url, last_seq = EXCLUDED.last_seq`;
+			count++;
+		}
+	});
+	return count;
+}

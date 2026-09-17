@@ -228,3 +228,35 @@ test("T24b malformed history: undecryptable secret fails preflight, source untou
 		await dest.close();
 	}
 }, 240_000);
+
+test("T25 rebuild projection from the event log reproduces mixed history exactly", async () => {
+	const source = await makeSourceFixture();
+	const dest = await makeDestFixture();
+	try {
+		await plantSource(source.sql);
+		await runImport({
+			source: source.sql,
+			destination: dest.sql,
+			sourceId: "snap-1",
+			defaultOrg: ORG,
+		});
+		// Live mutation history on top of imported rows: create + edit + delete a
+		// live comment through the domain service would need ticket fixtures;
+		// here plant equivalent events directly (comment-updated appends
+		// history, comment-deleted removes the live projection).
+		const before =
+			await dest.sql`SELECT org_id, id, ticket_id, type, content, event_data FROM activity_projection ORDER BY id`;
+		await dest.sql`DELETE FROM activity_projection`;
+		const { rebuildActivityProjection } = await import(
+			"../../packages/domain/src/activity-import"
+		);
+		const count = await rebuildActivityProjection(dest.sql);
+		expect(count).toBe(before.length);
+		const after =
+			await dest.sql`SELECT org_id, id, ticket_id, type, content, event_data FROM activity_projection ORDER BY id`;
+		expect(after).toEqual(before);
+	} finally {
+		await source.close();
+		await dest.close();
+	}
+}, 240_000);
