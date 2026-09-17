@@ -158,7 +158,8 @@ async function main() {
 		(response as Response & { httpProtocol?: string }).httpProtocol ??
 		"unknown";
 	const frames: CapturedFrame[] = [];
-	const reader = response.body!.getReader();
+	const reader = response.body?.getReader();
+	if (!reader) throw new Error("capture response had no body");
 	const decoder = new TextDecoder();
 	const cycleDeadline = Date.now() + 21000 * cycles;
 	try {

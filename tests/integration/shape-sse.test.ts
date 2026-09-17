@@ -222,7 +222,9 @@ const gaugeValue = (server: Awaited<ReturnType<typeof startTestServer>>) => {
 		.flatMap((resource) =>
 			resource.scopeMetrics.flatMap((scope) => scope.metrics),
 		)
-		.filter((metric) => metric.descriptor.name === "stellarc_shape_live_connections");
+		.filter(
+			(metric) => metric.descriptor.name === "stellarc_shape_live_connections",
+		);
 	return records.at(-1)?.dataPoints.at(-1)?.value;
 };
 
@@ -252,7 +254,8 @@ async function openSse(
 	);
 	expect(response.status).toBe(200);
 	expect(response.headers.get("content-type")).toBe("text/event-stream");
-	const reader = response.body!.getReader();
+	const reader = response.body?.getReader();
+	if (!reader) throw new Error("SSE response had no body");
 	const first = await reader.read();
 	expect(first.done).toBe(false);
 	return { response, reader };
@@ -356,9 +359,7 @@ test("S05 awaitTxId settles over SSE: mutation during subscription delivers head
 		// Mutate DURING the held-open subscription: the change frame must carry
 		// the mutation's txid or awaitTxId stalls (documented failure mode).
 		const mutation = await server.write("org-a", "a-2", "v2");
-		const messages = await collector.until(
-			(m) => latest(m, "2") !== undefined,
-		);
+		const messages = await collector.until((m) => latest(m, "2") !== undefined);
 		const change = latest(messages, "2");
 		expect(change?.headers.txids).toEqual([mutation.txid]);
 	} finally {
@@ -383,9 +384,7 @@ test("S07 revocation closes the stream within the cycle/ka interval; reconnect g
 		} catch {}
 	})();
 	// Sanity: frames flow, then revoke mid-stream.
-	await expect
-		.poll(() => received.length > 0, { timeout: 10000 })
-		.toBe(true);
+	await expect.poll(() => received.length > 0, { timeout: 10000 }).toBe(true);
 	server.revokeAll = true;
 	// Stream must close ≤ ka interval (300ms) + slack, not wait the 60s cycle.
 	const closedAt = Date.now();
@@ -393,7 +392,10 @@ test("S07 revocation closes the stream within the cycle/ka interval; reconnect g
 	expect(Date.now() - closedAt).toBeLessThanOrEqual(4000);
 	// The reconnect hits the sanitized JSON error path (401: token now denied).
 	const base = `${server.url}/orgs/org-a/v1/shape?table=sync_probe`;
-	const headers = { authorization: "Bearer org-a", accept: "text/event-stream" };
+	const headers = {
+		authorization: "Bearer org-a",
+		accept: "text/event-stream",
+	};
 	const initial = await fetch(`${base}&offset=-1`, { headers });
 	expect([401, 403]).toContain(initial.status);
 	expect(initial.headers.get("content-type")).toContain("application/json");

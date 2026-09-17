@@ -16,7 +16,7 @@ const isChange = (
 const unsubscribers: Array<() => void> = [];
 
 /** Drain a stock client until a row with `id` is seen (any transport). */
-async function untilRow(
+async function _untilRow(
 	stream: ShapeStream,
 	id: string,
 	timeoutMs = 20000,
@@ -118,7 +118,8 @@ test("S09 through a flushing proxy SSE is live: change frame arrives <1s, not at
 	);
 	expect(response.status).toBe(200);
 	expect(response.headers.get("content-type")).toBe("text/event-stream");
-	const reader = response.body!.getReader();
+	const reader = response.body?.getReader();
+	if (!reader) throw new Error("SSE response had no body");
 	const first = await reader.read();
 	expect(first.done).toBe(false); // headers + first frame flushed immediately
 	await server.write("org-a", "a-live", "v1");

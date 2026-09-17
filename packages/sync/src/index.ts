@@ -13,7 +13,6 @@ const tailWait = Metric.histogram(
 	"stellarc_shape_tail_wait_seconds",
 	MetricBoundaries.exponential({ start: 0.01, factor: 2, count: 13 }),
 );
-let activeLiveConnections = 0;
 
 async function runEffect<A>(
 	runtime: Runtime.Runtime<never>,
@@ -43,6 +42,11 @@ export class ShapeEngine {
 			cursors: Map<string, string>;
 		}
 	>();
+	/** Live-connection count backing the gauge. Per-instance, not
+	 * module-global: production runs one engine per process (identical
+	 * semantics), and each test server gets its own count so a leaked
+	 * stream from an earlier suite cannot inflate another's gauge. */
+	private activeLiveConnections = 0;
 	constructor(
 		private sql: Sql,
 		private upcasters = new UpcasterRegistry(),
@@ -71,13 +75,13 @@ export class ShapeEngine {
 				});
 				if (!live) return yield* request;
 				return yield* Effect.acquireUseRelease(
-					Effect.sync(() => ++activeLiveConnections).pipe(
+					Effect.sync(() => ++self.activeLiveConnections).pipe(
 						Effect.tap((count) => Metric.set(liveConnections, count)),
 					),
 					() => request,
 					() =>
 						Effect.gen(function* () {
-							yield* Metric.set(liveConnections, --activeLiveConnections);
+							yield* Metric.set(liveConnections, --self.activeLiveConnections);
 							yield* Metric.update(
 								tailWait,
 								(performance.now() - began) / 1000,
@@ -247,10 +251,10 @@ export class ShapeEngine {
 					process.hrtime.bigint(),
 					Exit.succeed(undefined) as Exit.Exit<unknown, unknown>,
 				);
-				activeLiveConnections--;
+				self.activeLiveConnections--;
 				await Runtime.runPromise(rt)(
 					Effect.gen(function* () {
-						yield* Metric.set(liveConnections, activeLiveConnections);
+						yield* Metric.set(liveConnections, self.activeLiveConnections);
 						yield* recordSseMetrics(summary);
 					}),
 				);
@@ -259,9 +263,9 @@ export class ShapeEngine {
 				async start(controller) {
 					// S15: exactly one acquire per held-open connection - not per
 					// frame, not per page fetch.
-					activeLiveConnections++;
+					self.activeLiveConnections++;
 					await Runtime.runPromise(rt)(
-						Metric.set(liveConnections, activeLiveConnections),
+						Metric.set(liveConnections, self.activeLiveConnections),
 					);
 					try {
 						const summary = await runSseStream(
