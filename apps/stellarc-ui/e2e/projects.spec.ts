@@ -252,17 +252,12 @@ test("create-project modal creates a live project and navigates to it", async ({
   await expect(
     page.getByRole("button", { name: "New project" }).first(),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "New project" })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "New project" }).first().click();
   // Modal open (frozen CreateProjectModal shape: name/summary/lead + submit).
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveScreenshot("projects-create-modal.png");
-  await page
-    .getByPlaceholder("Name")
-    .fill("Live Parity Probe");
+  await page.getByPlaceholder("Name").fill("Live Parity Probe");
   await page.getByPlaceholder("Summary").fill("Created through the modal.");
   await page.getByRole("combobox").first().click();
   await page.getByRole("option", { name: "Ada" }).click();
@@ -273,7 +268,9 @@ test("create-project modal creates a live project and navigates to it", async ({
     timeout: 15000,
   });
   await expect(page).toHaveURL(/\/projects\/live-parity-probe$/);
-  await expect(page.getByText("Created through the modal.").first()).toBeVisible();
+  await expect(
+    page.getByText("Created through the modal.").first(),
+  ).toBeVisible();
   // Parity evidence: POST + resolve hit the live API.
   expect(projectRequests()).toBeGreaterThan(hitsBefore + 1);
 });
@@ -288,7 +285,9 @@ test("archive row action hides the live project until include-archived", async (
   if (info.project.name.startsWith("mobile")) {
     // The frozen ProjectList renders a md:table only; below md there is no
     // archive affordance to exercise (fork-identical). Desktop/tablet carry it.
-    test.info().annotations.push({ type: "skip", description: "no mobile list" });
+    test
+      .info()
+      .annotations.push({ type: "skip", description: "no mobile list" });
     return;
   }
   const foundationRow = page
@@ -297,9 +296,7 @@ test("archive row action hides the live project until include-archived", async (
   await expect(foundationRow).toBeVisible();
   // Scope the archive action to the Sync Foundation row (earlier tests in
   // this worker created additional live projects).
-  await foundationRow
-    .getByRole("button", { name: "Archive" })
-    .click();
+  await foundationRow.getByRole("button", { name: "Archive" }).click();
   // Live mutation settled: row leaves the active list (refetch after
   // invalidation, no interception). When no other active project exists the
   // frozen overview renders its Empty state instead of the table.
