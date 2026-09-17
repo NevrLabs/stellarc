@@ -1,5 +1,3 @@
-import type { Server } from "node:http";
-
 /**
  * STL-25 S08/S09: a disposable HTTP/1.1 reverse proxy - the buffering oracle.
  *

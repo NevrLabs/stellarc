@@ -15,7 +15,6 @@
 // Self-check mode boots its own conn-cap-2 HTTP/1.1 proxy (no external
 // services) and asserts the harness reports 2.
 
-import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
