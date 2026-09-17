@@ -3,6 +3,7 @@ import {
 	encodeDataFrame,
 	encodeKa,
 	negotiateSse,
+	runSseStream,
 	SSE_CYCLE_MS,
 	SSE_KA_INTERVAL_MS,
 } from "../../packages/sync/src/sse";
@@ -140,4 +141,142 @@ test("S10 unit: keep-alive comments use the comment syntax and the mandated cade
 	expect(new TextDecoder().decode(encodeKa())).toBe(": ka\n\n");
 	expect(SSE_KA_INTERVAL_MS).toBe(15000);
 	expect(SSE_CYCLE_MS).toBe(20000);
+});
+
+test("S10/S07 unit: runSseStream emits ka comments on idle, up-to-date at cycle close, stops on revocation and abort", async () => {
+	const chunks: string[] = [];
+	const emit = (chunk: Uint8Array) =>
+		chunks.push(new TextDecoder().decode(chunk));
+	const control = (frame: string) => {
+		const message = JSON.parse(frame.slice(6));
+		return message.headers?.control as string | undefined;
+	};
+	// Idle quiet stream: no rows ever, fast ka cadence.
+	let authorized = true;
+	const quiet = await runSseStream(
+		new URL("http://t/shape?offset=5_0"),
+		undefined,
+		emit,
+		{
+			page: async () => ({
+				messages: [],
+				nextCursor: "5_0",
+				caughtUp: true,
+				schemaHeader: null,
+			}),
+			authorize: () => authorized,
+			kaIntervalMs: 30,
+			cycleMs: 150,
+		},
+	);
+	expect(quiet).toMatchObject({ fallback: false });
+	const frames = chunks.join("");
+	expect(frames).toContain(": ka");
+	// Up-to-date close frame carries the position for client offset advance.
+	const dataFrames = chunks.filter((c) => c.startsWith("data: "));
+	const last = dataFrames.at(-1) ?? "";
+	expect(control(last)).toBe("up-to-date");
+	expect(JSON.parse(last.slice(6)).headers.global_last_seen_lsn).toBe("5");
+
+	// Revocation mid-stream: stops without the close frame (clean FIN, the
+	// reconnect gets the sanitized 401/403 from the standard path).
+	chunks.length = 0;
+	authorized = false;
+	await runSseStream(new URL("http://t/shape?offset=5_0"), undefined, emit, {
+		page: async () => ({
+			messages: [],
+			nextCursor: "5_0",
+			caughtUp: true,
+			schemaHeader: null,
+		}),
+		authorize: () => authorized,
+		cycleMs: 150,
+	});
+	expect(chunks.filter((c) => c.startsWith("data:")).length).toBe(0);
+
+	// Client abort: stops silently, no further frames.
+	chunks.length = 0;
+	const controller = new AbortController();
+	const pending = runSseStream(
+		new URL("http://t/shape?offset=5_0"),
+		controller.signal,
+		emit,
+		{
+			page: () => new Promise(() => {}),
+			authorize: () => true,
+			kaIntervalMs: 50,
+			cycleMs: 10000,
+		},
+	);
+	controller.abort();
+	await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+
+	// Mid-stream failure: one final must-refetch frame, then a clean close
+	// (the client re-requests and hits the sanitized JSON error path).
+	chunks.length = 0;
+	const failed = await runSseStream(
+		new URL("http://t/shape?offset=5_0"),
+		undefined,
+		emit,
+		{
+			page: async () => {
+				throw new Error("db gone");
+			},
+			authorize: () => true,
+		},
+	);
+	expect(failed.fallback).toBe(true);
+	expect(control(chunks.at(-1) ?? "")).toBe("must-refetch");
+});
+
+test("S15 unit: a stream that never reaches up-to-date increments the fallback signature counter", async () => {
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { ManagedRuntime } = await import("effect");
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		// A mid-stream failure closes before any up-to-date frame: the
+		// buffering signature counter must be observable through OTel.
+		const chunks: string[] = [];
+		const sse = await import("../../packages/sync/src/sse");
+		const summary = await sse
+			.runSseStream(
+				new URL("http://t/shape?offset=5_0"),
+				undefined,
+				(c) => chunks.push(new TextDecoder().decode(c)),
+				{
+					page: async () => {
+						throw new Error("buffered proxy closed us");
+					},
+					authorize: () => true,
+				},
+			)
+			.catch(() => undefined);
+		expect(summary).toBeDefined();
+		await runtime.runPromise(
+			sse.recordSseMetrics(summary as NonNullable<typeof summary>),
+		);
+		await telemetry.reader.forceFlush();
+		const names = telemetry.metrics
+			.getMetrics()
+			.flatMap((r) =>
+				r.scopeMetrics.flatMap((s) => s.metrics.map((m) => m.descriptor.name)),
+			);
+		expect(names).toContain("stellarc_shape_sse_fallbacks_total");
+	} finally {
+		await runtime.dispose();
+	}
+});
+
+test("S03 unit: canonicalShapeKey from the installed stock client excludes live_sse/experimental_live_sse", async () => {
+	const { canonicalShapeKey } = await import("@electric-sql/client");
+	const base = new URL("http://t/orgs/o/v1/shape?table=sync_probe");
+	const withSse = new URL(base);
+	withSse.searchParams.set("live_sse", "true");
+	withSse.searchParams.set("experimental_live_sse", "true");
+	withSse.searchParams.set("live", "true");
+	withSse.searchParams.set("handle", "h");
+	withSse.searchParams.set("offset", "1_0");
+	withSse.searchParams.set("cursor", "c");
+	expect(canonicalShapeKey(base)).toBe(canonicalShapeKey(withSse));
 });

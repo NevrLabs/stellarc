@@ -114,6 +114,27 @@ export class ShapeEngine {
 			),
 		)();
 	}
+	/** STL-25: one SSE page fetch, parsed for the streaming branch. Throws on
+	 * SQL/driver failure so the stream driver maps it to must-refetch. */
+	async ssePage(org: string, url: URL): Promise<import("./sse").SsePageResult> {
+		const response = await this.page(org, url);
+		if (response.status !== 200) {
+			const body = response.status === 409 ? "must-refetch" : "error";
+			throw new SsePageError(response.status, body);
+		}
+		const messages = (await response.clone().json()) as Array<{
+			headers: { operation?: string; control?: string };
+		}>;
+		const caughtUp = messages.some((m) => m.headers.control === "up-to-date");
+		const changes = messages.filter((m) => m.headers.operation);
+		return {
+			messages: changes,
+			nextCursor: response.headers.get("electric-offset") ?? "0_0",
+			caughtUp,
+			schemaHeader: response.headers.get("electric-schema"),
+		};
+	}
+
 	private async runShape(
 		_org: string,
 		url: URL,
@@ -304,5 +325,15 @@ export class ShapeEngine {
 		}
 		headers.set("electric-offset", token);
 		return Response.json(messages, { headers });
+	}
+}
+
+/** Non-200 page result inside an SSE connection (expired handle etc). */
+export class SsePageError extends Error {
+	constructor(
+		public status: number,
+		public detail: string,
+	) {
+		super(`SSE page error: ${status}`);
 	}
 }
