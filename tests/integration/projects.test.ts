@@ -79,7 +79,11 @@ test("T01a core project tables exist with exact columns and constraints", async 
 	).toBe(true);
 });
 
-test("T01b blocked satellite tables are absent pending wave-2 (Q1)", async () => {
+// review c14 D8: this assertion locked the spec gap in as correctness — it
+// was green only because D1 (4 satellite tables: project_ticket/project_board/
+// project_repo/project_table_link, FK targets task/board/repo/data_table) is
+// unmet pending wave-2 (STL-16/18). Delete this test when D1 lands.
+test.skip("T01b satellite tables pending wave-2 (STL-16/18 task/board/repo unmerged on dev)", async () => {
 	const db = await disposablePostgres();
 	resources.push(db.close);
 	await migrate(db.sql);
