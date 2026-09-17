@@ -110,7 +110,9 @@ async function withRollback<T>(
 //                STL-15 importer satisfies).
 // - "missing" -> points at a module that does not exist, so detection
 //                resolves null and identity queries go blocked (STL-15 unmerged).
-function withLiveIdentityTarget(kind: "seed" | "missing"): () => void {
+function withLiveIdentityTarget(
+	kind: "seed" | "missing" | "noop",
+): () => void {
 	const previous = liveIdentityTarget.current;
 	liveIdentityTarget.current =
 		kind === "seed"
@@ -118,10 +120,15 @@ function withLiveIdentityTarget(kind: "seed" | "missing"): () => void {
 					module: "tests/integration/live-identity-seed.ts",
 					member: "importLegacyIdentityFixture",
 				}
-			: {
-					module: "./no-such-identity-importer-module.ts",
-					member: "importLegacyIdentity",
-				};
+			: kind === "noop"
+				? {
+						module: "tests/integration/live-identity-seed.ts",
+						member: "importNoopIdentity",
+					}
+				: {
+						module: "./no-such-identity-importer-module.ts",
+						member: "importLegacyIdentity",
+					};
 	return () => {
 		liveIdentityTarget.current = previous;
 	};
@@ -432,7 +439,7 @@ describe("R03 fixture freshness and determinism", () => {
 			// committed fixtures. Destroys nothing.
 			scratchName = `recon_regen_${Date.now()}`;
 			await cluster.sql.unsafe(
-				`CREATE DATABASE ${scratchName} TEMPLATE postgres`,
+				`CREATE DATABASE ${scratchName} TEMPLATE template0`,
 			);
 			restore(join(gen, "legacy-snapshot.pgdump"));
 			restore(join(gen, "stellarc-destination-golden.pgdump"));
@@ -479,28 +486,49 @@ describe("R03 fixture freshness and determinism", () => {
 		// apply a one-row semantic mutation to the destination side, and assert the
 		// comparison against the committed golden is unequal — proving the
 		// logicalDump comparison can actually fail.
-		const name = `recon_regen_${Date.now()}`;
-		await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE ${templateDb}`);
-		const rt = makeRuntime(cluster.sql.options.host[0], name);
-		try {
-			const mut = await rt.runPromise(PgClient.PgClient);
-			await mut.unsafe(
-				`UPDATE public.board SET name = '__TAMPERED__' WHERE id = 'b1'`,
+		// The comparison baseline must be a clone of the SAME template, not the
+			// template-connected template itself: two clones vs each other isolates
+			// the single tampered row as the only difference.
+			const tampered = `recon_regen_${Date.now()}`;
+			const clean = `recon_regen_${Date.now() + 1}`;
+			await cluster.sql.unsafe(`CREATE DATABASE ${clean} TEMPLATE ${templateDb}`);
+			await cluster.sql.unsafe(
+				`CREATE DATABASE ${tampered} TEMPLATE ${templateDb}`,
 			);
-			const a = await logicalDump(pg, (e) => runtime.runPromise(e), "public", [
-				"board",
-			]);
-			const b = await logicalDump(mut, (e) => rt.runPromise(e), "public", [
-				"board",
-			]);
-			expect(
-				b,
-				"tampered dump must NOT compare equal to the committed golden",
-			).not.toBe(a);
-		} finally {
-			await rt.dispose();
-			await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${name}`);
-		}
+			const cleanRt = makeRuntime(cluster.sql.options.host[0], clean);
+			const tamperedRt = makeRuntime(cluster.sql.options.host[0], tampered);
+			try {
+				const mut = await tamperedRt.runPromise(PgClient.PgClient);
+				// Effect statements are not promises: awaiting one is a no-op. The
+				// mutation must be executed through the runtime.
+				await tamperedRt.runPromise(
+					mut.unsafe(
+						`UPDATE public.board SET name = '__TAMPERED__' WHERE id = 'b1'`,
+					),
+				);
+				const base = await cleanRt.runPromise(PgClient.PgClient);
+				const a = await logicalDump(
+					base,
+					(e) => cleanRt.runPromise(e),
+					"public",
+					["board"],
+				);
+				const b = await logicalDump(
+					mut,
+					(e) => tamperedRt.runPromise(e),
+					"public",
+					["board"],
+				);
+				expect(
+					b,
+					"tampered dump must NOT compare equal to the committed golden",
+				).not.toBe(a);
+			} finally {
+				await cleanRt.dispose();
+				await tamperedRt.dispose();
+				await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${clean}`);
+				await cluster.sql.unsafe(`DROP DATABASE IF EXISTS ${tampered}`);
+			}
 	});
 });
 
@@ -603,11 +631,31 @@ describe("R04 blocked semantics and R21 live mode", () => {
 			// (conceptually) produced, so #13 must turn red through the live runner.
 			const restore = withLiveIdentityTarget("seed");
 			try {
-				const results = await run(runLiveEffect(tx, manifest));
-				const r = resultFor(results, 13);
-				expect(r.mode).toBe("live");
-				expect(r.verdict).toBe("red");
-				expect(r.violations).toBeGreaterThan(0);
+				// The import runs first (the sabotage does not exist yet), then 13b
+				// removes one ledger row from the imported destination, and the live
+				// runner must report #13 RED — a destination row with no ledger
+				// entry. Import must not mask a sabotage applied after it ran.
+				const seeded = await run(runLiveEffect(tx, manifest));
+				expect(resultFor(seeded, 13).verdict, "clean import first").toBe(
+					"green",
+				);
+				await applySabotage(
+					tx,
+					"tests/fixtures/reconciliation/sabotage/13b.sql",
+				);
+				// second run: the importer has already completed and must not
+				// rewrite destination state (no-op import); reconciliation then
+				// sees exactly the sabotage damage.
+				const restoreNoop = withLiveIdentityTarget("noop");
+				try {
+					const results = await run(runLiveEffect(tx, manifest));
+					const r = resultFor(results, 13);
+					expect(r.mode).toBe("live");
+					expect(r.verdict).toBe("red");
+					expect(r.violations).toBeGreaterThan(0);
+				} finally {
+					restoreNoop();
+				}
 			} finally {
 				restore();
 			}
@@ -623,7 +671,7 @@ describe("R04 blocked semantics and R21 live mode", () => {
 		// identity state from the restored snapshot — exactly the integration
 		// point a real STL-15 importer plugs into.
 		const name = `recon_live_${crypto.randomUUID().replace(/-/g, "")}`;
-		await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE postgres`);
+		await cluster.sql.unsafe(`CREATE DATABASE ${name}`);
 		const liveRuntime = makeRuntime(cluster.sql.options.host[0], name);
 		try {
 			// (a) T0 + merged migrations, then the LEGACY SNAPSHOT restored into
@@ -692,7 +740,7 @@ describe("R04 blocked semantics and R21 live mode", () => {
 
 	test("R21/D2: with no merged importer, live mode restores the snapshot but identity queries report blocked naming STL-15", async () => {
 		const name = `recon_live_${crypto.randomUUID().replace(/-/g, "")}`;
-		await cluster.sql.unsafe(`CREATE DATABASE ${name} TEMPLATE postgres`);
+		await cluster.sql.unsafe(`CREATE DATABASE ${name}`);
 		const liveRuntime = makeRuntime(cluster.sql.options.host[0], name);
 		try {
 			const tmp = await import("postgres").then((m) =>
@@ -924,55 +972,30 @@ describe("R23 report and exit contract", () => {
 		const { tmpdir } = await import("node:os");
 		const artifacts = await mkdtemp(join(tmpdir(), "stl27-r23-"));
 		try {
-			// live mode with the importer target pointing at a nonexistent
-			// module = every query blocked = all-blocked = MUST exit nonzero.
-			const status = runCliWithNoImporter("live", artifacts);
+			// live mode with the default importer target: the STL-15 importer module
+			// does not exist in this tree, so detection resolves null, every query
+			// reports blocked, and the run MUST exit nonzero (all-blocked is a
+			// harness failure, not success).
+			const status = runCli("live", artifacts);
 			expect(status, "all-blocked run must not exit 0").not.toBe(0);
 			const report = JSON.parse(
 				await readFile(join(artifacts, "reconciliation-report.json"), "utf8"),
-			) as Array<{ verdict: string; blockedReason?: string }>;
+			) as Array<{ id: number; verdict: string; blockedReason?: string }>;
 			expect(report).toHaveLength(14);
 			for (const r of report) {
 				expect(r.verdict).toBe("blocked");
-				expect(r.blockedReason).toMatch(/STL-15/);
+			}
+			// identity queries (1-3, 13, 14) name the missing merged importer;
+			// the other slices name their missing ledger/destination tables.
+			for (const id of [1, 2, 3, 13, 14]) {
+				expect(report.find((x) => x.id === id)?.blockedReason).toMatch(
+					/STL-15/,
+				);
 			}
 		} finally {
 			await rm(artifacts, { recursive: true, force: true });
 		}
 	});
-
-	// Spawns the CLI with the importer target overridden to a nonexistent module
-	// via a tiny bootstrap that patches the seam before importing run.ts.
-	function runCliWithNoImporter(mode: string, artifacts: string): number {
-		const script = [
-			'const run = await import("./tools/reconciliation/run.ts");',
-			"run.liveIdentityTarget.current = {",
-			'  module: "./no-such-identity-importer-module.ts",',
-			'  member: "importLegacyIdentity",',
-			"};",
-			"process.argv[2] = process.env.R23_MODE;",
-			"process.env.ARTIFACTS_DIR = process.env.R23_ARTIFACTS;",
-			"await run.mainForTests();",
-		].join("\n");
-		const scriptDir = join(repoRootFromModule(), "tools", "reconciliation");
-		try {
-			execFileSync(bun, ["--bun", "eval", script], {
-				cwd: repoRootFromModule(),
-				env: {
-					...process.env,
-					R23_MODE: mode,
-					R23_ARTIFACTS: artifacts,
-				},
-				stdio: "pipe",
-				timeout: 110_000,
-			});
-			void scriptDir;
-			return 0;
-		} catch (error) {
-			const status = (error as { status?: number }).status;
-			return status ?? 1;
-		}
-	}
 
 	test("red run (sabotaged dump copy): nonzero exit, report carries the red verdict", {
 		timeout: 180_000,

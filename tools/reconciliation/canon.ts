@@ -396,9 +396,9 @@ SELECT table_name, column_name, data_type
 // entity_link; activity maps to comment/event via activity_import.
 export function legacySeedSql(): string {
 	return `
-INSERT INTO legacy."user" (id, name, email, email_verified, role, created_at, updated_at) VALUES
-  ('u1','Alice','a@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-  ('u2','Bob','b@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO legacy."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO legacy.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
   ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO legacy.organization (id, name, slug, created_at) VALUES
@@ -462,9 +462,11 @@ INSERT INTO legacy.resource_grant (id, organization_id, resource_type, resource_
 
 export function destinationSeedSql(): string {
 	return `
-INSERT INTO public."user" (id, name, email, email_verified, role, created_at, updated_at) VALUES
-  ('u1','Alice','a@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-  ('u2','Bob','b@x.com',true,'admin','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+-- is_anonymous/banned set explicitly: the merged 0002 defaults (false) must not
+-- fire — a correct import copies NULL verbatim and query #1 compares values.
+INSERT INTO public."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO public.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
   ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO public.organization (id, name, slug, work_enabled, created_at) VALUES
@@ -536,10 +538,10 @@ INSERT INTO public.integration (id, board_id, type, config) VALUES
 INSERT INTO public.resource_grant (id, organization_id, resource_type, resource_id, user_id, privilege) VALUES
   ('rg1','o1','board','b1','u1','edit');
 -- org_event_counter rows for the two orgs (event log appends need them)
-INSERT INTO public.org_event_counter (org, seq) VALUES ('o1', 2), ('o2', 0);
+INSERT INTO public.org_event_counter (org, seq) VALUES ('o1', 1), ('o2', 0);
 -- the imported domain event for activity 'act2' (status-changed), seq 1 on o1
 INSERT INTO public.event (org, seq, plugin_type, actor, payload, schema_version, txid, created_at) VALUES
-  ('o1', 2, 'activity:status-changed', 'u1', '{"id":"act2"}', 1, 1, '2026-01-01T00:00:01Z');
+  ('o1', 1, 'activity:status-changed', 'u1', '{"id":"act2"}', 1, 1, '2026-01-01T00:00:00Z');
 `;
 }
 

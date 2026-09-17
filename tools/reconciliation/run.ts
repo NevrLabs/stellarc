@@ -161,6 +161,12 @@ export const runLiveEffect = Effect.fn("ReconcileRunner.live")(
 			const results: QueryResult[] = [];
 			const identityIds = new Set([1, 2, 3, 13, 14]);
 			const importer = yield* detectIdentityImporter();
+			// the import runs ONCE before any reconciliation; per-query re-imports
+			// would re-insert imported rows and corrupt the destination.
+			let importState: "ok" | "importer threw" | null = null;
+			if (importer !== null) {
+				importState = yield* invokeIdentityImporter(sql, importer);
+			}
 			for (const q of manifest.queries) {
 				if (identityIds.has(q.id)) {
 					if (importer === null) {
@@ -175,14 +181,13 @@ export const runLiveEffect = Effect.fn("ReconcileRunner.live")(
 						});
 						continue;
 					}
-					const applied = yield* invokeIdentityImporter(sql, importer);
-					if (applied !== "ok") {
+					if (importState !== "ok") {
 						results.push({
 							id: q.id,
 							mode: "live",
 							verdict: "blocked",
 							violations: 0,
-							blockedReason: `identity importer failed: ${applied}`,
+							blockedReason: `identity importer failed: ${importState}`,
 						});
 						continue;
 					}
@@ -203,8 +208,11 @@ const detectIdentityImporter = Effect.fn("ReconcileRunner.detectImporter")(
 		Effect.tryPromise({
 			try: async () => {
 				if (liveIdentityTarget.current === null) return null;
+				const specifier = new URL(
+					`file://${join(repoRoot(), liveIdentityTarget.current.module)}`,
+				).href;
 				const mod = (await import(
-					/* webpackIgnore: true */ liveIdentityTarget.current.module
+					/* webpackIgnore: true */ specifier
 				)) as Record<string, unknown>;
 				const fn = mod[liveIdentityTarget.current.member];
 				if (typeof fn !== "function") return null;
@@ -226,8 +234,10 @@ const invokeIdentityImporter = Effect.fn("ReconcileRunner.invokeImporter")(
 				await importer.importLegacyIdentity(sql);
 				return "ok" as const;
 			},
+			// the import failure is a VERDICT input (blocked-with-reason), never a
+			// harness crash: surface it on the success channel.
 			catch: () => "importer threw" as const,
-		}),
+		}).pipe(Effect.catchAll(() => Effect.succeed("importer threw" as const))),
 );
 
 // --- test-facing helpers ---------------------------------------------------------
