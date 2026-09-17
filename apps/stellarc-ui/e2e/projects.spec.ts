@@ -301,9 +301,14 @@ test("archive row action hides the live project until include-archived", async (
     .getByRole("button", { name: "Archive" })
     .click();
   // Live mutation settled: row leaves the active list (refetch after
-  // invalidation, no interception).
+  // invalidation, no interception). When no other active project exists the
+  // frozen overview renders its Empty state instead of the table.
   await expect(page.getByText("Sync Foundation")).toHaveCount(0);
-  await expect(page.getByTestId("project-list-table")).toBeVisible();
+  await expect(
+    page
+      .getByTestId("project-list-table")
+      .or(page.getByTestId("projects-empty")),
+  ).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveScreenshot("projects-after-archive.png");
   // includeArchived: the archived project re-enters the list via a fresh
