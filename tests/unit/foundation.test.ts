@@ -121,7 +121,6 @@ test("T18 shape query allowlist rejects every undocumented parameter before SQL"
 			"columns",
 			"replica",
 			"subset__limit",
-			"live_sse",
 			"params[1]",
 			"unknown",
 		]) {

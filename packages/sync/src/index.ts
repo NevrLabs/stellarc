@@ -166,11 +166,18 @@ export class ShapeEngine {
 			"offset",
 			"handle",
 			"live",
+			"live_sse",
+			"experimental_live_sse",
 			"log",
 			"cursor",
 			"expired_handle",
 			"cache-buster",
 		]);
+		// Strict-boolean style of live/log: literal "true" only (STL-25 S11).
+		for (const name of ["live_sse", "experimental_live_sse"] as const) {
+			if (q.has(name) && q.get(name) !== "true")
+				return new Response(null, { status: 400 });
+		}
 		if ([...q.keys()].some((k) => !allowed.has(k)))
 			return new Response(null, { status: 400 });
 		if (q.get("table") !== "sync_probe")
