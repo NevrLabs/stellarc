@@ -90,7 +90,9 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 	// 20 owner-grant upserts (one per seeded capability) + the org, member,
 	// principal and three default-role upserts = 26 events total.
 	expect(
-		events.map((e) => e.plugin_type).filter((t) => t !== "identity:grant-upserted"),
+		events
+			.map((e) => e.plugin_type)
+			.filter((t) => t !== "identity:grant-upserted"),
 	).toEqual([
 		"identity:organization-upserted",
 		"identity:member-upserted",
@@ -99,7 +101,9 @@ test("T34 createOrganization seeds owner membership, default roles, principal an
 		"identity:role-upserted",
 		"identity:principal-upserted",
 	]);
-	expect(events.filter((e) => e.plugin_type === "identity:grant-upserted")).toHaveLength(20);
+	expect(
+		events.filter((e) => e.plugin_type === "identity:grant-upserted"),
+	).toHaveLength(20);
 	const payloads = await sql`SELECT payload FROM event WHERE org = ${orgId}`;
 	for (const event of payloads) {
 		const text = JSON.stringify(event.payload);
