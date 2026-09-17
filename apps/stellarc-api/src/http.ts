@@ -116,11 +116,15 @@ export function foundationHandler(
 					// STL-25: qualifying requests upgrade to a held-open SSE
 					// stream; everything else keeps the JSON long-poll path.
 					if (negotiateSse(url, request.headers.accept)) {
+						// The inbound request's abort signal (Bun aborts it when
+						// the client disconnects) + the stream authorizer that
+						// re-checks at every cycle boundary and ka tick (S07).
+						const source = request.source as Request | undefined;
 						return yield* engine
 							.sseEffect(
 								path.org,
 								url,
-								undefined,
+								source?.signal,
 								() => authorize(path.org, request.headers, principal) === "ok",
 							)
 							.pipe(
@@ -133,8 +137,13 @@ export function foundationHandler(
 													principal,
 												),
 											})
-										: errorResponse({
-												_tag: "Conflict",
+										: // Pre-stream failure: the engine already
+											// answered the sanitized JSON contract
+											// (409 must-refetch, 503, ...) - pass the
+											// body through unchanged, never a stream.
+											HttpServerResponse.raw(response.body, {
+												status: response.status,
+												headers: Object.fromEntries(response.headers),
 											}),
 								),
 								Effect.catchAll((error) =>

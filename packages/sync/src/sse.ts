@@ -54,11 +54,14 @@ const sseFramesControl = Metric.counter("stellarc_shape_sse_frames_total", {
 });
 const sseFallbacks = Metric.counter("stellarc_shape_sse_fallbacks_total");
 
+export type SseCloseKind = "cycle" | "disconnect" | "revocation" | "error";
+
 /** Close-time summary of one SSE connection, recorded by the owning Effect. */
 export interface SseStreamSummary {
 	frames: number;
 	fallback: boolean;
 	durationMs: number;
+	close: SseCloseKind;
 }
 
 /** Record the close-time metrics in the caller's runtime (ADR 0010). */
@@ -141,12 +144,22 @@ export async function runSseStream(
 	let position = url.searchParams.get("offset") ?? "-1";
 	let frames = 0;
 	let firstPage = true;
-	let summary: SseStreamSummary = { frames: 0, fallback: true, durationMs: 0 };
+	let summary: SseStreamSummary = {
+		frames: 0,
+		fallback: true,
+		durationMs: 0,
+		close: "error",
+	};
 	const start = Date.now();
 	try {
 		while (Date.now() < deadline) {
 			signal?.throwIfAborted();
-			if (!options.authorize()) return summary; // revocation: clean close
+			if (!options.authorize()) {
+				// Revocation: clean close - the reconnect gets 401/403 from the
+				// standard path (re-authorized here each cycle AND each ka tick).
+				summary = { ...summary, close: "revocation" };
+				return summary;
+			}
 			const result = await raceAbort(options.page(url), signal);
 			for (const message of result.messages) {
 				if (
@@ -233,19 +246,27 @@ export async function runSseStream(
 		);
 		frames++;
 	} catch (error) {
-		if (signal?.aborted) throw signal.reason ?? error; // client disconnect
+		if (signal?.aborted) {
+			// Client disconnect: the caller records the disconnect close.
+			throw signal.reason ?? error;
+		}
 		// Mid-stream failure: one final must-refetch frame, then close - the
 		// client re-requests and hits the sanitized JSON error path.
 		try {
 			emit(encodeDataFrame({ headers: { control: "must-refetch" } }));
 			frames++;
 		} catch {}
-		return summary;
+		return { ...summary, close: "error" };
 	} finally {
 		summary = {
 			frames,
 			fallback: !sawUpToDate,
 			durationMs: Date.now() - start,
+			close: signal?.aborted
+				? "disconnect"
+				: summary.close === "error"
+					? "cycle"
+					: summary.close,
 		};
 	}
 	return summary;

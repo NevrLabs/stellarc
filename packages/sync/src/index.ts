@@ -1,4 +1,12 @@
-import { Cause, Effect, Exit, Metric, MetricBoundaries, Runtime } from "effect";
+import {
+	Cause,
+	Effect,
+	Exit,
+	Metric,
+	MetricBoundaries,
+	Runtime,
+	Tracer,
+} from "effect";
 
 const liveConnections = Metric.gauge("stellarc_shape_live_connections");
 const tailWait = Metric.histogram(
@@ -23,6 +31,8 @@ import { type ProbePayload, UpcasterRegistry } from "./upcasters";
 
 export class ShapeEngine {
 	afterProjectionRead?: () => Promise<void>;
+	/** STL-25 test hook: override SSE cycle / keep-alive cadence. */
+	sseTiming?: { cycleMs?: number; kaMs?: number };
 	private snapshots = new Map<
 		string,
 		{
@@ -161,63 +171,144 @@ export class ShapeEngine {
 	 * through `runtime` so OTel owns them (ADR 0010). Authorization is
 	 * re-checked by the caller at cycle boundaries via `authorize`.
 	 */
-	sseEffect = Effect.fn("stellarc.shape.sse")(
-		(
-			org: string,
-			url: URL,
-			signal: AbortSignal | undefined,
-			authorize: () => boolean,
-		) => {
-			const self = this;
-			return Effect.gen(function* () {
-				const rt = yield* Effect.runtime<never>();
-				const cursor = crypto.randomUUID();
-				// Pre-stream page: an expired handle must surface the JSON 409
-				// contract, never a stream (spec §3).
-				const first = yield* Effect.tryPromise(() =>
-					self.ssePage(org, url),
-				).pipe(Effect.mapError((error) => error as Error));
-				const headers = new Headers({
-					"content-type": "text/event-stream",
-					"cache-control": "no-store",
-					"electric-handle": url.searchParams.get("handle") ?? "",
-					"electric-offset": url.searchParams.get("offset") ?? "-1",
-					"electric-schema":
-						first.schemaHeader ?? JSON.stringify(electricSchema),
-					"electric-cursor": cursor,
-					"X-Accel-Buffering": "no",
-				});
-				const stream = new ReadableStream<Uint8Array>({
-					async start(controller) {
-						try {
-							const summary = await runSseStream(
-								url,
-								signal,
-								(chunk) => {
-									controller.enqueue(chunk);
-								},
-								{
-									page: (pageUrl) =>
-										runEffect(rt, self.pageEffect(org, pageUrl)).then(
-											(response) => self.ssePageFromResponse(response),
-										),
-									authorize,
-								},
-							);
-							await Runtime.runPromise(rt)(recordSseMetrics(summary));
-						} catch {
-							// client disconnect mid-stream: release quietly
-						} finally {
-							try {
-								controller.close();
-							} catch {}
-						}
-					},
-				});
-				return new Response(stream, { status: 200, headers });
+	/**
+	 * STL-25: the SSE response for a qualifying request. The held-open
+	 * connection acquires the live gauge exactly once, runs its page loop as
+	 * children of a per-connection span that ends only at stream close, and
+	 * releases everything (gauge, metrics, span) at every close kind: cycle,
+	 * disconnect, revocation, error. Authorization is re-checked by the caller
+	 * at every cycle boundary and keep-alive tick through `authorize`.
+	 */
+	/**
+	 * STL-25: the SSE response for a qualifying request. One held-open
+	 * connection acquires the live gauge exactly once (S15), drives its page
+	 * loop as children of a per-connection `stellarc.shape.sse` span that ends
+	 * only at stream close (S14), re-authorizes at every cycle boundary and
+	 * keep-alive tick, and releases gauge + metrics at every close kind:
+	 * cycle, disconnect, revocation, error. A pre-stream failure (expired
+	 * handle) surfaces the engine's JSON 409 must-refetch contract - never a
+	 * stream (spec §3).
+	 */
+	sseEffect(
+		org: string,
+		url: URL,
+		signal?: AbortSignal,
+		authorize: () => boolean = () => true,
+	) {
+		const self = this;
+		return Effect.gen(function* () {
+			const rt = yield* Effect.runtime<never>();
+			// Pre-stream page: an expired handle must answer 409 JSON, not a
+			// stream (spec §3 error union).
+			const pre = yield* Effect.tryPromise(() => self.ssePage(org, url)).pipe(
+				Effect.mapError((error) => error as Error),
+			);
+			const headers = new Headers({
+				"content-type": "text/event-stream",
+				"cache-control": "no-store",
+				"electric-handle": url.searchParams.get("handle") ?? "",
+				"electric-offset": url.searchParams.get("offset") ?? "-1",
+				"electric-schema": pre.schemaHeader ?? JSON.stringify(electricSchema),
+				"electric-cursor": crypto.randomUUID(),
+				"X-Accel-Buffering": "no",
 			});
-		},
-	);
+			const startedAt = performance.now();
+			// Client disconnect reaches us two ways: the request signal (Bun
+			// aborts it on connection close) and response-stream cancel. Fan
+			// both into one loop-abort controller.
+			const disconnect = new AbortController();
+			const onOuterAbort = () =>
+				disconnect.abort(
+					signal?.reason ?? new DOMException("Aborted", "AbortError"),
+				);
+			signal?.addEventListener("abort", onOuterAbort, { once: true });
+			if (signal?.aborted) disconnect.abort();
+			// Per-connection span: child of the inbound request span; page
+			// spans run as its children via an explicit Span context override.
+			const span = yield* Effect.makeSpan("stellarc.shape.sse");
+			span.attribute("stellarc.shape.table", "sync_probe");
+			span.attribute(
+				"stellarc.shape.offset_from",
+				url.searchParams.get("offset") ?? "-1",
+			);
+			span.attribute("stellarc.org", org);
+			span.attribute("stellarc.principal.kind", "actor");
+			let closed = false;
+			let frames = 0;
+			const finish = async (
+				summary: import("./sse").SseStreamSummary,
+			): Promise<void> => {
+				if (closed) return;
+				closed = true;
+				signal?.removeEventListener("abort", onOuterAbort);
+				span.attribute("stellarc.shape.events_sent", frames);
+				span.attribute("stellarc.shape.sse.close", summary.close);
+				span.end(
+					process.hrtime.bigint(),
+					Exit.succeed(undefined) as Exit.Exit<unknown, unknown>,
+				);
+				activeLiveConnections--;
+				await Runtime.runPromise(rt)(
+					Effect.gen(function* () {
+						yield* Metric.set(liveConnections, activeLiveConnections);
+						yield* recordSseMetrics(summary);
+					}),
+				);
+			};
+			const stream = new ReadableStream<Uint8Array>({
+				async start(controller) {
+					// S15: exactly one acquire per held-open connection - not per
+					// frame, not per page fetch.
+					activeLiveConnections++;
+					await Runtime.runPromise(rt)(
+						Metric.set(liveConnections, activeLiveConnections),
+					);
+					try {
+						const summary = await runSseStream(
+							url,
+							disconnect.signal,
+							(chunk) => {
+								frames++;
+								controller.enqueue(chunk);
+							},
+							{
+								page: (pageUrl) =>
+									runEffect(
+										rt,
+										self
+											.pageEffect(org, pageUrl)
+											.pipe(Effect.provideService(Tracer.ParentSpan, span)),
+									).then((response) => self.ssePageFromResponse(response)),
+								authorize,
+								...(self.sseTiming ?? {}),
+							},
+						);
+						frames = summary.frames;
+						await finish(summary);
+					} catch {
+						// Client disconnect mid-stream: abort raced into the page
+						// loop - release everything with the disconnect close.
+						await finish({
+							frames,
+							fallback: true,
+							durationMs: performance.now() - startedAt,
+							close: "disconnect",
+						});
+					} finally {
+						try {
+							controller.close();
+						} catch {}
+					}
+				},
+				cancel() {
+					disconnect.abort(
+						new DOMException("The stream was aborted", "AbortError"),
+					);
+				},
+			});
+			return new Response(stream, { status: 200, headers });
+		});
+	}
 
 	private async runShape(
 		_org: string,

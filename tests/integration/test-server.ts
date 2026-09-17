@@ -157,6 +157,10 @@ export async function startTestServer() {
 		set revokeAll(value: boolean) {
 			revoked = value;
 		},
+		// STL-25: drive short SSE cycles / fast keep-alive from tests.
+		set sseTiming(value: { cycleMs?: number; kaMs?: number } | undefined) {
+			engine.sseTiming = value;
+		},
 		get afterProjectionRead() {
 			return engine.afterProjectionRead;
 		},

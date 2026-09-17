@@ -202,3 +202,138 @@ test("S04 exactly-once across ≥3 SSE cycles: no dup, no loss", async () => {
 		stream.unsubscribeAll();
 	}
 });
+
+const metricPoints = (
+	server: Awaited<ReturnType<typeof startTestServer>>,
+	name: string,
+) =>
+	server.telemetry.metrics
+		.getMetrics()
+		.flatMap((resource) =>
+			resource.scopeMetrics.flatMap((scope) => scope.metrics),
+		)
+		.find((metric) => metric.descriptor.name === name)?.dataPoints ?? [];
+
+const gaugeValue = (server: Awaited<ReturnType<typeof startTestServer>>) => {
+	// InMemory CUMULATIVE exporter keeps one collection record per flush; the
+	// live reading is the NEWEST record's datapoint.
+	const records = server.telemetry.metrics
+		.getMetrics()
+		.flatMap((resource) =>
+			resource.scopeMetrics.flatMap((scope) => scope.metrics),
+		)
+		.filter((metric) => metric.descriptor.name === "stellarc_shape_live_connections");
+	return records.at(-1)?.dataPoints.at(-1)?.value;
+};
+
+const sseSpans = (server: Awaited<ReturnType<typeof startTestServer>>) =>
+	server.telemetry.spans
+		.getFinishedSpans()
+		.filter((span) => span.name === "stellarc.shape.sse");
+
+/** Open a qualifying SSE stream and read the first flushed frame. */
+async function openSse(
+	server: Awaited<ReturnType<typeof startTestServer>>,
+	org: string,
+	signal?: AbortSignal,
+) {
+	const base = `${server.url}/orgs/${org}/v1/shape?table=sync_probe`;
+	const headers = { authorization: `Bearer ${org}` };
+	const initial = await fetch(`${base}&offset=-1`, { headers });
+	await initial.text();
+	const handle = initial.headers.get("electric-handle") ?? "";
+	const offset = initial.headers.get("electric-offset") ?? "";
+	const response = await fetch(
+		`${base}&offset=${offset}&handle=${handle}&live=true&live_sse=true&experimental_live_sse=true`,
+		{
+			headers: { ...headers, accept: "text/event-stream" },
+			signal,
+		},
+	);
+	expect(response.status).toBe(200);
+	expect(response.headers.get("content-type")).toBe("text/event-stream");
+	const reader = response.body!.getReader();
+	const first = await reader.read();
+	expect(first.done).toBe(false);
+	return { response, reader };
+}
+
+test("S06 client disconnect aborts the held stream: gauge released, SQL tail stops, sse span ends with disconnect", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("org-a", "a-1", "v1");
+	const controller = new AbortController();
+	const { reader } = await openSse(server, "org-a", controller.signal);
+	const tails = () =>
+		server.telemetry.spans
+			.getFinishedSpans()
+			.filter((span) => span.name === "stellarc.shape.tail").length;
+	await expect.poll(tails).toBeGreaterThan(0);
+	await server.telemetry.reader.forceFlush();
+	// Exactly one live connection while held (S15 counts it once).
+	expect(gaugeValue(server)).toBe(1);
+	controller.abort();
+	await reader.cancel().catch(() => undefined);
+	// The disconnect propagates: the per-connection span closes with the
+	// disconnect kind (default 20s cycle could not have elapsed).
+	await expect
+		.poll(() =>
+			sseSpans(server).some(
+				(span) => span.attributes["stellarc.shape.sse.close"] === "disconnect",
+			),
+		)
+		.toBe(true);
+	const stoppedAt = tails();
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	expect(tails()).toBe(stoppedAt); // SQL tail polling stopped
+	await server.telemetry.reader.forceFlush();
+	expect(gaugeValue(server)).toBe(0); // gauge back to baseline
+});
+
+test("S15 gauge counts SSE exactly once across frames; duration recorded at cycle close", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	// Short cadence so one full cycle fits inside the test budget.
+	server.sseTiming = { cycleMs: 1500, kaMs: 400 };
+	await server.write("org-a", "a-1", "v1");
+	const { reader } = await openSse(server, "org-a");
+	const received: string[] = [];
+	const readLoop = (async () => {
+		try {
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				received.push(new TextDecoder().decode(value));
+			}
+		} catch {
+			// stream closed
+		}
+	})();
+	await server.write("org-a", "a-2", "v2");
+	await server.write("org-a", "a-3", "v3");
+	await expect.poll(() => received.join("").includes('"a-3"')).toBe(true);
+	// Frames flowed on ONE held connection: the gauge must still read 1 —
+	// a per-frame re-register inflates it (negative control).
+	await server.telemetry.reader.forceFlush();
+	expect(gaugeValue(server)).toBe(1);
+	await readLoop; // cycle close ends the stream cleanly
+	await server.telemetry.reader.forceFlush();
+	expect(gaugeValue(server)).toBe(0);
+	expect(
+		metricPoints(server, "stellarc_shape_sse_duration_seconds").length,
+	).toBeGreaterThan(0);
+	const closed = sseSpans(server).find(
+		(span) => span.attributes["stellarc.shape.sse.close"] === "cycle",
+	);
+	expect(closed).toBeDefined();
+	expect(closed?.attributes["stellarc.shape.table"]).toBe("sync_probe");
+	expect(closed?.attributes["stellarc.org"]).toBe("org-a");
+	expect(typeof closed?.attributes["stellarc.shape.events_sent"]).toBe(
+		"number",
+	);
+	// The per-connection span shares the request trace with its page spans.
+	const tail = server.telemetry.spans
+		.getFinishedSpans()
+		.find((span) => span.name === "stellarc.shape.tail");
+	expect(closed?.spanContext().traceId).toBe(tail?.spanContext().traceId);
+});
