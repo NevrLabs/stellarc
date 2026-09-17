@@ -17,7 +17,7 @@ export async function startRepositoryTestServer(sql: Sql) {
 		"../../packages/sync/src/repository-shapes"
 	);
 	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
-	const { Layer, ManagedRuntime } = await import("effect");
+	const { ManagedRuntime } = await import("effect");
 
 	const engine = new ShapeEngine(sql);
 	registerRepositoryShapes(engine);
