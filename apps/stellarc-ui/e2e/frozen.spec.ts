@@ -207,7 +207,11 @@ test("projects list and project detail render from the fixture", async ({
   await expect(page).toHaveScreenshot("projects.png");
   await page.goto("/dashboard/organization/foundation/projects/foundation-lab");
   await expect(page.getByTestId("project-overview")).toBeVisible();
-  await expect(page.getByText("Stock adapter round-trips")).toBeVisible();
+  // Scoped: the mounted §6 properties form repeats successCriteria in its
+  // textarea; the overview's own copy is the parity target.
+  await expect(
+    page.getByTestId("project-overview").getByText("Stock adapter round-trips"),
+  ).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveScreenshot("project-detail.png");
   expect(errors).toEqual([]);
