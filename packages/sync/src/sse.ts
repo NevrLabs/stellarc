@@ -52,9 +52,7 @@ const sseDuration = Metric.histogram(
 const sseFrameCounter = Metric.counter("stellarc_shape_sse_frames_total", {
 	description: "data: frames emitted",
 });
-const sseFramesControl = sseFrameCounter.pipe(
-	Metric.tagged("kind", "control"),
-);
+const sseFramesControl = sseFrameCounter.pipe(Metric.tagged("kind", "control"));
 const sseFramesOperation = sseFrameCounter.pipe(
 	Metric.tagged("kind", "operation"),
 );

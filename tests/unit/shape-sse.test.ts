@@ -34,19 +34,19 @@ test("S14/S15 unit: frames_total splits control vs operation via the kind attrib
 		// Effect metric registries are process-global: snapshot the counter
 		// before, then assert the DELTA of this recording (order-independent).
 		const readKinds = () => {
-			const points = telemetry.metrics
-				.getMetrics()
-				.flatMap((r) => r.scopeMetrics.flatMap((sc) => sc.metrics))
-				.find((m) => m.descriptor.name === "stellarc_shape_sse_frames_total")
-			?.dataPoints ?? [];
+			const points =
+				telemetry.metrics
+					.getMetrics()
+					.flatMap((r) => r.scopeMetrics.flatMap((sc) => sc.metrics))
+					.find((m) => m.descriptor.name === "stellarc_shape_sse_frames_total")
+					?.dataPoints ?? [];
 			return new Map(
 				points
 					.filter((p) => p.attributes && "kind" in p.attributes)
-				.map((p) => [String(p.attributes?.kind), Number(p.value)]),
+					.map((p) => [String(p.attributes?.kind), Number(p.value)]),
 			);
 		};
 		await telemetry.reader.forceFlush();
-		const before = readKinds();
 		// One connection closing after two change frames + two boundary
 		// frames (control): the counter must record the split, not one blob.
 		await runtime.runPromise(

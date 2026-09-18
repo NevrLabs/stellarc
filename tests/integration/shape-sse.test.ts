@@ -366,20 +366,34 @@ test("S15 gauge counts SSE exactly once across frames; duration recorded at cycl
 	const frameKinds = new Map(
 		metricPoints(server, "stellarc_shape_sse_frames_total")
 			.filter((point) => point.attributes && "kind" in point.attributes)
-			.map((point) => [
-				String(point.attributes?.kind),
-				point.value as number,
-			]),
+			.map((point) => [String(point.attributes?.kind), point.value as number]),
 	);
 	expect(frameKinds.size).toBe(2);
 	expect(frameKinds.get("control")).toBeGreaterThan(0);
 	expect(frameKinds.get("operation")).toBeGreaterThan(0);
+	// STL-25 D5: a principal-less but authorized connection ("Bearer
+	// org-a": the org token carries no id) must record the handler-derived
+	// anonymous kind - the "actor" side of the derivation is covered by the
+	// foundation request-span test.
+	{
+		const first = await fetch(
+			`${server.url}/orgs/anon/v1/shape?table=sync_probe&offset=-1`,
+			{ headers: { authorization: "Bearer anon" } },
+		);
+		expect(first.status).toBe(200);
+		await first.text();
+	}
+
 	const closed = sseSpans(server).find(
 		(span) => span.attributes["stellarc.shape.sse.close"] === "cycle",
 	);
 	expect(closed).toBeDefined();
 	expect(closed?.attributes["stellarc.shape.table"]).toBe("sync_probe");
 	expect(closed?.attributes["stellarc.org"]).toBe("org-a");
+	// STL-25 D5: the kind is handler-derived, not hardcoded - these
+	// connections carry no extractable principal ("Bearer org-a"), so the
+	// span must record the anonymous kind instead of claiming an actor.
+	expect(closed?.attributes["stellarc.principal.kind"]).toBe("anonymous");
 	expect(typeof closed?.attributes["stellarc.shape.events_sent"]).toBe(
 		"number",
 	);

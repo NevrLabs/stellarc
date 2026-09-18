@@ -165,6 +165,9 @@ export class ShapeEngine {
 			url: URL,
 			signal?: AbortSignal,
 			authorize: () => boolean = () => true,
+			// STL-25 D5: handler-derived kind ("actor" | "anonymous") - the
+			// engine cannot know it (identity parsing lives in the handler).
+			principalKind = "anonymous",
 		) => {
 			const self = this;
 			return Effect.gen(function* () {
@@ -179,117 +182,117 @@ export class ShapeEngine {
 				const pre = yield* Effect.tryPromise(() =>
 					self.ssePageFromResponse(preResponse),
 				).pipe(Effect.mapError((error) => error as Error));
-			const headers = new Headers({
-				"content-type": "text/event-stream",
-				"cache-control": "no-store",
-				"electric-handle": url.searchParams.get("handle") ?? "",
-				"electric-offset": url.searchParams.get("offset") ?? "-1",
-				"electric-schema": pre.schemaHeader ?? JSON.stringify(electricSchema),
-				"electric-cursor": crypto.randomUUID(),
-				"X-Accel-Buffering": "no",
-			});
-			const startedAt = performance.now();
-			// Client disconnect reaches us two ways: the request signal (Bun
-			// aborts it on connection close) and response-stream cancel. Fan
-			// both into one loop-abort controller.
-			const disconnect = new AbortController();
-			const onOuterAbort = () =>
-				disconnect.abort(
-					signal?.reason ?? new DOMException("Aborted", "AbortError"),
-				);
-			signal?.addEventListener("abort", onOuterAbort, { once: true });
-			if (signal?.aborted) disconnect.abort();
-			// Per-connection span: child of the inbound request span; page
-			// spans run as its children via an explicit Span context override.
-			const span = yield* Effect.makeSpan("stellarc.shape.sse");
-			span.attribute("stellarc.shape.table", "sync_probe");
-			span.attribute(
-				"stellarc.shape.offset_from",
-				url.searchParams.get("offset") ?? "-1",
-			);
-			span.attribute("stellarc.org", org);
-			span.attribute("stellarc.principal.kind", "actor");
-			let closed = false;
-			let frames = 0;
-			const finish = async (
-				summary: import("./sse").SseStreamSummary,
-			): Promise<void> => {
-				if (closed) return;
-				closed = true;
-				signal?.removeEventListener("abort", onOuterAbort);
-				span.attribute("stellarc.shape.events_sent", frames);
-				span.attribute("stellarc.shape.sse.close", summary.close);
-				span.end(
-					process.hrtime.bigint(),
-					Exit.succeed(undefined) as Exit.Exit<unknown, unknown>,
-				);
-				self.activeLiveConnections--;
-				await Runtime.runPromise(rt)(
-					Effect.gen(function* () {
-						yield* Metric.set(liveConnections, self.activeLiveConnections);
-						yield* recordSseMetrics(summary);
-					}),
-				);
-			};
-			const stream = new ReadableStream<Uint8Array>({
-				async start(controller) {
-					// S15: exactly one acquire per held-open connection - not per
-					// frame, not per page fetch.
-					self.activeLiveConnections++;
-					await Runtime.runPromise(rt)(
-						Metric.set(liveConnections, self.activeLiveConnections),
-					);
-					try {
-						const summary = await runSseStream(
-							url,
-							disconnect.signal,
-							(chunk) => {
-								frames++;
-								controller.enqueue(chunk);
-							},
-							{
-								page: (pageUrl) =>
-									runEffect(
-										rt,
-										self
-											.pageEffect(org, pageUrl)
-											.pipe(Effect.provideService(Tracer.ParentSpan, span)),
-									).then((response) => self.ssePageFromResponse(response)),
-								authorize,
-								...(self.sseTiming
-									? {
-											cycleMs: self.sseTiming.cycleMs,
-											kaIntervalMs: self.sseTiming.kaMs,
-										}
-									: {}),
-							},
-						);
-						frames = summary.frames;
-						await finish(summary);
-					} catch {
-						// Enqueue failure after the driver already returned (the
-						// socket tore down mid-release): close as a disconnect
-						// with the summary the driver last reported - fallback is
-						// derived, never blanket-true (STL-25 D2).
-						await finish({
-							frames,
-							controlFrames: 0,
-							fallback: false,
-							durationMs: performance.now() - startedAt,
-							close: "disconnect",
-						});
-					} finally {
-						try {
-							controller.close();
-						} catch {}
-					}
-				},
-				cancel() {
+				const headers = new Headers({
+					"content-type": "text/event-stream",
+					"cache-control": "no-store",
+					"electric-handle": url.searchParams.get("handle") ?? "",
+					"electric-offset": url.searchParams.get("offset") ?? "-1",
+					"electric-schema": pre.schemaHeader ?? JSON.stringify(electricSchema),
+					"electric-cursor": crypto.randomUUID(),
+					"X-Accel-Buffering": "no",
+				});
+				const startedAt = performance.now();
+				// Client disconnect reaches us two ways: the request signal (Bun
+				// aborts it on connection close) and response-stream cancel. Fan
+				// both into one loop-abort controller.
+				const disconnect = new AbortController();
+				const onOuterAbort = () =>
 					disconnect.abort(
-						new DOMException("The stream was aborted", "AbortError"),
+						signal?.reason ?? new DOMException("Aborted", "AbortError"),
 					);
-				},
-			});
+				signal?.addEventListener("abort", onOuterAbort, { once: true });
+				if (signal?.aborted) disconnect.abort();
+				// Per-connection span: child of the inbound request span; page
+				// spans run as its children via an explicit Span context override.
+				const span = yield* Effect.makeSpan("stellarc.shape.sse");
+				span.attribute("stellarc.shape.table", "sync_probe");
+				span.attribute(
+					"stellarc.shape.offset_from",
+					url.searchParams.get("offset") ?? "-1",
+				);
+				span.attribute("stellarc.org", org);
+				span.attribute("stellarc.principal.kind", principalKind);
+				let closed = false;
+				let frames = 0;
+				const finish = async (
+					summary: import("./sse").SseStreamSummary,
+				): Promise<void> => {
+					if (closed) return;
+					closed = true;
+					signal?.removeEventListener("abort", onOuterAbort);
+					span.attribute("stellarc.shape.events_sent", frames);
+					span.attribute("stellarc.shape.sse.close", summary.close);
+					span.end(
+						process.hrtime.bigint(),
+						Exit.succeed(undefined) as Exit.Exit<unknown, unknown>,
+					);
+					self.activeLiveConnections--;
+					await Runtime.runPromise(rt)(
+						Effect.gen(function* () {
+							yield* Metric.set(liveConnections, self.activeLiveConnections);
+							yield* recordSseMetrics(summary);
+						}),
+					);
+				};
+				const stream = new ReadableStream<Uint8Array>({
+					async start(controller) {
+						// S15: exactly one acquire per held-open connection - not per
+						// frame, not per page fetch.
+						self.activeLiveConnections++;
+						await Runtime.runPromise(rt)(
+							Metric.set(liveConnections, self.activeLiveConnections),
+						);
+						try {
+							const summary = await runSseStream(
+								url,
+								disconnect.signal,
+								(chunk) => {
+									frames++;
+									controller.enqueue(chunk);
+								},
+								{
+									page: (pageUrl) =>
+										runEffect(
+											rt,
+											self
+												.pageEffect(org, pageUrl)
+												.pipe(Effect.provideService(Tracer.ParentSpan, span)),
+										).then((response) => self.ssePageFromResponse(response)),
+									authorize,
+									...(self.sseTiming
+										? {
+												cycleMs: self.sseTiming.cycleMs,
+												kaIntervalMs: self.sseTiming.kaMs,
+											}
+										: {}),
+								},
+							);
+							frames = summary.frames;
+							await finish(summary);
+						} catch {
+							// Enqueue failure after the driver already returned (the
+							// socket tore down mid-release): close as a disconnect
+							// with the summary the driver last reported - fallback is
+							// derived, never blanket-true (STL-25 D2).
+							await finish({
+								frames,
+								controlFrames: 0,
+								fallback: false,
+								durationMs: performance.now() - startedAt,
+								close: "disconnect",
+							});
+						} finally {
+							try {
+								controller.close();
+							} catch {}
+						}
+					},
+					cancel() {
+						disconnect.abort(
+							new DOMException("The stream was aborted", "AbortError"),
+						);
+					},
+				});
 				return new Response(stream, { status: 200, headers });
 			});
 		},

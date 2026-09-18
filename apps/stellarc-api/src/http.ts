@@ -14,6 +14,13 @@ import { errorResponse } from "./errors";
 
 export type AuthzResult = "ok" | "unauthenticated" | "forbidden";
 
+// STL-25 D5 (review-9): the principal kind is derived from the extracted
+// principal, not hardcoded. An empty principal means no identity was
+// extracted (production parses no tokens, §3) - such requests are
+// "anonymous", never an authenticated "actor".
+export const principalKindFrom = (principal: string): string =>
+	principal ? "actor" : "anonymous";
+
 export type Authorize = (
 	org: string,
 	headers: Readonly<Record<string, string>>,
@@ -54,7 +61,7 @@ export const requestTelemetry = (
 		];
 		if (response.status < 400 && principal)
 			yield* Effect.annotateCurrentSpan({
-				"stellarc.principal.kind": "actor",
+				"stellarc.principal.kind": principalKindFrom(principal),
 				"stellarc.principal.id": principal,
 			});
 		const errorTypes: Record<number, string> = {
@@ -126,6 +133,7 @@ export function foundationHandler(
 								url,
 								source?.signal,
 								() => authorize(path.org, request.headers, principal) === "ok",
+								principalKindFrom(principal),
 							)
 							.pipe(
 								Effect.map((response) =>
