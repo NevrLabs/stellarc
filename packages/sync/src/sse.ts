@@ -81,8 +81,6 @@ export interface SsePageResult {
 	messages: unknown[];
 	/** The internal cursor the page advanced to (already issued-token mapped). */
 	nextCursor: string;
-	/** Whether the page reached the log head (up-to-date was appended). */
-	caughtUp: boolean;
 	/** Response headers the stream must mirror (electric-schema etc). */
 	schemaHeader: string | null;
 }
@@ -139,28 +137,49 @@ export async function runSseStream(
 ): Promise<SseStreamSummary> {
 	const kaInterval = options.kaIntervalMs ?? SSE_KA_INTERVAL_MS;
 	const deadline = Date.now() + (options.cycleMs ?? SSE_CYCLE_MS);
+	const openedAt = Date.now();
 	let lastEmit = Date.now();
+	// Fallback signature (review-6 option (b), spec §2): the connection
+	// closed before the first up-to-date frame was FLUSHED. Boundary frames
+	// emitted by this loop are the only up-to-date frames an SSE client ever
+	// sees (page control messages are filtered out), so sawUpToDate tracks
+	// exactly "an up-to-date flush left the server on this connection". A
+	// buffering proxy that only releases bodies at close makes every
+	// connection die pre-flush -> fallback; an ordinary client disconnect
+	// after any flush is NOT a fallback (recorded with its own close kind).
 	let sawUpToDate = false;
 	let position = url.searchParams.get("offset") ?? "-1";
 	let frames = 0;
-	let firstPage = true;
-	let summary: SseStreamSummary = {
-		frames: 0,
-		fallback: true,
-		durationMs: 0,
-		close: "error",
-	};
-	const start = Date.now();
+	// The client's LiveState offset advances off our first up-to-date frame;
+	// on a caught-up log that boundary is deferred to the first keep-alive
+	// tick so it (and the ka comments) only traverse proxies that stream.
+	let oweBoundary = true;
+	let close: SseCloseKind = "cycle";
+	const summary = (): SseStreamSummary => ({
+		frames,
+		fallback: !sawUpToDate,
+		durationMs: Date.now() - openedAt,
+		close,
+	});
+	const boundary = () =>
+		encodeDataFrame({
+			headers: {
+				control: "up-to-date",
+				global_last_seen_lsn: position.split("_")[0] ?? "0",
+			},
+		});
 	try {
 		while (Date.now() < deadline) {
 			signal?.throwIfAborted();
 			if (!options.authorize()) {
-				// Revocation: clean close - the reconnect gets 401/403 from the
-				// standard path (re-authorized here each cycle AND each ka tick).
-				summary = { ...summary, close: "revocation" };
-				return summary;
+				// Revocation: clean close - the reconnect gets 401/403 from
+				// the standard path (re-authorized here each cycle AND each
+				// keep-alive tick).
+				close = "revocation";
+				return summary();
 			}
 			const result = await raceAbort(options.page(url), signal);
+			let emitted = false;
 			for (const message of result.messages) {
 				if (
 					(message as { headers?: { control?: string } }).headers?.control ===
@@ -169,6 +188,7 @@ export async function runSseStream(
 					continue; // SSE emits its own boundary frames below
 				emit(encodeDataFrame(message));
 				frames++;
+				emitted = true;
 			}
 			const hadChanges = result.messages.length > 0;
 			position = result.nextCursor;
@@ -177,41 +197,34 @@ export async function runSseStream(
 			// via our up-to-date frames, our pages advance via this).
 			url.searchParams.set("offset", result.nextCursor);
 			if (hadChanges) {
-				// Changes must flush to subscribers now: an up-to-date boundary
-				// right behind them (the stock client only publishes on
-				// up-to-date frames in SSE mode).
-				emit(
-					encodeDataFrame({
-						headers: {
-							control: "up-to-date",
-							global_last_seen_lsn: position.split("_")[0] ?? "0",
-						},
-					}),
-				);
+				// Changes must flush to subscribers now: an up-to-date
+				// boundary right behind them (the stock client only publishes
+				// on up-to-date frames in SSE mode).
+				emit(boundary());
 				frames++;
 				sawUpToDate = true;
+				oweBoundary = false;
+				emitted = true;
+			} else if (oweBoundary && Date.now() - openedAt >= kaInterval) {
+				// Idle-held from open (tailing a caught-up log): the first
+				// boundary leaves with the first keep-alive tick - a proxy
+				// that buffers it closed this connection pre-flush, which is
+				// exactly the fallback signature above.
+				emit(boundary());
+				frames++;
+				sawUpToDate = true;
+				oweBoundary = false;
+				emitted = true;
 			}
-			if (firstPage) {
-				// The stream opened mid-log (tailing from an issued offset): the
-				// first quiet page still owes the client one boundary so its
-				// LiveState offset advances off the SSE frame.
-				firstPage = false;
-				if (!hadChanges) {
-					emit(
-						encodeDataFrame({
-							headers: {
-								control: "up-to-date",
-								global_last_seen_lsn: position.split("_")[0] ?? "0",
-							},
-						}),
-					);
-					frames++;
-					sawUpToDate = true;
-				}
-			}
-			// Idle keep-alive: comments at the interval while nothing else flows.
+			if (emitted) lastEmit = Date.now();
+			// Idle keep-alive: comments at the interval while nothing else
+			// flows; every tick re-authorizes the held-open stream (spec §3).
 			const idleFor = Date.now() - lastEmit;
 			if (idleFor >= kaInterval) {
+				if (!options.authorize()) {
+					close = "revocation";
+					return summary();
+				}
 				emit(encodeKa());
 				lastEmit = Date.now();
 				continue;
@@ -235,20 +248,20 @@ export async function runSseStream(
 				if (signal?.aborted) abort();
 			});
 		}
-		// Cycle close: final up-to-date frame + clean FIN.
-		emit(
-			encodeDataFrame({
-				headers: {
-					control: "up-to-date",
-					global_last_seen_lsn: position.split("_")[0] ?? "0",
-				},
-			}),
-		);
+		// Cycle close: final up-to-date frame + clean FIN. It still owes the
+		// client nothing new (sawUpToDate already true when a boundary left),
+		// but the deadline close always emits the position-carrying frame so
+		// the reconnect continues from the issued offset.
+		emit(boundary());
 		frames++;
-	} catch (error) {
+		return summary();
+	} catch {
 		if (signal?.aborted) {
-			// Client disconnect: the caller records the disconnect close.
-			throw signal.reason ?? error;
+			// Client disconnect: return a truthful summary (fallback iff no
+			// up-to-date frame was flushed before the close) - never a
+			// blanket fallback, never a rethrow past the metrics recorder.
+			close = "disconnect";
+			return summary();
 		}
 		// Mid-stream failure: one final must-refetch frame, then close - the
 		// client re-requests and hits the sanitized JSON error path.
@@ -256,18 +269,7 @@ export async function runSseStream(
 			emit(encodeDataFrame({ headers: { control: "must-refetch" } }));
 			frames++;
 		} catch {}
-		return { ...summary, close: "error" };
-	} finally {
-		summary = {
-			frames,
-			fallback: !sawUpToDate,
-			durationMs: Date.now() - start,
-			close: signal?.aborted
-				? "disconnect"
-				: summary.close === "error"
-					? "cycle"
-					: summary.close,
-		};
+		close = "error";
+		return summary();
 	}
-	return summary;
 }

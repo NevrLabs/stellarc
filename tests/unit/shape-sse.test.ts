@@ -194,7 +194,9 @@ test("S10/S07 unit: runSseStream emits ka comments on idle, up-to-date at cycle 
 	});
 	expect(chunks.filter((c) => c.startsWith("data:")).length).toBe(0);
 
-	// Client abort: stops silently, no further frames.
+	// Client abort: resolves with the truthful disconnect summary (no
+	// blanket fallback - this close kind feeds the metrics recorder), no
+	// further frames emitted.
 	chunks.length = 0;
 	const controller = new AbortController();
 	const pending = runSseStream(
@@ -209,7 +211,9 @@ test("S10/S07 unit: runSseStream emits ka comments on idle, up-to-date at cycle 
 		},
 	);
 	controller.abort();
-	await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+	const aborted = await pending;
+	expect(aborted).toMatchObject({ close: "disconnect", fallback: true });
+	expect(chunks.length).toBe(0);
 
 	// Mid-stream failure: one final must-refetch frame, then a clean close
 	// (the client re-requests and hits the sanitized JSON error path).

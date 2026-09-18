@@ -99,8 +99,10 @@ test("S09 through a flushing proxy SSE is live: change frame arrives <1s, not at
 	const server = await startTestServer();
 	resources.push(server.close);
 	// Long cycle: if the proxy buffered, the frame could only arrive at close
-	// (20s) - far past the 1s assertion. The latency oracle is honest.
-	server.sseTiming = { cycleMs: 60000, kaMs: 5000 };
+	// (20s) - far past the 1s assertion. The latency oracle is honest. The
+	// first idle boundary rides the first keep-alive tick (gated cadence,
+	// ADR 0012), so ka is fast too.
+	server.sseTiming = { cycleMs: 60000, kaMs: 150 };
 	await server.write("org-a", "a-1", "v1");
 	const proxy = startProxy(server.url, { mode: "flush" });
 	resources.push(proxy.close);
@@ -135,10 +137,12 @@ test("S09 through a flushing proxy SSE is live: change frame arrives <1s, not at
 	await reader.cancel().catch(() => undefined);
 });
 
-test("S10 a connection whose ka never traverses a buffering proxy is counted as a fallback signature", async () => {
+test("S10 a connection closed before its first up-to-date flush is counted as the fallback signature", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);
-	server.sseTiming = { cycleMs: 400, kaMs: 200 };
+	// ka slower than the cycle: an idle-held stream cannot flush its first
+	// boundary before the 400ms deadline closes it.
+	server.sseTiming = { cycleMs: 400, kaMs: 1000 };
 	await server.write("org-a", "a-1", "v1");
 	const proxy = startProxy(server.url, { mode: "buffer" });
 	resources.push(proxy.close);
@@ -151,8 +155,10 @@ test("S10 a connection whose ka never traverses a buffering proxy is counted as 
 	await initial.text();
 	const handle = initial.headers.get("electric-handle") ?? "";
 	const offset = initial.headers.get("electric-offset") ?? "";
-	// ≥4 short buffered connections: each closes before any up-to-date flush
-	// can traverse, so each records the fallback signature server-side.
+	// >=4 short buffered connections. Under the gated cadence (ADR 0012) an
+	// idle-held stream first flushes its up-to-date boundary at a keep-alive
+	// tick (1000ms) - the 400ms cycle closes every connection pre-flush, so
+	// each records the fallback signature server-side.
 	for (let i = 0; i < 4; i++) {
 		const response = await fetch(
 			`${base}&offset=${offset}&handle=${handle}&live=true&live_sse=true&experimental_live_sse=true`,
@@ -165,5 +171,14 @@ test("S10 a connection whose ka never traverses a buffering proxy is counted as 
 		.getMetrics()
 		.flatMap((r) => r.scopeMetrics.flatMap((s) => s.metrics))
 		.find((m) => m.descriptor.name === "stellarc_shape_sse_fallbacks_total");
-	expect(fallbacks?.dataPoints.at(-1)?.value).toBeGreaterThanOrEqual(1);
+	expect(fallbacks?.dataPoints.at(-1)?.value).toBeGreaterThanOrEqual(4);
+	// Every buffered connection closed at its cycle deadline (clean closes,
+	// zero disconnects): the fallback counter measures buffering, not
+	// client churn (STL-25 D2).
+	const closes = server.telemetry.spans
+		.getFinishedSpans()
+		.filter((span) => span.name === "stellarc.shape.sse")
+		.map((span) => span.attributes["stellarc.shape.sse.close"]);
+	expect(closes.filter((c) => c === "disconnect").length).toBe(0);
+	expect(closes.filter((c) => c === "cycle").length).toBeGreaterThanOrEqual(4);
 });

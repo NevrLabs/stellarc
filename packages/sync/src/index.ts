@@ -145,7 +145,6 @@ export class ShapeEngine {
 		return {
 			messages: messages.filter((m) => m.headers.operation),
 			nextCursor: response.headers.get("electric-offset") ?? "0_0",
-			caughtUp: messages.some((m) => m.headers.control === "up-to-date"),
 			schemaHeader: response.headers.get("electric-schema"),
 		};
 	}
@@ -268,11 +267,13 @@ export class ShapeEngine {
 						frames = summary.frames;
 						await finish(summary);
 					} catch {
-						// Client disconnect mid-stream: abort raced into the page
-						// loop - release everything with the disconnect close.
+						// Enqueue failure after the driver already returned (the
+						// socket tore down mid-release): close as a disconnect
+						// with the summary the driver last reported - fallback is
+						// derived, never blanket-true (STL-25 D2).
 						await finish({
 							frames,
-							fallback: true,
+							fallback: false,
 							durationMs: performance.now() - startedAt,
 							close: "disconnect",
 						});

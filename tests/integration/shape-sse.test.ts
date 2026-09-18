@@ -268,8 +268,27 @@ test("S06 client disconnect aborts the held stream: gauge released, SQL tail sto
 	const server = await startTestServer();
 	resources.push(server.close);
 	await server.write("org-a", "a-1", "v1");
+	// Fast boundary (first keep-alive tick), long cycle: the stream flushes
+	// its up-to-date boundary, THEN the client disconnects - an ordinary
+	// post-flush disconnect, not a buffering signature (STL-25 D2).
+	server.sseTiming = { cycleMs: 60000, kaMs: 300 };
 	const controller = new AbortController();
 	const { reader } = await openSse(server, "org-a", controller.signal);
+	// Metric registries are process-global in Effect: earlier tests'
+	// legitimate pre-flush closes (S01's short-cycle streams) can already
+	// hold fallback datapoints in this reader. Assert the DELTA across our
+	// own disconnect stays zero (order-independent, like S10).
+	await server.telemetry.reader.forceFlush();
+	const fallbackBefore = server.telemetry.metrics
+		.getMetrics()
+		.flatMap((resource) =>
+			resource.scopeMetrics.flatMap((scope) => scope.metrics),
+		)
+		.find(
+			(metric) =>
+				metric.descriptor.name === "stellarc_shape_sse_fallbacks_total",
+		)
+		?.dataPoints.at(-1)?.value;
 	const tails = () =>
 		server.telemetry.spans
 			.getFinishedSpans()
@@ -294,6 +313,20 @@ test("S06 client disconnect aborts the held stream: gauge released, SQL tail sto
 	expect(tails()).toBe(stoppedAt); // SQL tail polling stopped
 	await server.telemetry.reader.forceFlush();
 	expect(gaugeValue(server)).toBe(0); // gauge back to baseline
+	// D2: an ordinary client disconnect AFTER a flushed up-to-date boundary
+	// is not the buffering signature - the fallback counter must not move
+	// across this test's own disconnect (only pre-flush closes increment it).
+	const fallbackAfter = server.telemetry.metrics
+		.getMetrics()
+		.flatMap((resource) =>
+			resource.scopeMetrics.flatMap((scope) => scope.metrics),
+		)
+		.find(
+			(metric) =>
+				metric.descriptor.name === "stellarc_shape_sse_fallbacks_total",
+		)
+		?.dataPoints.at(-1)?.value;
+	expect((fallbackAfter ?? 0) - (fallbackBefore ?? 0)).toBe(0);
 });
 
 test("S15 gauge counts SSE exactly once across frames; duration recorded at cycle close", async () => {
