@@ -383,11 +383,15 @@ test("S15 gauge counts SSE exactly once across frames; duration recorded at cycl
 	expect(typeof closed?.attributes["stellarc.shape.events_sent"]).toBe(
 		"number",
 	);
-	// The per-connection span shares the request trace with its page spans.
+	// The per-connection span shares the request trace with its page spans...
 	const tail = server.telemetry.spans
 		.getFinishedSpans()
 		.find((span) => span.name === "stellarc.shape.tail");
 	expect(closed?.spanContext().traceId).toBe(tail?.spanContext().traceId);
+	// ...AND is their direct parent (STL-25 D6): traceId alone survives
+	// removing the linkage pipe; parentSpanContext.spanId is the proof.
+	// (sdk-trace 2.11 ReadableSpan carries parentSpanContext, not parentSpanId.)
+	expect(tail?.parentSpanContext?.spanId).toBe(closed?.spanContext().spanId);
 });
 
 test("S05 awaitTxId settles over SSE: mutation during subscription delivers headers.txids", async () => {
