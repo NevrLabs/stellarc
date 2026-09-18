@@ -247,12 +247,207 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-18T00:35:17+00:00",
    "cycle": 6,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1298340
+   "pid": 1298340,
+   "reason": "orphan running: watcher pid 1298340 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-18T01:40:52+00:00",
+   "agent": "b8db27eb-4a8d-45bd-9416-13401acb0ae1",
+   "cycle": 6,
+   "artifact": ".forge/STL-25.review-6.md"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T02:06:29+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T02:06:29+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-18T02:06:33+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-25",
+   "pr": 60,
+   "pid": 1355630,
+   "agent": "96bd1cce-5e4b-4f80-82e5-11810e84f9f3",
+   "head": "5b5ce8ca",
+   "reason": "orphan running: watcher pid 1355630 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-18T02:24:58+00:00",
+   "agent": "96bd1cce-5e4b-4f80-82e5-11810e84f9f3",
+   "cycle": 7,
+   "pr": 60,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/60",
+   "branch": "forge/stl-25"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:27:51+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:27:51+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:27:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-18T02:27:52+00:00",
+   "cycle": 7,
+   "reason": "every reviewer failed preflight (quota/upstream); retry next tick"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:30:07+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:30:09+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T02:30:10+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1367536,
+   "reason": "orphan running: watcher pid 1367536 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T02:40:54+00:00",
+   "agent": "ca8383ca-ff29-4f50-8a7d-3bf08bc89e4f",
+   "reason": "no review file"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:41:44+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:41:44+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:41:45+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-18T02:41:45+00:00",
+   "cycle": 7,
+   "reason": "every reviewer failed preflight (quota/upstream); retry next tick"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:44:00+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:44:03+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T02:44:04+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1374522,
+   "reason": "orphan running: watcher pid 1374522 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T02:44:48+00:00",
+   "agent": "bcfe3031-cac4-4fe5-8cc7-c2377905b54d",
+   "reason": "no review file"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:46:20+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:46:21+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:46:21+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-18T02:46:21+00:00",
+   "cycle": 7,
+   "reason": "every reviewer failed preflight (quota/upstream); retry next tick"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:48:37+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:48:39+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-18T02:48:39+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1376731
   }
  ],
- "cycle": 6
+ "cycle": 7
 }
