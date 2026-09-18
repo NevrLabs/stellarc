@@ -25,12 +25,14 @@ export interface ProxyFixture {
 	peakInFlight(): number;
 	/** Every proxied request, in order (transport-mode forensics). */
 	requests(): ProxiedRequest[];
+	/** Configured upstream connection cap (undefined = unlimited). */
+	capacity(): number | undefined;
 	close(): Promise<void>;
 }
 
 export function startProxy(
 	upstreamOrigin: string,
-	options: { mode: "buffer" | "flush" },
+	options: { mode: "buffer" | "flush"; maxConcurrent?: number },
 ): ProxyFixture {
 	let inFlight = 0;
 	let peak = 0;
@@ -41,6 +43,14 @@ export function startProxy(
 		hostname: "127.0.0.1",
 		idleTimeout: 120,
 		fetch: async (request) => {
+			// STL-25 S12: a configured cap holds requests beyond it until an
+			// upstream slot frees - the HTTP/1.1 6-connection pathology the
+			// concurrency harness must detect. Unlimited when unset.
+			while (
+				options.maxConcurrent !== undefined &&
+				inFlight >= options.maxConcurrent
+			)
+				await Bun.sleep(20);
 			inFlight++;
 			peak = Math.max(peak, inFlight);
 			seen.push({
@@ -81,6 +91,7 @@ export function startProxy(
 		inFlight: () => inFlight,
 		peakInFlight: () => peak,
 		requests: () => seen.slice(),
+		capacity: () => options.maxConcurrent,
 		close: () => {
 			server.stop(true);
 			return Promise.resolve();

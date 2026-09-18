@@ -1,6 +1,10 @@
 import { ShapeStream } from "@electric-sql/client";
 import { expect, test } from "vitest";
 import { startProxy } from "../helpers/proxy-fixture";
+import {
+	ceilingFromResults,
+	probeShapeLiveness,
+} from "../../tools/measure-shape-concurrency";
 import { startTestServer } from "./test-server";
 
 const resources: Array<() => unknown> = [];
@@ -155,4 +159,44 @@ test("S10 a connection closed before its first up-to-date flush is counted as th
 		.map((span) => span.attributes["stellarc.shape.sse.close"]);
 	expect(closes.filter((c) => c === "disconnect").length).toBe(0);
 	expect(closes.filter((c) => c === "cycle").length).toBeGreaterThanOrEqual(4);
+});
+
+test("S12 self-check: the harness detects a conn-cap-2 proxy as ceiling 2", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	// The S12 harness holds N qualifying SSE connections (snapshot-minted
+	// handle per shape) and reports the first stalled shape. Through a
+	// proxy capped at 2 upstream connections the canary shapes 3+ must
+	// stall: reporting ceiling >=3 here is exactly the review-9 D1
+	// blindness (a harness that measures nothing).
+	// Liveness signal: under the gated cadence (ADR 0012) an idle held
+	// stream flushes its first up-to-date boundary at the first ka tick
+	// (15s), so holdMs must exceed one tick; queued connections never emit.
+	const proxy = startProxy(server.url, { mode: "flush", maxConcurrent: 2 });
+	resources.push(proxy.close);
+	const results = await probeShapeLiveness(proxy.url, {
+		org: "conc",
+		table: "sync_probe",
+		shapes: 4,
+		holdMs: 16000,
+	});
+	const { stalledShapeId, ceiling } = ceilingFromResults(results, 4);
+	expect(ceiling).toBe(2);
+	expect(stalledShapeId).toBe(3);
+});
+
+test("S12 self-check: no false stall at N<=4 through an unlimited proxy", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	const proxy = startProxy(server.url, { mode: "flush" });
+	resources.push(proxy.close);
+	const results = await probeShapeLiveness(proxy.url, {
+		org: "conc",
+		table: "sync_probe",
+		shapes: 4,
+		holdMs: 16000,
+	});
+	const { stalledShapeId, ceiling } = ceilingFromResults(results, 4);
+	expect(stalledShapeId).toBe(0);
+	expect(ceiling).toBe(4);
 });

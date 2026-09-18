@@ -69,13 +69,28 @@ automatic client fallback — no server change required.
 
 ### Concurrent live-shape ceiling (S12)
 
-`tools/measure-shape-concurrency.mts` drives a real Chromium page holding N
-live shapes against a target (direct HTTP/1.1 origin or a tunnel) and
-reports the first stalled shape. Self-check (unit-tested): against a
-conn-cap-2 proxy the harness reports ceiling 2 and never false-stalls at
-N ≤ 4 unlimited. Real browser numbers (direct vs tunneled) land in
-`docs/evidence/shape-concurrency.json` when the orchestrator runs it; the
-multiplexing decision (4) is deferred until then.
+`tools/measure-shape-concurrency.mts` drives a real Chromium page - navigated
+to the target origin so the SSE fetches are same-origin and the browser's own
+HTTP/1.1 pool binds - holding N live shapes against a target (direct origin
+or a tunnel). Each shape mints a real snapshot session (offset=-1 →
+electric-handle/electric-offset) and holds a qualifying SSE fetch
+(live=true + handle + offset ≠ -1 + live_sse=true + Accept:
+text/event-stream) open; a shape counts live only when a frame traverses its
+held connection. Under the gated cadence an idle held stream flushes its
+first up-to-date boundary at the first keep-alive tick (15 s), so liveness
+holds must exceed one tick. The harness reports the first stalled shape and
+the derived ceiling.
+
+Self-check, proven at two levels: the canary logic
+(`ceilingFromResults`) is unit-tested (tests/unit/shape-concurrency.test.ts),
+and the real harness is integration-tested against a disposable conn-cap-2
+proxy (tests/integration/shape-proxy.test.ts, S12 self-check legs): it MUST
+report ceiling 2 through the cap-2 proxy (first stall at shape 3) and MUST
+NOT false-stall at N ≤ 4 through an unlimited proxy. A lying harness
+(all-live without measuring) turns the capped leg red. `--self-check` runs
+the same harness standalone against a target origin. Real browser numbers
+(direct vs tunneled) land in `docs/evidence/shape-concurrency.json` when the
+orchestrator runs it; the multiplexing decision (4) is deferred until then.
 
 ## Observability (ADR 0010 rules)
 
