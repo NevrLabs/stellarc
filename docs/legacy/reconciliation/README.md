@@ -145,6 +145,35 @@ Both dumps are committed. Fixture freshness (R03) proves regeneration is logical
 equivalent to the committed copies. **Claiming production parity from the synthetic
 fixture is prohibited** (redaction doctrine, STL-14 §evidence).
 
+## R24 gate-discovery evidence
+
+The reconciliation suites ride the root `bun test` gate through the vitest bridge
+(`tests/gates.test.ts` spawns `vitest run` for both `vitest.config.ts` and
+`vitest.integration.config.ts`; the integration glob is `tests/integration/**/*.test.ts`).
+Discovery is negative-control-guarded in `tests/unit/reconcile-canon.test.ts` (R24 arms):
+
+- **(a) glob inclusion** — the bridge spawns the integration config, its glob covers
+  `tests/integration/reconciliation.test.ts`, and the suite exists on disk. Removing the
+  suite from the glob (or the tree) fails the arm.
+- **(b) failing assertion fails the gate** — the arm writes a probe test under the glob
+  with `expect(1).toBe(2)`, runs the same vitest config, and asserts a nonzero exit with
+  the failed test name in the output. `gates.test.ts` asserts `exit === 0`, so the root
+  gate goes red through the bridge.
+
+Recorded RED replay (cycle 8, `tests/unit/reconcile-canon.test.ts` arm (b), first run
+before the stderr fix — the probe run itself is the evidence; exit status nonzero):
+
+```
+ ❯ tests/integration/_r24-probe.test.ts (1 test | 1 failed) 30ms
+   × R24 intentional assertion failure 25ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+```
+
+Root-gate confirmation: `bun test` at cycle-8 head runs both vitest configs and passes
+2/2 (`Vitest gate: vitest.config.ts`, `Vitest gate: vitest.integration.config.ts`).
+
 ## Instrumentation (ADR 0010)
 
 Span `stellarc.reconcile.query` with attributes `stellarc.reconcile.query_id` (1–14),

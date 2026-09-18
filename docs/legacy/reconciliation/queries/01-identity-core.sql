@@ -25,6 +25,7 @@ WITH checks AS (
       OR s.role IS DISTINCT FROM d.role
       OR s.banned IS DISTINCT FROM d.banned
       OR s.ban_reason IS DISTINCT FROM d.ban_reason
+      OR s.ban_expires IS DISTINCT FROM d.ban_expires
       OR s.created_at IS DISTINCT FROM d.created_at
       OR s.updated_at IS DISTINCT FROM d.updated_at
   -- account
@@ -73,6 +74,7 @@ WITH checks AS (
       OR s.ai_provider_base_url IS DISTINCT FROM d.ai_provider_base_url
       OR s.ai_provider_model IS DISTINCT FROM d.ai_provider_model
       OR s.ai_provider_api_key IS DISTINCT FROM d.ai_provider_api_key
+      OR s.created_at IS DISTINCT FROM d.created_at
   -- organization_member
   UNION ALL
   SELECT 'organization_member:missing-in-dest', s.id, 'organization_member'
@@ -102,5 +104,7 @@ WITH checks AS (
    WHERE s.organization_id IS DISTINCT FROM d.organization_id
       OR s.role IS DISTINCT FROM d.role
       OR s.permission IS DISTINCT FROM d.permission
+      OR s.created_at IS DISTINCT FROM d.created_at
+      OR s.updated_at IS DISTINCT FROM d.updated_at
 )
 SELECT * FROM checks;

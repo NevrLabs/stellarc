@@ -233,10 +233,11 @@ describe("R18/R20 query #14 apikey hash audit", () => {
 	});
 });
 
-describe("R05b fidelity arms — previously uncompared columns (review D5)", () => {
-	// One test per defect-named column group. Each first mutates the golden
+describe("R05b fidelity arms — uncompared columns found by review", () => {
+	// One test per review-named column group. Each first mutates the golden
 	// destination, then asserts the owning query turns red — proving the canon
-	// compares the column. Before D5 these mutations stayed green.
+	// compares the column. Before the reviews named them these mutations
+	// stayed green (c5 D5; c8 D1/D2).
 	const cases: Array<[number, string, string]> = [
 		[
 			1,
@@ -298,9 +299,38 @@ describe("R05b fidelity arms — previously uncompared columns (review D5)", () 
 			"asset",
 			"UPDATE public.asset SET created_at = '2019-01-01' WHERE id = 'asset1'",
 		],
+		// review c8 D1: Q1 omitted user.ban_expires, organization.created_at,
+		// organization_role.created_at/updated_at — all declared on both sides.
+		[
+			1,
+			"user",
+			'UPDATE public."user" SET ban_expires = TIMESTAMP \'2027-01-01T00:00:00Z\' WHERE id = \'u1\'',
+		],
+		[
+			1,
+			"organization",
+			"UPDATE public.organization SET created_at = '2019-01-01' WHERE id = 'o1'",
+		],
+		[
+			1,
+			"organization_role",
+			"UPDATE public.organization_role SET created_at = '2019-01-01', updated_at = '2019-01-02' WHERE id = 'r1'",
+		],
+		// review c8 D2: Q7 joined external/repo_item links on keys only and never
+		// compared the payload columns — key-matching drift stayed green.
+		[
+			7,
+			"entity_link external payload",
+			"UPDATE public.entity_link SET url = 'https://drifted.example/x', title = 'Drifted', metadata = '{\"d\":1}', integration_id = 'integ-drift', resource_type = 'gitlab' WHERE id = 'el-ext-1'",
+		],
+		[
+			7,
+			"entity_link repo_item payload",
+			"UPDATE public.entity_link SET sync_enabled = true, sync_broken_at = '2025-01-01', sync_broken_reason = 'drifted' WHERE id = 'el-repo-1'",
+		],
 	];
 	for (const [id, tbl, mutation] of cases) {
-		test(`query ${id} compares ${tbl} columns the c1 corpus omitted`, async () => {
+		test(`query ${id} compares ${tbl} columns earlier corpus versions omitted`, async () => {
 			await withRollback(async (tx, run) => {
 				await run(tx.unsafe(mutation));
 				const result = resultFor(await verdicts(tx), id);

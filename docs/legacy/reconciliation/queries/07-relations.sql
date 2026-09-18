@@ -58,6 +58,29 @@ WITH checks AS (
     FROM public.entity_link d
     LEFT JOIN legacy.external_link s ON s.task_id = d.source_task_id AND s.external_id = d.external_id
    WHERE d.kind = 'external' AND s.id IS NULL
+  -- external link payload fidelity (review c8 D2: matching keys are not
+  -- enough — url/title/metadata/integration_id/resource_type must match too)
+  UNION ALL
+  SELECT 'entity_link:external:value-mismatch', s.id, 'external_link'
+    FROM legacy.external_link s
+    JOIN public.entity_link d
+      ON d.kind = 'external' AND d.source_task_id = s.task_id AND d.external_id = s.external_id
+   WHERE s.url IS DISTINCT FROM d.url
+      OR s.title IS DISTINCT FROM d.title
+      OR s.metadata IS DISTINCT FROM d.metadata
+      OR s.integration_id IS DISTINCT FROM d.integration_id
+      OR s.resource_type IS DISTINCT FROM d.resource_type
+  -- repo item link payload fidelity (review c8 D2)
+  UNION ALL
+  SELECT 'entity_link:repo_item:value-mismatch', s.id, 'task_repo_item_link'
+    FROM legacy.task_repo_item_link s
+    JOIN public.entity_link d
+      ON d.kind = 'repo_item' AND d.source_task_id = s.task_id
+     AND d.repo_issue_id IS NOT DISTINCT FROM s.repo_issue_id
+     AND d.repo_pull_request_id IS NOT DISTINCT FROM s.repo_pull_request_id
+   WHERE s.sync_enabled IS DISTINCT FROM d.sync_enabled
+      OR s.sync_broken_at IS DISTINCT FROM d.sync_broken_at
+      OR s.sync_broken_reason IS DISTINCT FROM d.sync_broken_reason
   -- repo item link fidelity
   UNION ALL
   SELECT 'entity_link:repo_item:missing-in-dest', s.id, 'task_repo_item_link'

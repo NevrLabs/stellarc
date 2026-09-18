@@ -46,9 +46,9 @@ DELETE FROM public."user" WHERE id IN ('u1','u2');
 			// defaulted columns are set explicitly so 0002 defaults never fire —
 			// a correct import copies legacy values (incl. NULLs) verbatim.
 			yield* sql.unsafe(`
-INSERT INTO public."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, created_at, updated_at) VALUES
-  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, ban_expires, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',true,'abuse','2026-06-01T00:00:00Z','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO public.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
   ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO public.organization (id, name, slug, work_enabled, created_at) VALUES

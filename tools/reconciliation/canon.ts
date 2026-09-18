@@ -248,7 +248,9 @@ CREATE TABLE public.ticket (
 CREATE TABLE public.entity_link (
   id text PRIMARY KEY, kind text NOT NULL, source_task_id text, target_task_id text,
   target_user_id text, relation_type text, external_id text, url text, title text,
-  repo_issue_id text, repo_pull_request_id text, sync_enabled boolean, created_at timestamp
+  metadata text, integration_id text, resource_type text,
+  repo_issue_id text, repo_pull_request_id text, sync_enabled boolean,
+  sync_broken_at timestamp, sync_broken_reason text, created_at timestamp
 );
 CREATE TABLE public.milestone (
   id text PRIMARY KEY, board_id text NOT NULL, name text NOT NULL, description text,
@@ -396,17 +398,17 @@ SELECT table_name, column_name, data_type
 // entity_link; activity maps to comment/event via activity_import.
 export function legacySeedSql(): string {
 	return `
-INSERT INTO legacy."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, created_at, updated_at) VALUES
-  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO legacy."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, ban_expires, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',true,'abuse','2026-06-01T00:00:00Z','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO legacy.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
   ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO legacy.organization (id, name, slug, created_at) VALUES
   ('o1','Org A','org-a','2026-01-01T00:00:00Z'), ('o2','Org B','org-b','2026-01-01T00:00:00Z');
 INSERT INTO legacy.organization_member (id, organization_id, user_id, role, joined_at) VALUES
   ('m1','o1','u1','owner','2026-01-02T00:00:00Z'), ('m2','o2','u2','owner','2026-01-02T00:00:00Z');
-INSERT INTO legacy.organization_role (id, organization_id, role, permission, created_at) VALUES
-  ('r1','o1','owner','{}','2026-01-01T00:00:00Z');
+INSERT INTO legacy.organization_role (id, organization_id, role, permission, created_at, updated_at) VALUES
+  ('r1','o1','owner','{}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO legacy.team (id, name, organization_id, created_at) VALUES
   ('t1','Team A','o1','2026-01-01T00:00:00Z'), ('t2','Team B','o2','2026-01-01T00:00:00Z');
 INSERT INTO legacy.team_member (id, team_id, user_id) VALUES
@@ -431,10 +433,10 @@ INSERT INTO legacy.task (id, board_id, number, title, status, column_id, descrip
 INSERT INTO legacy.task_relation (id, source_task_id, target_task_id, relation_type) VALUES
   ('tr1','task1','task2','blocks');
 INSERT INTO legacy.task_follower (id, task_id, user_id) VALUES ('tf1','task1','u1');
-INSERT INTO legacy.external_link (id, task_id, resource_type, external_id, url) VALUES
-  ('el1','task1','github','123','https://github.com/x/y');
-INSERT INTO legacy.task_repo_item_link (id, task_id, repo_issue_id, sync_enabled) VALUES
-  ('tril1','task1','issue1',false);
+INSERT INTO legacy.external_link (id, task_id, integration_id, resource_type, external_id, url, title, metadata) VALUES
+  ('el1','task1','integ1','github','123','https://github.com/x/y','Issue 123','{"v":1}');
+INSERT INTO legacy.task_repo_item_link (id, task_id, repo_issue_id, sync_enabled, sync_broken_at, sync_broken_reason) VALUES
+  ('tril1','task1','issue1',true,'2026-02-01T00:00:00Z','mirror-desync');
 INSERT INTO legacy.milestone (id, board_id, name) VALUES ('ms1','b1','M1');
 INSERT INTO legacy.activity (id, task_id, type, content, user_id) VALUES
   ('act1','task1','comment','hello','u1'),
@@ -464,9 +466,9 @@ export function destinationSeedSql(): string {
 	return `
 -- is_anonymous/banned set explicitly: the merged 0002 defaults (false) must not
 -- fire — a correct import copies NULL verbatim and query #1 compares values.
-INSERT INTO public."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, created_at, updated_at) VALUES
-  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+INSERT INTO public."user" (id, name, email, email_verified, image, locale, is_anonymous, role, banned, ban_reason, ban_expires, created_at, updated_at) VALUES
+  ('u1','Alice','a@x.com',true,NULL,NULL,NULL,'admin',true,'abuse','2026-06-01T00:00:00Z','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ('u2','Bob','b@x.com',true,NULL,NULL,NULL,'admin',NULL,NULL,NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO public.account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES
   ('a1','cred-1','credential','u1','bcrypt-hash-1','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
 INSERT INTO public.organization (id, name, slug, work_enabled, created_at) VALUES
@@ -508,11 +510,11 @@ INSERT INTO public.ticket (id, board_id, number, title, status, column_id, descr
   ('task1','b1',1,'First task','to-do','c1','[{"content":"v1","editedAt":"2026-01-01T00:00:00Z","userId":"u1"}]','ENG-1'),
   ('task2','b1',2,'Second task','to-do','c1','[]','ENG-2'),
   ('task3','b2',1,'Ops task','to-do','c2','[]','OPS-1');
-INSERT INTO public.entity_link (id, kind, source_task_id, target_task_id, target_user_id, relation_type, external_id, url, repo_issue_id, repo_pull_request_id, sync_enabled) VALUES
-  ('el-rel-1','relation','task1','task2',NULL,'blocks',NULL,NULL,NULL,NULL,NULL),
-  ('el-fol-1','follower','task1',NULL,'u1',NULL,NULL,NULL,NULL,NULL,NULL),
-  ('el-ext-1','external','task1',NULL,NULL,'github','123','https://github.com/x/y',NULL,NULL,NULL),
-  ('el-repo-1','repo_item','task1',NULL,NULL,NULL,NULL,NULL,'issue1',NULL,false);
+INSERT INTO public.entity_link (id, kind, source_task_id, target_task_id, target_user_id, relation_type, external_id, url, title, metadata, integration_id, resource_type, repo_issue_id, repo_pull_request_id, sync_enabled, sync_broken_at, sync_broken_reason, created_at) VALUES
+  ('el-rel-1','relation','task1','task2',NULL,'blocks',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+  ('el-fol-1','follower','task1',NULL,'u1',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+  ('el-ext-1','external','task1',NULL,NULL,'github','123','https://github.com/x/y','Issue 123','{"v":1}','integ1','github',NULL,NULL,NULL,NULL,NULL,NULL),
+  ('el-repo-1','repo_item','task1',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'issue1',NULL,true,'2026-02-01T00:00:00Z','mirror-desync',NULL);
 INSERT INTO public.milestone (id, board_id, name) VALUES ('ms1','b1','M1');
 INSERT INTO public.comment (id, org_id, ticket_id, type, content, user_id) VALUES
   ('dest-com1','o1','task1','comment','hello','u1'),

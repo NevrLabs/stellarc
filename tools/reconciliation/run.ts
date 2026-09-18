@@ -280,8 +280,8 @@ export const runCanonProofEffect = Effect.fn("ReconcileRunner.canonProof")(
 );
 
 /** Live mode: apply merged importers from the restored legacy snapshot, then reconcile.
- * The legacy snapshot IS restored (defect 2: live runs against the real legacy state);
- * the merged identity importer is then detected and invoked. When no importer is
+ * The legacy snapshot is restored into the destination cluster first; the
+ * merged identity importer is then detected and invoked. When no importer is
  * merged, identity queries report blocked with a reason naming STL-15, and every
  * other slice's queries report blocked with their owning slice — live green is
  * never faked over canon-proof data. */
