@@ -15,32 +15,6 @@ const isChange = (
 
 const unsubscribers: Array<() => void> = [];
 
-/** Drain a stock client until a row with `id` is seen (any transport). */
-async function _untilRow(
-	stream: ShapeStream,
-	id: string,
-	timeoutMs = 20000,
-): Promise<void> {
-	const seen = new Set<string>();
-	await new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(
-			() => reject(new Error(`row ${id} never arrived`)),
-			timeoutMs,
-		);
-		const unsubscribe = stream.subscribe((batch) => {
-			for (const message of batch) {
-				if (isChange(message) && (message.value as { id?: string }).id === id)
-					seen.add(id);
-			}
-			if (seen.has(id)) {
-				clearTimeout(timer);
-				resolve();
-			}
-		});
-		unsubscribers.push(unsubscribe);
-	});
-}
-
 test("S08 through a buffering proxy the stock client falls back to long-poll and still converges", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);
