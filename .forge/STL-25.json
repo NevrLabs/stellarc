@@ -45,7 +45,214 @@
    "at": "2026-09-15T14:12:20+00:00",
    "agent": "fa1b09be-9939-435e-905c-ef664eb109ed",
    "artifact": ".forge/STL-25.spec.md"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T13:44:26+00:00",
+   "cycle": 1,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-25",
+   "pr": null,
+   "pid": 919079,
+   "agent": "3468a353-5ff7-4d4f-93a0-1a0aeebfe87c",
+   "head": "309e0a41",
+   "reason": "orphan running: watcher pid 919079 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T14:23:50+00:00",
+   "agent": "3468a353-5ff7-4d4f-93a0-1a0aeebfe87c",
+   "cycle": 1,
+   "branch": "forge/stl-25",
+   "pr": 60,
+   "head": "309e0a41",
+   "reason": "pushed 1 commits, no PR; draft opened by forge"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T14:31:52+00:00",
+   "cycle": 2,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-25",
+   "continues": 1,
+   "pid": 931612,
+   "agent": "c42fa0d9-9ac3-4a74-84a2-8a32b19ea761",
+   "head": "309e0a41",
+   "reason": "orphan running: watcher pid 931612 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-17T14:35:36+00:00",
+   "agent": "c42fa0d9-9ac3-4a74-84a2-8a32b19ea761",
+   "cycle": 2,
+   "reason": "draft PR unchanged: no commits pushed this cycle"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T14:38:19+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T14:38:19+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T14:38:22+00:00",
+   "cycle": 3,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-25",
+   "pr": 60,
+   "pid": 933957,
+   "agent": "79d67517-a0a5-4536-a198-48a535f41d78",
+   "head": "309e0a41",
+   "reason": "orphan running: watcher pid 933957 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T14:40:16+00:00",
+   "agent": "79d67517-a0a5-4536-a198-48a535f41d78",
+   "cycle": 3,
+   "pr": 60,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/60",
+   "branch": "forge/stl-25"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T14:43:12+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "fail",
+   "at": "2026-09-17T14:43:21+00:00",
+   "cycle": 4,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-25",
+   "continues": 3,
+   "pid": 935670,
+   "agent": "ec505046-6b3d-4597-a6a3-26cd3cee1496",
+   "reason": "lane exceeded 14400s; stopped by driver sweep"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T19:52:22+00:00",
+   "cycle": 5,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-25",
+   "pr": 60,
+   "pid": 1116050,
+   "agent": "6376e2d9-174f-4be1-91b4-0eab1cf79fc1",
+   "head": "9299ebb6",
+   "reason": "orphan running: watcher pid 1116050 dead, agent closed; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T22:38:16+00:00",
+   "cycle": 6,
+   "model": "hermes:accept_edits/glm/glm-5.3-flash",
+   "branch": "forge/stl-25",
+   "continues": 5,
+   "pid": 1228630,
+   "agent": "0f21b224-b04c-44d3-b447-d7ea9b39cb0d",
+   "head": "5b5ce8ca",
+   "reason": "orphan running: watcher pid 1228630 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-17T23:55:06+00:00",
+   "agent": "0f21b224-b04c-44d3-b447-d7ea9b39cb0d",
+   "cycle": 6,
+   "pr": 60,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/60",
+   "branch": "forge/stl-25"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:06:42+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:06:50+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T00:06:51+00:00",
+   "cycle": 6,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1279913,
+   "reason": "orphan running: watcher pid 1279913 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T00:31:31+00:00",
+   "agent": "1589d19d-a7c8-4eba-ba40-3b99b2b9f5ba",
+   "reason": "no review file"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:32:47+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:32:48+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:32:48+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "review",
+   "status": "blocked",
+   "at": "2026-09-18T00:32:48+00:00",
+   "cycle": 6,
+   "reason": "every reviewer failed preflight (quota/upstream); retry next tick"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:35:14+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T00:35:16+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-18T00:35:17+00:00",
+   "cycle": 6,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1298340
   }
  ],
- "cycle": 0
+ "cycle": 6
 }
