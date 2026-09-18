@@ -1,14 +1,22 @@
-import { client } from "@kaneo/libs";
 import type { TaskOrderUpdate } from "@/lib/reorder-board-task";
+import { workFetch } from "@/lib/work-client";
 
 export default async function reorderTasks(
   boardId: string,
   tasks: TaskOrderUpdate[],
 ) {
-  const response = await client.task.reorder[":boardId"].$patch({
-    param: { boardId },
-    json: { tasks },
-  });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json();
+  const envelope = await workFetch<{ data: { ids: string[] }; txid: number }>(
+    `/boards/${boardId}/tickets/reorder`,
+    {
+      method: "PUT",
+      json: {
+        updates: tasks.map(({ id, position, status }) => ({
+          id,
+          position,
+          status,
+        })),
+      },
+    },
+  );
+  return envelope.data;
 }

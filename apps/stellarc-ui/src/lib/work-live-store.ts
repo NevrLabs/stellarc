@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { setWorkAuth } from "./work-client";
 import { workCollections } from "./work-collections";
 import {
   buildBoardWithTasks,
@@ -81,6 +82,11 @@ export function ensureOrgEntry(
 ): OrgEntry {
   let entry = registry.get(org);
   if (!entry) {
+    // The REST mutation client shares the live collections' org/principal.
+    if (authorization) {
+      const principal = authorization.split(" ").slice(1).join(" ");
+      setWorkAuth(org, principal);
+    }
     const handles = handlesOf(org, authorization);
     const listeners = new Set<Listener>();
     const created: OrgEntry = { handles, revision: 0, listeners };
