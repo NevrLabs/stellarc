@@ -139,7 +139,9 @@ describe("R24 gate discovery", () => {
 		expect(stat).toBe(true);
 	});
 
-	test("(b) negative control: an intentionally failing test under the glob fails the vitest run (nonzero exit)", { timeout: 120_000 }, async () => {
+	test("(b) negative control: an intentionally failing test under the glob fails the vitest run (nonzero exit)", {
+		timeout: 120_000,
+	}, async () => {
 		const { writeFile, rm } = await import("node:fs/promises");
 		const { join } = await import("node:path");
 		const { spawnSync } = await import("node:child_process");
@@ -168,7 +170,10 @@ describe("R24 gate discovery", () => {
 				],
 				{ cwd: repoRoot, encoding: "utf8", timeout: 110_000 },
 			);
-			expect(run.status, `vitest stdout:\n${run.stdout}\nstderr:\n${run.stderr}`).not.toBe(0);
+			expect(
+				run.status,
+				`vitest stdout:\n${run.stdout}\nstderr:\n${run.stderr}`,
+			).not.toBe(0);
 			expect(run.stdout).toContain("R24 intentional assertion failure");
 			expect(`${run.stdout}\n${run.stderr}`).toMatch(
 				/AssertionError|expected .* to be/,

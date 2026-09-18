@@ -304,7 +304,7 @@ describe("R05b fidelity arms — uncompared columns found by review", () => {
 		[
 			1,
 			"user",
-			'UPDATE public."user" SET ban_expires = TIMESTAMP \'2027-01-01T00:00:00Z\' WHERE id = \'u1\'',
+			"UPDATE public.\"user\" SET ban_expires = TIMESTAMP '2027-01-01T00:00:00Z' WHERE id = 'u1'",
 		],
 		[
 			1,
