@@ -1895,11 +1895,59 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "pass",
    "at": "2026-09-18T15:38:48+00:00",
    "cycle": 10,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 2042633
+   "pid": 2042633,
+   "reason": "orphan running: watcher pid 2042633 dead, agent gone; reconciled by driver \u2192 pass"
+  },
+  {
+   "stage": "review",
+   "status": "pass",
+   "at": "2026-09-18T16:01:23+00:00",
+   "agent": "332e51eb-fe43-40fb-93ed-9c344a129dc8",
+   "cycle": 10,
+   "artifact": ".forge/STL-25.review-10.md"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "fail",
+   "at": "2026-09-18T16:03:15+00:00",
+   "pr": 60,
+   "sha": "3edafb8a8a21ce392100a90557290508d6abca27",
+   "pid": 2056108,
+   "reason": "orphan running: watcher pid 2056108 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "merge-gate",
+   "status": "fail",
+   "at": "2026-09-18T16:15:44+00:00",
+   "pr": 60,
+   "failed": [
+    "bun test"
+   ],
+   "debris": []
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T16:17:47+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T16:17:48+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-18T16:17:49+00:00",
+   "cycle": 10,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 2064658
   }
  ],
  "cycle": 10
