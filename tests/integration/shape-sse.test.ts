@@ -288,7 +288,7 @@ test("S06 client disconnect aborts the held stream: gauge released, SQL tail sto
 			(metric) =>
 				metric.descriptor.name === "stellarc_shape_sse_fallbacks_total",
 		)
-		?.dataPoints.at(-1)?.value;
+		?.dataPoints.at(-1)?.value as number | undefined;
 	const tails = () =>
 		server.telemetry.spans
 			.getFinishedSpans()
@@ -325,7 +325,7 @@ test("S06 client disconnect aborts the held stream: gauge released, SQL tail sto
 			(metric) =>
 				metric.descriptor.name === "stellarc_shape_sse_fallbacks_total",
 		)
-		?.dataPoints.at(-1)?.value;
+		?.dataPoints.at(-1)?.value as number | undefined;
 	expect((fallbackAfter ?? 0) - (fallbackBefore ?? 0)).toBe(0);
 });
 
@@ -361,6 +361,19 @@ test("S15 gauge counts SSE exactly once across frames; duration recorded at cycl
 	expect(
 		metricPoints(server, "stellarc_shape_sse_duration_seconds").length,
 	).toBeGreaterThan(0);
+	// D3: the frames counter splits control vs operation via the kind
+	// attribute - both sides recorded on this server's held connection.
+	const frameKinds = new Map(
+		metricPoints(server, "stellarc_shape_sse_frames_total")
+			.filter((point) => point.attributes && "kind" in point.attributes)
+			.map((point) => [
+				String(point.attributes?.kind),
+				point.value as number,
+			]),
+	);
+	expect(frameKinds.size).toBe(2);
+	expect(frameKinds.get("control")).toBeGreaterThan(0);
+	expect(frameKinds.get("operation")).toBeGreaterThan(0);
 	const closed = sseSpans(server).find(
 		(span) => span.attributes["stellarc.shape.sse.close"] === "cycle",
 	);

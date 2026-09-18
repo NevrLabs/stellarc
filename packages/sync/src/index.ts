@@ -273,6 +273,7 @@ export class ShapeEngine {
 						// derived, never blanket-true (STL-25 D2).
 						await finish({
 							frames,
+							controlFrames: 0,
 							fallback: false,
 							durationMs: performance.now() - startedAt,
 							close: "disconnect",

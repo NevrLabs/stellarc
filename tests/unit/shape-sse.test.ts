@@ -24,6 +24,53 @@ const qualifying = {
 	offset: "123_0",
 };
 
+test("S14/S15 unit: frames_total splits control vs operation via the kind attribute", async () => {
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const { ManagedRuntime } = await import("effect");
+	const telemetry = TelemetryTest();
+	const runtime = ManagedRuntime.make(telemetry.layer);
+	try {
+		const sse = await import("../../packages/sync/src/sse");
+		// Effect metric registries are process-global: snapshot the counter
+		// before, then assert the DELTA of this recording (order-independent).
+		const readKinds = () => {
+			const points = telemetry.metrics
+				.getMetrics()
+				.flatMap((r) => r.scopeMetrics.flatMap((sc) => sc.metrics))
+				.find((m) => m.descriptor.name === "stellarc_shape_sse_frames_total")
+			?.dataPoints ?? [];
+			return new Map(
+				points
+					.filter((p) => p.attributes && "kind" in p.attributes)
+				.map((p) => [String(p.attributes?.kind), Number(p.value)]),
+			);
+		};
+		await telemetry.reader.forceFlush();
+		const before = readKinds();
+		// One connection closing after two change frames + two boundary
+		// frames (control): the counter must record the split, not one blob.
+		await runtime.runPromise(
+			sse.recordSseMetrics({
+				frames: 4, // total data: frames (control + operation)
+				controlFrames: 2,
+				fallback: false,
+				durationMs: 10,
+				close: "cycle",
+			}),
+		);
+		await telemetry.reader.forceFlush();
+		const after = readKinds();
+		// Spec table: "data: frames emitted, split by control vs operation".
+		// This test is deliberately FIRST in the file: Effect's metric registry
+		// is process-global, so later SSE tests' recordings would ride the same
+		// counter into this exporter and blur exact deltas.
+		expect(after.get("control")).toBe(2);
+		expect(after.get("operation")).toBe(2);
+	} finally {
+		await runtime.dispose();
+	}
+});
+
 test("S01 SSE negotiation serves text/event-stream only for the full qualifying combination", () => {
 	expect(negotiateSse(shapeUrl(qualifying), accept)).toBe(true);
 	// Missing or non-SSE Accept header never negotiates a stream.

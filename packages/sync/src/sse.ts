@@ -49,28 +49,42 @@ const sseDuration = Metric.histogram(
 	"stellarc_shape_sse_duration_seconds",
 	MetricBoundaries.exponential({ start: 0.01, factor: 2, count: 16 }),
 );
-const sseFramesControl = Metric.counter("stellarc_shape_sse_frames_total", {
-	description: "data: frames emitted, control vs operation",
+const sseFrameCounter = Metric.counter("stellarc_shape_sse_frames_total", {
+	description: "data: frames emitted",
 });
+const sseFramesControl = sseFrameCounter.pipe(
+	Metric.tagged("kind", "control"),
+);
+const sseFramesOperation = sseFrameCounter.pipe(
+	Metric.tagged("kind", "operation"),
+);
 const sseFallbacks = Metric.counter("stellarc_shape_sse_fallbacks_total");
 
 export type SseCloseKind = "cycle" | "disconnect" | "revocation" | "error";
 
 /** Close-time summary of one SSE connection, recorded by the owning Effect. */
 export interface SseStreamSummary {
+	/** data: frames emitted (control + operation). */
 	frames: number;
+	/** data: frames carrying a control message (up-to-date, must-refetch). */
+	controlFrames: number;
 	fallback: boolean;
 	durationMs: number;
 	close: SseCloseKind;
 }
 
-/** Record the close-time metrics in the caller's runtime (ADR 0010). */
+/** Record the close-time metrics in the caller's runtime (ADR 0010). The
+ * frames counter splits control vs operation via the `kind` attribute
+ * (spec §2: "data: frames emitted, split by control vs operation"). */
 export const recordSseMetrics = (
 	summary: SseStreamSummary,
 ): Effect.Effect<void> =>
 	Effect.gen(function* () {
-		for (let i = 0; i < summary.frames; i++)
+		const operations = Math.max(0, summary.frames - summary.controlFrames);
+		for (let i = 0; i < summary.controlFrames; i++)
 			yield* Metric.increment(sseFramesControl);
+		for (let i = 0; i < operations; i++)
+			yield* Metric.increment(sseFramesOperation);
 		if (summary.fallback) yield* Metric.increment(sseFallbacks);
 		yield* Metric.update(sseDuration, summary.durationMs / 1000);
 	});
@@ -150,6 +164,7 @@ export async function runSseStream(
 	let sawUpToDate = false;
 	let position = url.searchParams.get("offset") ?? "-1";
 	let frames = 0;
+	let controlFrames = 0;
 	// The client's LiveState offset advances off our first up-to-date frame;
 	// on a caught-up log that boundary is deferred to the first keep-alive
 	// tick so it (and the ka comments) only traverse proxies that stream.
@@ -157,6 +172,7 @@ export async function runSseStream(
 	let close: SseCloseKind = "cycle";
 	const summary = (): SseStreamSummary => ({
 		frames,
+		controlFrames,
 		fallback: !sawUpToDate,
 		durationMs: Date.now() - openedAt,
 		close,
@@ -202,6 +218,7 @@ export async function runSseStream(
 				// on up-to-date frames in SSE mode).
 				emit(boundary());
 				frames++;
+				controlFrames++;
 				sawUpToDate = true;
 				oweBoundary = false;
 				emitted = true;
@@ -212,6 +229,7 @@ export async function runSseStream(
 				// exactly the fallback signature above.
 				emit(boundary());
 				frames++;
+				controlFrames++;
 				sawUpToDate = true;
 				oweBoundary = false;
 				emitted = true;
@@ -254,6 +272,7 @@ export async function runSseStream(
 		// the reconnect continues from the issued offset.
 		emit(boundary());
 		frames++;
+		controlFrames++;
 		return summary();
 	} catch {
 		if (signal?.aborted) {
@@ -268,6 +287,7 @@ export async function runSseStream(
 		try {
 			emit(encodeDataFrame({ headers: { control: "must-refetch" } }));
 			frames++;
+			controlFrames++;
 		} catch {}
 		close = "error";
 		return summary();
