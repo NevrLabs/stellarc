@@ -158,7 +158,7 @@ export type WorkRows = {
   taskFlag: Array<Record<string, unknown>>;
 };
 
-function toTask(
+export function toTask(
   ticket: WorkTicketRow,
   labelsByTask: Map<string, Array<{ id: string; name: string; color: string }>>,
 ): TaskView {
