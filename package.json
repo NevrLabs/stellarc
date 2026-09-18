@@ -33,6 +33,7 @@
 		"@tanstack/db": "0.8.7",
 		"@tanstack/electric-db-collection": "0.4.7",
 		"effect": "3.22.0",
+		"playwright": "1.62.0",
 		"postgres": "3.4.7"
 	},
 	"devDependencies": {

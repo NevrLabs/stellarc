@@ -9,9 +9,17 @@ import { Effect, Layer } from "effect";
 import type { Sql } from "postgres";
 import { FoundationApi } from "../../../packages/contracts/src/api";
 import type { ShapeEngine } from "../../../packages/sync/src/index";
+import { negotiateSse } from "../../../packages/sync/src/sse";
 import { errorResponse } from "./errors";
 
 export type AuthzResult = "ok" | "unauthenticated" | "forbidden";
+
+// STL-25 D5 (review-9): the principal kind is derived from the extracted
+// principal, not hardcoded. An empty principal means no identity was
+// extracted (production parses no tokens, §3) - such requests are
+// "anonymous", never an authenticated "actor".
+export const principalKindFrom = (principal: string): string =>
+	principal ? "actor" : "anonymous";
 
 export type Authorize = (
 	org: string,
@@ -53,7 +61,7 @@ export const requestTelemetry = (
 		];
 		if (response.status < 400 && principal)
 			yield* Effect.annotateCurrentSpan({
-				"stellarc.principal.kind": "actor",
+				"stellarc.principal.kind": principalKindFrom(principal),
 				"stellarc.principal.id": principal,
 			});
 		const errorTypes: Record<number, string> = {
@@ -111,10 +119,47 @@ export function foundationHandler(
 									? "Unauthenticated"
 									: "Forbidden",
 						});
-					const response = yield* engine.shapeEffect(
-						path.org,
-						new URL(request.url, "http://localhost"),
-					);
+					const url = new URL(request.url, "http://localhost");
+					// STL-25: qualifying requests upgrade to a held-open SSE
+					// stream; everything else keeps the JSON long-poll path.
+					if (negotiateSse(url, request.headers.accept)) {
+						// The inbound request's abort signal (Bun aborts it when
+						// the client disconnects) + the stream authorizer that
+						// re-checks at every cycle boundary and ka tick (S07).
+						const source = request.source as Request | undefined;
+						return yield* engine
+							.sseEffect(
+								path.org,
+								url,
+								source?.signal,
+								() => authorize(path.org, request.headers, principal) === "ok",
+								principalKindFrom(principal),
+							)
+							.pipe(
+								Effect.map((response) =>
+									response instanceof Response && response.status === 200
+										? HttpServerResponse.raw(response.body, {
+												status: 200,
+												headers: principalHeaders(
+													Object.fromEntries(response.headers),
+													principal,
+												),
+											})
+										: // Pre-stream failure: the engine already
+											// answered the sanitized JSON contract
+											// (409 must-refetch, 503, ...) - pass the
+											// body through unchanged, never a stream.
+											HttpServerResponse.raw(response.body, {
+												status: response.status,
+												headers: Object.fromEntries(response.headers),
+											}),
+								),
+								Effect.catchAll((error) =>
+									Effect.succeed(errorResponse(error)),
+								),
+							);
+					}
+					const response = yield* engine.shapeEffect(path.org, url);
 					const resumed = authorize(path.org, request.headers, principal);
 					if (resumed !== "ok")
 						return errorResponse({

@@ -30,6 +30,8 @@ export async function startTestServer() {
 	const db = await disposablePostgres();
 	await migrate(db.sql);
 	const engine = new ShapeEngine(db.sql);
+	// STL-25 S07: flip to deny every request (revocation fixture).
+	let revoked = false;
 	// Fixture mutations run through a telemetry runtime so the append spans the
 	// domain service emits actually export — the same trace accounting tests
 	// assert on. The foundation server receives this layer too, so handler-run
@@ -46,6 +48,8 @@ export async function startTestServer() {
 		db.sql,
 		engine,
 		(org, headers) => {
+			if (revoked)
+				return headers.authorization ? "forbidden" : "unauthenticated";
 			if (!headers.authorization) return "unauthenticated";
 			return headers.authorization === `Bearer ${org}` ? "ok" : "forbidden";
 		},
@@ -147,6 +151,16 @@ export async function startTestServer() {
 	return {
 		url: server.url.origin,
 		telemetry,
+		get revokeAll() {
+			return revoked;
+		},
+		set revokeAll(value: boolean) {
+			revoked = value;
+		},
+		// STL-25: drive short SSE cycles / fast keep-alive from tests.
+		set sseTiming(value: { cycleMs?: number; kaMs?: number } | undefined) {
+			engine.sseTiming = value;
+		},
 		get afterProjectionRead() {
 			return engine.afterProjectionRead;
 		},
