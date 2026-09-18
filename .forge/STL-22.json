@@ -307,6 +307,59 @@
    "pr": 58,
    "head": "5216d005",
    "reason": "consolidated: 2 branches \u2192 forge/stl-22; superseded PRs [32] \u2014 prior cycle had PASSed implement; routed to review"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T12:54:41+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T12:54:44+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-16T12:54:45+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 285494,
+   "reason": "orphan running: watcher pid 285494 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T13:17:20+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-16T13:17:24+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-16T13:17:25+00:00",
+   "cycle": 7,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 298849,
+   "reason": "orphan running: watcher pid 298849 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "cycle": 7,
+   "reason": "reconciled from STL-22.review-7.md (reviewer wrote under a different cycle number)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "note": "re-armed after rework"
   }
  ],
  "cycle": 7

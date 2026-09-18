@@ -949,12 +949,1043 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-17T04:45:53+00:00",
    "cycle": 15,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 727908
+   "pid": 727908,
+   "reason": "orphan running: watcher pid 727908 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-17T04:52:17+00:00",
+   "agent": "d8fcb0a9-2b00-451c-a869-726f51d61404",
+   "cycle": 15,
+   "artifact": ".forge/STL-15.review-15.md"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:31:03+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:31:03+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:31:04+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:31:04+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:31:04+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:33:17+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:33:17+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:33:18+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:33:18+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:33:18+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:35:33+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:35:33+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:35:34+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:35:34+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:35:34+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:37:51+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:37:51+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:37:52+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:37:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:37:52+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:40:10+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:40:11+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:40:11+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:40:11+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:40:11+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:42:28+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:42:28+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:42:29+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:42:29+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:42:29+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:44:44+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:44:45+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:44:45+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:44:45+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:44:45+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:47:01+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:47:01+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:47:01+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:47:02+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:47:02+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:49:16+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:49:17+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:49:17+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:49:17+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:49:17+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:51:34+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:51:35+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:51:35+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:51:35+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:51:35+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:53:50+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:53:51+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:53:51+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:53:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:53:52+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:56:09+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:56:09+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:56:10+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:56:10+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:56:10+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:58:25+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:58:25+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:58:25+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T05:58:25+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T05:58:25+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:00:40+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:00:40+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:00:41+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:00:41+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:00:41+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:02:56+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:02:56+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:02:57+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:02:57+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:02:57+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:05:12+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:05:12+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:05:12+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:05:12+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:05:12+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:07:29+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:07:30+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:07:30+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:07:31+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:07:31+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:09:46+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:09:46+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:09:47+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:09:47+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:09:47+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:12:04+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:12:04+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:12:05+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:12:05+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:12:05+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:14:19+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:14:19+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:14:20+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:14:20+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:14:20+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:16:34+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:16:34+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:16:35+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:16:35+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:16:35+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:18:51+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:18:51+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:18:51+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:18:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:18:52+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:21:08+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:21:08+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:21:08+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:21:09+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:21:09+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:23:25+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:23:25+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:23:26+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:23:26+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:23:26+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:25:42+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:25:42+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:25:43+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:25:43+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:25:43+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:27:58+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:27:58+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:27:59+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:27:59+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:27:59+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:30:14+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:30:14+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:30:15+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:30:15+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:30:15+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:32:30+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:32:30+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:32:30+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:32:31+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:32:31+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:34:45+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:34:46+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:34:46+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:34:47+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:34:47+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:37:04+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:37:04+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:37:05+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:37:05+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:37:05+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:39:22+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:39:23+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your limit w"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:39:23+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1308\\\",\\\"message\\\":\\\"Usage limit reached for 5 hour. Your l"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:39:23+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-17T06:39:23+00:00",
+   "cycle": 16,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-17T06:41:38+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-17T06:41:42+00:00",
+   "cycle": 16,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-15",
+   "pr": 53,
+   "pid": 763994,
+   "agent": "0fcc54dc-4672-4c12-a9dc-44d9aed9ff5b",
+   "head": "75f3b685",
+   "reason": "orphan running: watcher pid 763994 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-17T06:44:12+00:00",
+   "agent": "0fcc54dc-4672-4c12-a9dc-44d9aed9ff5b",
+   "cycle": 16,
+   "pr": 53,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/53",
+   "branch": "forge/stl-15"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-17T06:46:20+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-17T06:46:23+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-17T06:46:24+00:00",
+   "cycle": 16,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 765557,
+   "reason": "orphan running: watcher pid 765557 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "cycle": 15,
+   "reason": "reconciled from STL-15.review-15.md (reviewer wrote under a different cycle number)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "note": "re-armed after rework"
   }
  ],
- "cycle": 15
+ "cycle": 16
 }

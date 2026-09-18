@@ -629,11 +629,20 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "fail",
    "at": "2026-09-18T00:35:16+00:00",
    "cycle": 16,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1298339
+   "pid": 1298339,
+   "reason": "orphan running: watcher pid 1298339 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-18T00:59:45+00:00",
+   "agent": "7ba8622c-cd89-4952-89bd-95c480d22a3a",
+   "cycle": 16,
+   "artifact": ".forge/STL-21.review-16.md"
   }
  ],
  "cycle": 16

@@ -293,12 +293,113 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-17T23:55:38+00:00",
    "cycle": 7,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1274145
+   "pid": 1274145,
+   "reason": "orphan running: watcher pid 1274145 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-18T00:31:33+00:00",
+   "agent": "8bee1c75-658e-4f3a-a427-199e479c93cf",
+   "cycle": 7,
+   "artifact": ".forge/STL-27.review-7.md"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T00:32:47+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T00:32:48+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (reset a"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T00:32:48+00:00",
+   "note": "preflight skip hermes:accept_edits/glm/glm-5.3-flash: HTTP 503: {\"error\":{\"message\":\"[glm/glm-5.3-flash] [429]: {\\\"error\\\":{\\\"code\\\":\\\"1302\\\",\\\"message\\\":\\\"Rate limit reached for requests\\\"}} (r"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T00:32:48+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/glm-5.3: HTTP 503: {\"error\":{\"message\":\"[opencode-go/glm-5.3] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\\":\\\"Week"
+  },
+  {
+   "stage": "implement",
+   "status": "blocked",
+   "at": "2026-09-18T00:32:48+00:00",
+   "cycle": 8,
+   "reason": "every roster model failed preflight (quota/upstream); nothing dispatched \u2014 retry next tick"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T00:35:14+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-18T00:35:16+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-27",
+   "pr": 59,
+   "pid": 1298341,
+   "agent": "1c436168-3424-4ea6-b020-94daf39d879e",
+   "head": "21155939",
+   "reason": "orphan running: watcher pid 1298341 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-18T02:03:58+00:00",
+   "agent": "1c436168-3424-4ea6-b020-94daf39d879e",
+   "cycle": 8,
+   "pr": 59,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/59",
+   "branch": "forge/stl-27"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:06:29+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T02:06:32+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "fail",
+   "at": "2026-09-18T02:06:33+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1355628,
+   "reason": "orphan running: watcher pid 1355628 dead, agent gone; reconciled by driver \u2192 fail"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "cycle": 7,
+   "reason": "reconciled from STL-27.review-7.md (reviewer wrote under a different cycle number)"
+  },
+  {
+   "stage": "spec",
+   "status": "pass",
+   "note": "re-armed after rework"
   }
  ],
- "cycle": 7
+ "cycle": 8
 }

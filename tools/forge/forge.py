@@ -457,7 +457,7 @@ AUDIT, in order, each with a per-item verdict:
 7. SPANS (ADR 0010) — is every new/changed service function an `Effect.fn("Module.name")`? Do new endpoints carry http.route/method/status/stellarc.org/stellarc.principal.kind? Does at least one test assert on a span for each new path, and does that assertion go red when the instrumentation is removed? Any `console.*` outside tests/fatal handler? Any statement text or PII (email, token) in span attributes?
 8. Re-run the focused tests and the gates yourself. Paste output.
 
-Write .forge/{t}.review-{cycle}.md: verdict line (PASS|REWORK), then the per-item table, then a DEFECTS list (numbered, each with file:line and the exact fix expected). Reply with the verdict line and defect count only.
+REVIEW WORKTREE: check out the PR head ONLY under `/mnt/deepvault/forge-merge/review-{t.lower()}-c{cycle}` (git worktree add --detach). Never under /tmp — the root disk is 48G and a review checkout is 1G. Remove it when done.\nWrite .forge/{t}.review-{cycle}.md: verdict line (PASS|REWORK), then the per-item table, then a DEFECTS list (numbered, each with file:line and the exact fix expected). Reply with the verdict line and defect count only.
 
 === SPEC ===
 {spec}
@@ -649,6 +649,7 @@ def cmd_implement(args):
             # legacy per-cycle branch with an open PR: adopt it as THE ticket branch
             branch = prior["branch"]
         exists = bool(sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.strip())
+        head_before = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1] or None
         record(t, "implement", "running", cycle=cycle, model=model, branch=branch, pr=(prior or {}).get("pr"), pid=os.getpid())
         if exists:
             sh(["git", "fetch", "-q", "origin", branch], cwd=repo_root(), check=False)
@@ -681,7 +682,7 @@ def _finish_implement(t, c, n, a, cycle, model, branch, spec, wt, head_before):
     if d.get("_answered"): record(t, "implement", "note", cycle=cycle, questions_answered=d["_answered"])
     head_after = sh(["git", "ls-remote", "origin", f"refs/heads/{branch}"], check=False).stdout.split()[:1]
     prs = json.loads(gh(["pr", "list", "--head", branch, "--json", "number,url,isDraft,state"], c["repo"]).stdout)
-    if prs and prs[0]["isDraft"] and head_before and head_after == head_before:
+    if prs and head_before and head_after == head_before:
         # Draft PR exists but this cycle pushed nothing. The agent did not work (or delegated the work away).
         record(t, "implement", "fail", agent=a, cycle=cycle, reason="draft PR unchanged: no commits pushed this cycle")
         comment(n, c["repo"], f"### forge · implement c{cycle} → **FAIL (no progress)**\n\nBranch head unchanged at `{head_after[0][:8]}`. Agent went idle without pushing.\n\n```\n{logs_tail(a, 15)}\n```")
@@ -762,13 +763,24 @@ def cmd_review(args):
     pr = json.loads(gh(["pr", "view", str(impl["pr"]), "--json", "number,url,headRefName"], c["repo"]).stdout)
     spec = spec_path(t).read_text()
     record(t, "review", "running", cycle=cycle, model=reviewer, pid=os.getpid())
+    t_dispatch = time.time()
     a = dispatch(f"forge review {t} c{cycle}", brief_review(t, c, spec, pr, cycle), reviewer, cwd=repo_root())
     watch(a, f"{t}-review-c{cycle}", t, "review")
     print(f"dispatched {a}; waiting…")
     wait_idle(a, c["stage_timeout_s"]["review"])
     rp = review_path(t, cycle)
     if not rp.exists():
+        # reviewer used a different cycle number (state advanced mid-review, or it copied from the PR): take the
+        # newest review file written since this review was dispatched.
+        cands = [q for q in repo_root().glob(f".forge/{t}.review-*.md") if q.stat().st_mtime >= t_dispatch - 5]
+        if cands:
+            newest = max(cands, key=lambda q: q.stat().st_mtime)
+            newest.replace(rp); print(f"review file renamed {newest.name} → {rp.name}")
+    if not rp.exists():
         record(t, "review", "fail", agent=a, reason="no review file"); die(f"reviewer wrote nothing — `paseo logs {a}`")
+    for q in list(Path("/mnt/deepvault/forge-merge").glob(f"review-{t.lower()}-*")) + list(Path("/tmp").glob(f"stl{n}*")):
+        if q.is_dir(): sh(["git", "worktree", "remove", "--force", str(q)], cwd=repo_root(), check=False); sh(["rm", "-rf", str(q)], check=False)
+    sh(["git", "worktree", "prune"], cwd=repo_root(), check=False)
     body = rp.read_text(); verdict = parse_verdict(body)
     sh(["git", "add", str(rp), str(state_path(t))]); sh(["git", "commit", "-q", "-m", f"forge({t}): review c{cycle} {verdict}", "--no-verify"], check=False)
     gh(["pr", "comment", str(pr["number"]), "--body", f"### forge · adversarial review (cycle {cycle}, `{c['models']['review']}`) → **{verdict}**\n\n{body[:8000]}"], c["repo"])
