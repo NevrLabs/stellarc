@@ -3,9 +3,9 @@ import { workCollections } from "./work-collections";
 import {
   buildBoardWithTasks,
   toTask,
+  type WorkBoardRow,
   type WorkRows,
   type WorkTicketRow,
-  type WorkBoardRow,
 } from "./work-view-model";
 
 /**
@@ -83,19 +83,18 @@ export function ensureOrgEntry(
   if (!entry) {
     const handles = handlesOf(org, authorization);
     const listeners = new Set<Listener>();
-    entry = { handles, revision: 0, listeners };
+    const created: OrgEntry = { handles, revision: 0, listeners };
+    entry = created;
     registry.set(org, entry);
     for (const key of COLLECTION_KEYS) {
-      entry.handles[key].subscribeChanges(() => {
-        entry.revision += 1;
-        for (const listener of entry.listeners) listener();
+      created.handles[key].subscribeChanges(() => {
+        created.revision += 1;
+        for (const listener of created.listeners) listener();
       });
     }
     void Promise.all(
       COLLECTION_KEYS.map((key) =>
-        Promise.resolve(entry.handles[key].preload()).catch(
-          () => undefined,
-        ),
+        Promise.resolve(created.handles[key].preload()).catch(() => undefined),
       ),
     );
   }
@@ -184,8 +183,7 @@ export function useWorkTicketLive(
     const board = ticket
       ? rows.board.find((b) => b.id === ticket.boardId)
       : undefined;
-    if (!ticket || !board)
-      return { task: undefined, board: undefined };
+    if (!ticket || !board) return { task: undefined, board: undefined };
     return {
       task: toTask(ticket as WorkTicketRow, labelsByTaskOf(rows.label)),
       board: board as WorkBoardRow,
@@ -198,10 +196,7 @@ export function useWorkTicketLive(
  * sidebar order), mapped to the fork BoardWithTasks shape. Powers the
  * sidebar and slug resolution (T29).
  */
-export function useWorkBoardListLive(
-  org: string,
-  principal?: string | null,
-) {
+export function useWorkBoardListLive(org: string, principal?: string | null) {
   const { rows } = useWorkRows(org, principal);
   const boards = useMemo(() => {
     if (!rows) return undefined;
