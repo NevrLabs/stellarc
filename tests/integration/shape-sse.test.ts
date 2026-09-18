@@ -410,3 +410,27 @@ test("S07 revocation closes the stream within the cycle/ka interval; reconnect g
 		.filter((k) => k === "revocation");
 	expect(closes.length).toBeGreaterThan(0);
 });
+
+test("S01 pre-stream conflict: qualifying SSE with an expired handle answers 409 must-refetch JSON, never a stream", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("org-a", "a-1", "v1");
+	const base = `${server.url}/orgs/org-a/v1/shape?table=sync_probe`;
+	const headers = {
+		authorization: "Bearer org-a",
+		accept: "text/event-stream",
+	};
+	// Full qualifying combination but a handle the engine never issued: the
+	// pre-stream page answers the sanitized 409 must-refetch JSON contract -
+	// status, body, and content-type must never become a stream (spec §3).
+	const response = await fetch(
+		`${base}&offset=5_0&handle=bogus-handle&live=true&live_sse=true&experimental_live_sse=true`,
+		{ headers },
+	);
+	expect(response.status).toBe(409);
+	expect(response.headers.get("content-type")).toContain("application/json");
+	const body = (await response.json()) as Array<{
+		headers: { control?: string };
+	}>;
+	expect(body.at(-1)?.headers.control).toBe("must-refetch");
+});

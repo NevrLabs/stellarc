@@ -129,6 +129,8 @@ export class ShapeEngine {
 			),
 		)();
 	}
+	/** Parse one fetched page into the SSE stream shape (shared by the
+	 * pre-stream check and every in-stream page fetch). */
 	private async ssePageFromResponse(
 		response: Response,
 	): Promise<import("./sse").SsePageResult> {
@@ -148,65 +150,36 @@ export class ShapeEngine {
 		};
 	}
 
-	/** STL-25: one SSE page fetch, parsed for the streaming branch. Throws on
-	 * SQL/driver failure so the stream driver maps it to must-refetch. */
-	async ssePage(org: string, url: URL): Promise<import("./sse").SsePageResult> {
-		const response = await this.page(org, url);
-		if (response.status !== 200) {
-			const detail = response.status === 409 ? "must-refetch" : "error";
-			throw new SsePageError(response.status, detail);
-		}
-		const messages = (await response.clone().json()) as Array<{
-			headers: { operation?: string; control?: string };
-		}>;
-		const caughtUp = messages.some((m) => m.headers.control === "up-to-date");
-		const changes = messages.filter((m) => m.headers.operation);
-		return {
-			messages: changes,
-			nextCursor: response.headers.get("electric-offset") ?? "0_0",
-			caughtUp,
-			schemaHeader: response.headers.get("electric-schema"),
-		};
-	}
-
-	/**
-	 * STL-25: the SSE response for a qualifying request. The stream runs the
-	 * existing page loop with cycle close at the 20s deadline; metrics record
-	 * through `runtime` so OTel owns them (ADR 0010). Authorization is
-	 * re-checked by the caller at cycle boundaries via `authorize`.
-	 */
-	/**
-	 * STL-25: the SSE response for a qualifying request. The held-open
-	 * connection acquires the live gauge exactly once, runs its page loop as
-	 * children of a per-connection span that ends only at stream close, and
-	 * releases everything (gauge, metrics, span) at every close kind: cycle,
-	 * disconnect, revocation, error. Authorization is re-checked by the caller
-	 * at every cycle boundary and keep-alive tick through `authorize`.
-	 */
 	/**
 	 * STL-25: the SSE response for a qualifying request. One held-open
 	 * connection acquires the live gauge exactly once (S15), drives its page
 	 * loop as children of a per-connection `stellarc.shape.sse` span that ends
 	 * only at stream close (S14), re-authorizes at every cycle boundary and
 	 * keep-alive tick, and releases gauge + metrics at every close kind:
-	 * cycle, disconnect, revocation, error. A pre-stream failure (expired
-	 * handle) surfaces the engine's JSON 409 must-refetch contract - never a
-	 * stream (spec §3).
+	 * cycle, disconnect, revocation, error. A pre-stream page failure (expired
+	 * handle: 409 must-refetch) passes the engine's sanitized JSON response
+	 * through verbatim - never a stream (spec §3 error union).
 	 */
-	sseEffect(
-		org: string,
-		url: URL,
-		signal?: AbortSignal,
-		authorize: () => boolean = () => true,
-	) {
-		const self = this;
-		return Effect.gen(function* () {
-			const rt = yield* Effect.runtime<never>();
-			// Pre-stream page: an expired handle must answer 409 JSON, not a
-			// stream (spec §3 error union).
-			const pre = yield* Effect.tryPromise(() => self.ssePage(org, url)).pipe(
-				Effect.mapError((error) => error as Error),
-			);
+	sseEffect = Effect.fn("Sync.sseEffect")(
+		(
+			org: string,
+			url: URL,
+			signal?: AbortSignal,
+			authorize: () => boolean = () => true,
+		) => {
+			const self = this;
+			return Effect.gen(function* () {
+				const rt = yield* Effect.runtime<never>();
+				// Pre-stream page: a non-200 answer (expired handle: 409
+				// must-refetch) is returned as the response - the handler passes
+				// its JSON body through, never a stream (spec §3).
+				const preResponse = yield* Effect.tryPromise(() =>
+					self.page(org, url),
+				).pipe(Effect.mapError((error) => error as Error));
+				if (preResponse.status !== 200) return preResponse;
+				const pre = yield* Effect.tryPromise(() =>
+					self.ssePageFromResponse(preResponse),
+				).pipe(Effect.mapError((error) => error as Error));
 			const headers = new Headers({
 				"content-type": "text/event-stream",
 				"cache-control": "no-store",
@@ -315,9 +288,10 @@ export class ShapeEngine {
 					);
 				},
 			});
-			return new Response(stream, { status: 200, headers });
-		});
-	}
+				return new Response(stream, { status: 200, headers });
+			});
+		},
+	);
 
 	private async runShape(
 		_org: string,
@@ -520,9 +494,4 @@ export class SsePageError extends Error {
 	) {
 		super(`SSE page error: ${status}`);
 	}
-}
-
-/** Pre-stream conflict (expired handle) mapped to the JSON 409 contract. */
-export class ConflictError extends Error {
-	_tag = "Conflict";
 }
