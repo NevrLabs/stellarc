@@ -442,12 +442,70 @@
   },
   {
    "stage": "review",
-   "status": "running",
+   "status": "rework",
    "at": "2026-09-18T02:48:39+00:00",
    "cycle": 7,
    "model": "hermes:accept_edits/glm/glm-5.3",
-   "pid": 1376731
+   "pid": 1376731,
+   "reason": "orphan running: watcher pid 1376731 dead, agent gone; reconciled by driver \u2192 rework"
+  },
+  {
+   "stage": "review",
+   "status": "rework",
+   "at": "2026-09-18T03:17:54+00:00",
+   "agent": "65a7c8ab-69a7-4ec1-a597-a2582d4da5cf",
+   "cycle": 7,
+   "artifact": ".forge/STL-25.review-7.md"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-18T03:20:52+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-18T03:20:56+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-25",
+   "pr": 60,
+   "pid": 1395823,
+   "agent": "139fd83e-b173-4aea-8a96-b8e405a6b24b",
+   "head": "a9a0c876",
+   "reason": "orphan running: watcher pid 1395823 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-18T05:01:31+00:00",
+   "agent": "139fd83e-b173-4aea-8a96-b8e405a6b24b",
+   "cycle": 8,
+   "pr": 60,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/60",
+   "branch": "forge/stl-25"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T05:03:21+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-18T05:03:23+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-18T05:03:24+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 1475894
   }
  ],
- "cycle": 7
+ "cycle": 8
 }
