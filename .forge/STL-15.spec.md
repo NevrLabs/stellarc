@@ -214,3 +214,8 @@ Run after dependency merge: `bun install --frozen-lockfile`, `bun run lint`, `bu
 6. Complete ten-table importer ledger/replay/preflight; run canonical #1–#3 plus all-column checks on restored fixture. Failed or missing query prevents 3/3 claim.
 7. Run telemetry contract tests across every route/service and secret-redaction sabotage; then full built-UI parity at inherited viewports. Deliver real screenshots and traces, not descriptions or newly blessed candidate baselines.
 8. Hand spec/code/evidence to different-family adversarial review; orchestrator alone handles commits, clean-worktree full gate, tracker and merge. Do not report implementation complete from this spec stage.
+
+
+## Orchestrator defect (2026-09-18) — MUST fix in the next cycle, blocking
+
+`apps/stellarc-ui/e2e/identity.spec.ts` starts a disposable PostgreSQL cluster in `beforeAll` and stops it only in `afterAll`. Under four Playwright projects, retries, and lanes that are killed mid-run, clusters leak: **427 postmasters** were found running on the host today (each ~16 MB shared memory → 6.9 GB Shmem), and this is the most likely cause of the host hard-reset on 2026-09-16 22:56. Fix: (1) start ONE cluster per Playwright run via a `globalSetup`/`globalTeardown` pair or `webServer` — not per project/file; (2) register `process.on("exit")` + `SIGTERM`/`SIGINT` handlers that `pg_ctl stop -m immediate` every cluster the process started, exactly as `tests/helpers/postgres.ts` does; (3) a unit test spawns the helper in a child process, kills it with SIGKILL, and asserts no postmaster survives (negative control: remove the handler → red). Add the same to any other spec that starts a cluster.
