@@ -106,3 +106,75 @@ describe("R19 fixture linkage (defect 7)", () => {
 		expect(destinationSeedSql()).not.toContain(`'${wrong}'`);
 	});
 });
+
+describe("R24 gate discovery", () => {
+	// R24: the reconciliation suites must execute under the root `bun test` gate
+	// through the vitest bridge (tests/gates.test.ts -> vitest run --config
+	// vitest.integration.config.ts). Discovery is guarded two ways:
+	//   (a) statically — the bridge exists, runs the integration config, and
+	//       that config's glob covers the reconciliation suite (removing the
+	//       suite from the glob breaks this assertion), and
+	//   (b) dynamically — a test file under that glob whose assertion fails
+	//       makes the vitest run exit nonzero; gates.test.ts then fails its
+	//       expect(exit).toBe(0) and the root gate goes red. The live RED replay
+	//       of both arms is recorded in docs/legacy/reconciliation/README.md.
+	const repoRoot = import.meta.dirname.replace(/\/tests\/unit$/, "");
+
+	test("(a) bridge runs the integration config and its glob includes the reconciliation suite", async () => {
+		const { readFile } = await import("node:fs/promises");
+		const { join } = await import("node:path");
+		const gates = await readFile(join(repoRoot, "tests/gates.test.ts"), "utf8");
+		expect(gates).toContain("vitest.integration.config.ts");
+		expect(gates).toContain("vitest.config.ts");
+		const integrationCfg = await readFile(
+			join(repoRoot, "vitest.integration.config.ts"),
+			"utf8",
+		);
+		expect(integrationCfg).toContain("tests/integration/**/*.test.ts");
+		// the suite covered by that glob exists (removal from the tree, or a glob
+		// that no longer covers it, fails here)
+		const stat = await import("node:fs").then((m) =>
+			m.existsSync(join(repoRoot, "tests/integration/reconciliation.test.ts")),
+		);
+		expect(stat).toBe(true);
+	});
+
+	test("(b) negative control: an intentionally failing test under the glob fails the vitest run (nonzero exit)", { timeout: 120_000 }, async () => {
+		const { writeFile, rm } = await import("node:fs/promises");
+		const { join } = await import("node:path");
+		const { spawnSync } = await import("node:child_process");
+		// one variable: a probe test inside the glob with a failing assertion
+		const probePath = join(repoRoot, "tests/integration/_r24-probe.test.ts");
+		await writeFile(
+			probePath,
+			[
+				'import { expect, test } from "vitest";',
+				'test("R24 intentional assertion failure", () => {',
+				"	expect(1).toBe(2);",
+				"});",
+				"",
+			].join("\n"),
+		);
+		try {
+			const run = spawnSync(
+				process.execPath,
+				[
+					"--bun",
+					"node_modules/vitest/vitest.mjs",
+					"run",
+					"--config",
+					"vitest.integration.config.ts",
+					"_r24-probe",
+				],
+				{ cwd: repoRoot, encoding: "utf8", timeout: 110_000 },
+			);
+			expect(run.status, `vitest stdout:\n${run.stdout}\nstderr:\n${run.stderr}`).not.toBe(0);
+			expect(run.stdout).toContain("R24 intentional assertion failure");
+			expect(`${run.stdout}\n${run.stderr}`).toMatch(
+				/AssertionError|expected .* to be/,
+			);
+		} finally {
+			await rm(probePath, { force: true });
+		}
+	});
+});
