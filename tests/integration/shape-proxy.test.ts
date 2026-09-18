@@ -1,10 +1,10 @@
 import { ShapeStream } from "@electric-sql/client";
 import { expect, test } from "vitest";
-import { startProxy } from "../helpers/proxy-fixture";
 import {
 	ceilingFromResults,
 	probeShapeLiveness,
-} from "../../tools/measure-shape-concurrency";
+} from "../../tools/measure-shape-concurrency.mts";
+import { startProxy } from "../helpers/proxy-fixture";
 import { startTestServer } from "./test-server";
 
 const resources: Array<() => unknown> = [];

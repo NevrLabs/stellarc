@@ -89,7 +89,7 @@ export function sseStreamUrl(
 	return (
 		`${origin}/orgs/${encodeURIComponent(org)}/v1/shape?table=${encodeURIComponent(table)}` +
 		`&offset=${encodeURIComponent(session.offset)}&handle=${encodeURIComponent(session.handle)}` +
-		`&live=true&live_sse=true&experimental_live_sse=true`
+		"&live=true&live_sse=true&experimental_live_sse=true"
 	);
 }
 
@@ -255,7 +255,8 @@ async function runSelfCheck(target: string, holdMs: number): Promise<boolean> {
 	} finally {
 		await open.close();
 	}
-	const cappedOk = cappedVerdict.ceiling === 2 && cappedVerdict.stalledShapeId === 3;
+	const cappedOk =
+		cappedVerdict.ceiling === 2 && cappedVerdict.stalledShapeId === 3;
 	const openOk = openVerdict.stalledShapeId === 0;
 	console.log(
 		JSON.stringify(
