@@ -1,0 +1,9 @@
+appId: dev.stellarc.desktop
+name: Desktop shell boot smoke
+---
+- launchApp
+- extendedWaitUntil:
+    visible: ".*(Welcome back|Sign In|Continue with).*"
+    timeout: 15000
+- takeScreenshot:
+    path: screenshots/desktop-boot
