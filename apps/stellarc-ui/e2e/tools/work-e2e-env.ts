@@ -21,13 +21,10 @@ import {
 	createTicket,
 } from "../../../../packages/domain/src/work";
 import { disposablePostgres } from "../../../../tests/helpers/postgres";
+import { ORG, UI_PORT, USER } from "./work-e2e-constants";
 import { startWorkE2eServer } from "./work-e2e-server";
 
-export const ORG = "fixture-org";
-export const USER = "fixture-user-1";
-export const UI_PORT = 4183;
-
-export type WorkE2eHandle = {
+type WorkE2eHandle = {
 	port: number;
 	uiPort: number;
 	boardSlug: string;
@@ -37,21 +34,21 @@ export type WorkE2eHandle = {
 
 let handle: WorkE2eHandle | undefined;
 
-export async function setup(): Promise<WorkE2eHandle> {
+export default async function setup(): Promise<WorkE2eHandle> {
 	if (handle) return handle;
-	// Resolve the repo root from the module file location; `bun -e` (and other
-	// virtualized evaluators) report CWD instead, so an explicit override is
-	// supported for smoke probes — Playwright's real globalSetup resolves it
-	// from the true module path.
-	const moduleDir = import.meta.dir;
-	const repoRoot = moduleDir.includes("/e2e/tools")
-		? join(moduleDir, "../../../..")
-		: (process.env.STELLARC_REPO_ROOT ??
-			(() => {
-				throw new Error(
-					"work-e2e-env: import.meta.dir virtualized; set STELLARC_REPO_ROOT",
-				);
-			})());
+	// A preview squatter from a crashed earlier run would serve static but
+	// 500 every /api proxy request; clear the port before anything binds.
+	try {
+		execFileSync("fuser", ["-k", `${UI_PORT}/tcp`], { stdio: "ignore" });
+		await new Promise((resolve) => setTimeout(resolve, 500));
+	} catch {}
+	// Resolve the repo root from the module file location; some evaluators
+	// virtualize import.meta.dir (undefined), so guard the fallback chain.
+	const moduleDir = import.meta.dir as string | undefined;
+	const repoRoot =
+		moduleDir && moduleDir.includes("/e2e/tools")
+			? join(moduleDir, "../../../..")
+			: process.cwd();
 	const db = await disposablePostgres();
 	const sql = db.sql;
 	await migrate(sql);
@@ -108,26 +105,18 @@ export async function setup(): Promise<WorkE2eHandle> {
 	});
 	// Production build once; the preview server serves dist with proxies.
 	const build = spawn(
-		process.execPath,
+		"bun",
 		["run", "--cwd", "apps/stellarc-ui", "build"],
-		{ cwd: repoRoot, stdio: ["ignore", "pipe", "inherit"] }
+		{ cwd: repoRoot, stdio: "inherit" },
 	);
 	await new Promise<void>((resolve, reject) => {
-		let tail = "";
-		build.stdout?.on("data", (chunk: Buffer) => {
-			tail = (tail + chunk.toString()).slice(-4000);
-		});
-		build.on("error", (error) => reject(error));
 		build.on("exit", (code) =>
-			code === 0
-				? resolve()
-				: reject(new Error(`UI build failed: ${code}
-${tail.slice(-1200)}`)),
+			code === 0 ? resolve() : reject(new Error(`UI build failed: ${code}`)),
 		);
 	});
 	const proxyTarget = `http://127.0.0.1:${server.port}`;
 	const preview = spawn(
-		process.execPath,
+		"bun",
 		[
 			"run",
 			"--cwd",
@@ -147,18 +136,39 @@ ${tail.slice(-1200)}`)),
 		},
 	);
 	const uiReady = async () => {
+		// Readiness = static UI AND the API proxy actually reaching the live
+		// API (an orphan preview from a crashed run serves / fine but 500s /api).
 		for (let attempt = 0; attempt < 120; attempt++) {
 			try {
-				const response = await fetch(`http://127.0.0.1:${UI_PORT}/`);
-				if (response.ok) return;
+				const probe = await fetch(
+					`http://127.0.0.1:${UI_PORT}/api/work/boards`,
+					{ headers: { authorization: `Bearer ${ORG} ${USER}` } },
+				);
+				if (probe.ok) return;
 			} catch {}
 			await new Promise((resolve) => setTimeout(resolve, 500));
 		}
-		throw new Error("vite preview did not become ready");
+		throw new Error("vite preview did not become ready (or proxy is dead)");
 	};
 	await uiReady();
 	const close = async () => {
 		preview.kill("SIGTERM");
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		preview.kill("SIGKILL");
+		// `bun run preview` wraps a node grandchild that can outlive the group
+		// kill; refuse to leave a squatter on the port (a stale preview serves
+		// static fine but 500s every /api proxy request).
+		for (let attempt = 0; attempt < 10; attempt++) {
+			try {
+				await fetch(`http://127.0.0.1:${UI_PORT}/`);
+				await new Promise((resolve) => setTimeout(resolve, 300));
+			} catch {
+				break;
+			}
+		}
+		try {
+			execFileSync("fuser", ["-k", `${UI_PORT}/tcp`], { stdio: "ignore" });
+		} catch {}
 		await server.close();
 		await db.close();
 	};
@@ -179,7 +189,3 @@ ${tail.slice(-1200)}`)),
 	return handle;
 }
 
-export async function teardown() {
-	const scoped = process as unknown as { __workE2eClose?: () => Promise<void> };
-	if (scoped.__workE2eClose) await scoped.__workE2eClose();
-}

@@ -17,6 +17,7 @@ export default defineConfig({
 	retries: 0,
 	reporter: "line",
 	globalSetup: "./apps/stellarc-ui/e2e/tools/work-e2e-env.ts",
+	globalTeardown: "./apps/stellarc-ui/e2e/tools/work-e2e-teardown.ts",
 	outputDir: "./test-results-work",
 	snapshotPathTemplate: "{testDir}/__screenshots__/{projectName}/{arg}{ext}",
 	expect: {
