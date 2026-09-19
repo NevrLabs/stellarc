@@ -1,0 +1,279 @@
+name: Mobile
+
+# Tauri 2 mobile shells (Android/iOS) around the frozen stellarc-ui bundle
+# (STL-23). Standalone workflow - self-triggers on PR/push (v1 desktop.yml
+# convention), so no edit to ci.yml is needed to run it.
+#
+# O1 (spec SS1 premise 5): the Android emulator needs a KVM-class runner and
+# the iOS simulator needs a macOS/Xcode runner. This workflow ships
+# regardless and FAILS CLOSED with a named ::error::O1 message when the
+# runner lacks the capability - a silent skip is never acceptable.
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MOBILE_API_URL: ${{ vars.MOBILE_API_URL || 'https://api.stellarc.dev' }}
+  STELLARC_E2E_EMAIL: ${{ vars.STELLARC_E2E_EMAIL || 'e2e@stellarc.test' }}
+  STELLARC_E2E_PASSWORD: ${{ vars.STELLARC_E2E_PASSWORD || 'e2e-fixture-password' }}
+
+jobs:
+  ui-purity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: frozen UI tree untouched (M02)
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch --quiet origin "${{ github.base_ref }}"
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui packages desktop; then
+            echo "M02 OK: no file under apps/stellarc-ui, packages or desktop changed"
+          else
+            echo "::error::M02: mobile slice modified the frozen UI tree or the desktop shell"
+            git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui packages desktop
+            exit 1
+          fi
+
+  mobile-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun --bun x vitest run --config vitest.config.ts
+
+  cargo-check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: aarch64-linux-android
+          - os: macos-latest
+            target: aarch64-apple-ios
+          - os: macos-latest
+            target: x86_64-apple-ios
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile -> target
+      - name: install Android SDK + NDK (O1 fail-closed)
+        if: matrix.target == 'aarch64-linux-android'
+        shell: bash
+        run: |
+          if ! ls /dev/kvm >/dev/null 2>&1; then
+            echo "::error::O1: no KVM on this runner - the Android emulator/cross-compile leg requires a KVM-class runner (larger runner / self-hosted)"
+            exit 1
+          fi
+          yes | sudo sdkmanager --licenses >/dev/null || true
+          sudo sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" >/dev/null
+          echo "ANDROID_HOME=/usr/lib/android-sdk" >> "$GITHUB_ENV"
+          echo "NDK_HOME=/usr/lib/android-sdk/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: ensure frontendDist exists
+        shell: bash
+        run: mkdir -p apps/stellarc-ui/dist && touch apps/stellarc-ui/dist/index.html
+      - name: cargo check (mobile, all targets)
+        shell: bash
+        working-directory: mobile
+        run: cargo check -p stellarc-mobile --all-targets --target ${{ matrix.target }}
+
+  android-smoke:
+    needs: [ui-purity, mobile-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile -> target
+      - name: KVM check (O1 fail-closed)
+        shell: bash
+        run: |
+          if ! ls /dev/kvm >/dev/null 2>&1; then
+            echo "::error::O1: no KVM on this runner - the Android emulator requires a KVM-class runner (larger runner / self-hosted)"
+            exit 1
+          fi
+      - name: install Android SDK + NDK
+        shell: bash
+        run: |
+          yes | sudo sdkmanager --licenses >/dev/null || true
+          sudo sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" >/dev/null
+          echo "ANDROID_HOME=/usr/lib/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> "$GITHUB_ENV"
+          echo "NDK_HOME=/usr/lib/android-sdk/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          sudo ln -sf /usr/lib/android-sdk/platform-tools/adb /usr/local/bin/adb
+      - name: install UI and mobile (tauri CLI) deps
+        run: |
+          bun install --frozen-lockfile
+          bun install --cwd mobile
+      - name: bake API origin into UI build + resolved config copy
+        run: bash mobile/scripts/build-ui.sh
+        env:
+          MOBILE_API_URL: ${{ env.MOBILE_API_URL }}
+      - name: build debug APK (M04/M07)
+        working-directory: mobile
+        run: bun run tauri android build --debug --target aarch64 -c target/tauri.conf.build.json
+      - name: create and boot emulator (API 34, x86_64, KVM)
+        shell: bash
+        run: |
+          yes | sdkmanager "system-images;android-34;google_apis;x86_64" >/dev/null
+          echo "no" | avdmanager create avd -n stellarc --force \
+            -k "system-images;android-34;google_apis;x86_64" \
+            -d pixel_6
+          $ANDROID_HOME/emulator/emulator -avd stellarc -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -no-snapshot -memory 3072 -cores 2 &
+          adb wait-for-device
+          for i in $(seq 1 90); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; then
+              echo "emulator booted"; break
+            fi
+            sleep 5
+          done
+          adb shell getprop sys.boot_completed | tr -d '\r' | grep -q 1
+      - name: install + launch smoke (M07)
+        shell: bash
+        run: |
+          apk=$(find mobile/gen/android -name "*.apk" -path "*debug*" | head -1)
+          echo "APK: $apk"
+          adb install -r "$apk"
+          adb logcat -c
+          adb shell am start -n dev.stellarc.mobile/.MainActivity
+          sleep 12
+          adb logcat -d | grep -q "service.name=stellarc-mobile event=startup" || {
+            echo "::error::M07: startup log line missing from logcat"; adb logcat -d | tail -50; exit 1; }
+          adb logcat -d | grep -q "event=window-created" || {
+            echo "::error::M07: window-created line missing from logcat"; exit 1; }
+          adb logcat -d | grep -E -q "health-probe status=(200|unreachable)" || {
+            echo "::error::M07: health-probe line missing from logcat"; exit 1; }
+          adb shell am force-stop dev.stellarc.mobile
+          echo "M07 OK: installed, launched, logged, force-stopped"
+      - name: install Maestro
+        shell: bash
+        run: |
+          curl -fsSL "https://install.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Maestro native smoke (M10 Android)
+        working-directory: mobile/e2e/maestro
+        shell: bash
+        env:
+          STELLARC_E2E_EMAIL: ${{ env.STELLARC_E2E_EMAIL }}
+          STELLARC_E2E_PASSWORD: ${{ env.STELLARC_E2E_PASSWORD }}
+        run: |
+          maestro test --config config.mobile.yaml \
+            flows/mobile-sign-in.yaml \
+            flows/mobile-sheet-nav.yaml \
+            flows/mobile-board.yaml \
+            flows/mobile-ticket-nav.yaml
+      - name: upload APK + evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellarc-mobile-android-apk
+          path: |
+            mobile/gen/android/**/*.apk
+            mobile/e2e/maestro/screenshots/
+          if-no-files-found: ignore
+      - name: upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellarc-mobile-android-evidence
+          if-no-files-found: error
+          path: test-results/maestro/
+
+  ios-smoke:
+    needs: [ui-purity, mobile-tests]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile -> target
+      - name: install UI and mobile (tauri CLI) deps
+        run: |
+          bun install --frozen-lockfile
+          bun install --cwd mobile
+      - name: bake API origin into UI build + resolved config copy
+        run: bash mobile/scripts/build-ui.sh
+        env:
+          MOBILE_API_URL: ${{ env.MOBILE_API_URL }}
+      - name: build debug .app (M08)
+        working-directory: mobile
+        run: bun run tauri ios build --debug
+      - name: boot simulator
+        run: |
+          xcrun simctl list devices available | grep -q iPhone || {
+            echo "::error::O1: no iPhone simulator available on this runner"; exit 1; }
+          xcrun simctl boot "iPhone 16" || true
+          xcrun simctl bootstatus "iPhone 16" -b
+      - name: install + launch smoke (M08)
+        run: |
+          app=$(find mobile/gen/ios -name "*.app" -path "*debug*" | head -1)
+          if [ -z "$app" ]; then
+            echo "::error::M08: no debug .app found under mobile/gen/ios"; exit 1
+          fi
+          xcrun simctl install booted "$app"
+          xcrun simctl launch --console-pty booted dev.stellarc.mobile > launch.log 2>&1 &
+          sleep 12
+          grep -q "service.name=stellarc-mobile event=startup" launch.log || {
+            echo "::error::M08: startup line missing"; cat launch.log; exit 1; }
+          grep -q "event=window-created" launch.log || {
+            echo "::error::M08: window-created missing"; exit 1; }
+          xcrun simctl terminate booted dev.stellarc.mobile || true
+          echo "M08 OK"
+      - name: install Maestro
+        run: brew install maestro
+      - name: Maestro native smoke (M10 iOS)
+        working-directory: mobile/e2e/maestro
+        env:
+          STELLARC_E2E_EMAIL: ${{ env.STELLARC_E2E_EMAIL }}
+          STELLARC_E2E_PASSWORD: ${{ env.STELLARC_E2E_PASSWORD }}
+        run: |
+          maestro test --config config.mobile.yaml \
+            flows/mobile-sign-in.yaml \
+            flows/mobile-sheet-nav.yaml \
+            flows/mobile-board.yaml \
+            flows/mobile-ticket-nav.yaml
+      - name: upload .app + evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellarc-mobile-ios-app
+          path: |
+            mobile/gen/ios/**/*.app
+            mobile/e2e/maestro/screenshots/
+          if-no-files-found: ignore
+      - name: upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellarc-mobile-ios-evidence
+          if-no-files-found: error
+          path: test-results/maestro/

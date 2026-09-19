@@ -16,6 +16,8 @@
 		"build": "turbo run build",
 		"desktop:build": "DESKTOP_API_URL=${DESKTOP_API_URL:-https://api.stellarc.dev} bash desktop/scripts/build-ui.sh && bun run --cwd desktop tauri build -c target/tauri.conf.build.json",
 		"desktop:check": "cargo check --manifest-path desktop/Cargo.toml --all-targets",
+		"mobile:build": "MOBILE_API_URL=${MOBILE_API_URL:-https://api.stellarc.dev} bash mobile/scripts/build-ui.sh && bun run --cwd mobile tauri build -c target/tauri.conf.build.json",
+		"mobile:check": "cargo check --manifest-path mobile/Cargo.toml --all-targets",
 		"e2e": "playwright test",
 		"e2e:screens": "playwright test frozen.spec.ts",
 		"otel:up": "docker compose -f docker-compose.otel.yml up -d"
