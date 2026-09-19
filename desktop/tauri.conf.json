@@ -10,7 +10,7 @@
 	"app": {
 		"windows": [],
 		"security": {
-			"csp": "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__"
+			"csp": "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__; img-src 'self' __STELLARC_IMG_ORIGIN__ data:; style-src 'self' 'unsafe-inline'"
 		}
 	},
 	"bundle": {

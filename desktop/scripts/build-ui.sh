@@ -39,7 +39,15 @@ EOF
 # in the source file is never consumed, so the next build with a different
 # origin resolves cleanly (idempotent).
 mkdir -p "$here/target"
-sed "s#__STELLARC_API_ORIGIN__#${DESKTOP_API_URL} ${ws_origin}#g" \
+# Rework defects 1-2: also resolve the img-src origin placeholder so
+# API-served avatars (absolute VITE_API_URL <img src>) render inside the
+# shell; style-src 'unsafe-inline' is already literal in the source conf
+# for the frozen bundle's runtime <style> injection (TipTap, input-otp).
+# Rework defects 1-2: also resolve the img-src origin placeholder so
+# API-served avatars (absolute VITE_API_URL <img src>) render inside the
+# shell; style-src 'unsafe-inline' is already literal in the source conf
+# for the frozen bundle's runtime <style> injection (TipTap, input-otp).
+sed "s#__STELLARC_API_ORIGIN__#${DESKTOP_API_URL} ${ws_origin}#g; s#__STELLARC_IMG_ORIGIN__#${DESKTOP_API_URL}#g" \
 	"$here/tauri.conf.json" > "$here/target/tauri.conf.build.json"
 
 echo "baked VITE_API_URL=${DESKTOP_API_URL} into apps/stellarc-ui/dist; CSP resolved into desktop/target/tauri.conf.build.json"

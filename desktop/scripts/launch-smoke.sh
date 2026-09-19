@@ -90,7 +90,25 @@ if [[ "$created" != 1 ]]; then
 	exit 1
 fi
 
-if ! grep -q "event=health-probe" "$log"; then
+# Rework defect 4: the probe runs off-thread with a 2 s timeout, so a
+# slow-but-alive origin can log AFTER window-created - poll with the same
+# deadline pattern as window-created instead of grepping once.
+deadline=$((SECONDS + 15))
+probed=0
+while ((SECONDS < deadline)); do
+	if grep -q "event=health-probe" "$log"; then
+		probed=1
+		break
+	fi
+	if ! kill -0 "$app_pid" 2>/dev/null; then
+		echo "FAIL: app pid $app_pid died before the health-probe line" >&2
+		cat "$log" >&2
+		exit 1
+	fi
+	sleep 1
+done
+
+if [[ "$probed" != 1 ]]; then
 	echo "FAIL: health-probe line never appeared" >&2
 	cat "$log" >&2
 	exit 1

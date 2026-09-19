@@ -24,6 +24,21 @@ interface TauriConf {
 
 const BUNDLE_TARGETS = ["msi", "nsis", "deb", "appimage", "dmg"] as const;
 
+// Parse a CSP string into directive name -> source-expression list so tests
+// can assert policy per directive (rework defects 1-2).
+function parseCspDirectives(policy: string): Map<string, string[]> {
+	return new Map(
+		policy
+			.split(";")
+			.map((directive) => directive.trim())
+			.filter((directive) => directive.length > 0)
+			.map((directive) => {
+				const [name, ...values] = directive.split(/\s+/);
+				return [name, values] as const;
+			}),
+	);
+}
+
 function readTauriConf(): TauriConf {
 	return JSON.parse(
 		readFileSync(join(ROOT, "desktop/tauri.conf.json"), "utf8"),
@@ -82,10 +97,31 @@ test("T02 desktop slice leaves the frozen UI tree untouched", () => {
 	// checkout makes this exactly the PR-range diff (review-3 D4 — `git diff
 	// HEAD` is empty there), while an uncommitted local UI edit still turns
 	// the guard red (spec T02 sabotage).
-	const mb = spawnSync("git", ["merge-base", "origin/dev", "HEAD"], {
+	// Rework defect 3: actions/checkout@v4's default depth-1 checkout (the
+	// foundation CI job) has no origin/dev ref - fetch it on demand before
+	// merge-base, keeping the hard fail when the fetch also fails.
+	let mb = spawnSync("git", ["merge-base", "origin/dev", "HEAD"], {
 		cwd: ROOT,
 		encoding: "utf8",
 	});
+	if (mb.status !== 0) {
+		const fetch = spawnSync(
+			"git",
+			["fetch", "--deepen=100", "origin", "dev:refs/remotes/origin/dev"],
+			{
+				cwd: ROOT,
+				encoding: "utf8",
+			},
+		);
+		expect(
+			fetch.status,
+			`origin/dev absent (depth-1 checkout) and git fetch origin dev failed: ${fetch.stderr}`,
+		).toBe(0);
+		mb = spawnSync("git", ["merge-base", "origin/dev", "HEAD"], {
+			cwd: ROOT,
+			encoding: "utf8",
+		});
+	}
 	expect(mb.status, mb.stderr).toBe(0);
 	const result = spawnSync(
 		"git",
@@ -125,7 +161,7 @@ function makeDesktopSandbox(): string {
 			identifier: "dev.stellarc.desktop",
 			app: {
 				security: {
-					csp: "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__",
+					csp: "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__; img-src 'self' __STELLARC_IMG_ORIGIN__ data:; style-src 'self' 'unsafe-inline'",
 				},
 			},
 		}),
@@ -201,6 +237,24 @@ test("T03 build-ui.sh bakes DESKTOP_API_URL into a manifest, never the localhost
 		const source = readFileSync(join(root, "desktop/tauri.conf.json"), "utf8");
 		expect(source).toContain("__STELLARC_API_ORIGIN__");
 		expect(source).not.toContain("https://api.example.com");
+
+		// Rework defects 1-2: the resolved CSP must carry the runtime
+		// directives the frozen UI needs - img-src bakes ONLY the API origin
+		// (API-served avatars render as absolute VITE_API_URL <img src>,
+		// never the ws derivation) and style-src allows the runtime <style>
+		// injection the frozen bundle performs (TipTap editor, input-otp).
+		const resolvedPolicy =
+			(JSON.parse(resolved) as TauriConf).app?.security?.csp ?? "";
+		const resolvedDirectives = parseCspDirectives(resolvedPolicy);
+		expect(resolvedDirectives.get("img-src")).toEqual([
+			"'self'",
+			"https://api.example.com",
+			"data:",
+		]);
+		expect(resolvedDirectives.get("style-src")).toEqual([
+			"'self'",
+			"'unsafe-inline'",
+		]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -266,7 +320,7 @@ test("T06 desktop Maestro smoke flow parses with the required steps", () => {
 	).toContain("--config config.yaml");
 });
 
-test("T10 CSP allows self + exactly the API origin and nothing else; null rejected", () => {
+test("T10 CSP: self + exact API origin, img-src avatars, style-src inline; scripts stay strict", () => {
 	const conf = readTauriConf();
 	const csp = conf.app?.security?.csp;
 	expect(csp).not.toBeNull();
@@ -277,5 +331,36 @@ test("T10 CSP allows self + exactly the API origin and nothing else; null reject
 	// origin, so the shipped webview allows nothing beyond that origin.
 	expect(policy).toContain("__STELLARC_API_ORIGIN__");
 	expect(policy).not.toContain("*");
-	expect(policy).not.toMatch(/unsafe-eval|unsafe-inline/);
+	// Rework defects 1-2: assert policy per directive.
+	const directives = parseCspDirectives(policy);
+	// connect-src: self + the origin placeholder (http+ws API origin).
+	expect(directives.get("connect-src")).toEqual([
+		"'self'",
+		"__STELLARC_API_ORIGIN__",
+	]);
+	// img-src: self + the baked API origin + data: - the frozen UI rewrites
+	// /api/... avatar paths to absolute VITE_API_URL URLs and renders them
+	// as <img src>; without this directive they fall back to default-src
+	// and every API-served avatar is blocked inside the shell (defect 1).
+	expect(directives.get("img-src")).toEqual([
+		"'self'",
+		"__STELLARC_IMG_ORIGIN__",
+		"data:",
+	]);
+	// style-src: 'unsafe-inline' sanctioned HERE ONLY - the frozen bundle
+	// injects <style> elements at runtime (TipTap comment editor,
+	// input-otp); without it WebKit drops their contents (defect 2).
+	// script-src is deliberately absent -> falls back to default-src
+	// 'self' (strict); Tauri nonces the index.html inline script at
+	// build time regardless.
+	expect(directives.get("style-src")).toEqual(["'self'", "'unsafe-inline'"]);
+	for (const [name, values] of directives) {
+		if (name === "style-src") continue;
+		expect(
+			values.filter(
+				(v) => v.includes("unsafe-inline") || v.includes("unsafe-eval"),
+			),
+			`${name} must stay strict (no unsafe-inline/unsafe-eval)`,
+		).toEqual([]);
+	}
 });
