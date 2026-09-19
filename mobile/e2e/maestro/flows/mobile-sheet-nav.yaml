@@ -1,0 +1,34 @@
+appId: dev.stellarc.mobile
+name: Mobile Sheet sidebar navigation
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Email"
+    timeout: 15000
+# Sign in (labels resolve to the inputs via label correlation).
+- tapOn: "Email"
+- inputText:
+    text: ${STELLARC_E2E_EMAIL}
+- tapOn: "Password"
+- inputText:
+    text: ${STELLARC_E2E_PASSWORD}
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Foundation Board"
+    timeout: 20000
+- assertVisible: "Foundation Lab"
+# Sheet sidebar opens below the 768px boundary via the real toggle...
+- tapOn: "Toggle sidebar"
+- extendedWaitUntil:
+    visible: "Inbox"
+    timeout: 10000
+- takeScreenshot:
+    path: screenshots/mobile-sheet-open
+# ...and closes via a real tap on the backdrop (outside the sheet).
+- tapOn:
+    point: "94%,50%"
+- extendedWaitUntil:
+    notVisible: "Inbox"
+    timeout: 10000
+- takeScreenshot:
+    path: screenshots/mobile-sheet-closed

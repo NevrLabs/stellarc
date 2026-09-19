@@ -1,0 +1,47 @@
+{
+	"source": "apps/stellarc-ui/e2e/responsive.spec.ts (Playwright mobile projects)",
+	"generatedBy": "STL-23 M11",
+	"notes": [
+		"One shared landmark set consumed by both the web Playwright suite and the native Maestro flows; drift between the two fails tests/unit/mobile.test.ts (M11).",
+		"playwrightSelector strings must appear literally in responsive.spec.ts; maestroSelector strings must appear literally in the native flows.",
+		"Structural parity governs (spec SS1 premise 2, ADR 0009 two-kinds rule): toHaveScreenshot baselines stay web-only; Maestro takeScreenshot is evidence artifact, never an assertion target."
+	],
+	"landmarks": [
+		{
+			"id": "sign-in-email",
+			"surface": "sign-in",
+			"playwrightSelector": "page.getByRole(\"textbox\", { name: \"Email\", exact: true })",
+			"maestroSelector": "Email"
+		},
+		{
+			"id": "sign-in-button",
+			"surface": "sign-in",
+			"playwrightSelector": "page.getByRole(\"button\", { name: \"Sign In\", exact: true })",
+			"maestroSelector": "Sign In"
+		},
+		{
+			"id": "sheet-trigger",
+			"surface": "sheet-sidebar",
+			"playwrightSelector": "getByTestId(\"mobile-sidebar-toggle\")",
+			"maestroSelector": "Toggle sidebar"
+		},
+		{
+			"id": "mobile-sheet",
+			"surface": "sheet-sidebar",
+			"playwrightSelector": "[data-slot=\"sidebar\"][data-mobile=\"true\"]",
+			"maestroSelector": "Foundation Lab"
+		},
+		{
+			"id": "desktop-rail",
+			"surface": "sheet-sidebar",
+			"playwrightSelector": "[data-slot=\"sidebar-container\"]",
+			"maestroSelector": "Inbox"
+		},
+		{
+			"id": "board-cell",
+			"surface": "board",
+			"playwrightSelector": "getByRole(\"cell\", { name: \"Foundation Board\", exact: true })",
+			"maestroSelector": "Foundation Board"
+		}
+	]
+}
