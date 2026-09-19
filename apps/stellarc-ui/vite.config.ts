@@ -77,17 +77,17 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ["kaneo.entelechia.cloud", "kaneo.k3s.home"],
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:1337",
-        changeOrigin: true,
-        ws: true,
-      },
+      // Same env override as the dev server: work.spec.ts points this at the
+      // disposable e2e API (STELLARC_PROXY_API). /orgs proxies the shape
+      // endpoint the live collections stream from.
+      "/api": { target: proxyTarget, changeOrigin: true, ws: true },
+      "/orgs": { target: proxyTarget, changeOrigin: true, ws: true },
       "/.well-known/oauth-protected-resource/api/mcp": {
-        target: "http://127.0.0.1:1337",
+        target: proxyTarget,
         changeOrigin: true,
       },
       "/.well-known/oauth-authorization-server/api": {
-        target: "http://127.0.0.1:1337",
+        target: proxyTarget,
         changeOrigin: true,
       },
     },
