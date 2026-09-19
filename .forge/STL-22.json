@@ -360,7 +360,56 @@
    "stage": "spec",
    "status": "pass",
    "note": "re-armed after rework"
+  },
+  {
+   "stage": "implement",
+   "status": "note",
+   "at": "2026-09-19T04:36:53+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "implement",
+   "status": "partial",
+   "at": "2026-09-19T04:37:01+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "branch": "forge/stl-22",
+   "pr": 58,
+   "pid": 2365321,
+   "agent": "fd6bd79a-fe93-4dfb-b412-6b6734ef5279",
+   "head": "4136c9de",
+   "reason": "orphan running: watcher pid 2365321 dead, agent idle; reconciled by driver \u2192 partial"
+  },
+  {
+   "stage": "implement",
+   "status": "pass",
+   "at": "2026-09-19T05:07:36+00:00",
+   "agent": "fd6bd79a-fe93-4dfb-b412-6b6734ef5279",
+   "cycle": 8,
+   "pr": 58,
+   "pr_url": "https://github.com/NevrLabs/stellarc/pull/58",
+   "branch": "forge/stl-22"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-19T05:09:12+00:00",
+   "note": "preflight skip hermes:accept_edits/ocg/deepseek-v4-pro: HTTP 503: {\"error\":{\"message\":\"[opencode-go/deepseek-v4-pro] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"GoUsageLimitError\\\",\\\"message\\"
+  },
+  {
+   "stage": "review",
+   "status": "note",
+   "at": "2026-09-19T05:09:17+00:00",
+   "note": "same-family reviewer hermes:accept_edits/glm/glm-5.3 used: cross-family roster quota-dead"
+  },
+  {
+   "stage": "review",
+   "status": "running",
+   "at": "2026-09-19T05:09:18+00:00",
+   "cycle": 8,
+   "model": "hermes:accept_edits/glm/glm-5.3",
+   "pid": 2375633
   }
  ],
- "cycle": 7
+ "cycle": 8
 }
