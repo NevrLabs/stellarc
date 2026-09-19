@@ -25,20 +25,39 @@ export type Authorize = (
 // HttpApiBuilder.toWebHandler's middleware contract.
 export const requestTelemetry = (
 	httpApp: HttpApp.Default<never, never>,
+	// Optional route classifier: maps a concrete pathname to the
+	// parameterized route template (e.g. /api/work/boards/:id). Work paths
+	// supply their own classifier (§3 routes); the foundation default
+	// unchanged.
+	routeOf: (pathname: string) => string = (pathname) =>
+		pathname === "/health"
+			? "/health"
+			: /^\/orgs\/[^/]+\/v1\/shape$/.test(pathname)
+				? "/orgs/:org/v1/shape"
+				: "unmatched",
+	orgOf: (
+		pathname: string,
+		headers: Record<string, string | string[] | undefined>,
+	) => string | undefined = (pathname) => {
+		const m = /^\/orgs\/([^/]+)\//.exec(pathname);
+		return m ? decodeURIComponent(m[1]) : undefined;
+	},
+	// Work routes derive the actor from the bearer token grammar instead of a
+	// response header (their handlers return plain encoded values).
+	principalOf?: (
+		pathname: string,
+		headers: Record<string, string | string[] | undefined>,
+	) => string | undefined,
 ): HttpApp.Default<never, never> =>
 	Effect.fn("stellarc.http.request")(function* () {
 		const request = yield* HttpServerRequest.HttpServerRequest;
 		const pathname = new URL(request.url, "http://localhost").pathname;
-		const orgMatch = /^\/orgs\/([^/]+)\//.exec(pathname);
-		const shape = /^\/orgs\/[^/]+\/v1\/shape$/.test(pathname);
+		const route = routeOf(pathname);
+		const org = orgOf(pathname, request.headers);
 		yield* Effect.annotateCurrentSpan({
-			"http.route": shape
-				? "/orgs/:org/v1/shape"
-				: pathname === "/health"
-					? "/health"
-					: "unmatched",
+			"http.route": route,
 			"http.request.method": request.method,
-			...(orgMatch ? { "stellarc.org": decodeURIComponent(orgMatch[1]) } : {}),
+			...(org ? { "stellarc.org": org } : {}),
 		});
 		const response = yield* httpApp;
 		yield* Effect.annotateCurrentSpan(
@@ -51,6 +70,15 @@ export const requestTelemetry = (
 		const principal = (response.headers as Record<string, string>)[
 			"x-stellarc-principal"
 		];
+		if (response.status < 400 && !principal && principalOf) {
+			const derived = principalOf(pathname, request.headers);
+			if (derived) {
+				yield* Effect.annotateCurrentSpan({
+					"stellarc.principal.kind": "actor",
+					"stellarc.principal.id": derived,
+				});
+			}
+		}
 		if (response.status < 400 && principal)
 			yield* Effect.annotateCurrentSpan({
 				"stellarc.principal.kind": "actor",

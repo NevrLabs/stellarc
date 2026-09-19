@@ -3,16 +3,45 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useAuth } from "@/components/providers/auth-provider/hooks/use-auth";
 import getTasks from "@/fetchers/task/get-tasks";
+import useActiveOrganization from "@/hooks/queries/organization/use-active-organization";
 import { tasksQueryOptions } from "@/lib/navigation-prefetch";
 import { reconcileTaskDetails } from "@/lib/reconcile-task-details";
+import { useBoardWithTasksLive } from "@/lib/work-live-store";
 import type { BoardWithTasks } from "@/types/board";
 
+/**
+ * STL-16 §4/§6 (T28/T30/T32): the board/list/backlog views read LIVE
+ * collections through the shape engine — REST stays as bootstrap/compat.
+ * The hook's public shape ({data, isPlaceholderData}) is unchanged so the
+ * frozen screens and their baselines stay byte-compatible.
+ */
 export function useGetTasks(boardId: string) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { data: organization } = useActiveOrganization();
+  const { board } = useBoardWithTasksLive(
+    organization?.id ?? "",
+    boardId,
+    user?.id,
+  );
+  // Live rows land in the react-query cache under the same ["tasks", boardId]
+  // key so reconcileTaskDetails and every cache consumer keep working.
+  useEffect(() => {
+    if (!board) return;
+    // Structural cast: the live view-model mirrors the fork BoardWithTasks
+    // shape field-for-field (tests/unit/work-view-model.test.ts pins the map).
+    queryClient.setQueryData<BoardWithTasks>(
+      ["tasks", boardId],
+      board as unknown as BoardWithTasks,
+    );
+  }, [board, boardId, queryClient]);
   return useQuery({
     ...tasksQueryOptions(boardId),
     queryFn: async () => {
+      if (board) return board as unknown as BoardWithTasks;
       const previous = queryClient.getQueryData<BoardWithTasks>([
         "tasks",
         boardId,
@@ -22,12 +51,7 @@ export function useGetTasks(boardId: string) {
       return current;
     },
     enabled: !!boardId,
-    // Board switches render the previous board's rows until the new ones land,
-    // instead of flashing the empty state. `isPlaceholderData` tells the view
-    // it's showing stale rows so it can dim them.
     placeholderData: keepPreviousData,
-    // A board's task list rarely changes between two clicks; serving it from
-    // cache makes revisiting a board instant while the refetch happens behind.
     staleTime: 5 * 60_000,
     gcTime: 60 * 60_000,
   });

@@ -554,7 +554,7 @@ export function NavBoards() {
         isPending={isArchivePending}
         onClose={() => setBoardToArchive(null)}
         onArchive={async (board) => {
-          await archiveBoard({ id: board.id });
+          await archiveBoard(board.id);
           toast.success("Board archived");
           setBoardToArchive(null);
           if (currentBoardSlug === board.id)

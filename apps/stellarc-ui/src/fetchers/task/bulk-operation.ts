@@ -1,41 +1,67 @@
-import { client } from "@kaneo/libs";
+import { workFetch } from "@/lib/work-client";
 
-type BulkOperationType =
-  | "updateStatus"
-  | "updatePriority"
-  | "updateAssignee"
-  | "updateTeam"
-  | "delete"
-  | "addLabel"
-  | "removeLabel"
-  | "updateDueDate"
-  /**
-   * #226: archival is orthogonal to status. Bulk archive used to be sent as
-   * `updateStatus: "archived"`, which now fails validation because "archived"
-   * is not a status. These operations write `archived_at` and take no value.
-   */
-  | "archive"
-  | "unarchive";
-
-async function bulkOperation({
+/** Fork bulk grammar ({taskIds, operation, value}) → work API calls. */
+export default async function bulkOperation({
   taskIds,
   operation,
   value,
 }: {
   taskIds: string[];
-  operation: BulkOperationType;
-  value?: string | null;
+  operation:
+    | "archive"
+    | "updateStatus"
+    | "updateAssignee"
+    | "updateTeam"
+    | "updatePriority"
+    | "addLabel"
+    | "updateDueDate";
+  value?: string | boolean | null;
 }) {
-  const response = await client.task.bulk.$patch({
-    json: { taskIds, operation, value },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error);
+  // archive is not a patch member: per-ticket archive PUTs (#226 semantics).
+  if (operation === "archive") {
+    const results = await Promise.all(
+      taskIds.map((id) =>
+        workFetch<{ data: { id: string }; txid: number }>(
+          `/tickets/${id}/archive`,
+          { method: "PUT", json: { archived: value !== false } },
+        ),
+      ),
+    );
+    return results.map((r) => r.data);
   }
-
-  return response.json();
+  // addLabel is a label-attach call per ticket (work labels are task-scoped
+  // rows); updateDueDate falls back to per-ticket PATCH until the bulk
+  // envelope carries dates (work patch union: status/priority/assignee/team).
+  if (operation === "addLabel") {
+    const results = await Promise.all(
+      taskIds.map((id) =>
+        workFetch<{ data: { id: string }; txid: number }>(
+          `/labels/${value}/task`,
+          { method: "PUT", json: { taskId: id } },
+        ),
+      ),
+    );
+    return results.map((r) => r.data);
+  }
+  if (operation === "updateDueDate") {
+    const results = await Promise.all(
+      taskIds.map((id) =>
+        workFetch<{ data: { id: string }; txid: number }>(`/tickets/${id}`, {
+          method: "PATCH",
+          json: { dueDate: value ?? null },
+        }),
+      ),
+    );
+    return results.map((r) => r.data);
+  }
+  const patch: Record<string, unknown> = {};
+  if (operation === "updateStatus") patch.status = value;
+  if (operation === "updateAssignee") patch.assigneeId = value ?? null;
+  if (operation === "updateTeam") patch.teamId = value ?? null;
+  if (operation === "updatePriority") patch.priority = value;
+  const envelope = await workFetch<{ data: { ids: string[] }; txid: number }>(
+    "/tickets/bulk",
+    { method: "PATCH", json: { ids: taskIds, patch } },
+  );
+  return envelope.data;
 }
-
-export default bulkOperation;
