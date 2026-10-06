@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import PageTitle from "@/components/page-title";
 import ProjectHeader from "@/components/project/project-header";
 import ProjectOverview from "@/components/project/project-overview";
+import { ProjectPropertiesForm } from "@/components/project/project-properties-form";
 import ProjectTabs from "@/components/project/project-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectSlug } from "@/hooks/use-project-slug";
@@ -66,6 +67,9 @@ export function ProjectDetailRouteComponent() {
           organizationSlug={organizationSlug}
           project={project}
         />
+        {/* §6 overview tab: properties form (incl. orgPrivilege selector and
+            the rename-slug surface, PUT /project/:id/slug). */}
+        <ProjectPropertiesForm project={project} />
       </ProjectHeader>
     </>
   );

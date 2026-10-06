@@ -17,6 +17,10 @@ export function invalidateProjectQueries(
 ): void {
   queryClient.invalidateQueries({ queryKey: ["projects"] });
   queryClient.invalidateQueries({ queryKey: ["project"] });
+  // Slug-resolution cache: after a rename the OLD slug resolves as an alias
+  // (usedSlugAlias=true) and the detail route replaces to the canonical slug.
+  // Without this the route keeps serving the pre-rename canonical resolution.
+  queryClient.invalidateQueries({ queryKey: ["project-resolve"] });
   queryClient.invalidateQueries({ queryKey: ["project-tickets"] });
   queryClient.invalidateQueries({ queryKey: ["project-milestones"] });
   if (projectId) {

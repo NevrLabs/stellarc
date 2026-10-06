@@ -11,5 +11,8 @@ export default async function deleteProjectUpdate({
     param: { id, updateId },
   });
   if (!response.ok) throw new Error(await response.text());
-  return response.json();
+  // stellarc wraps mutations in Mutation<T> = {data, txid}; the frozen
+  // fork client reads the bare resource — unwrap at the adapter seam.
+  const payload = await response.json();
+  return payload.data;
 }

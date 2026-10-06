@@ -11,7 +11,10 @@ async function removeProjectTicket({
     param: { id, taskId },
   });
   if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<{ ok: boolean }>;
+  // stellarc wraps mutations in Mutation<T> = {data, txid}; the frozen
+  // fork client reads the bare resource — unwrap at the adapter seam.
+  const payload = await response.json();
+  return payload.data;
 }
 
 export default removeProjectTicket;
