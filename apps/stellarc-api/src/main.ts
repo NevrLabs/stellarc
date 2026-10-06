@@ -1,7 +1,11 @@
 import { BunRuntime } from "@effect/platform-bun";
 import { PgClient } from "@effect/sql-pg";
-import { Effect, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
 import postgres from "postgres";
+import {
+	agentsHttp,
+	staticOperatorAuth,
+} from "../../../packages/agents/src/index";
 import { SqlLive } from "../../../packages/db/src/index";
 import { Authz, AuthzLive } from "../../../packages/domain/src/authz";
 import { ShapeEngine } from "../../../packages/sync/src/index";
@@ -24,6 +28,8 @@ export const api = Effect.gen(function* () {
 		),
 		(sql) => Effect.promise(() => sql.end()),
 	);
+	const telemetry = TelemetryLive("stellarc-api");
+	const memoMap = yield* Layer.makeMemoMap;
 	const http = yield* Effect.acquireRelease(
 		Effect.sync(() =>
 			foundationHandler(
@@ -31,17 +37,32 @@ export const api = Effect.gen(function* () {
 				new ShapeEngine(sql),
 				authz.authorize,
 				pg`SELECT 1`,
-				TelemetryLive("stellarc-api"),
+				telemetry,
+				memoMap,
 			),
 		),
 		(http) => Effect.promise(() => http.dispose()),
+	);
+	const agents = yield* Effect.acquireRelease(
+		Effect.sync(() =>
+			agentsHttp(sql, {
+				operatorAuth: staticOperatorAuth(process.env.STELLARC_OPERATOR_TOKEN),
+				telemetry,
+				memoMap,
+			}),
+		),
+		(agents) => Effect.promise(() => agents.dispose()),
 	);
 	yield* Effect.acquireRelease(
 		Effect.sync(() =>
 			Bun.serve({
 				port: config.port,
-				idleTimeout: 30,
-				fetch: (request) => http.handler(request),
+				// Node claims long-poll up to 30s.
+				idleTimeout: 45,
+				fetch: (request) =>
+					agents.matches(request)
+						? agents.handler(request)
+						: http.handler(request),
 			}),
 		),
 		(server) => Effect.sync(() => server.stop(true)),

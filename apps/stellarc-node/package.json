@@ -1,0 +1,11 @@
+{
+	"name": "@stellarc/node",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"bin": { "stellarc-node": "src/main.ts" },
+	"scripts": {
+		"build": "bun build src/main.ts --target bun --outdir dist",
+		"start": "bun src/main.ts"
+	}
+}

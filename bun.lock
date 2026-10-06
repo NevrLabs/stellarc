@@ -5,6 +5,7 @@
     "": {
       "name": "stellarc",
       "dependencies": {
+        "@agentclientprotocol/sdk": "1.7.0",
         "@effect/opentelemetry": "0.64.0",
         "@effect/platform": "0.97.0",
         "@effect/platform-bun": "0.90.0",
@@ -176,6 +177,8 @@
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
+
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@1.7.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-ZORuxsuEnLjRly7t6Ad7zAsWitjWsyprswyPUHz/yycPb+tTm3DGa8XheaHhRXqX8LS9snuxaYavXSRA50TlHw=="],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.3.0", "", {}, "sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA=="],
 

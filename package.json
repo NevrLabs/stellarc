@@ -21,6 +21,7 @@
 		"otel:up": "docker compose -f docker-compose.otel.yml up -d"
 	},
 	"dependencies": {
+		"@agentclientprotocol/sdk": "1.7.0",
 		"@effect/opentelemetry": "0.64.0",
 		"@effect/platform": "0.97.0",
 		"@effect/platform-bun": "0.90.0",
