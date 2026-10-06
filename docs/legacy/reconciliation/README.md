@@ -1,0 +1,182 @@
+# Legacy reconciliation canon — STL-27 (T13)
+
+Canonical SQL for reconciliation queries #1–#14, plus the harness that restores a
+committed pg_dump fixture pair into a disposable Postgres and runs all 14 queries
+with a per-query negative-control sabotage corpus.
+
+## Purpose and modes
+
+The harness has two modes:
+
+- **canon-proof** — a synthetic golden source/destination pair (committed pg_dumps under
+  `tests/fixtures/reconciliation/`) proves each query's *detection logic*. Verdicts are
+  labelled `canon-proof` and are **never** reported as wave reconciliation PASS.
+- **live** — the legacy snapshot IS restored into the destination cluster, the merged
+  identity importer is detected (`packages/domain/src/identity/import.ts`,
+  `importLegacyIdentity`) and invoked against it, and only then do the queries reconcile.
+  At this ticket's merge point live mode covers identity only: with no merged importer the
+  identity queries (#1–#3, #13, #14) report `blocked` with a reason naming STL-15, and the
+  remaining slices report `blocked` with their owner. Canon-proof data is never relabelled
+  as live green. Live mode is the only source of reconciliation PASS for the wave; STL-21
+  owns the final all-14 production-snapshot gate.
+
+## Provenance and supersession
+
+The wave plan (`docs/plans/2026-09-08-kaneo-parity-waves.md`) assigned #1–#12 to slices with
+one-line semantics only, and STL-14/15/16/17/18/20/21 all recorded "canonical inventory
+missing — obtain from orchestrator, never invent". No legacy inventory document existed in
+the checkout. **T13 is the obtaining mechanism**: this canon authors the query definitions
+from the recorded per-slice obligations and thereby **supersedes** the missing-inventory
+blockers in STL-15 §7 T26–T28, STL-16 §7 T35–T37, STL-17 T26, STL-18 T10, STL-20 §7,
+STL-21 T17. Those suites unblock by executing the canon committed here.
+
+Per-query provenance:
+
+| # | File | Owner | Semantics source | Precondition (destination side) |
+|---|---|---|---|---|
+| 1 | `01-identity-core.sql` | STL-15 | STL-15 §2/§7 T23 | user/account/organization/organization_member/organization_role |
+| 2 | `02-identity-team.sql` | STL-15 | STL-15 §2 | team/team_member/invitation/user_avatar |
+| 3 | `03-apikey.sql` | STL-15 | STL-15 §2 | apikey |
+| 4 | `04-board.sql` | STL-16 | STL-16 §1 | board, board_key_alias |
+| 5 | `05-ticket.sql` | STL-16 | STL-16 (task→ticket, PREFIX-seq, description_history byte-exact) | ticket |
+| 6 | `06-status.sql` | STL-16 | STL-16 §1 (SET-NULL orphan pattern) | ticket, status |
+| 7 | `07-relations.sql` | STL-19 | wave plan T5 (provisional — rebind on STL-19 merge) | entity_link, milestone |
+| 8 | `08-activity.sql` | STL-17 | STL-17 (comment store + domain events) | comment, event, activity_import |
+| 9 | `09-asset.sql` | STL-20 | STL-20 (asset ↔ S3 bijection) | asset |
+| 10 | `10-repository.sql` | STL-18 | STL-18 | repo/repo_issue/repo_pull_request/installation/grant/integration |
+| 11 | `11-grants.sql` | STL-20 | STL-20 (same (principal, resource)) | resource_grant |
+| 12 | `12-isolation.sql` | STL-20 | STL-20 (cross-org isolation) | resource_grant, board, repo, asset, ticket |
+| 13 | `13-id-bijection.sql` | STL-27 | this ticket + STL-15 identity_import ledger | identity_import + destination identity tables |
+| 14 | `14-apikey-hash-audit.sql` | STL-27 | this ticket + fork verify-api-key.ts @2504e645 | apikey, principal, event, org_event_counter |
+
+### Ledger contract precondition
+
+Canon #13 reads the `<slice>_import` ledger family — as merged:
+`identity_import(source_id, table_name, source_pk, digest)` and
+`activity_import(+destination_id, destination_org, destination_seq)`. Identity importers
+preserve source PKs verbatim (STL-15 §2), so #13 joins `ledger.source_pk → destination PK`.
+`destination_id` is required only where PK preservation does not hold. **If a merged ledger
+neither preserves PKs nor records `destination_id`, the harness reports `blocked` (never green).**
+
+### Event contract: `identity:apikey-reissued` (STL-15 deliverable)
+
+Defined by this ticket (§2), emitted by STL-15; query #14's fallback arm requires it.
+
+| Field | Value |
+|---|---|
+| `plugin_type` | `identity:apikey-reissued` |
+| pluginId | `identity` |
+| `schema_version` | `1` |
+| payload | `{ id, principalId, reason: "legacy-reissue" }` — `id` = re-issued apikey id, `principalId` = acting/owning principal, `reason` fixed |
+| scope | org-scoped: appended to `event` under the owning org's `org_event_counter` sequence |
+| visibility | not browser-visible (mirrors `identity:grant-upserted` privacy rules) |
+
+Contract: for every legacy apikey whose stored hash is NOT preserved verbatim,
+there is exactly one such event; a preserved hash must have none (never neither,
+never both). Until STL-15 implements the emitter, #14's re-issue sabotage variant
+reports blocked-with-reason rather than green.
+
+### Declared HTTP arms (spec §5 rows 9 and 12)
+
+Queries #9 (asset rows ↔ S3 objects bijection) and #12 (cross-org isolation)
+each have a second, HTTP-side arm the SQL cannot prove: **every asset URL
+resolves 200** and the **cross-org HTTP leak probe**. These arms are DECLARED
+in the harness hook registry (`httpArmRegistry` / `registerHttpArm` in
+`tools/reconciliation/run.ts`) and owned by STL-20:
+
+| # | Arm | Owner | State |
+|---|---|---|---|
+| 9 | every asset URL resolves 200 against the object store | STL-20 | declared, hook unregistered |
+| 12 | cross-org isolation probe (no principal-readable row, grant, or shape leaks across orgs over HTTP) | STL-20 | declared, hook unregistered |
+
+Semantics:
+
+- **canon-proof mode** records the arm state on the query result
+  (`httpArm: { state: "declared", owner: "STL-20", … }`) — the missing arm is
+  visible in every report, never silent, and never fakes or suppresses a
+  verdict.
+- **live mode** BLOCKS #9/#12 with a reason naming STL-20 until an
+  implementation is registered: a live green over an unprobed HTTP surface
+  would be exactly the canon-proof/live conflation the spec forbids.
+- **A registered hook is load-bearing in both modes**: a red hook verdict
+  turns the query red even when the SQL side found zero violations, and a
+  throwing hook fails CLOSED (red). STL-20 registers its probe via
+  `registerHttpArm(queryId, hook)`; pass `null` to unregister.
+
+### External legacy inventory caveat (not a blocker)
+
+If a legacy inventory document exists outside this repo, the orchestrator must diff it
+against this canon before merge. Provenance per query is recorded in the query headers.
+
+## File layout
+
+```
+docs/legacy/reconciliation/
+  README.md
+  queries/01-…14-….sql        # canonical, violation-rows-returning (empty = green)
+tools/reconciliation/
+  canon.ts                    # hash algorithm, fixture DDL/seed, corpus loader/validator
+  make-legacy-fixture.ts      # -> tests/fixtures/reconciliation/legacy-snapshot.pgdump
+  make-destination-golden.ts  # -> tests/fixtures/reconciliation/stellarc-destination-golden.pgdump
+  run.ts                      # restore + run + classify + report + spans + exit code
+tests/fixtures/reconciliation/
+  manifest.json               # per-query metadata, preconditions, sabotages, known-answers
+  legacy-snapshot.pgdump          # generated, committed
+  stellarc-destination-golden.pgdump # generated, committed
+  sabotage/01…14b.sql         # one named violation each
+tests/unit/reconcile-canon.test.ts
+tests/integration/reconciliation.test.ts
+```
+
+## Report and exit contract
+
+`run.ts` writes `reconciliation-report.json` (query id, mode, verdict, violation count,
+blocked reason — no PII) to the artifacts dir, and exits nonzero on any `red` or on
+`all-blocked` (all-blocked is a harness failure, not success).
+
+## Regenerating the fixtures
+
+```sh
+bun run tools/reconciliation/make-legacy-fixture.ts
+bun run tools/reconciliation/make-destination-golden.ts
+```
+
+Both dumps are committed. Fixture freshness (R03) proves regeneration is logically
+equivalent to the committed copies. **Claiming production parity from the synthetic
+fixture is prohibited** (redaction doctrine, STL-14 §evidence).
+
+## R24 gate-discovery evidence
+
+The reconciliation suites ride the root `bun test` gate through the vitest bridge
+(`tests/gates.test.ts` spawns `vitest run` for both `vitest.config.ts` and
+`vitest.integration.config.ts`; the integration glob is `tests/integration/**/*.test.ts`).
+Discovery is negative-control-guarded in `tests/unit/reconcile-canon.test.ts` (R24 arms):
+
+- **(a) glob inclusion** — the bridge spawns the integration config, its glob covers
+  `tests/integration/reconciliation.test.ts`, and the suite exists on disk. Removing the
+  suite from the glob (or the tree) fails the arm.
+- **(b) failing assertion fails the gate** — the arm writes a probe test under the glob
+  with `expect(1).toBe(2)`, runs the same vitest config, and asserts a nonzero exit with
+  the failed test name in the output. `gates.test.ts` asserts `exit === 0`, so the root
+  gate goes red through the bridge.
+
+Recorded RED replay (cycle 8, `tests/unit/reconcile-canon.test.ts` arm (b), first run
+before the stderr fix — the probe run itself is the evidence; exit status nonzero):
+
+```
+ ❯ tests/integration/_r24-probe.test.ts (1 test | 1 failed) 30ms
+   × R24 intentional assertion failure 25ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+```
+
+Root-gate confirmation: `bun test` at cycle-8 head runs both vitest configs and passes
+2/2 (`Vitest gate: vitest.config.ts`, `Vitest gate: vitest.integration.config.ts`).
+
+## Instrumentation (ADR 0010)
+
+Span `stellarc.reconcile.query` with attributes `stellarc.reconcile.query_id` (1–14),
+`stellarc.reconcile.mode` (`canon-proof`|`live`), `stellarc.reconcile.verdict`
+(`green`|`red`|`blocked`), `stellarc.reconcile.violations` (count). No row data, hashes,
+person ids, or SQL text in attributes. No `console.*` in harness service code.

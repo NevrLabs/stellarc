@@ -18,6 +18,12 @@ jobs:
           bun-version: 1.4.0
       - name: Install disposable PostgreSQL binaries
         run: |
+          # ubuntu-22.04 (jammy) ships only postgresql-14 in the archive; PGDG
+          # provides postgresql-15 for jammy. Key fetched at runtime so rotations
+          # on the PGDG signing key never brick the job.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-15
       - run: bun install --frozen-lockfile
