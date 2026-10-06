@@ -110,6 +110,7 @@ export const api = Effect.gen(function* () {
 						kaneoNativeHandler({
 							databaseUrl: Redacted.value(config.databaseUrl),
 							resolvePrincipal: kaneo.resolvePrincipal,
+							ports: kaneo.ports,
 							telemetry,
 							memoMap,
 						}),

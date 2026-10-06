@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { kaneoNativeHandler } from "../../packages/kaneo/src/http";
+import { isNative, kaneoNativeHandler } from "../../packages/kaneo/src/http";
 import { runParity } from "../../packages/kaneo/test/parity";
 import { disposablePostgres } from "../helpers/postgres";
 
@@ -46,8 +46,14 @@ beforeAll(async () => {
 	const L = "../../packages/kaneo-legacy/src";
 	const legacy = await import(`${L}/index.ts`);
 	await legacy.runStartupTasks();
-	const { resolvePrincipal } = await import(`${L}/stellarc-auth.ts`);
-	const native = kaneoNativeHandler({ databaseUrl: url, resolvePrincipal });
+	const { resolvePrincipal, domainPorts } = await import(
+		`${L}/stellarc-auth.ts`
+	);
+	const native = kaneoNativeHandler({
+		databaseUrl: url,
+		resolvePrincipal,
+		ports: domainPorts,
+	});
 	const legacySrv = Bun.serve({
 		port: 0,
 		hostname: "127.0.0.1",
@@ -58,10 +64,7 @@ beforeAll(async () => {
 		hostname: "127.0.0.1",
 		// Native host: Effect handlers for the migrated surface; auth + org
 		// creation still flow through the legacy tree (BetterAuth).
-		fetch: (r) =>
-			/^\/api\/(board|column)(\/|$|\?)/.test(new URL(r.url).pathname)
-				? native.handler(r)
-				: legacy.default.fetch(r),
+		fetch: (r) => (isNative(r) ? native.handler(r) : legacy.default.fetch(r)),
 	});
 	resources.push(async () => {
 		legacySrv.stop(true);
@@ -131,16 +134,66 @@ afterAll(async () => {
 	while (resources.length) await resources.pop()?.();
 });
 
-test("K1 board + column endpoints: native ≡ legacy for an instance admin", async () => {
+test("K1 board + column + label endpoints: native ≡ legacy for an instance admin", async () => {
 	const rows = await runParity(nativeBase, legacyBase, adminCookie, org);
 	expect(rows.filter((r) => !r.ok)).toEqual([]);
-	expect(rows.length).toBe(19);
+	expect(rows.length).toBe(34);
 }, 60_000);
 
-test("K2 board + column endpoints: native ≡ legacy for a plain member (permission paths)", async () => {
+test("K2 board + column + label endpoints: native ≡ legacy for a plain member (permission paths)", async () => {
 	const rows = await runParity(nativeBase, legacyBase, memberCookie, org);
 	expect(rows.filter((r) => !r.ok)).toEqual([]);
 	// members are denied board mutation: the denials themselves must match
 	expect(rows.find((r) => r.name === "delete board")?.native).toBe(403);
 	expect(rows.find((r) => r.name === "list foreign org")?.native).toBe(403);
 }, 60_000);
+
+test("K3 native label writes still reach board WebSocket subscribers via the shared bus", async () => {
+	const h = { ...json, cookie: adminCookie };
+	const boards = (await (
+		await fetch(`${nativeBase}/api/board?organizationId=${org}`, { headers: h })
+	).json()) as Array<{ id: string }>;
+	const boardId = boards[0].id;
+	const task = (await (
+		await fetch(`${nativeBase}/api/task/${boardId}`, {
+			method: "POST",
+			headers: h,
+			body: JSON.stringify({
+				title: "ws host",
+				description: "",
+				status: "to-do",
+				priority: "low",
+				userId: "",
+			}),
+		})
+	).json()) as { id: string };
+	const { addConnection, removeConnection } = await import(
+		`${"../../packages/kaneo-legacy/src"}/ws/index.ts`
+	);
+	const got: string[] = [];
+	const conn = addConnection(
+		boardId,
+		{ send: (m: string) => got.push(JSON.parse(m).type) },
+		"observer",
+		"observer:w",
+	);
+	try {
+		const label = await fetch(`${nativeBase}/api/label`, {
+			method: "POST",
+			headers: h,
+			body: JSON.stringify({
+				name: "ws-label",
+				color: "#123",
+				organizationId: org,
+				taskId: task.id,
+			}),
+		});
+		expect(label.status).toBe(200);
+		// WS fan-out is batched per board; give the flush a moment.
+		for (let i = 0; i < 40 && !got.includes("TASK_LABEL_UPDATED"); i++)
+			await Bun.sleep(50);
+		expect(got).toContain("TASK_LABEL_UPDATED");
+	} finally {
+		removeConnection(boardId, conn);
+	}
+}, 30_000);

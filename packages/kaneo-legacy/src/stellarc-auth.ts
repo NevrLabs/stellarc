@@ -88,3 +88,36 @@ export async function resolvePrincipal(
       }
     : null;
 }
+
+/**
+ * Domain ports for the Effect-native handlers: the same in-process event bus
+ * and GitHub/Gitea label sync the legacy controllers use, so WS push,
+ * notifications and integrations see native writes unchanged.
+ */
+import { publishEvent } from "./events";
+import {
+  removeLabelFromGitea,
+  syncLabelToGitea,
+} from "./plugins/gitea/utils/sync-label-to-gitea";
+import {
+  removeLabelFromGitHub,
+  syncLabelToGitHub,
+} from "./plugins/github/utils/sync-label-to-github";
+
+export const domainPorts = {
+  publish: (event: string, data: unknown) => publishEvent(event, data),
+  labelSync: {
+    upsert: async (taskId: string, name: string, color: string) => {
+      await Promise.allSettled([
+        syncLabelToGitHub(taskId, name, color),
+        syncLabelToGitea(taskId, name, color),
+      ]);
+    },
+    remove: async (taskId: string, name: string, alsoGitea: boolean) => {
+      await Promise.allSettled([
+        removeLabelFromGitHub(taskId, name),
+        ...(alsoGitea ? [removeLabelFromGitea(taskId, name)] : []),
+      ]);
+    },
+  },
+};

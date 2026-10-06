@@ -9,18 +9,14 @@
  *   privileges — the same rules as kaneo-legacy's middlewares, as Effects.
  */
 
-import {
-	HttpApiMiddleware,
-	HttpApiSchema,
-	HttpServerRequest,
-} from "@effect/platform";
+import { HttpApiMiddleware, HttpServerRequest } from "@effect/platform";
 import { SqlClient } from "@effect/sql";
 import type { SqlError } from "@effect/sql/SqlError";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
 import { PgClient } from "@effect/sql-pg";
 import { and, eq, sql } from "drizzle-orm";
 import type { PgRemoteDatabase } from "drizzle-orm/pg-proxy";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Context, Effect, Layer, Redacted } from "effect";
 import { builtInRoles } from "../../contracts/src/legacy/permissions/index";
 import * as relations from "../../kaneo-legacy/src/database/relations";
 import * as tables from "../../kaneo-legacy/src/database/schema";
@@ -69,24 +65,16 @@ export const sqlDie = <A, E, R>(
 		(e) => Effect.die(e),
 	) as Effect.Effect<A, Exclude<E, SqlError>, R>;
 
-// ── errors (wire: Kaneo's HTTPException status codes) ──────────────────────
-const err = <T extends string>(tag: T, status: number) =>
-	Schema.TaggedError<{ readonly _tag: T; readonly message: string }>()(
-		tag,
-		{ message: Schema.String },
-		HttpApiSchema.annotations({ status }),
-	);
-export class Unauthorized extends err("Unauthorized", 401) {}
-export class Forbidden extends err("Forbidden", 403) {}
-export class NotFound extends err("NotFound", 404) {}
-export class Conflict extends err("Conflict", 409) {}
-export class BadRequest extends err("BadRequest", 400) {}
-export type DomainError =
-	| Unauthorized
-	| Forbidden
-	| NotFound
-	| Conflict
-	| BadRequest;
+export {
+	BadRequest,
+	Conflict,
+	type DomainError,
+	Forbidden,
+	NotFound,
+	Unauthorized,
+} from "./errors";
+
+import { BadRequest, Forbidden, NotFound, Unauthorized } from "./errors";
 
 // ── principal ───────────────────────────────────────────────────────────────
 export interface Principal {
@@ -137,6 +125,43 @@ export const AuthenticationLive = Layer.effect(
 		}).pipe(Effect.withSpan("Kaneo.authenticate"));
 	}),
 );
+
+/** Side-effect ports the native handlers share with not-yet-migrated
+ * consumers (WS push, notifications, integration plugins). The host binds
+ * them to the legacy in-process bus; the parity test binds the same. */
+export interface DomainPorts {
+	readonly publish: (event: string, data: unknown) => Promise<void>;
+	readonly labelSync: {
+		readonly upsert: (
+			taskId: string,
+			name: string,
+			color: string,
+		) => Promise<void>;
+		readonly remove: (
+			taskId: string,
+			name: string,
+			alsoGitea: boolean,
+		) => Promise<void>;
+	};
+}
+export class DomainEvents extends Context.Tag("stellarc/kaneo/DomainEvents")<
+	DomainEvents,
+	DomainPorts
+>() {}
+
+/** Fire-and-forget like Kaneo: integration sync failures never fail the
+ * request, but they are logged inside the request span. */
+export const detach = (label: string, f: () => Promise<void>) =>
+	Effect.tryPromise(f).pipe(
+		Effect.catchAll((e) => Effect.logWarning(`${label} failed`, e)),
+		Effect.forkDaemon,
+		Effect.asVoid,
+	);
+
+export const publish = (event: string, data: unknown) =>
+	Effect.flatMap(DomainEvents, (p) =>
+		Effect.promise(() => p.publish(event, data)),
+	).pipe(Effect.withSpan("Kaneo.publish", { attributes: { event } }));
 
 // ── access control (same rules as kaneo-legacy) ─────────────────────────────
 export const PRIVILEGES = ["none", "view", "edit", "manage"] as const;
@@ -376,11 +401,57 @@ export class Access extends Effect.Service<Access>()("stellarc/kaneo/Access", {
 			return board.organizationId;
 		});
 
+		/** Resolve an org from a lookup and check membership (fromLabel/fromParam):
+		 * unresolvable ids fall back to an explicit organizationId, else 400. */
+		const guardOrg = Effect.fn("Access.guardOrg")(function* (
+			resolved: string | null | undefined,
+			fallbackOrganizationId?: string,
+		) {
+			const organizationId = resolved || fallbackOrganizationId || null;
+			if (!organizationId)
+				return yield* new BadRequest({
+					message: "Organization ID could not be determined",
+				});
+			yield* requireMember(organizationId);
+			return organizationId;
+		});
+
+		/** fromTaskId: task -> board -> org, plus board privilege. */
+		const guardTask = Effect.fn("Access.guardTask")(function* (
+			taskId: string,
+			required: "view" | "edit",
+			fallbackOrganizationId?: string,
+		) {
+			const [row] = yield* db
+				.select({
+					boardId: schema.taskTable.boardId,
+					organizationId: schema.boardTable.organizationId,
+				})
+				.from(schema.taskTable)
+				.innerJoin(
+					schema.boardTable,
+					eq(schema.taskTable.boardId, schema.boardTable.id),
+				)
+				.where(eq(schema.taskTable.id, taskId))
+				.limit(1);
+			const organizationId = yield* guardOrg(
+				row?.organizationId,
+				fallbackOrganizationId,
+			);
+			if (!row) return yield* new NotFound({ message: "Resource not found" });
+			const privilege = yield* boardPrivilege(organizationId, row.boardId);
+			if (!privilegeAllows(privilege, required))
+				return yield* new NotFound({ message: "Board not found" });
+			return organizationId;
+		});
+
 		return {
 			requireMember,
 			requirePermission,
 			boardPrivilege,
 			guardBoard,
+			guardOrg,
+			guardTask,
 		} as const;
 	}),
 }) {}

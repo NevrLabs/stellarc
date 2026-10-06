@@ -12,14 +12,18 @@ import {
 	HttpServerResponse,
 } from "@effect/platform";
 import { Cause, Effect, Layer } from "effect";
-import { BoardsLive, ColumnsLive, KaneoApi } from "./boards";
+import { KaneoApi } from "./api";
+import { BoardsLive, ColumnsLive } from "./boards";
 import {
 	Access,
 	AuthenticationLive,
 	DbLive,
+	DomainEvents,
+	type DomainPorts,
 	type Principal,
 	PrincipalResolver,
 } from "./kernel";
+import { LabelsLive } from "./labels";
 
 const ROUTES: Array<[method: string, re: RegExp]> = [];
 for (const group of Object.values(KaneoApi.groups))
@@ -40,15 +44,21 @@ export function kaneoNativeHandler(options: {
 	resolvePrincipal: (
 		headers: Headers,
 	) => Promise<Principal | null | "malformed">;
+	ports: DomainPorts;
 	telemetry?: Layer.Layer<never>;
 	memoMap?: Layer.MemoMap;
 }) {
+	const Base = Layer.mergeAll(
+		DbLive(options.databaseUrl),
+		Layer.succeed(PrincipalResolver, options.resolvePrincipal),
+		Layer.succeed(DomainEvents, options.ports),
+	);
+	const Services = Layer.mergeAll(Access.Default, AuthenticationLive).pipe(
+		Layer.provideMerge(Base),
+	);
 	const ApiLive = HttpApiBuilder.api(KaneoApi).pipe(
-		Layer.provide([BoardsLive, ColumnsLive]),
-		Layer.provide(AuthenticationLive),
-		Layer.provide(Access.Default),
-		Layer.provide(DbLive(options.databaseUrl)),
-		Layer.provide(Layer.succeed(PrincipalResolver, options.resolvePrincipal)),
+		Layer.provide([BoardsLive, ColumnsLive, LabelsLive]),
+		Layer.provide(Services),
 	);
 	return HttpApiBuilder.toWebHandler(
 		Layer.mergeAll(

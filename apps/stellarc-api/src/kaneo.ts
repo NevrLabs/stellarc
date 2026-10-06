@@ -33,6 +33,8 @@ export interface KaneoDomainService {
 		| null
 		| "malformed"
 	>;
+	/** Event bus + integration sync ports for native handlers. */
+	readonly ports: import("../../../packages/kaneo/src/kernel").DomainPorts;
 }
 
 export class KaneoDomain extends Context.Tag("stellarc/KaneoDomain")<
@@ -91,6 +93,7 @@ export const KaneoDomainLive = Layer.scoped(
 		return {
 			legacy: legacy.default as FetchApp,
 			resolvePrincipal: auth.resolvePrincipal,
+			ports: auth.domainPorts,
 		};
 	}),
 );

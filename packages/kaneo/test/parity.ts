@@ -45,6 +45,8 @@ export async function runParity(
 		"boardId",
 		"slug",
 		"name",
+		"taskId",
+		"columnId",
 	]);
 	const normalize = (v: unknown): unknown => {
 		if (Array.isArray(v)) return v.map(normalize);
@@ -55,7 +57,9 @@ export async function runParity(
 					.map(([k, x]) => [
 						k,
 						k === "name" && typeof x === "string"
-							? x.replace(/Parity [nl]\d+/, "Parity <tag>")
+							? x
+									.replace(/Parity [nl]\d+/, "Parity <tag>")
+									.replace(/^(L2?)-[nl]$/, "$1-<tag>")
 							: VOLATILE.has(k) && k !== "name"
 								? typeof x
 								: normalize(x),
@@ -174,6 +178,118 @@ export async function runParity(
 			name: "delete column",
 			method: "DELETE",
 			path: (c) => `/api/column/${c.column}`,
+		},
+		// ── labels (need a ticket on the run's own board) ──
+		{
+			name: "create ticket (legacy route, fixture)",
+			method: "POST",
+			path: (c) => `/api/task/${c.board}`,
+			body: () => ({
+				title: "label host",
+				description: "",
+				status: "to-do",
+				priority: "low",
+				userId: "",
+			}),
+			capture: (j, c) => {
+				c.task = (j as { id: string }).id;
+			},
+		},
+		{
+			name: "create org label",
+			method: "POST",
+			path: () => "/api/label",
+			body: () => ({
+				name: `L-${tag.slice(0, 1)}`,
+				color: "#f00",
+				organizationId: org,
+			}),
+			capture: (j, c) => {
+				c.orgLabel = (j as { id: string }).id;
+			},
+		},
+		{
+			name: "create org label (idempotent)",
+			method: "POST",
+			path: () => "/api/label",
+			body: () => ({
+				name: `L-${tag.slice(0, 1)}`,
+				color: "#0f0",
+				organizationId: org,
+			}),
+		},
+		{
+			name: "create task label",
+			method: "POST",
+			path: () => "/api/label",
+			body: (c) => ({
+				name: "bug",
+				color: "#c00",
+				organizationId: org,
+				taskId: c.task,
+			}),
+			capture: (j, c) => {
+				c.taskLabel = (j as { id: string }).id;
+			},
+		},
+		{
+			name: "create task label (wrong org)",
+			method: "POST",
+			path: () => "/api/label",
+			body: (c) => ({
+				name: "x",
+				color: "#c00",
+				organizationId: "nope",
+				taskId: c.task,
+			}),
+		},
+		{
+			name: "labels by task",
+			method: "GET",
+			path: (c) => `/api/label/task/${c.task}`,
+		},
+		{
+			name: "labels by org",
+			method: "GET",
+			path: () => `/api/label/organization/${org}`,
+		},
+		{
+			name: "get label",
+			method: "GET",
+			path: (c) => `/api/label/${c.taskLabel}`,
+		},
+		{ name: "get missing label", method: "GET", path: () => "/api/label/nope" },
+		{
+			name: "update org label (cascades)",
+			method: "PUT",
+			path: (c) => `/api/label/${c.orgLabel}`,
+			body: (_c) => ({ name: `L2-${tag.slice(0, 1)}`, color: "#00f" }),
+		},
+		{
+			name: "assign label to task",
+			method: "PUT",
+			path: (c) => `/api/label/${c.orgLabel}/task`,
+			body: (c) => ({ taskId: c.task }),
+		},
+		{
+			name: "unassign label",
+			method: "DELETE",
+			path: (c) => `/api/label/${c.orgLabel}/task`,
+		},
+		{
+			name: "unassign again (not assigned)",
+			method: "DELETE",
+			path: (c) => `/api/label/${c.orgLabel}/task`,
+		},
+		{
+			name: "delete task label",
+			method: "DELETE",
+			path: (c) => `/api/label/${c.taskLabel}`,
+		},
+		{
+			name: "delete org label",
+			method: "DELETE",
+			path: (c) => `/api/label/${c.orgLabel}`,
 		},
 		{
 			name: "archive board",
