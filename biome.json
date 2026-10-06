@@ -33,14 +33,22 @@
 			"!**/openapi.json",
 			"!i18n",
 			"!.forge",
-			"!tools/forge/__pycache__"
+			"!tools/forge/__pycache__",
+			"!packages/kaneo-legacy",
+			"!packages/kaneo-email"
 		]
 	},
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab"
 	},
-	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
 	"linter": {
 		"enabled": true,
 		"rules": {
@@ -66,27 +74,47 @@
 				"apps/stellarc-worker/**",
 				"packages/**"
 			],
-			"linter": { "rules": { "suspicious": { "noConsole": "error" } } }
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "error"
+					}
+				}
+			}
 		},
 		{
 			"includes": ["apps/stellarc-ui/**", "tests/**"],
-			"linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
 		},
 		{
 			"includes": ["apps/stellarc-ui/**", "packages/contracts/src/legacy/**"],
 			"javascript": {
-				"formatter": { "quoteStyle": "double", "indentStyle": "space" }
+				"formatter": {
+					"quoteStyle": "double",
+					"indentStyle": "space"
+				}
 			},
 			"linter": {
 				"rules": {
-					"a11y": { "recommended": false },
+					"a11y": {
+						"recommended": false
+					},
 					"correctness": {
 						"noUnusedVariables": "off",
 						"noUnusedImports": "off",
 						"noUnusedFunctionParameters": "off",
 						"useExhaustiveDependencies": "off"
 					},
-					"style": { "noNonNullAssertion": "off", "useTemplate": "off" }
+					"style": {
+						"noNonNullAssertion": "off",
+						"useTemplate": "off"
+					}
 				}
 			}
 		}

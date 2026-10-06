@@ -1,0 +1,1 @@
+ALTER TABLE "project_ticket" ADD CONSTRAINT "project_ticket_project_milestone_project_id_fk" FOREIGN KEY ("project_id","project_milestone_id") REFERENCES "public"."project_milestone"("project_id","id") ON DELETE SET NULL ("project_milestone_id") ON UPDATE cascade;

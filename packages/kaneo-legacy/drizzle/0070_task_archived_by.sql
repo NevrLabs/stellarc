@@ -1,0 +1,1 @@
+ALTER TABLE "task" ADD COLUMN "archived_by" text REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -1,0 +1,856 @@
+import { apiKey } from "@better-auth/api-key";
+import {
+  sendMagicLinkEmail,
+  sendOrganizationInvitationEmail,
+  sendOtpEmail,
+} from "@kaneo/email";
+import {
+  ac,
+  DEFAULT_ROLE_NAMES,
+  defaultRolePayloads,
+  owner,
+} from "@kaneo/permissions";
+import bcrypt from "bcryptjs";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
+import {
+  admin as adminPlugin,
+  anonymous,
+  bearer,
+  deviceAuthorization,
+  emailOTP,
+  genericOAuth,
+  lastLoginMethod,
+  magicLink,
+  openAPI,
+  organization,
+} from "better-auth/plugins";
+import type { AccessControl } from "better-auth/plugins/access";
+import type { UserWithAnonymous } from "better-auth/plugins/anonymous";
+import { config } from "dotenv-mono";
+import { and, count, eq, sql } from "drizzle-orm";
+import db, { schema } from "./database";
+import { publishEvent } from "./events";
+import { decodeJwtPayload, syncOidcTeams } from "./oidc-team-sync/service";
+import { checkOrganizationName } from "./utils/check-organization-name";
+import {
+  checkRegistrationAllowed,
+  hasPendingInvitationForEmail,
+} from "./utils/check-registration-allowed";
+import { mapCustomOAuthProfileToUser } from "./utils/custom-oauth-profile";
+import { generateDemoName } from "./utils/generate-demo-name";
+import { getInvitationEmailSubject } from "./utils/get-invitation-email-subject";
+import { getOrganizationInvitationEmailCopy } from "./utils/get-organization-invitation-email-copy";
+import getSettings from "./utils/get-settings";
+import { getGithubSsoOAuthCredentials } from "./utils/github-sso-env";
+import { isCloud } from "./utils/is-cloud";
+import { isDisposableEmail } from "./utils/is-disposable-email";
+import { isLocalSignInPath } from "./utils/is-local-sign-in-path";
+import { verifyTurnstile } from "./utils/verify-turnstile";
+
+config();
+
+const githubSso = getGithubSsoOAuthCredentials();
+
+const isRegistrationDisabled = process.env.DISABLE_REGISTRATION === "true";
+const isPasswordRegistrationDisabled =
+  process.env.DISABLE_PASSWORD_REGISTRATION === "true";
+const isLoginFormDisabled = process.env.DISABLE_LOGIN_FORM === "true";
+const isEmailOtpSignInDisabled =
+  process.env.DISABLE_EMAIL_OTP_SIGN_IN === "true";
+
+function normalizeInvitationId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  if (!/^[a-z0-9_-]{1,128}$/i.test(normalized)) return undefined;
+  return normalized;
+}
+
+function isOAuthCallbackPath(path: unknown): boolean {
+  if (typeof path !== "string") return false;
+  return path.startsWith("/callback/") || path.startsWith("/oauth2/callback/");
+}
+
+const apiUrl = process.env.KANEO_API_URL || "http://localhost:1337";
+const clientUrl = process.env.KANEO_CLIENT_URL || "http://localhost:5173";
+const isHttps = apiUrl.startsWith("https://");
+const isCrossSubdomain = (() => {
+  try {
+    const apiHost = new URL(apiUrl).hostname;
+    const clientHost = new URL(clientUrl).hostname;
+    return (
+      apiHost !== clientHost &&
+      apiHost !== "localhost" &&
+      clientHost !== "localhost"
+    );
+  } catch {
+    return false;
+  }
+})();
+
+const trustedOrigins = [clientUrl];
+try {
+  const apiOrigin = new URL(apiUrl);
+  const apiOriginString = `${apiOrigin.protocol}//${apiOrigin.host}`;
+  if (!trustedOrigins.includes(apiOriginString)) {
+    trustedOrigins.push(apiOriginString);
+  }
+} catch {}
+
+const baseURLWithoutPath = (() => {
+  try {
+    const url = new URL(apiUrl);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return apiUrl.split("/").slice(0, 3).join("/"); // Get protocol://host
+  }
+})();
+
+if (process.env.AUTH_SECRET && process.env.AUTH_SECRET.length < 32) {
+  console.error(
+    "AUTH_SECRET is less than 32 characters, please generate a new one.",
+  );
+  process.exit(1);
+}
+
+async function getUserLocale(email: string) {
+  const [user] = await db
+    .select({ locale: schema.userTable.locale })
+    .from(schema.userTable)
+    .where(eq(schema.userTable.email, email))
+    .limit(1);
+
+  return user?.locale ?? null;
+}
+
+function getLocaleKey(locale?: string | null) {
+  return locale?.toLowerCase().startsWith("de") ? "de" : "en";
+}
+
+function getAuthEmailCopy(locale?: string | null) {
+  return getLocaleKey(locale) === "de"
+    ? {
+        magicLinkSubject: "Anmeldelink fuer Kaneo",
+        otpSubject: "Bestaetigungscode fuer Kaneo",
+      }
+    : {
+        magicLinkSubject: "Login for Kaneo",
+        otpSubject: "Authentication code for Kaneo",
+      };
+}
+
+function getDeviceAuthClientIds(): Set<string> {
+  const raw = process.env.DEVICE_AUTH_CLIENT_IDS?.trim();
+  if (raw) {
+    return new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+  }
+  return new Set(["kaneo-cli", "kaneo-mcp"]);
+}
+
+const DEFAULT_TRUSTED_PROXIES = [
+  "127.0.0.0/8",
+  "::1/128",
+  "10.0.0.0/8",
+  "172.16.0.0/12",
+  "192.168.0.0/16",
+];
+
+function trustedProxies(): string[] {
+  const raw = process.env.TRUSTED_PROXIES?.trim();
+  if (!raw) {
+    return DEFAULT_TRUSTED_PROXIES;
+  }
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function getDeviceAuthVerificationUri(): string {
+  const base = clientUrl.replace(/\/$/, "");
+  return `${base}/device`;
+}
+
+export const auth = betterAuth({
+  baseURL: baseURLWithoutPath,
+  trustedOrigins,
+  secret: process.env.AUTH_SECRET || "",
+  basePath: "/api/auth",
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    schema: {
+      ...schema,
+      user: schema.userTable,
+      account: schema.accountTable,
+      session: schema.sessionTable,
+      verification: schema.verificationTable,
+      organization: schema.organizationTable,
+      organization_member: schema.organizationMemberTable,
+      invitation: schema.invitationTable,
+      organization_role: schema.organizationRoleTable,
+      team: schema.teamTable,
+      teamMember: schema.teamMemberTable,
+      apikey: schema.apikeyTable,
+      deviceCode: schema.deviceCodeTable,
+    },
+  }),
+  user: {
+    additionalFields: {
+      locale: {
+        type: "string",
+        input: true,
+        required: false,
+      },
+    },
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async (user) => {
+        await deleteAccountData(user.id);
+      },
+    },
+  },
+  account: {
+    accountLinking: {
+      // Link an OAuth/OIDC sign-in to an existing account that shares the same
+      // email instead of failing with error=account_not_linked. The listed
+      // providers verify the email on their side, so they are trusted to link.
+      enabled: true,
+      trustedProviders: ["github", "google", "discord", "custom"],
+      // Only link to an existing local account after its email has been
+      // verified. Without this check, an attacker could pre-register a victim's
+      // email with a password account and retain access after the victim signs
+      // in through a trusted OAuth/OIDC provider.
+      requireLocalEmailVerified: true,
+    },
+  },
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+    password: {
+      hash: async (password) => {
+        return await bcrypt.hash(password, 10);
+      },
+      verify: async ({ hash, password }) => {
+        return await bcrypt.compare(password, hash);
+      },
+    },
+  },
+  socialProviders: {
+    github: {
+      clientId: githubSso.clientId,
+      clientSecret: githubSso.clientSecret,
+      scope: ["user:email"],
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    },
+    discord: {
+      clientId: process.env.DISCORD_CLIENT_ID || "",
+      clientSecret: process.env.DISCORD_CLIENT_SECRET || "",
+    },
+  },
+  plugins: [
+    ...(process.env.DISABLE_GUEST_ACCESS !== "true"
+      ? [
+          anonymous({
+            generateName: async () => generateDemoName(),
+            emailDomainName: "kaneo.app",
+          }),
+        ]
+      : []),
+    lastLoginMethod(),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        try {
+          const locale = await getUserLocale(email);
+          const copy = getAuthEmailCopy(locale);
+          await sendMagicLinkEmail(email, copy.magicLinkSubject, {
+            magicLink: url,
+            locale,
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      },
+    }),
+    ...(isEmailOtpSignInDisabled
+      ? []
+      : [
+          emailOTP({
+            async sendVerificationOTP({ email, otp, type }) {
+              if (type === "sign-in") {
+                const locale = await getUserLocale(email);
+                const copy = getAuthEmailCopy(locale);
+                await sendOtpEmail(email, copy.otpSubject, {
+                  otp,
+                  locale,
+                });
+              }
+            },
+          }),
+        ]),
+    organization({
+      // `ac` is created with a narrow `statement` shape (board/task/label/
+      // organization + the default org statements), which makes its inferred
+      // `newRole` generic incompatible with better-auth's looser
+      // `AccessControl` type. Widen via an explicit cast so the plugin
+      // accepts our custom statement.
+      ac: ac as unknown as AccessControl,
+      // Only `owner` stays static so its permissions can never be edited away
+      // from the organization creator. `viewer`, `member`, and `admin` are
+      // seeded into `organization_role` per organization and resolved via
+      // dynamic access control, so admins can fully override (replace) their
+      // permissions per organization. See `seedDefaultOrganizationRoles` + the
+      // afterCreateOrganization hook.
+      roles: { owner },
+      dynamicAccessControl: {
+        enabled: true,
+        maximumRolesPerOrganization: 25,
+      },
+      teams: {
+        enabled: true,
+        maximumTeams: 10,
+        allowRemovingAllTeams: false,
+      },
+      schema: {
+        organization: {
+          modelName: "organization",
+          additionalFields: {
+            // in metadata
+            description: {
+              type: "string",
+              input: true,
+              required: false,
+            },
+            reposEnabled: {
+              type: "boolean",
+              input: true,
+              required: false,
+              defaultValue: false,
+            },
+            tablesEnabled: {
+              type: "boolean",
+              input: true,
+              required: false,
+              defaultValue: false,
+            },
+          },
+        },
+        member: {
+          modelName: "organization_member",
+          fields: {
+            organizationId: "organizationId",
+            createdAt: "joinedAt",
+          },
+        },
+        invitation: {
+          modelName: "invitation",
+          fields: {
+            organizationId: "organizationId",
+          },
+        },
+        organizationRole: {
+          modelName: "organization_role",
+          fields: {
+            organizationId: "organizationId",
+          },
+        },
+        team: {
+          modelName: "team",
+          fields: {
+            organizationId: "organizationId",
+          },
+          additionalFields: {
+            /*
+              KFL-257: team avatar glyph. Registered here rather than behind a
+              bespoke endpoint because teams are owned by the organization
+              plugin — a custom route would bypass its permission checks.
+
+              `required: false` and no default: existing teams keep rendering
+              initials until an icon is chosen. Values share the board/repo
+              vocabulary (a lucide name or an emoji) so `lib/resolve-icon`
+              handles them with no second implementation.
+            */
+            icon: {
+              type: "string",
+              input: true,
+              required: false,
+            },
+            /*
+              Sub-teams: parent link surfaced through listTeams so the UI can
+              render nesting. NOT writable through Better Auth (`input: false`)
+              — parent changes must go through PUT /api/team/:id/parent, which
+              enforces same-organization and cycle rejection.
+            */
+            parentTeamId: {
+              type: "string",
+              input: false,
+              required: false,
+            },
+          },
+        },
+      },
+      allowUserToCreateOrganization: (user) => user.role === "admin",
+      // Better Auth defaults this to `true`, which blocks any user whose email
+      // is not verified from accepting/rejecting an invitation. Kaneo does not
+      // verify emails on signup (and guest/anonymous users are unverified by
+      // design), so leaving the default on breaks invitation acceptance for
+      // everyone. The invitation link id is the actual secret here, so gate on
+      // that rather than on email verification.
+      requireEmailVerificationOnInvitation: false,
+      organizationHooks: {
+        beforeUpdateOrganization: async ({ organization, user }) => {
+          if (organization.slug !== undefined && user.role !== "admin") {
+            throw new APIError("FORBIDDEN", {
+              message:
+                "Instance administrator required to change organization slug",
+            });
+          }
+        },
+        beforeCreateOrganization: async ({ organization }) => {
+          const check = checkOrganizationName(organization.name ?? "");
+          if (!check.ok) {
+            throw new APIError("BAD_REQUEST", { message: check.reason });
+          }
+          // Single-org mode permits exactly one organization. Enforced here
+          // rather than in the UI so the API cannot be used to bypass it.
+          if (getSettings().singleOrgMode) {
+            const [existing] = await db
+              .select({ id: schema.organizationTable.id })
+              .from(schema.organizationTable)
+              .limit(1);
+            if (existing) {
+              throw new APIError("BAD_REQUEST", {
+                message:
+                  "This instance runs in single-organization mode and already has an organization",
+              });
+            }
+          }
+        },
+        afterCreateOrganization: async ({ organization, user }) => {
+          // Seed the editable default roles for this organization. Each
+          // role's permissions are derived from the compiled-in defaults
+          // in `@kaneo/permissions`; admins can later replace them in the
+          // Roles UI. We skip names that somehow already exist (this hook
+          // is best-effort idempotent — the boot-time backfill is the
+          // belt-and-braces path).
+          try {
+            const existing = await db
+              .select({ role: schema.organizationRoleTable.role })
+              .from(schema.organizationRoleTable)
+              .where(
+                eq(
+                  schema.organizationRoleTable.organizationId,
+                  organization.id,
+                ),
+              );
+            const taken = new Set(existing.map((r) => r.role));
+            const now = new Date();
+            const rows = DEFAULT_ROLE_NAMES.filter(
+              (name) => !taken.has(name),
+            ).map((name) => ({
+              organizationId: organization.id,
+              role: name,
+              permission: JSON.stringify(defaultRolePayloads[name]),
+              createdAt: now,
+              updatedAt: now,
+            }));
+            if (rows.length > 0) {
+              await db.insert(schema.organizationRoleTable).values(rows);
+            }
+          } catch (error) {
+            console.error(
+              "Failed to seed default organization roles for organization",
+              organization.id,
+              error,
+            );
+          }
+
+          publishEvent("organization.created", {
+            organizationId: organization.id,
+            organizationName: organization.name,
+            ownerEmail: user.name,
+            ownerId: user.id,
+          });
+        },
+      },
+      async sendInvitationEmail(data) {
+        const inviteLink = `${process.env.KANEO_CLIENT_URL}/invitation/accept/${data.id}`;
+        const locale = await getUserLocale(data.email);
+        const copy = getOrganizationInvitationEmailCopy(locale);
+
+        const result = await sendOrganizationInvitationEmail(
+          data.email,
+          getInvitationEmailSubject(
+            locale,
+            data.inviter.user.name,
+            data.organization.name,
+          ),
+          {
+            inviterEmail: data.inviter.user.email,
+            inviterName: data.inviter.user.name,
+            locale,
+            organizationName: data.organization.name,
+            invitationLink: inviteLink,
+            to: data.email,
+            copy,
+          },
+        );
+
+        if (
+          result?.success === false &&
+          result.reason === "SMTP_NOT_CONFIGURED"
+        ) {
+          console.warn(
+            "Invitation created but email not sent due to SMTP not being configured",
+          );
+          return;
+        }
+      },
+    }),
+    genericOAuth({
+      config: [
+        {
+          providerId: "custom",
+          clientId: process.env.CUSTOM_OAUTH_CLIENT_ID || "",
+          clientSecret: process.env.CUSTOM_OAUTH_CLIENT_SECRET,
+          authorizationUrl: process.env.CUSTOM_OAUTH_AUTHORIZATION_URL || "",
+          tokenUrl: process.env.CUSTOM_OAUTH_TOKEN_URL || "",
+          userInfoUrl: process.env.CUSTOM_OAUTH_USER_INFO_URL || "",
+          scopes: process.env.CUSTOM_OAUTH_SCOPES?.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean) || ["profile", "email"],
+          responseType: process.env.CUSTOM_OAUTH_RESPONSE_TYPE || "code",
+          discoveryUrl: process.env.CUSTOM_OAUTH_DISCOVERY_URL || "",
+          pkce: process.env.CUSTOM_AUTH_PKCE !== "false",
+          mapProfileToUser: mapCustomOAuthProfileToUser,
+        },
+      ],
+    }),
+    bearer(),
+    apiKey({
+      enableSessionForAPIKeys: true,
+      apiKeyHeaders: "x-api-key",
+      rateLimit: {
+        enabled: true,
+        maxRequests: 100,
+        timeWindow: 60 * 1000,
+      },
+    }),
+    deviceAuthorization({
+      verificationUri: getDeviceAuthVerificationUri(),
+      validateClient: async (clientId) =>
+        getDeviceAuthClientIds().has(clientId),
+    }),
+    adminPlugin({
+      defaultRole: "user",
+      adminRoles: ["admin"],
+    }),
+    openAPI(),
+  ],
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
+  rateLimit: {
+    // Enable in cloud; self-hosted instances opt in by setting KANEO_CLOUD.
+    // Default better-auth rate-limit only kicks in for production; we keep the
+    // global limits conservative and tighten signup/invite via customRules.
+    enabled: isCloud(),
+    window: 10,
+    max: 100,
+    customRules: {
+      "/sign-up/email": { window: 60, max: 3 },
+      "/organization/invite-member": { window: 60, max: 5 },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user, ctx) => {
+          // The anonymous() plugin creates ephemeral users for guest
+          // access; registration limits don't apply to them (guest
+          // availability is governed by DISABLE_GUEST_ACCESS instead).
+          // `isAnonymous` is `input: false` in the plugin schema, so a
+          // regular signup request cannot spoof it.
+          const userWithAnonymous = user as Partial<UserWithAnonymous>;
+          if (userWithAnonymous.isAnonymous) {
+            return;
+          }
+
+          // Allow the very first signup through even when registration
+          // is disabled — that's the instance-admin bootstrap flow.
+          // Otherwise a fresh instance with DISABLE_REGISTRATION=true
+          // could never be set up because `checkRegistrationAllowed`
+          // would reject the first user (qodo bot #3).
+          const [{ value: existingUserCount }] = await db
+            .select({ value: count() })
+            .from(schema.userTable);
+          if (existingUserCount === 0) {
+            return;
+          }
+
+          const invitationId = normalizeInvitationId(
+            ctx?.body?.invitationId ||
+              ctx?.query?.invitationId ||
+              ctx?.headers?.get("x-invitation-id"),
+          );
+          const isOAuthCallback =
+            ctx?.path?.startsWith("/callback/") ||
+            ctx?.path?.startsWith("/oauth2/callback/");
+          if (
+            isRegistrationDisabled &&
+            isOAuthCallback &&
+            (await hasPendingInvitationForEmail(user.email))
+          ) {
+            return;
+          }
+
+          const result = await checkRegistrationAllowed(
+            user.email,
+            invitationId,
+            { allowInvitationByEmail: isOAuthCallbackPath(ctx?.path) },
+          );
+          if (!result.allowed) {
+            throw new APIError("FORBIDDEN", {
+              message: result.reason,
+            });
+          }
+        },
+        after: async (user) => {
+          // The anonymous() plugin creates ephemeral users for guest
+          // access; never promote one to instance admin even if no
+          // real admin exists yet. `isAnonymous` is contributed by the
+          // anonymous plugin's `additionalFields` and isn't part of the
+          // base User type, so we narrow through `UserWithAnonymous`.
+          const userWithAnonymous = user as Partial<UserWithAnonymous>;
+          if (userWithAnonymous.isAnonymous) {
+            return;
+          }
+
+          // Promote the first user to instance admin atomically.
+          //
+          // A previous version of this code checked the user count in
+          // the `before` hook and returned `role: "admin"`, but the
+          // count and the eventual INSERT happened in separate
+          // transactions, so two concurrent first-signups could both
+          // see count=0 and both become admins (qodo bot #5).
+          //
+          // We now run the check + promote inside a single transaction
+          // guarded by a Postgres advisory lock. Whichever transaction
+          // wins the lock first promotes its user; any concurrent
+          // transaction then sees totalUserCount > 1 and skips.
+          //
+          // Note: we count total users (not admins) so that upgrading
+          // an existing instance — where every existing user has
+          // role=NULL from the new column — doesn't promote the next
+          // signup to admin (qodo bot #4).
+          await db.transaction(async (tx) => {
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(2026)`);
+
+            const totalRows = await tx
+              .select({ value: count() })
+              .from(schema.userTable);
+            const totalUserCount = totalRows[0]?.value ?? 0;
+
+            // This hook runs after the user row is inserted, so the
+            // just-created user is included in the count. If they are
+            // the only row in the table, this is a fresh-instance
+            // bootstrap and they get promoted to admin.
+            if (totalUserCount === 1) {
+              await tx
+                .update(schema.userTable)
+                .set({ role: "admin" })
+                .where(eq(schema.userTable.id, user.id));
+            }
+          });
+        },
+      },
+    },
+  },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (isLoginFormDisabled && isLocalSignInPath(ctx.path)) {
+        throw new APIError("FORBIDDEN", {
+          message:
+            "Local sign-in is disabled. Please use a configured social or OIDC sign-in method.",
+        });
+      }
+
+      // Block invite-member calls on cloud from anonymous users or to
+      // disposable-email addresses. The 2026-05-28 incident saw ~14k phishing
+      // invites sent from throwaway disposable-email signups; gating here
+      // shuts that path off without affecting self-hosted instances.
+      if (ctx.path === "/organization/invite-member" && isCloud()) {
+        // `before` hooks don't auto-populate ctx.context.session; load it
+        // explicitly. `disableRefresh` keeps this gate cheap — we only need
+        // the user record, not a session refresh side-effect.
+        const session = await getSessionFromCtx(ctx, {
+          disableRefresh: true,
+        }).catch(() => null);
+        const sessionUser = session?.user as
+          | { isAnonymous?: boolean | null }
+          | undefined;
+        if (sessionUser?.isAnonymous) {
+          throw new APIError("FORBIDDEN", {
+            message: "Guest accounts may not send organization invitations.",
+          });
+        }
+        const inviteeEmail = (ctx.body?.email as string | undefined) ?? "";
+        if (inviteeEmail && isDisposableEmail(inviteeEmail)) {
+          throw new APIError("BAD_REQUEST", {
+            message:
+              "Invitations to disposable-email addresses are not allowed.",
+          });
+        }
+      }
+
+      const isSignUpPath =
+        ctx.path === "/sign-up/email" ||
+        ctx.path.startsWith("/callback/") ||
+        ctx.path.startsWith("/sign-in/social");
+
+      if (!isSignUpPath) {
+        return;
+      }
+
+      const userCountRows = await db
+        .select({ value: count() })
+        .from(schema.userTable);
+      const existingUserCount = userCountRows[0]?.value ?? 0;
+      const isInstanceAdminSetup = existingUserCount === 0;
+
+      if (ctx.path === "/sign-up/email") {
+        if (isPasswordRegistrationDisabled && !isInstanceAdminSetup) {
+          throw new APIError("FORBIDDEN", {
+            message:
+              "Password registration is currently disabled. Please use a configured social or OIDC sign-in method.",
+          });
+        }
+
+        // Cloud-only abuse gates on password signup. Self-hosted instances
+        // leave KANEO_CLOUD/TURNSTILE_SECRET_KEY unset and skip both.
+        if (isCloud() && !isInstanceAdminSetup) {
+          const signupEmail = (ctx.body?.email as string | undefined) ?? "";
+          if (signupEmail && isDisposableEmail(signupEmail)) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "Sign-up with disposable email addresses is not allowed.",
+            });
+          }
+
+          const turnstileToken =
+            (ctx.body?.turnstileToken as string | undefined) ??
+            ctx.headers?.get("x-turnstile-token") ??
+            null;
+          const remoteIp =
+            ctx.headers?.get("cf-connecting-ip") ??
+            ctx.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+            null;
+          const verdict = await verifyTurnstile(turnstileToken, remoteIp);
+          if (!verdict.ok) {
+            throw new APIError("FORBIDDEN", { message: verdict.reason });
+          }
+        }
+      }
+
+      if (!isRegistrationDisabled || isInstanceAdminSetup) {
+        return;
+      }
+
+      const email =
+        ctx.body?.email ||
+        ctx.query?.email ||
+        ctx.headers?.get("x-invitation-email");
+      const invitationId = normalizeInvitationId(
+        ctx.body?.invitationId ||
+          ctx.query?.invitationId ||
+          ctx.headers?.get("x-invitation-id"),
+      );
+
+      if (ctx.path === "/sign-up/email") {
+        const result = await checkRegistrationAllowed(email, invitationId);
+        if (!result.allowed) {
+          throw new APIError("FORBIDDEN", {
+            message: result.reason,
+          });
+        }
+      }
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      if (
+        ctx.path === "/oauth2/callback/custom" ||
+        ctx.path === "/callback/custom"
+      ) {
+        const newSession = ctx.context.newSession;
+        if (newSession) {
+          const [account] = await db
+            .select({ idToken: schema.accountTable.idToken })
+            .from(schema.accountTable)
+            .where(
+              and(
+                eq(schema.accountTable.userId, newSession.user.id),
+                eq(schema.accountTable.providerId, "custom"),
+              ),
+            )
+            .limit(1);
+          const claims = account?.idToken
+            ? decodeJwtPayload(account.idToken)
+            : null;
+          if (claims) await syncOidcTeams(newSession.user.id, claims);
+        }
+      }
+      if (ctx.path.startsWith("/sign-up") || ctx.path.startsWith("/sign-in")) {
+        const newSession = ctx.context.newSession;
+        if (newSession) {
+          const organizationMember = await db
+            .select({
+              organizationId: schema.organizationMemberTable.organizationId,
+            })
+            .from(schema.organizationMemberTable)
+            .where(
+              eq(schema.organizationMemberTable.userId, newSession.user.id),
+            )
+            .limit(1);
+
+          const activeOrganizationId =
+            organizationMember[0]?.organizationId || null;
+
+          if (activeOrganizationId) {
+            await db
+              .update(schema.sessionTable)
+              .set({ activeOrganizationId: activeOrganizationId })
+              .where(eq(schema.sessionTable.id, newSession.session.id));
+          }
+        }
+      }
+    }),
+  },
+  advanced: {
+    ipAddress: {
+      ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+      trustedProxies: trustedProxies(),
+    },
+    defaultCookieAttributes: {
+      // For cross-subdomain auth with HTTPS, use sameSite: "none" with secure: true
+      // For same-domain or HTTP deployments, use sameSite: "lax" with secure: false
+      sameSite: isCrossSubdomain && isHttps ? "none" : "lax",
+      secure: isCrossSubdomain && isHttps, // must be true when sameSite is "none"
+      partitioned: isCrossSubdomain && isHttps,
+      domain: process.env.COOKIE_DOMAIN || undefined, // Optional: e.g., ".andrej.com" for explicit cross-subdomain cookies
+    },
+  },
+});

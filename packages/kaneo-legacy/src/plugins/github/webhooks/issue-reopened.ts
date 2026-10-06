@@ -1,0 +1,114 @@
+import { and, eq } from "drizzle-orm";
+import db from "../../../database";
+import { externalLinkTable, taskTable } from "../../../database/schema";
+import { publishEvent } from "../../../events";
+import { syncFollowerStatusForIssue } from "../../../repo/controllers/sync-follower-status-for-issue";
+import { updateExternalLink } from "../services/link-manager";
+import {
+  findAllIntegrationsByRepo,
+  updateTaskStatus,
+} from "../services/task-service";
+import { resolveTargetStatus } from "../utils/resolve-column";
+
+type IssueReopenedPayload = {
+  action: string;
+  issue: {
+    number: number;
+    title: string;
+    html_url: string;
+    state: string;
+  };
+  repository: {
+    owner: { login: string };
+    name: string;
+    full_name: string;
+  };
+};
+
+/**
+ * #2: reopening an issue had NO handler at all — `issues.reopened` was never
+ * subscribed, so a task closed by `issues.closed` could never come back.
+ *
+ * Mirrors handleIssueClosed: board-synced tasks resolve through external_link,
+ * then task-level followers (links with no integration) are synced directly.
+ */
+export async function handleIssueReopened(payload: IssueReopenedPayload) {
+  const { issue, repository } = payload;
+
+  const handledTaskIds: string[] = [];
+
+  const integrations = await findAllIntegrationsByRepo(
+    repository.owner.login,
+    repository.name,
+  );
+
+  for (const integration of integrations) {
+    const externalLink = await db.query.externalLinkTable.findFirst({
+      where: and(
+        eq(externalLinkTable.integrationId, integration.id),
+        eq(externalLinkTable.resourceType, "issue"),
+        eq(externalLinkTable.externalId, issue.number.toString()),
+      ),
+    });
+
+    if (!externalLink) {
+      continue;
+    }
+
+    const task = await db.query.taskTable.findFirst({
+      where: eq(taskTable.id, externalLink.taskId),
+    });
+
+    if (!task) {
+      continue;
+    }
+
+    const existingMetadata = externalLink.metadata
+      ? JSON.parse(externalLink.metadata)
+      : {};
+
+    const targetStatus = await resolveTargetStatus(
+      task.boardId,
+      "issue_reopened",
+      "to-do",
+    );
+
+    const statusResult = await updateTaskStatus(task.id, targetStatus);
+    if (
+      statusResult.applied &&
+      statusResult.before.status !== statusResult.after.status
+    ) {
+      await publishEvent("task.status_changed", {
+        taskId: statusResult.after.id,
+        boardId: statusResult.after.boardId,
+        userId: null,
+        oldStatus: statusResult.before.status,
+        newStatus: statusResult.after.status,
+        title: statusResult.after.title,
+        assigneeId: statusResult.after.userId,
+        type: "status_changed",
+      });
+    }
+
+    await updateExternalLink(externalLink.id, {
+      metadata: {
+        ...existingMetadata,
+        state: "open",
+      },
+    });
+
+    handledTaskIds.push(task.id);
+    break;
+  }
+
+  await syncFollowerStatusForIssue({
+    owner: repository.owner.login,
+    repo: repository.name,
+    issueNumber: issue.number,
+    eventType: "issue_reopened",
+    fallbackStatus: "to-do",
+    alreadyHandledTaskIds: handledTaskIds,
+  });
+}
+
+export default handleIssueReopened;
