@@ -339,7 +339,7 @@ function ProjectTicketBoard({
   const { t } = useTranslation();
   const groups = canonicalStatusGroups(tickets);
   const canonicalStatuses = TASK_STATUS_SLUGS;
-  const canonical = new Set(canonicalStatuses);
+  const canonical = new Set<string>(canonicalStatuses);
   const other = tickets.filter((ticket) => !canonical.has(ticket.status));
   return (
     <div

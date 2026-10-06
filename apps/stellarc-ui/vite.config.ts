@@ -29,6 +29,11 @@ import packageJson from "../../package.json";
  */
 const useDevHttps = process.env.KANEO_DEV_HTTPS === "1";
 
+// The host dev API owns :1337. e2e (work.spec.ts) overrides this via
+// STELLARC_PROXY_API so the preview server forwards same-origin /api and
+// /orgs traffic to the disposable e2e API instead.
+const proxyTarget = process.env.STELLARC_PROXY_API ?? "http://127.0.0.1:1337";
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
@@ -57,19 +62,10 @@ export default defineConfig({
     // server. Proxy API traffic locally so browser requests remain same-origin
     // while the API runs on the host's port 1337.
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:1337",
-        changeOrigin: true,
-        ws: true,
-      },
-      "/.well-known/oauth-protected-resource/api/mcp": {
-        target: "http://127.0.0.1:1337",
-        changeOrigin: true,
-      },
-      "/.well-known/oauth-authorization-server/api": {
-        target: "http://127.0.0.1:1337",
-        changeOrigin: true,
-      },
+      "/api": proxyTarget,
+      "/orgs": proxyTarget,
+      "/.well-known/oauth-protected-resource/api/mcp": proxyTarget,
+      "/.well-known/oauth-authorization-server/api": proxyTarget,
     },
   },
   // `vite preview` serves the production build (a handful of bundled, hashed
@@ -81,17 +77,17 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ["kaneo.entelechia.cloud", "kaneo.k3s.home"],
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:1337",
-        changeOrigin: true,
-        ws: true,
-      },
+      // Same env override as the dev server: work.spec.ts points this at the
+      // disposable e2e API (STELLARC_PROXY_API). /orgs proxies the shape
+      // endpoint the live collections stream from.
+      "/api": { target: proxyTarget, changeOrigin: true, ws: true },
+      "/orgs": { target: proxyTarget, changeOrigin: true, ws: true },
       "/.well-known/oauth-protected-resource/api/mcp": {
-        target: "http://127.0.0.1:1337",
+        target: proxyTarget,
         changeOrigin: true,
       },
       "/.well-known/oauth-authorization-server/api": {
-        target: "http://127.0.0.1:1337",
+        target: proxyTarget,
         changeOrigin: true,
       },
     },
