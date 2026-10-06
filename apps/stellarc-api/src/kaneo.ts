@@ -53,9 +53,19 @@ const load = (path: string): Effect.Effect<any, unknown> =>
 		catch: (cause) => cause,
 	});
 
+/** Kaneo owns its database. Its migrations probe information_schema without
+ * a schema filter, so Stellarc's same-named identity tables must not share a
+ * catalog with it: KANEO_DATABASE_URL (default: DATABASE_URL) is Kaneo's,
+ * DATABASE_URL is Stellarc's. Set both to one URL only for databases where
+ * Kaneo's schema already exists (existing installs). */
+export const kaneoDatabaseUrl = () =>
+	process.env.KANEO_DATABASE_URL ?? process.env.DATABASE_URL ?? "";
+
 export const KaneoDomainLive = Layer.scoped(
 	KaneoDomain,
 	Effect.gen(function* () {
+		// The lifted tree reads DATABASE_URL at import time.
+		process.env.DATABASE_URL = kaneoDatabaseUrl();
 		const legacy = yield* load("index.ts");
 		const scheduler = yield* load("scheduler/index.ts");
 		const ws = yield* load("ws/index.ts");

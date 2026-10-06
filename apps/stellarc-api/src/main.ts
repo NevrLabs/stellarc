@@ -15,7 +15,12 @@ import { ShapeEngine } from "../../../packages/sync/src/index";
 import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import { AppConfig, ConfigLive } from "./config";
 import { foundationHandler } from "./http";
-import { KaneoDomain, KaneoDomainLive } from "./kaneo";
+import {
+	KaneoDomain,
+	KaneoDomainLive,
+	type KaneoDomainService,
+	kaneoDatabaseUrl,
+} from "./kaneo";
 
 /** Stellarc-owned tables live in their own schema so they can share a
  * database with the lifted Kaneo domain (whose `user`/`session` tables
@@ -49,7 +54,30 @@ const withCors = async (request: Request, response: Promise<Response>) => {
 	return new Response(res.body, { status: res.status, headers });
 };
 
-const FOUNDATION = /^\/(health$|orgs\/[^/]+\/v1\/shape$)/;
+const socketPath = (url: string) => {
+	try {
+		const u = new URL(url);
+		const dir = u.searchParams.get("host");
+		return dir?.startsWith("/")
+			? { path: `${dir}/.s.PGSQL.${u.port || 5432}` }
+			: {};
+	} catch {
+		return {};
+	}
+};
+
+/** postgres.js forwards unknown query params as startup parameters. */
+const withoutSocketParam = (url: string) => {
+	try {
+		const u = new URL(url);
+		u.searchParams.delete("host");
+		return u.toString();
+	} catch {
+		return url;
+	}
+};
+
+const KANEO_PATH = /^\/api(\/|$)/;
 
 export const api = Effect.gen(function* () {
 	const config = yield* AppConfig;
@@ -61,17 +89,26 @@ export const api = Effect.gen(function* () {
 		return yield* Effect.die(new Error("Invalid STELLARC_DB_SCHEMA"));
 	const sql = yield* Effect.acquireRelease(
 		Effect.sync(() =>
-			postgres(Redacted.value(config.databaseUrl), {
+			postgres(withoutSocketParam(Redacted.value(config.databaseUrl)), {
 				max: 8,
 				onnotice: () => {},
 				connection: { search_path: STELLARC_SCHEMA },
+				// postgres.js ignores libpq's `?host=/socket/dir`; honor it so
+				// unix-socket URLs (disposable test clusters) connect as with pg.
+				...socketPath(Redacted.value(config.databaseUrl)),
 			}),
 		),
 		(sql) => Effect.promise(() => sql.end()),
 	);
-	yield* Effect.tryPromise(async () => {
-		await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${STELLARC_SCHEMA}"`);
-		await migrate(sql);
+	yield* Effect.tryPromise({
+		try: async () => {
+			await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${STELLARC_SCHEMA}"`);
+			await migrate(sql);
+		},
+		catch: (cause) =>
+			new Error(
+				`migration failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+			),
 	}).pipe(Effect.withSpan("stellarc.migrate"));
 	const telemetry = TelemetryLive("stellarc-api");
 	const memoMap = yield* Layer.makeMemoMap;
@@ -98,26 +135,45 @@ export const api = Effect.gen(function* () {
 		),
 		(agents) => Effect.promise(() => agents.dispose()),
 	);
-	const kaneo = kaneoEnabled
-		? yield* Layer.build(KaneoDomainLive).pipe(
-				Effect.map((ctx) => Context.get(ctx, KaneoDomain)),
-			)
-		: null;
-	const native =
-		kaneo && process.env.STELLARC_KANEO_NATIVE !== "off"
-			? yield* Effect.acquireRelease(
-					Effect.sync(() =>
-						kaneoNativeHandler({
-							databaseUrl: Redacted.value(config.databaseUrl),
-							resolvePrincipal: kaneo.resolvePrincipal,
-							ports: kaneo.ports,
-							telemetry,
-							memoMap,
-						}),
-					),
-					(h) => Effect.promise(() => h.dispose()),
-				)
-			: null;
+	// The Kaneo domain (legacy migrations, seeds, plugins, scheduler) can take
+	// tens of seconds on a fresh database. It boots in a scoped background
+	// fiber so /health and the foundation/agents surfaces are live at once;
+	// Kaneo paths answer 503 until the domain is ready.
+	type Domain = KaneoDomainService & {
+		native: ReturnType<typeof kaneoNativeHandler> | null;
+	};
+	let kaneo: Domain | null = null;
+	if (kaneoEnabled)
+		yield* Effect.forkScoped(
+			Effect.gen(function* () {
+				const domain = yield* Layer.build(KaneoDomainLive).pipe(
+					Effect.map((ctx) => Context.get(ctx, KaneoDomain)),
+				);
+				const native =
+					process.env.STELLARC_KANEO_NATIVE !== "off"
+						? yield* Effect.acquireRelease(
+								Effect.sync(() =>
+									kaneoNativeHandler({
+										databaseUrl: kaneoDatabaseUrl(),
+										resolvePrincipal: domain.resolvePrincipal,
+										ports: domain.ports,
+										telemetry,
+										memoMap,
+									}),
+								),
+								(h) => Effect.promise(() => h.dispose()),
+							)
+						: null;
+				kaneo = { ...domain, native };
+				yield* Effect.logInfo("kaneo ready");
+				yield* Effect.never;
+			}).pipe(
+				Effect.scoped,
+				Effect.catchAllCause((cause) =>
+					Effect.logError("kaneo domain failed to start", cause),
+				),
+			),
+		);
 	const runtime = yield* Effect.acquireRelease(
 		Effect.sync(() => ManagedRuntime.make(telemetry, memoMap)),
 		(rt) => Effect.promise(() => rt.dispose()),
@@ -126,7 +182,7 @@ export const api = Effect.gen(function* () {
 		runtime.runPromise(
 			Effect.tryPromise({
 				try: async () =>
-					(await kaneo?.legacy.fetch(request, server)) ??
+					(await (kaneo as Domain | null)?.legacy.fetch(request, server)) ??
 					new Response("Not Found", { status: 404 }),
 				catch: (cause) => cause,
 			}).pipe(
@@ -165,9 +221,18 @@ export const api = Effect.gen(function* () {
 				fetch: (request, server) => {
 					if (agents.matches(request)) return agents.handler(request);
 					const path = new URL(request.url).pathname;
-					if (!kaneo || FOUNDATION.test(path)) return http.handler(request);
-					if (native && isNative(request))
-						return withCors(request, native.handler(request));
+					// Only Kaneo's own surface (/api/*) is routed to the domain;
+					// everything else stays with the fail-closed foundation API.
+					if (!kaneoEnabled || !KANEO_PATH.test(path))
+						return http.handler(request);
+					const domain = kaneo as Domain | null;
+					if (!domain)
+						return Response.json(
+							{ message: "Starting" },
+							{ status: 503, headers: { "retry-after": "2" } },
+						);
+					if (domain.native && isNative(request))
+						return withCors(request, domain.native.handler(request));
 					return serveKaneo(request, server);
 				},
 			}),
@@ -186,10 +251,13 @@ export const api = Effect.gen(function* () {
 if (import.meta.main)
 	BunRuntime.runMain(
 		api.pipe(
-			Effect.catchAll(() =>
+			Effect.catchAll((error) =>
 				Effect.sync(() => {
 					// biome-ignore lint/suspicious/noConsole: fatal startup handler cannot depend on telemetry
-					console.error("API startup failed");
+					console.error(
+						"API startup failed:",
+						error instanceof Error ? error.message : String(error),
+					);
 					process.exitCode = 1;
 				}),
 			),
