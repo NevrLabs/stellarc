@@ -15,8 +15,8 @@ curl -XPOST $PLANE/orgs/$ORG/v1/nodes -H "authorization: Bearer $OPERATOR" \
   "tokenEnv": "STELLARC_NODE_TOKEN",
   "concurrency": 2,
   "harnesses": {
-    "hermes": null,                       // built-in default: `hermes acp`
-    "claude-code": null,                  // npx @zed-industries/claude-code-acp
+    "hermes": null,
+    "claude-code": null,
     "my-agent": { "command": "/opt/my-agent", "args": ["--acp"] }
   }
 }
@@ -30,6 +30,8 @@ curl -XPOST $PLANE/orgs/$ORG/v1/tasks  ... -d '{"agentId":"agt_…","prompt":"�
 curl $PLANE/orgs/$ORG/v1/tasks/task_…    # status + transcript items
 ```
 
+`null` means "use the built-in launcher" (`hermes` → `hermes acp`,
+`claude-code` → `npx @zed-industries/claude-code-acp`, …).
 The built-in harness names are `hermes`, `goose`, `claude-code`, `codex`,
 `gemini` and `opencode`. Any other ACP-over-stdio agent works through
 `command` + `args`. See `docs/adrs/0011-byo-agent-runtime.md`.
