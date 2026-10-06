@@ -1,0 +1,559 @@
+{
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1733703124000,
+			"tag": "0006_rename_active_workspace_to_organization",
+			"breakpoints": true
+		},
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1750083630484,
+			"tag": "0000_confused_pixie",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1750504871903,
+			"tag": "0001_natural_robin_chapel",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1752666410349,
+			"tag": "0002_easy_miek",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1755016234993,
+			"tag": "0003_round_human_fly",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1755720143109,
+			"tag": "0004_curved_stingray",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1759234332200,
+			"tag": "0005_jittery_monster_badoon",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1765390825431,
+			"tag": "0007_careful_moira_mactaggert",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1765392072530,
+			"tag": "0008_square_silvermane",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1766950050412,
+			"tag": "0009_harsh_blacklash",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1767037216750,
+			"tag": "0010_bouncy_taskmaster",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1767037714394,
+			"tag": "0011_flashy_masked_marvel",
+			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "7",
+			"when": 1770375054098,
+			"tag": "0012_mixed_thor_girl",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "7",
+			"when": 1772660160328,
+			"tag": "0013_quiet_gladiator",
+			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "7",
+			"when": 1773259300000,
+			"tag": "0014_private_assets",
+			"breakpoints": true
+		},
+		{
+			"idx": 15,
+			"version": "7",
+			"when": 1773947411304,
+			"tag": "0015_add_comment_and_archival",
+			"breakpoints": true
+		},
+		{
+			"idx": 16,
+			"version": "7",
+			"when": 1773952461673,
+			"tag": "0016_add_task_relation",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "7",
+			"when": 1774269662424,
+			"tag": "0017_white_omega_flight",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1774726270729,
+			"tag": "0018_motionless_luckman",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "7",
+			"when": 1774823200346,
+			"tag": "0019_sloppy_meteorite",
+			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "7",
+			"when": 1774908000000,
+			"tag": "0020_gitea_dedup_guards",
+			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "7",
+			"when": 1774942282393,
+			"tag": "0021_pretty_smiling_tiger",
+			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "7",
+			"when": 1774944216644,
+			"tag": "0022_material_electro",
+			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "7",
+			"when": 1775102400000,
+			"tag": "0026_encrypt_notification_preference_secrets",
+			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "7",
+			"when": 1775156843372,
+			"tag": "0025_early_owl",
+			"breakpoints": true
+		},
+		{
+			"idx": 23,
+			"version": "7",
+			"when": 1775215568801,
+			"tag": "0023_cold_omega_red",
+			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "7",
+			"when": 1775215568802,
+			"tag": "0024_device_code_timestamps",
+			"breakpoints": true
+		},
+		{
+			"idx": 27,
+			"version": "7",
+			"when": 1775245262351,
+			"tag": "0027_chilly_namorita",
+			"breakpoints": true
+		},
+		{
+			"idx": 28,
+			"version": "7",
+			"when": 1777245262351,
+			"tag": "0028_apikey_user_id_nullable",
+			"breakpoints": true
+		},
+		{
+			"idx": 29,
+			"version": "7",
+			"when": 1778000000000,
+			"tag": "0029_fk_supporting_indexes",
+			"breakpoints": true
+		},
+		{
+			"idx": 30,
+			"version": "7",
+			"when": 1778334176370,
+			"tag": "0030_smart_umar",
+			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "7",
+			"when": 1778335540111,
+			"tag": "0031_strong_colleen_wing",
+			"breakpoints": true
+		},
+		{
+			"idx": 32,
+			"version": "7",
+			"when": 1783761933880,
+			"tag": "0032_unify_task_comments",
+			"breakpoints": true
+		},
+		{
+			"idx": 33,
+			"version": "7",
+			"when": 1784374645880,
+			"tag": "0033_public_patriot",
+			"breakpoints": true
+		},
+		{
+			"idx": 34,
+			"version": "7",
+			"when": 1785083041546,
+			"tag": "0034_icy_cable",
+			"breakpoints": true
+		},
+		{
+			"idx": 35,
+			"version": "7",
+			"when": 1785083042546,
+			"tag": "0035_terminology_rename",
+			"breakpoints": true
+		},
+		{
+			"idx": 36,
+			"version": "7",
+			"when": 1785083042547,
+			"tag": "0036_repo_entity",
+			"breakpoints": true
+		},
+		{
+			"idx": 37,
+			"version": "7",
+			"when": 1785125569978,
+			"tag": "0037_organization_github_installation",
+			"breakpoints": true
+		},
+		{
+			"idx": 38,
+			"version": "7",
+			"when": 1785128400000,
+			"tag": "0038_task_repo_item_link",
+			"breakpoints": true
+		},
+		{
+			"idx": 39,
+			"version": "7",
+			"when": 1785128400001,
+			"tag": "0039_github_user_delegation",
+			"breakpoints": true
+		},
+		{
+			"idx": 40,
+			"version": "7",
+			"when": 1785218400000,
+			"tag": "0040_organization_repos_feature",
+			"breakpoints": true
+		},
+		{
+			"idx": 41,
+			"version": "7",
+			"when": 1785231000000,
+			"tag": "0041_resource_visibility_grants",
+			"breakpoints": true
+		},
+		{
+			"idx": 42,
+			"version": "7",
+			"when": 1785232000000,
+			"tag": "0042_oidc_team_sync",
+			"breakpoints": true
+		},
+		{
+			"idx": 43,
+			"version": "7",
+			"when": 1785240000000,
+			"tag": "0043_repair_oidc_team_sync",
+			"breakpoints": true
+		},
+		{
+			"idx": 44,
+			"version": "7",
+			"when": 1785291000000,
+			"tag": "0044_task_synced_issue",
+			"breakpoints": true
+		},
+		{
+			"idx": 45,
+			"version": "7",
+			"when": 1785387000000,
+			"tag": "0045_repo_media_assets",
+			"breakpoints": true
+		},
+		{
+			"idx": 46,
+			"version": "7",
+			"when": 1785388000000,
+			"tag": "0046_organization_ai",
+			"breakpoints": true
+		},
+		{
+			"idx": 47,
+			"version": "7",
+			"when": 1785390000000,
+			"tag": "0047_edit_history",
+			"breakpoints": true
+		},
+		{
+			"idx": 48,
+			"version": "7",
+			"when": 1785391000000,
+			"tag": "0048_task_team_assignee",
+			"breakpoints": true
+		},
+		{
+			"idx": 49,
+			"version": "7",
+			"when": 1785393000000,
+			"tag": "0049_pull_request_diff_delta",
+			"breakpoints": true
+		},
+		{
+			"idx": 50,
+			"version": "7",
+			"when": 1785395000000,
+			"tag": "0050_organization_ai_provider",
+			"breakpoints": true
+		},
+		{
+			"idx": 51,
+			"version": "7",
+			"when": 1785397000000,
+			"tag": "0051_task_soft_delete",
+			"breakpoints": true
+		},
+		{
+			"idx": 52,
+			"version": "7",
+			"when": 1785399000000,
+			"tag": "0052_board_milestone",
+			"breakpoints": true
+		},
+		{
+			"idx": 53,
+			"version": "7",
+			"when": 1785401000000,
+			"tag": "0053_task_flags",
+			"breakpoints": true
+		},
+		{
+			"idx": 54,
+			"version": "7",
+			"when": 1785403000000,
+			"tag": "0054_board_subtask_depth",
+			"breakpoints": true
+		},
+		{
+			"idx": 55,
+			"version": "7",
+			"when": 1785405000000,
+			"tag": "0055_task_flag_resolve_note",
+			"breakpoints": true
+		},
+		{
+			"idx": 56,
+			"version": "7",
+			"when": 1785407000000,
+			"tag": "0056_label_source",
+			"breakpoints": true
+		},
+		{
+			"idx": 57,
+			"version": "7",
+			"when": 1785665000000,
+			"tag": "0057_task_templates",
+			"breakpoints": true
+		},
+		{
+			"idx": 58,
+			"version": "7",
+			"when": 1785729600000,
+			"tag": "0058_backfill_repo_label_source",
+			"breakpoints": true
+		},
+		{
+			"idx": 59,
+			"version": "7",
+			"when": 1785752930846,
+			"tag": "0059_data_tables",
+			"breakpoints": true
+		},
+		{
+			"idx": 60,
+			"version": "7",
+			"when": 1785761000000,
+			"tag": "0060_tables_feature_flag",
+			"breakpoints": true
+		},
+		{
+			"idx": 61,
+			"version": "7",
+			"when": 1785847400000,
+			"tag": "0061_manual_resource_links",
+			"breakpoints": true
+		},
+		{
+			"idx": 62,
+			"version": "7",
+			"when": 1785851000000,
+			"tag": "0062_task_archived_at",
+			"breakpoints": true
+		},
+		{
+			"idx": 63,
+			"version": "7",
+			"when": 1785853700000,
+			"tag": "0063_board_status_order",
+			"breakpoints": true
+		},
+		{
+			"idx": 64,
+			"version": "7",
+			"when": 1785911000000,
+			"tag": "0064_team_icon",
+			"breakpoints": true
+		},
+		{
+			"idx": 65,
+			"version": "7",
+			"when": 1786013000000,
+			"tag": "0065_team_parent",
+			"breakpoints": true
+		},
+		{
+			"idx": 66,
+			"version": "7",
+			"when": 1786114000000,
+			"tag": "0066_organization_resource_defaults",
+			"breakpoints": true
+		},
+		{
+			"idx": 67,
+			"version": "7",
+			"when": 1786118000000,
+			"tag": "0067_per_resource_org_privilege",
+			"breakpoints": true
+		},
+		{
+			"idx": 68,
+			"version": "7",
+			"when": 1786122000000,
+			"tag": "0068_board_default_assignee",
+			"breakpoints": true
+		},
+		{
+			"idx": 37,
+			"version": "7",
+			"when": 1786185172966,
+			"tag": "0037_tiny_raza",
+			"breakpoints": true
+		},
+		{
+			"idx": 69,
+			"version": "7",
+			"when": 1786260000000,
+			"tag": "0069_ticket_identity_aliases",
+			"breakpoints": true
+		},
+		{
+			"idx": 40,
+			"version": "7",
+			"when": 1786555508802,
+			"tag": "0040_clear_eternals",
+			"breakpoints": true
+		},
+		{
+			"idx": 41,
+			"version": "7",
+			"when": 1786557281986,
+			"tag": "0041_famous_cable",
+			"breakpoints": true
+		},
+		{
+			"idx": 70,
+			"version": "7",
+			"when": 1786848000000,
+			"tag": "0070_task_archived_by",
+			"breakpoints": true
+		},
+		{
+			"idx": 71,
+			"version": "7",
+			"when": 1786852000000,
+			"tag": "0071_task_follower",
+			"breakpoints": true
+		},
+		{
+			"idx": 72,
+			"version": "7",
+			"when": 1787717524094,
+			"tag": "0072_project_foundation",
+			"breakpoints": true
+		},
+		{
+			"idx": 73,
+			"version": "7",
+			"when": 1787800000000,
+			"tag": "0073_project_ticket",
+			"breakpoints": true
+		},
+		{
+			"idx": 74,
+			"version": "7",
+			"when": 1787895112641,
+			"tag": "0074_project_milestone",
+			"breakpoints": true
+		},
+		{
+			"idx": 77,
+			"version": "7",
+			"when": 1788316800000,
+			"tag": "0077_project_updates",
+			"breakpoints": true
+		}
+	]
+}

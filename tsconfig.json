@@ -6,9 +6,31 @@
 		"strict": true,
 		"noEmit": true,
 		"skipLibCheck": true,
-		"types": ["bun"],
-		"allowImportingTsExtensions": true
+		"types": [
+			"bun"
+		],
+		"allowImportingTsExtensions": true,
+		"paths": {
+			"@kaneo/permissions": [
+				"./packages/contracts/src/legacy/permissions/index.ts"
+			],
+			"@kaneo/email": [
+				"./packages/kaneo-email/src/index.tsx"
+			]
+		},
+		"jsx": "react-jsx"
 	},
-	"include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts", "vitest*.ts"],
-	"exclude": ["apps/stellarc-ui/**", "packages/contracts/src/legacy/**", "node_modules"]
+	"include": [
+		"apps/**/*.ts",
+		"packages/**/*.ts",
+		"tests/**/*.ts",
+		"vitest*.ts"
+	],
+	"exclude": [
+		"apps/stellarc-ui/**",
+		"packages/contracts/src/legacy/**",
+		"node_modules",
+		"packages/kaneo-legacy/**",
+		"packages/kaneo-email/**"
+	]
 }

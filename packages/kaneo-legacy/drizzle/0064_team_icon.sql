@@ -1,0 +1,13 @@
+-- KFL-257: team icon / emoji for the team avatar.
+--
+-- Teams rendered an initials-only avatar with no way to give them a glyph, while
+-- boards and repos have had an `icon` column for a while. Reusing the same
+-- column name and value vocabulary means the existing `lib/resolve-icon` helper
+-- resolves team icons too, with no second implementation: a value is either a
+-- lucide name from the shared `board-icons` map (`Rocket`) or an emoji (`🚀`).
+--
+-- Deliberately NULLable with no default, unlike `board.icon` which defaults to
+-- 'Layout'. A default would make every existing team suddenly display the same
+-- generic glyph; NULL lets the UI keep showing initials until someone picks an
+-- icon, so this migration is invisible until the feature is used.
+ALTER TABLE "team" ADD COLUMN IF NOT EXISTS "icon" text;

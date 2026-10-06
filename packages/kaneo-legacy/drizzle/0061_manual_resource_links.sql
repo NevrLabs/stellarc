@@ -1,0 +1,12 @@
+-- #265: a resource is just a link. A plain user-pasted link has no integration,
+-- so `integration_id` must accept NULL.
+--
+-- `external_id` deliberately stays NOT NULL: for an integration link it is the
+-- upstream identifier (issue/PR number), and for a manual link the URL is its
+-- own identifier. Widening it broke 14 integration sync call sites that treat
+-- it as a string, for no benefit.
+--
+-- Dropping NOT NULL is a metadata-only change in PostgreSQL: it takes a brief
+-- ACCESS EXCLUSIVE lock but rewrites no rows and cannot invalidate existing
+-- data, since every current row already has the value populated.
+ALTER TABLE "external_link" ALTER COLUMN "integration_id" DROP NOT NULL;

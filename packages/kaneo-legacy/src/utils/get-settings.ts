@@ -1,0 +1,44 @@
+import { config } from "dotenv-mono";
+import { isGithubSsoConfigured } from "./github-sso-env";
+
+config();
+
+function getSettings() {
+  return {
+    /**
+     * Single-org mode restricts the instance to exactly one organization and is
+     * the only mode where OIDC/SSO claim mapping is available. Claim mapping is
+     * deliberately unavailable in multi-org mode: with several organizations
+     * there is no unambiguous target for a claim, so the feature is off rather
+     * than guessing.
+     */
+    singleOrgMode: process.env.SINGLE_ORG_MODE === "true",
+    disableRegistration: process.env.DISABLE_REGISTRATION === "true",
+    disablePasswordRegistration:
+      process.env.DISABLE_PASSWORD_REGISTRATION === "true",
+    disableEmailOtpSignIn: process.env.DISABLE_EMAIL_OTP_SIGN_IN === "true",
+    isDemoMode: process.env.DEMO_MODE === "true",
+    hasSmtp:
+      Boolean(process.env.SMTP_HOST) &&
+      Boolean(process.env.SMTP_PORT) &&
+      Boolean(process.env.SMTP_SECURE) &&
+      Boolean(process.env.SMTP_USER) &&
+      Boolean(process.env.SMTP_PASSWORD),
+    hasGithubSignIn: isGithubSsoConfigured(),
+    hasGoogleSignIn:
+      Boolean(process.env.GOOGLE_CLIENT_ID) &&
+      Boolean(process.env.GOOGLE_CLIENT_SECRET),
+    hasDiscordSignIn:
+      Boolean(process.env.DISCORD_CLIENT_ID) &&
+      Boolean(process.env.DISCORD_CLIENT_SECRET),
+    hasCustomOAuth:
+      Boolean(process.env.CUSTOM_OAUTH_CLIENT_ID) &&
+      Boolean(process.env.CUSTOM_OAUTH_CLIENT_SECRET),
+    hasGuestAccess: process.env.DISABLE_GUEST_ACCESS !== "true",
+    disableLoginForm: process.env.DISABLE_LOGIN_FORM === "true",
+    customOAuthAutoLogin: process.env.CUSTOM_OAUTH_AUTO_LOGIN === "true",
+    customOAuthLogoutUrl: process.env.CUSTOM_OAUTH_LOGOUT_URL || null,
+  };
+}
+
+export default getSettings;

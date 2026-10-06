@@ -1,0 +1,576 @@
+import { createHmac } from "node:crypto";
+import { sendNotificationEmail } from "@kaneo/email";
+import { and, eq } from "drizzle-orm";
+import db from "../database";
+import {
+  boardTable,
+  notificationTable,
+  organizationTable,
+  taskTable,
+  userNotificationOrgRuleTable,
+  userNotificationPreferenceTable,
+  userTable,
+} from "../database/schema";
+import { assertPublicWebhookDestination } from "../plugins/generic-webhook/config";
+import { decryptSecret } from "./secrets";
+
+const DEFAULT_OUTBOUND_FETCH_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit & { timeoutMs?: number },
+): Promise<Response> {
+  const timeoutMs = init.timeoutMs ?? DEFAULT_OUTBOUND_FETCH_TIMEOUT_MS;
+  const { timeoutMs: _timeout, ...rest } = init;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...rest, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+type ResolvedNotificationContext = {
+  organizationId: string;
+  organizationName: string;
+  boardId: string | null;
+  boardName: string | null;
+  taskId: string | null;
+  taskTitle: string | null;
+  taskUrl: string | null;
+};
+
+type DeliveryContent = {
+  title: string;
+  body: string;
+};
+
+function buildTaskUrl(organizationId: string, boardId: string, taskId: string) {
+  const clientUrl = process.env.KANEO_CLIENT_URL || "http://localhost:5173";
+  return `${clientUrl}/dashboard/organization/${organizationId}/board/${boardId}/task/${taskId}`;
+}
+
+function getStringValue(
+  data: Record<string, unknown> | null | undefined,
+  key: string,
+) {
+  const value = data?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function getNumberValue(
+  data: Record<string, unknown> | null | undefined,
+  key: string,
+) {
+  const value = data?.[key];
+  return typeof value === "number" ? value : null;
+}
+
+function formatLeadTime(minutes: number | null) {
+  if (!minutes) return "soon";
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `in ${days} ${days === 1 ? "day" : "days"}`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  return `in ${minutes} minutes`;
+}
+
+function buildDeliveryContent(notification: {
+  type: string;
+  content: string | null;
+  title: string | null;
+  eventData: Record<string, unknown> | null;
+}): DeliveryContent {
+  if (notification.title && notification.content) {
+    return {
+      title: notification.title,
+      body: notification.content,
+    };
+  }
+
+  switch (notification.type) {
+    case "task_created": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      return {
+        title: "New ticket created",
+        body: taskTitle
+          ? `A new ticket was created: ${taskTitle}`
+          : "A new ticket was created in Kaneo.",
+      };
+    }
+    case "organization_created": {
+      const organizationName = getStringValue(
+        notification.eventData,
+        "organizationName",
+      );
+      return {
+        title: "Organization created",
+        body: organizationName
+          ? `Organization created: ${organizationName}`
+          : "A new organization was created in Kaneo.",
+      };
+    }
+    case "task_status_changed": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      const oldStatus = getStringValue(notification.eventData, "oldStatus");
+      const newStatus = getStringValue(notification.eventData, "newStatus");
+      return {
+        title: "Ticket status changed",
+        body:
+          taskTitle && oldStatus && newStatus
+            ? `${taskTitle} moved from ${oldStatus} to ${newStatus}.`
+            : "A ticket status changed in Kaneo.",
+      };
+    }
+    case "task_assignee_changed": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      return {
+        title: "Ticket assigned to you",
+        body: taskTitle
+          ? `You were assigned to ${taskTitle}.`
+          : "A ticket was assigned to you in Kaneo.",
+      };
+    }
+    case "time_entry_created": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      return {
+        title: "Time entry created",
+        body: taskTitle
+          ? `A time entry was created for ${taskTitle}.`
+          : "A time entry was created in Kaneo.",
+      };
+    }
+    case "due_date_reminder": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      const label = formatLeadTime(
+        getNumberValue(notification.eventData, "leadTimeMinutes"),
+      );
+      return {
+        title: "Ticket due soon",
+        body: taskTitle
+          ? `"${taskTitle}" is due ${label}.`
+          : `A ticket is due ${label}.`,
+      };
+    }
+    case "task_overdue": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      return {
+        title: "Ticket overdue",
+        body: taskTitle
+          ? `"${taskTitle}" is past its due date.`
+          : "A ticket is past its due date.",
+      };
+    }
+    case "task_mention": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      const mentionerName = getStringValue(
+        notification.eventData,
+        "mentionerName",
+      );
+      return {
+        title: mentionerName
+          ? `${mentionerName} mentioned you`
+          : "You were mentioned",
+        body: taskTitle
+          ? `You were mentioned in ${taskTitle}.`
+          : "You were mentioned in a Kaneo ticket.",
+      };
+    }
+    case "task_comment": {
+      const taskTitle = getStringValue(notification.eventData, "taskTitle");
+      const commenterName = getStringValue(
+        notification.eventData,
+        "commenterName",
+      );
+      return {
+        title: commenterName
+          ? `${commenterName} commented on your ticket`
+          : "New ticket comment",
+        body: taskTitle
+          ? `A new comment was added to ${taskTitle}.`
+          : "A new comment was added to a Kaneo ticket.",
+      };
+    }
+    default:
+      return {
+        title: notification.title ?? "New Kaneo notification",
+        body: notification.content ?? "You have a new notification in Kaneo.",
+      };
+  }
+}
+
+async function resolveNotificationContext(notification: {
+  resourceType: string | null;
+  resourceId: string | null;
+}): Promise<ResolvedNotificationContext | null> {
+  if (!notification.resourceType || !notification.resourceId) {
+    return null;
+  }
+
+  if (notification.resourceType === "task") {
+    const [task] = await db
+      .select({
+        taskId: taskTable.id,
+        taskTitle: taskTable.title,
+        boardId: boardTable.id,
+        boardName: boardTable.name,
+        organizationId: organizationTable.id,
+        organizationName: organizationTable.name,
+      })
+      .from(taskTable)
+      .innerJoin(boardTable, eq(taskTable.boardId, boardTable.id))
+      .innerJoin(
+        organizationTable,
+        eq(boardTable.organizationId, organizationTable.id),
+      )
+      .where(eq(taskTable.id, notification.resourceId))
+      .limit(1);
+
+    if (!task) {
+      return null;
+    }
+
+    return {
+      organizationId: task.organizationId,
+      organizationName: task.organizationName,
+      boardId: task.boardId,
+      boardName: task.boardName,
+      taskId: task.taskId,
+      taskTitle: task.taskTitle,
+      taskUrl: buildTaskUrl(task.organizationId, task.boardId, task.taskId),
+    };
+  }
+
+  if (notification.resourceType === "organization") {
+    const [organization] = await db
+      .select({
+        organizationId: organizationTable.id,
+        organizationName: organizationTable.name,
+      })
+      .from(organizationTable)
+      .where(eq(organizationTable.id, notification.resourceId))
+      .limit(1);
+
+    if (!organization) {
+      return null;
+    }
+
+    return {
+      organizationId: organization.organizationId,
+      organizationName: organization.organizationName,
+      boardId: null,
+      boardName: null,
+      taskId: null,
+      taskTitle: null,
+      taskUrl: null,
+    };
+  }
+
+  return null;
+}
+
+async function sendNtfyNotification(input: {
+  serverUrl: string;
+  topic: string;
+  token?: string | null;
+  title: string;
+  body: string;
+  clickUrl?: string | null;
+}) {
+  await assertPublicWebhookDestination(input.serverUrl);
+
+  const response = await fetchWithTimeout(
+    `${input.serverUrl.replace(/\/+$/, "")}/${encodeURIComponent(input.topic)}`,
+    {
+      method: "POST",
+      headers: {
+        ...(input.token ? { Authorization: `Bearer ${input.token}` } : {}),
+        ...(input.clickUrl ? { Click: input.clickUrl } : {}),
+        Title: input.title,
+      },
+      body: input.body,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `ntfy delivery failed (${response.status}): ${await response.text()}`,
+    );
+  }
+}
+
+async function sendGotifyNotification(input: {
+  serverUrl: string;
+  token: string;
+  title: string;
+  body: string;
+  clickUrl?: string | null;
+}) {
+  await assertPublicWebhookDestination(input.serverUrl);
+
+  // Gotify expects the app token in the query string; that can surface in logs, proxies, and browser history — factor this into Gotify placement and log handling.
+  const response = await fetchWithTimeout(
+    `${input.serverUrl.replace(/\/+$/, "")}/message?token=${encodeURIComponent(
+      input.token,
+    )}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: input.title,
+        message: input.body,
+        priority: 5,
+        extras: input.clickUrl
+          ? {
+              "client::notification": {
+                click: {
+                  url: input.clickUrl,
+                },
+              },
+              "client::display": {
+                contentType: "text/plain",
+              },
+            }
+          : undefined,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Gotify delivery failed (${response.status}): ${await response.text()}`,
+    );
+  }
+}
+
+async function sendWebhookNotification(input: {
+  webhookUrl: string;
+  secret?: string | null;
+  payload: Record<string, unknown>;
+}) {
+  await assertPublicWebhookDestination(input.webhookUrl);
+
+  const body = JSON.stringify(input.payload);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (input.secret) {
+    headers["X-Kaneo-Signature"] = createHmac("sha256", input.secret)
+      .update(body)
+      .digest("hex");
+  }
+
+  const response = await fetchWithTimeout(input.webhookUrl, {
+    method: "POST",
+    headers,
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Webhook delivery failed (${response.status}): ${await response.text()}`,
+    );
+  }
+}
+
+export async function deliverNotification(
+  notificationId: string,
+): Promise<void> {
+  const notification = await db.query.notificationTable.findFirst({
+    where: eq(notificationTable.id, notificationId),
+  });
+
+  if (!notification) {
+    return;
+  }
+
+  const context = await resolveNotificationContext(notification);
+  if (!context) {
+    console.info("Notification delivery skipped: unresolved context", {
+      notificationId,
+      notificationTableId: notification.id,
+      resourceType: notification.resourceType,
+      resourceId: notification.resourceId,
+      reason:
+        "resolveNotificationContext returned null (missing resource, deleted task, or unsupported resource type)",
+    });
+    return;
+  }
+
+  const [user] = await db
+    .select({
+      email: userTable.email,
+      name: userTable.name,
+      locale: userTable.locale,
+    })
+    .from(userTable)
+    .where(eq(userTable.id, notification.userId))
+    .limit(1);
+
+  if (!user) {
+    return;
+  }
+
+  const preference = await db.query.userNotificationPreferenceTable.findFirst({
+    where: eq(userNotificationPreferenceTable.userId, notification.userId),
+  });
+
+  if (!preference) {
+    return;
+  }
+
+  const decryptedPreference = {
+    ...preference,
+    ntfyToken: decryptSecret(preference.ntfyToken),
+    gotifyToken: decryptSecret(preference.gotifyToken),
+    webhookSecret: decryptSecret(preference.webhookSecret),
+  };
+
+  const rule = await db.query.userNotificationOrgRuleTable.findFirst({
+    where: and(
+      eq(userNotificationOrgRuleTable.userId, notification.userId),
+      eq(userNotificationOrgRuleTable.organizationId, context.organizationId),
+    ),
+    with: {
+      selectedBoards: true,
+    },
+  });
+
+  if (!rule?.isActive) {
+    return;
+  }
+
+  if (
+    rule.boardMode === "selected" &&
+    (!context.boardId ||
+      !rule.selectedBoards.some((board) => board.boardId === context.boardId))
+  ) {
+    return;
+  }
+
+  const content = buildDeliveryContent({
+    type: notification.type,
+    title: notification.title ?? null,
+    content: notification.content ?? null,
+    eventData:
+      notification.eventData && typeof notification.eventData === "object"
+        ? (notification.eventData as Record<string, unknown>)
+        : null,
+  });
+
+  const webhookPayload = {
+    notification: {
+      id: notification.id,
+      type: notification.type,
+      title: content.title,
+      content: content.body,
+      createdAt: notification.createdAt,
+      eventData: notification.eventData,
+      resourceId: notification.resourceId,
+      resourceType: notification.resourceType,
+    },
+    organization: {
+      id: context.organizationId,
+      name: context.organizationName,
+    },
+    board: context.boardId
+      ? {
+          id: context.boardId,
+          name: context.boardName,
+        }
+      : null,
+    task: context.taskId
+      ? {
+          id: context.taskId,
+          title: context.taskTitle,
+          url: context.taskUrl,
+        }
+      : null,
+    user: {
+      id: notification.userId,
+      email: user.email,
+      name: user.name,
+    },
+  };
+
+  const deliveries: Array<Promise<void>> = [];
+
+  if (decryptedPreference.emailEnabled && rule.emailEnabled && user.email) {
+    deliveries.push(
+      sendNotificationEmail(user.email, content.title, {
+        title: content.title,
+        message: content.body,
+        actionUrl: context.taskUrl,
+        actionLabel: context.taskUrl ? "Open in Kaneo" : undefined,
+        locale: user.locale ?? null,
+      }).then(() => undefined),
+    );
+  }
+
+  if (
+    decryptedPreference.ntfyEnabled &&
+    decryptedPreference.ntfyServerUrl &&
+    decryptedPreference.ntfyTopic &&
+    rule.ntfyEnabled
+  ) {
+    deliveries.push(
+      sendNtfyNotification({
+        serverUrl: decryptedPreference.ntfyServerUrl,
+        topic: decryptedPreference.ntfyTopic,
+        token: decryptedPreference.ntfyToken,
+        title: content.title,
+        body: content.body,
+        clickUrl: context.taskUrl,
+      }),
+    );
+  }
+
+  if (
+    decryptedPreference.gotifyEnabled &&
+    decryptedPreference.gotifyServerUrl &&
+    decryptedPreference.gotifyToken &&
+    rule.gotifyEnabled
+  ) {
+    deliveries.push(
+      sendGotifyNotification({
+        serverUrl: decryptedPreference.gotifyServerUrl,
+        token: decryptedPreference.gotifyToken,
+        title: content.title,
+        body: content.body,
+        clickUrl: context.taskUrl,
+      }),
+    );
+  }
+
+  if (
+    decryptedPreference.webhookEnabled &&
+    decryptedPreference.webhookUrl &&
+    rule.webhookEnabled
+  ) {
+    deliveries.push(
+      sendWebhookNotification({
+        webhookUrl: decryptedPreference.webhookUrl,
+        secret: decryptedPreference.webhookSecret,
+        payload: webhookPayload,
+      }),
+    );
+  }
+
+  const results = await Promise.allSettled(deliveries);
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Notification delivery failed", {
+        notificationId,
+        error: result.reason,
+      });
+    }
+  }
+}
