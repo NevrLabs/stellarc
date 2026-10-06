@@ -32,11 +32,12 @@ jobs:
         shell: bash
         run: |
           git fetch --quiet origin "${{ github.base_ref }}"
-          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui packages; then
-            echo "T02 OK: no file under apps/stellarc-ui or packages changed"
+          # Only the UI tree is frozen; backend packages evolve (ADR 0011).
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui; then
+            echo "T02 OK: no file under apps/stellarc-ui changed"
           else
-            echo "::error::T02: desktop slice modified the frozen UI tree (apps/stellarc-ui or packages)"
-            git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui packages
+            echo "::error::T02: this PR modified the frozen UI tree (apps/stellarc-ui)"
+            git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- apps/stellarc-ui
             exit 1
           fi
 

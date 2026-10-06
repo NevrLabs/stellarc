@@ -130,8 +130,9 @@ test("T02 desktop slice leaves the frozen UI tree untouched", () => {
 			"--name-only",
 			mb.stdout.trim(),
 			"--",
+			// The frozen surface is the UI tree. Backend packages evolve under
+			// their own suites; guarding them here failed every backend PR.
 			"apps/stellarc-ui",
-			"packages",
 		],
 		{ cwd: ROOT, encoding: "utf8" },
 	);

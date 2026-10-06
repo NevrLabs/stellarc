@@ -5,6 +5,7 @@
     "": {
       "name": "stellarc",
       "dependencies": {
+        "@agentclientprotocol/sdk": "1.7.0",
         "@effect/opentelemetry": "0.64.0",
         "@effect/platform": "0.97.0",
         "@effect/platform-bun": "0.90.0",
@@ -33,6 +34,13 @@
     "apps/stellarc-api": {
       "name": "@stellarc/api",
       "version": "0.0.0",
+    },
+    "apps/stellarc-node": {
+      "name": "@stellarc/node",
+      "version": "0.1.0",
+      "bin": {
+        "stellarc-node": "src/main.ts",
+      },
     },
     "apps/stellarc-ui": {
       "name": "@stellarc/ui",
@@ -153,6 +161,10 @@
       "name": "@stellarc/worker",
       "version": "0.0.0",
     },
+    "packages/agents": {
+      "name": "@stellarc/agents",
+      "version": "0.0.0",
+    },
     "packages/contracts": {
       "name": "@stellarc/contracts",
       "version": "0.0.0",
@@ -176,6 +188,8 @@
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
+
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@1.7.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-ZORuxsuEnLjRly7t6Ad7zAsWitjWsyprswyPUHz/yycPb+tTm3DGa8XheaHhRXqX8LS9snuxaYavXSRA50TlHw=="],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.3.0", "", {}, "sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA=="],
 
@@ -741,6 +755,8 @@
 
     "@standard-schema/utils": ["@standard-schema/utils@0.3.0", "", {}, "sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g=="],
 
+    "@stellarc/agents": ["@stellarc/agents@workspace:packages/agents"],
+
     "@stellarc/api": ["@stellarc/api@workspace:apps/stellarc-api"],
 
     "@stellarc/contracts": ["@stellarc/contracts@workspace:packages/contracts"],
@@ -748,6 +764,8 @@
     "@stellarc/db": ["@stellarc/db@workspace:packages/db"],
 
     "@stellarc/domain": ["@stellarc/domain@workspace:packages/domain"],
+
+    "@stellarc/node": ["@stellarc/node@workspace:apps/stellarc-node"],
 
     "@stellarc/sync": ["@stellarc/sync@workspace:packages/sync"],
 

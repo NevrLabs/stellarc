@@ -13,11 +13,12 @@ for (const config of ["vitest.config.ts", "vitest.integration.config.ts"]) {
 			],
 			{ stdout: "inherit", stderr: "inherit" },
 		);
-		const timer = setTimeout(() => child.kill(), 300000);
+		// The real-PG integration suite runs ~400s on a loaded host; 300s killed it.
+		const timer = setTimeout(() => child.kill(), 900000);
 		try {
 			expect(await child.exited).toBe(0);
 		} finally {
 			clearTimeout(timer);
 		}
-	}, 310000);
+	}, 910000);
 }
