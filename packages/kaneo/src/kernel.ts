@@ -10,15 +10,15 @@
  */
 
 import { PgClient } from "@effect/sql-pg";
+import { and, eq, sql } from "drizzle-orm";
+import type { PgRemoteDatabase } from "drizzle-orm/pg-proxy";
+import { Context, Effect, Layer, Redacted } from "effect";
 import { HttpServerRequest } from "effect/http";
 import { HttpApiMiddleware } from "effect/http-api";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
-import { make as makeDrizzle } from "../../drizzle-effect/src/index";
-import { and, eq, sql } from "drizzle-orm";
-import type { PgRemoteDatabase } from "drizzle-orm/pg-proxy";
-import { Context, Effect, Layer, Redacted } from "effect";
 import { builtInRoles } from "../../contracts/src/legacy/permissions/index";
+import { make as makeDrizzle } from "../../drizzle-effect/src/index";
 import * as relations from "../../kaneo-legacy/src/database/relations";
 import * as tables from "../../kaneo-legacy/src/database/schema";
 
