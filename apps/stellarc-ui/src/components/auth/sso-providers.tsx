@@ -1,4 +1,5 @@
-import { Github, KeyRound } from "lucide-react";
+import { Github } from "@/components/icons/github";
+import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,9 @@ export function SSOProviders({
   const handleCustomOAuth = async () => {
     setLoadingProvider("custom");
     try {
-      const result = await authClient.signIn.oauth2({
-        providerId: "custom",
+      const result = await authClient.signIn.social({
+        // better-auth 1.7: generic-oauth providers are first-class social providers
+        provider: "custom",
         callbackURL,
         errorCallbackURL,
       });

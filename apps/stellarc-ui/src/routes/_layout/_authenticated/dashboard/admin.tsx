@@ -1,8 +1,8 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import type { User } from "better-auth/types";
+import { Github } from "@/components/icons/github";
 import {
   Building2,
-  Github,
   KeyRound,
   Loader2,
   ServerCog,

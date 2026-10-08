@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Github } from "@/components/icons/github";
 import {
   ChevronDown,
   GitFork,
-  Github,
   MessageCircle,
   Radio,
   Send,

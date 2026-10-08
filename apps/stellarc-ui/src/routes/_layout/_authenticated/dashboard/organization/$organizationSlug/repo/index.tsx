@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Github } from "@/components/icons/github";
 import {
   CircleDot,
   Eye,
   EyeOff,
-  Github,
   GitPullRequest,
   Plus,
   RefreshCw,
