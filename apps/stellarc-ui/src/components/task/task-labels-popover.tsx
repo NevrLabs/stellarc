@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Github, Plus, Search, X } from "lucide-react";
+import { Github } from "@/components/icons/github";
+import { Check, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";

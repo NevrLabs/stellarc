@@ -1,4 +1,5 @@
 import { useParams } from "@tanstack/react-router";
+import { Github } from "@/components/icons/github";
 import {
   Archive,
   Calendar,
@@ -7,7 +8,6 @@ import {
   CalendarX,
   Copy,
   GitBranch,
-  Github,
   Plus,
   Users,
 } from "lucide-react";

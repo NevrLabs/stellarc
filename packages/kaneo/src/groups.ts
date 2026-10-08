@@ -2,9 +2,8 @@
  * Wire contract of the Kaneo-compatible API (`/api/*`), as Effect HttpApi
  * groups. Pure declarations: no handlers, no database.
  */
-
-import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
+import { Schema } from "effect";
 import { DomainErrors } from "./errors";
 import { BACKLOG_STATUS_SLUGS, TASK_STATUS_ORDER_SLUGS } from "./status";
 

@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Github, History, Pencil, Trash2 } from "lucide-react";
+import { Github } from "@/components/icons/github";
+import { ExternalLink, History, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import CommentEditor from "@/components/activity/comment-editor";

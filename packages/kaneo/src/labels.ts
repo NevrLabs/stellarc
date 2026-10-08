@@ -3,10 +3,9 @@
  * Side effects (WS/notification events, GitHub/Gitea label sync) go through
  * the DomainEvents port so not-yet-migrated consumers keep working.
  */
-
+import { HttpApiBuilder } from "effect/http-api";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { Effect } from "effect";
-import { HttpApiBuilder } from "effect/http-api";
 import { KaneoApi } from "./api";
 import {
 	Access,

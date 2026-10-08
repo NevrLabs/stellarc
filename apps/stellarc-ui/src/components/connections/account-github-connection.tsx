@@ -1,7 +1,7 @@
+import { Github } from "@/components/icons/github";
 import {
   Check,
   ExternalLink,
-  Github,
   Link2Off,
   ShieldCheck,
 } from "lucide-react";

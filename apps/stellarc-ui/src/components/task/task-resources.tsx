@@ -1,10 +1,10 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Github } from "@/components/icons/github";
 import {
   CircleDot,
   ExternalLink,
   GitBranch,
-  Github,
   GitMerge,
   GitPullRequest,
   GitPullRequestCreateArrow,
