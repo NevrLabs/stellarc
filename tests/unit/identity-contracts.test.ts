@@ -21,13 +21,14 @@ import {
 import * as rows from "../../packages/contracts/src/identity/tables";
 import { statement } from "../../packages/contracts/src/legacy/permissions";
 import { applyMigration, runMigration } from "../../packages/db/src/migrate";
-import * as domain from "../../packages/domain/src/identity";
 
-const decode = (schema: Schema.Schema.Any) => (input: unknown) =>
-	Schema.decodeUnknownSync(schema as Schema.Schema<unknown, unknown, never>)(
-		input,
-		{ onExcessProperty: "error" },
-	);
+// v4 note: concrete schema types in these contracts resolve DecodingServices to
+// `unknown`, which is not assignable to the decoder's `never` default — hence
+// the erased cast on the way into decodeUnknownSync.
+const decode = (schema: Schema.Top) => (input: unknown) =>
+	Schema.decodeUnknownSync(
+		schema as unknown as Schema.ConstraintDecoder<unknown>,
+	)(input, { onExcessProperty: "error" });
 
 const T = "2026-01-01T00:00:00Z";
 
@@ -204,7 +205,7 @@ test("U1 each of the 15 row Schemas round-trips a valid row and rejects missing/
 	const entries = Object.entries(rowSamples);
 	expect(entries).toHaveLength(15);
 	for (const [name, sample] of entries) {
-		const schema = (rows as unknown as Record<string, Schema.Schema.Any>)[name];
+		const schema = (rows as unknown as Record<string, Schema.Top>)[name];
 		expect(schema, name).toBeDefined();
 		// valid row decodes
 		expect(decode(schema)(sample), name).toEqual(sample);
@@ -362,8 +363,11 @@ test("U2 all 17 event payload Schemas decode canonical samples; version 1; no se
 	);
 });
 
-test("U3 contract surface: 26 endpoints, 7 error tags, 5 Conflict codes, 4 domain Tags", () => {
-	const endpoints = Object.entries(IdentityApiGroup.endpoints);
+test("U3 contract surface: 26 endpoints, 7 error tags, 5 Conflict codes, 4 domain Tags", async () => {
+	const domain = await import("../../packages/domain/src/identity");
+	const endpoints = Object.entries(IdentityApiGroup.endpoints) as Array<
+		[string, { method: string; path: string }]
+	>;
 	expect(endpoints).toHaveLength(26);
 
 	const expected: Record<string, { method: string; path: string }> = {
@@ -458,7 +462,7 @@ test("U3 contract surface: 26 endpoints, 7 error tags, 5 Conflict codes, 4 domai
 	// Conflict code literal: exactly 5 codes
 	expect(ConflictCode.literals).toHaveLength(5);
 
-	// domain file exports exactly 4 Tags and no Layer symbols
+	// domain file exports exactly 4 service keys and no Layer symbols
 	expect(Object.keys(domain).sort()).toEqual([
 		"IdentityEvents",
 		"IdentityStore",
@@ -466,10 +470,10 @@ test("U3 contract surface: 26 endpoints, 7 error tags, 5 Conflict codes, 4 domai
 		"PrincipalResolver",
 	]);
 	for (const key of Object.keys(domain)) expect(key).not.toMatch(/Live|Layer/);
-	expect(Context.isTag(domain.IdentityStore)).toBe(true);
-	expect(Context.isTag(domain.OrgRouter)).toBe(true);
-	expect(Context.isTag(domain.PrincipalResolver)).toBe(true);
-	expect(Context.isTag(domain.IdentityEvents)).toBe(true);
+	expect(Context.isKey(domain.IdentityStore)).toBe(true);
+	expect(Context.isKey(domain.OrgRouter)).toBe(true);
+	expect(Context.isKey(domain.PrincipalResolver)).toBe(true);
+	expect(Context.isKey(domain.IdentityEvents)).toBe(true);
 });
 
 test("U4 request validation primitives accept valid samples and reject invalid ones", () => {
@@ -613,13 +617,16 @@ test("U5 Permission is constrained to the legacy permissions vocabulary", () => 
 	expect(() => perm({ board: [1] as unknown as string[] })).toThrow();
 });
 
-test("U6 user-avatar success schema is array-encoded bytes (Uint8ArrayFromArray semantics)", async () => {
+test("U6 user-avatar success schema is array-encoded bytes (Uint8ArrayFromArray semantics)", () => {
 	const endpoints = Object.entries(IdentityApiGroup.endpoints) as Array<
-		[string, { successSchema: Schema.Schema<unknown, unknown, never> }]
+		[string, { success: ReadonlySet<Schema.Top> }]
 	>;
 	const avatar = endpoints.find(([name]) => name === "user-avatar");
 	if (!avatar) throw new Error("user-avatar endpoint missing");
-	const decodeBytes = Schema.decodeUnknownSync(avatar[1].successSchema, {
+	const wrapped = Array.from(
+		avatar[1].success,
+	)[0] as unknown as Schema.ConstraintDecoder<unknown>;
+	const decodeBytes = Schema.decodeUnknownSync(wrapped, {
 		onExcessProperty: "error",
 	});
 	const bytes = decodeBytes([104, 105]);
