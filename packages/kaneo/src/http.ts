@@ -1,17 +1,14 @@
 /**
- * Kaneo-compatible HTTP surface, Effect-native.
+ * Kaneo-compatible HTTP surface, Effect v4 native.
  *
  * Strangler composition: endpoints declared in `KaneoApi` are served by
  * Effect HttpApi handlers; every other `/api/*` path falls through to the
  * lifted legacy tree. Each migrated group removes a slice of legacy without
  * the UI noticing — same paths, same JSON.
  */
-import {
-	HttpApiBuilder,
-	HttpServer,
-	HttpServerResponse,
-} from "@effect/platform";
 import { Cause, Effect, Layer } from "effect";
+import { HttpRouter, HttpServer, HttpServerResponse } from "effect/http";
+import { HttpApiBuilder } from "effect/http-api";
 import { KaneoApi } from "./api";
 import { BoardsLive, ColumnsLive } from "./boards";
 import {
@@ -53,32 +50,34 @@ export function kaneoNativeHandler(options: {
 		Layer.succeed(PrincipalResolver, options.resolvePrincipal),
 		Layer.succeed(DomainEvents, options.ports),
 	);
-	const Services = Layer.mergeAll(Access.Default, AuthenticationLive).pipe(
+	const Services = Layer.mergeAll(Access.layer, AuthenticationLive).pipe(
 		Layer.provideMerge(Base),
 	);
-	const ApiLive = HttpApiBuilder.api(KaneoApi).pipe(
-		Layer.provide([BoardsLive, ColumnsLive, LabelsLive]),
-		Layer.provide(Services),
+	const Handlers = Layer.mergeAll(BoardsLive, ColumnsLive, LabelsLive).pipe(
+		Layer.provideMerge(Services),
 	);
-	return HttpApiBuilder.toWebHandler(
-		Layer.mergeAll(
-			ApiLive,
-			HttpServer.layerContext,
-			options.telemetry ?? Layer.empty,
+	const ApiRoutes = HttpApiBuilder.layer(KaneoApi).pipe(
+		Layer.provide(Handlers),
+	);
+	return HttpRouter.toWebHandler(
+		ApiRoutes.pipe(
+			Layer.provide(HttpServer.layerServices),
+			Layer.provide(options.telemetry ?? Layer.empty),
 		),
 		{
 			memoMap: options.memoMap,
+			disableLogger: true,
 			// Defects (incl. SqlError via sqlDie) become an opaque 500 on the
 			// wire and a full Cause in the log + span.
 			middleware: (app) =>
 				app.pipe(
-					Effect.catchAllCause((cause) =>
+					Effect.catchCause((cause) =>
 						Effect.logError(
 							"kaneo native handler failed",
 							Cause.pretty(cause),
 						).pipe(
 							Effect.as(
-								HttpServerResponse.unsafeJson(
+								HttpServerResponse.jsonUnsafe(
 									{ message: "Internal Server Error" },
 									{ status: 500 },
 								),

@@ -9,11 +9,12 @@
  *   privileges — the same rules as kaneo-legacy's middlewares, as Effects.
  */
 
-import { HttpApiMiddleware, HttpServerRequest } from "@effect/platform";
-import { SqlClient } from "@effect/sql";
-import type { SqlError } from "@effect/sql/SqlError";
-import * as PgDrizzle from "@effect/sql-drizzle/Pg";
 import { PgClient } from "@effect/sql-pg";
+import { HttpServerRequest } from "effect/http";
+import { HttpApiMiddleware } from "effect/http-api";
+import { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
+import { make as makeDrizzle } from "../../drizzle-effect/src/index";
 import { and, eq, sql } from "drizzle-orm";
 import type { PgRemoteDatabase } from "drizzle-orm/pg-proxy";
 import { Context, Effect, Layer, Redacted } from "effect";
@@ -27,17 +28,10 @@ export const schema = { ...tables, ...relations };
 export type KaneoSchema = typeof schema;
 export type Database = PgRemoteDatabase<KaneoSchema>;
 
-export class Db extends Context.Tag("stellarc/kaneo/Db")<Db, Database>() {}
+export class Db extends Context.Service<Db, Database>()("stellarc/kaneo/Db") {}
 
 export const DbLive = (url: string) =>
-	Layer.effect(
-		Db,
-		PgDrizzle.make({ schema }) as unknown as Effect.Effect<
-			Database,
-			never,
-			import("@effect/sql/SqlClient").SqlClient
-		>,
-	).pipe(
+	Layer.effect(Db, makeDrizzle({ schema })).pipe(
 		Layer.provideMerge(
 			PgClient.layer({
 				url: Redacted.make(url),
@@ -50,7 +44,7 @@ export const DbLive = (url: string) =>
 /** Run an Effect in one PG transaction. drizzle's Effect bridge resolves the
  * connection from the fiber context, so every query inside participates. */
 export const transaction = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-	Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect));
+	Effect.flatMap(SqlClient, (sql) => sql.withTransaction(effect));
 
 /** Infrastructure faults become defects (500); domain errors stay typed. */
 export const sqlDie = <A, E, R>(
@@ -86,32 +80,29 @@ export interface Principal {
 		readonly metadata: Record<string, unknown> | null;
 	} | null;
 }
-export class CurrentUser extends Context.Tag("stellarc/kaneo/CurrentUser")<
-	CurrentUser,
-	Principal
->() {}
+export class CurrentUser extends Context.Service<CurrentUser, Principal>()(
+	"stellarc/kaneo/CurrentUser",
+) {}
 
 /** Resolves the principal from the raw request (BetterAuth session cookie,
  * bearer session, or API key). Provided by the host; the kernel stays
  * independent of BetterAuth's module graph. */
-export class PrincipalResolver extends Context.Tag(
-	"stellarc/kaneo/PrincipalResolver",
-)<
+export class PrincipalResolver extends Context.Service<
 	PrincipalResolver,
 	(headers: Headers) => Promise<Principal | null | "malformed">
->() {}
+>()("stellarc/kaneo/PrincipalResolver") {}
 
 /** HttpApi middleware: every Kaneo endpoint requires a principal. */
-export class Authentication extends HttpApiMiddleware.Tag<Authentication>()(
-	"stellarc/kaneo/Authentication",
-	{ failure: Unauthorized, provides: CurrentUser },
-) {}
+export class Authentication extends HttpApiMiddleware.Service<
+	Authentication,
+	{ provides: CurrentUser }
+>()("stellarc/kaneo/Authentication", { error: Unauthorized }) {}
 
 export const AuthenticationLive = Layer.effect(
 	Authentication,
 	Effect.gen(function* () {
 		const resolve = yield* PrincipalResolver;
-		return Effect.gen(function* () {
+		return Effect.fn("Kaneo.authenticate")(function* (httpEffect) {
 			const request = yield* HttpServerRequest.HttpServerRequest;
 			const headers = new Headers(request.headers as Record<string, string>);
 			const principal = yield* Effect.promise(() => resolve(headers));
@@ -121,8 +112,8 @@ export const AuthenticationLive = Layer.effect(
 				"stellarc.principal.kind",
 				principal.apiKey ? "apikey" : "user",
 			);
-			return principal;
-		}).pipe(Effect.withSpan("Kaneo.authenticate"));
+			return yield* Effect.provideService(httpEffect, CurrentUser, principal);
+		});
 	}),
 );
 
@@ -144,17 +135,16 @@ export interface DomainPorts {
 		) => Promise<void>;
 	};
 }
-export class DomainEvents extends Context.Tag("stellarc/kaneo/DomainEvents")<
-	DomainEvents,
-	DomainPorts
->() {}
+export class DomainEvents extends Context.Service<DomainEvents, DomainPorts>()(
+	"stellarc/kaneo/DomainEvents",
+) {}
 
 /** Fire-and-forget like Kaneo: integration sync failures never fail the
  * request, but they are logged inside the request span. */
 export const detach = (label: string, f: () => Promise<void>) =>
 	Effect.tryPromise(f).pipe(
-		Effect.catchAll((e) => Effect.logWarning(`${label} failed`, e)),
-		Effect.forkDaemon,
+		Effect.catch((e) => Effect.logWarning(`${label} failed`, e)),
+		Effect.forkDetach,
 		Effect.asVoid,
 	);
 
@@ -198,8 +188,8 @@ const parseStatements = (raw: string) => {
 	}
 };
 
-export class Access extends Effect.Service<Access>()("stellarc/kaneo/Access", {
-	effect: Effect.gen(function* () {
+export class Access extends Context.Service<Access>()("stellarc/kaneo/Access", {
+	make: Effect.gen(function* () {
 		const db = yield* Db;
 
 		/** Org membership gate (validateOrganizationAccess). */
@@ -454,4 +444,6 @@ export class Access extends Effect.Service<Access>()("stellarc/kaneo/Access", {
 			guardTask,
 		} as const;
 	}),
-}) {}
+}) {
+	static readonly layer = Layer.effect(Access, Access.make);
+}

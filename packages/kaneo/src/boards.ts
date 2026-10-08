@@ -2,7 +2,7 @@
  * Board + Column handlers, Effect-native. Wire-compatible with Kaneo's
  * `/api/board/*` and `/api/column/*` (contract in ./groups).
  */
-import { HttpApiBuilder } from "@effect/platform";
+import { HttpApiBuilder } from "effect/http-api";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { KaneoApi } from "./api";
@@ -84,7 +84,7 @@ export const BoardsLive = HttpApiBuilder.group(KaneoApi, "boards", (h) =>
 		return h
 			.handle(
 				"list",
-				Effect.fn("Boards.list")(function* ({ urlParams }) {
+				Effect.fn("Boards.list")(function* ({ query: urlParams }) {
 					const me = yield* CurrentUser;
 					yield* access.requireMember(urlParams.organizationId);
 					const includeArchived = urlParams.includeArchived === "true";
@@ -187,7 +187,7 @@ export const BoardsLive = HttpApiBuilder.group(KaneoApi, "boards", (h) =>
 			)
 			.handle(
 				"get",
-				Effect.fn("Boards.get")(function* ({ path }) {
+				Effect.fn("Boards.get")(function* ({ params: path }) {
 					const organizationId = yield* access.guardBoard(path.id, "view");
 					const board = yield* db.query.boardTable.findFirst({
 						where: and(
@@ -203,7 +203,7 @@ export const BoardsLive = HttpApiBuilder.group(KaneoApi, "boards", (h) =>
 			)
 			.handle(
 				"update",
-				Effect.fn("Boards.update")(function* ({ path, payload }) {
+				Effect.fn("Boards.update")(function* ({ params: path, payload }) {
 					const organizationId = yield* access.guardBoard(path.id, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],
@@ -244,7 +244,7 @@ export const BoardsLive = HttpApiBuilder.group(KaneoApi, "boards", (h) =>
 			)
 			.handle(
 				"delete",
-				Effect.fn("Boards.delete")(function* ({ path }) {
+				Effect.fn("Boards.delete")(function* ({ params: path }) {
 					const organizationId = yield* access.guardBoard(path.id, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["delete"],
@@ -266,7 +266,7 @@ export const BoardsLive = HttpApiBuilder.group(KaneoApi, "boards", (h) =>
 			)
 			.handle(
 				"archive",
-				Effect.fn("Boards.archive")(function* ({ path }) {
+				Effect.fn("Boards.archive")(function* ({ params: path }) {
 					const organizationId = yield* access.guardBoard(path.id, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],
@@ -286,7 +286,7 @@ export const BoardsLive = HttpApiBuilder.group(KaneoApi, "boards", (h) =>
 			)
 			.handle(
 				"unarchive",
-				Effect.fn("Boards.unarchive")(function* ({ path }) {
+				Effect.fn("Boards.unarchive")(function* ({ params: path }) {
 					const organizationId = yield* access.guardBoard(path.id, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],
@@ -336,14 +336,14 @@ export const ColumnsLive = HttpApiBuilder.group(KaneoApi, "columns", (h) =>
 		return h
 			.handle(
 				"list",
-				Effect.fn("Columns.list")(function* ({ path }) {
+				Effect.fn("Columns.list")(function* ({ params: path }) {
 					yield* access.guardBoard(path.boardId, "view");
 					return yield* listColumns(path.boardId);
 				}, sqlDie),
 			)
 			.handle(
 				"create",
-				Effect.fn("Columns.create")(function* ({ path, payload }) {
+				Effect.fn("Columns.create")(function* ({ params: path, payload }) {
 					const organizationId = yield* access.guardBoard(path.boardId, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],
@@ -394,7 +394,7 @@ export const ColumnsLive = HttpApiBuilder.group(KaneoApi, "columns", (h) =>
 			)
 			.handle(
 				"reorder",
-				Effect.fn("Columns.reorder")(function* ({ path, payload }) {
+				Effect.fn("Columns.reorder")(function* ({ params: path, payload }) {
 					const organizationId = yield* access.guardBoard(path.boardId, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],
@@ -429,7 +429,7 @@ export const ColumnsLive = HttpApiBuilder.group(KaneoApi, "columns", (h) =>
 			)
 			.handle(
 				"update",
-				Effect.fn("Columns.update")(function* ({ path, payload }) {
+				Effect.fn("Columns.update")(function* ({ params: path, payload }) {
 					const organizationId = yield* guardColumn(path.id, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],
@@ -457,7 +457,7 @@ export const ColumnsLive = HttpApiBuilder.group(KaneoApi, "columns", (h) =>
 			)
 			.handle(
 				"delete",
-				Effect.fn("Columns.delete")(function* ({ path }) {
+				Effect.fn("Columns.delete")(function* ({ params: path }) {
 					const organizationId = yield* guardColumn(path.id, "edit");
 					yield* access.requirePermission(organizationId, {
 						board: ["update"],

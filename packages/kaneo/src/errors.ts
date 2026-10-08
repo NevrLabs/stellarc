@@ -1,21 +1,41 @@
-import { HttpApiSchema } from "@effect/platform";
 import { Schema } from "effect";
 
 // ── errors (wire: Kaneo's HTTPException status codes) ──────────────────────
-const err = <T extends string>(tag: T, status: number) =>
-	Schema.TaggedError<{ readonly _tag: T; readonly message: string }>()(
-		tag,
-		{ message: Schema.String },
-		HttpApiSchema.annotations({ status }),
-	);
-export class Unauthorized extends err("Unauthorized", 401) {}
-export class Forbidden extends err("Forbidden", 403) {}
-export class NotFound extends err("NotFound", 404) {}
-export class Conflict extends err("Conflict", 409) {}
-export class BadRequest extends err("BadRequest", 400) {}
+export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
+	"Unauthorized",
+	{ message: Schema.String },
+	{ httpApiStatus: 401 },
+) {}
+export class Forbidden extends Schema.TaggedError<Forbidden>()(
+	"Forbidden",
+	{ message: Schema.String },
+	{ httpApiStatus: 403 },
+) {}
+export class NotFound extends Schema.TaggedError<NotFound>()(
+	"NotFound",
+	{ message: Schema.String },
+	{ httpApiStatus: 404 },
+) {}
+export class Conflict extends Schema.TaggedError<Conflict>()(
+	"Conflict",
+	{ message: Schema.String },
+	{ httpApiStatus: 409 },
+) {}
+export class BadRequest extends Schema.TaggedError<BadRequest>()(
+	"BadRequest",
+	{ message: Schema.String },
+	{ httpApiStatus: 400 },
+) {}
 export type DomainError =
 	| Unauthorized
 	| Forbidden
 	| NotFound
 	| Conflict
 	| BadRequest;
+export const DomainErrors = [
+	Unauthorized,
+	Forbidden,
+	NotFound,
+	Conflict,
+	BadRequest,
+] as const;

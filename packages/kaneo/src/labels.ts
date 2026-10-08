@@ -3,7 +3,7 @@
  * Side effects (WS/notification events, GitHub/Gitea label sync) go through
  * the DomainEvents port so not-yet-migrated consumers keep working.
  */
-import { HttpApiBuilder } from "@effect/platform";
+import { HttpApiBuilder } from "effect/http-api";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { KaneoApi } from "./api";
@@ -67,7 +67,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 		return h
 			.handle(
 				"byTask",
-				Effect.fn("Labels.byTask")(function* ({ path }) {
+				Effect.fn("Labels.byTask")(function* ({ params: path }) {
 					yield* access.guardTask(path.taskId, "view");
 					return yield* db.query.labelTable.findMany({
 						where: eq(schema.labelTable.taskId, path.taskId),
@@ -76,7 +76,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 			)
 			.handle(
 				"byOrganization",
-				Effect.fn("Labels.byOrganization")(function* ({ path }) {
+				Effect.fn("Labels.byOrganization")(function* ({ params: path }) {
 					yield* access.guardOrg(path.organizationId);
 					return yield* db
 						.select()
@@ -161,7 +161,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 			)
 			.handle(
 				"get",
-				Effect.fn("Labels.get")(function* ({ path }) {
+				Effect.fn("Labels.get")(function* ({ params: path }) {
 					yield* access.guardOrg(yield* labelOrg(path.id));
 					// Kaneo returns the row or null (findFirst), never 404, here.
 					return (yield* findLabel(path.id)) ?? null;
@@ -169,7 +169,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 			)
 			.handle(
 				"assign",
-				Effect.fn("Labels.assign")(function* ({ path, payload }) {
+				Effect.fn("Labels.assign")(function* ({ params: path, payload }) {
 					const me = yield* CurrentUser;
 					const organizationId = yield* access.guardOrg(
 						yield* labelOrg(path.id),
@@ -208,7 +208,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 			)
 			.handle(
 				"unassign",
-				Effect.fn("Labels.unassign")(function* ({ path }) {
+				Effect.fn("Labels.unassign")(function* ({ params: path }) {
 					const me = yield* CurrentUser;
 					const organizationId = yield* access.guardOrg(
 						yield* labelOrg(path.id),
@@ -244,7 +244,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 			)
 			.handle(
 				"update",
-				Effect.fn("Labels.update")(function* ({ path, payload }) {
+				Effect.fn("Labels.update")(function* ({ params: path, payload }) {
 					const organizationId = yield* access.guardOrg(
 						yield* labelOrg(path.id),
 					);
@@ -282,7 +282,7 @@ export const LabelsLive = HttpApiBuilder.group(KaneoApi, "labels", (h) =>
 			)
 			.handle(
 				"delete",
-				Effect.fn("Labels.delete")(function* ({ path }) {
+				Effect.fn("Labels.delete")(function* ({ params: path }) {
 					const me = yield* CurrentUser;
 					const organizationId = yield* access.guardOrg(
 						yield* labelOrg(path.id),

@@ -1,4 +1,4 @@
-import { HttpApi } from "@effect/platform";
+import { HttpApi } from "effect/http-api";
 import { BoardsGroup, ColumnsGroup, LabelsGroup } from "./groups";
 import { Authentication } from "./kernel";
 
