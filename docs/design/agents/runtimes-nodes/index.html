@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stellarc — Runtimes &amp; Nodes</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230a0a0b'/%3E%3Cpath d='M8 3L12 8l-4 5-4-5z' fill='%23c9c9c9'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   Stellarc design mockup — Runtimes / Nodes (BYO-agent)
+   Tokens mirror apps/stellarc-ui/src/index.css (.dark) + DESIGN_SYSTEM.md.
+   Type: Cal Sans → IBM Plex fallback (Inter-free per VISION).
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --font-sans: "Cal Sans UI", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Cal Sans Heading", "IBM Plex Sans", var(--font-sans);
+  --font-mono: "Paper Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-sm: 3px; --radius: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-full: 999px;
+
+  /* surfaces (index.css .dark) */
+  --background: #0a0a0b;
+  --bg-elev: #131315;
+  --bg-elev-2: #1b1b1d;
+  --bg-hover: #232326;
+  --bg-active: #2a2a2e;
+  --border: #262629;
+  --border-strong: #3a3a3e;
+  --border-faint: #1d1d1f;
+  /* text */
+  --foreground: #e6e6e6;
+  --text-dim: #999a9c;
+  --text-faint: #7e7e81;
+  /* silver accent */
+  --accent: #c9c9c9;
+  --accent-bright: #d8d8d8;
+  --on-accent: #0b0b0b;
+  --accent-wash: rgba(201, 201, 201, 0.10);
+  --accent-wash-2: rgba(201, 201, 201, 0.16);
+  --accent-line: rgba(201, 201, 201, 0.28);
+  /* semantic status (soft pastels, apart from accent) */
+  --ok: #86efac;    --ok-wash: rgba(134, 239, 172, 0.10);   --ok-line: rgba(134, 239, 172, 0.26);
+  --warn: #fcd34d;  --warn-wash: rgba(252, 211, 77, 0.09);  --warn-line: rgba(252, 211, 77, 0.26);
+  --err: #fca5a5;   --err-wash: rgba(252, 165, 165, 0.09);  --err-line: rgba(252, 165, 165, 0.26);
+  --info: #60a5fa;  --info-wash: rgba(96, 165, 250, 0.10);  --info-line: rgba(96, 165, 250, 0.26);
+  /* misc */
+  --overlay: rgba(4, 4, 5, 0.62);
+  --shadow-pop: 0 12px 34px rgba(0,0,0,.55);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,.6);
+  --dur-fast: 80ms; --dur: 120ms; --dur-slow: 150ms;
+  --ease: cubic-bezier(.2,0,0,1);
+  --sidebar-w: 220px;
+  --topbar-h: 44px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--radius-sm);
+}
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+a { color: inherit; text-decoration: none; }
+.mono { font-family: var(--font-mono); }
+.micro {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint);
+}
+
+/* ── app shell ─────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
+
+/* sidebar */
+.sidebar {
+  background: var(--bg-elev); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; min-height: 0; z-index: 40;
+}
+.side-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px; }
+.wordmark { display: flex; align-items: center; gap: 7px; font-family: var(--font-heading); font-weight: 600; font-size: 13px; letter-spacing: -0.01em; }
+.wordmark svg { display: block; }
+.side-search {
+  margin: 2px 8px 8px; display: flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-elev-2); color: var(--text-faint);
+  padding: 4px 8px; font-size: 12px; cursor: pointer;
+  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.side-search:hover { border-color: var(--border-strong); color: var(--text-dim); }
+.side-search .kbd { margin-left: auto; }
+.kbd {
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-faint);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--radius-sm);
+  padding: 1px 4px; background: var(--bg-elev);
+}
+.side-scroll { flex: 1; overflow-y: auto; padding: 2px 8px 8px; min-height: 0; }
+.nav-sec { margin-top: 12px; }
+.nav-sec:first-child { margin-top: 4px; }
+.nav-sec > .micro { display: block; padding: 0 8px 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 4px 8px; border-radius: var(--radius); font-size: 12px; font-weight: 500;
+  color: var(--text-dim); text-align: left;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.nav-item:hover { background: var(--accent-wash); color: var(--foreground); }
+.nav-item.active { background: var(--accent-wash-2); color: var(--foreground); }
+.nav-item svg { flex-shrink: 0; opacity: 0.75; }
+.nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+.nav-item .dotlive { margin-left: auto; }
+.side-foot {
+  border-top: 1px solid var(--border-faint); padding: 8px 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.side-foot .ver { font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); }
+.avatar {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  background: var(--bg-active); color: var(--foreground);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 600; font-family: var(--font-mono);
+  border: 1px solid var(--border-strong);
+}
+
+/* main column */
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.topbar {
+  height: var(--topbar-h); flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--background);
+}
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumbs b { color: var(--foreground); font-weight: 600; }
+.crumbs .sep { color: var(--text-faint); font-family: var(--font-mono); font-size: 10px; }
+.hamburger { display: none; }
+.topbar .spacer { flex: 1; }
+
+/* mockup state switcher (design-review affordance) */
+.stateswitch { display: flex; align-items: center; gap: 6px; }
+.stateswitch > .micro { padding-right: 2px; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg-elev); }
+.seg button {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em;
+  color: var(--text-faint); padding: 3px 9px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button:hover { color: var(--foreground); background: var(--accent-wash); }
+.seg button.on { background: var(--accent-wash-2); color: var(--foreground); }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: var(--radius);
+  font-size: 12px; font-weight: 500; padding: 4px 10px; white-space: nowrap;
+  border: 1px solid transparent;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.btn:active { transform: translateY(0.5px); }
+.btn-primary { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn-primary:hover { background: var(--accent-bright); }
+.btn-secondary { border-color: var(--border); color: var(--foreground); background: var(--bg-elev); }
+.btn-secondary:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+.btn-ghost { color: var(--text-dim); }
+.btn-ghost:hover { color: var(--foreground); background: var(--accent-wash); }
+.btn-danger { border-color: var(--err-line); color: var(--err); background: transparent; }
+.btn-danger:hover { background: var(--err-wash); }
+.btn-sm { padding: 2px 8px; font-size: 11px; }
+.btn svg { flex-shrink: 0; }
+
+/* stat row */
+.statrow {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 16px 8px; border-bottom: 1px solid var(--border-faint);
+}
+.stat { display: flex; align-items: baseline; gap: 6px; }
+.stat .v { font-family: var(--font-mono); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+.stat .k { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); }
+.stat .v.ok { color: var(--ok); } .stat .v.warn { color: var(--warn); } .stat .v.err { color: var(--err); }
+.statrule { width: 1px; height: 14px; background: var(--border); }
+
+/* content / table */
+.content { flex: 1; overflow-y: auto; min-height: 0; padding: 0 16px 24px; }
+.viewhead { display: flex; align-items: center; gap: 8px; padding: 12px 2px 6px; }
+.viewhead .micro { flex: 1; }
+.ntable { width: 100%; border-collapse: collapse; }
+.ntable th {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-faint); text-align: left;
+  padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0;
+  background: var(--background); z-index: 2;
+}
+.ntable td { padding: 0 8px; border-bottom: 1px solid var(--border-faint); vertical-align: middle; height: 34px; white-space: nowrap; }
+.ntable tbody tr { cursor: pointer; transition: background var(--dur-fast) var(--ease); }
+.ntable tbody tr:hover { background: var(--accent-wash); }
+.ntable tbody tr.sel { background: var(--accent-wash-2); }
+.cell-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cell-name .nm { font-weight: 600; font-size: 12.5px; }
+.cell-name .id { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+.cell-owner { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12px; }
+.cell-ver { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+.cell-harness { display: flex; gap: 4px; align-items: center; }
+.cell-seen { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
+.cell-runs { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+tr.is-revoked .nm, tr.is-revoked .cell-ver, tr.is-revoked .cell-seen { opacity: 0.45; }
+
+/* dots + pills */
+.dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.dot-ok { background: var(--ok); box-shadow: 0 0 0 0 rgba(134,239,172,.5); }
+.dot-live { animation: pulse 1.6s var(--ease-in-out, ease-in-out) infinite; }
+.dot-warn { background: var(--warn); }
+.dot-err { background: var(--err); }
+.dot-faint { background: var(--text-faint); }
+.dot-accent { background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(201,201,201,.35);} 70% { box-shadow: 0 0 0 5px rgba(201,201,201,0);} 100% { box-shadow: 0 0 0 0 rgba(201,201,201,0);} }
+.dot-ok.dot-live { animation: pulse-ok 1.6s ease-in-out infinite; }
+@keyframes pulse-ok { 0% { box-shadow: 0 0 0 0 rgba(134,239,172,.45);} 70% { box-shadow: 0 0 0 5px rgba(134,239,172,0);} 100% { box-shadow: 0 0 0 0 rgba(134,239,172,0);} }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; border-radius: var(--radius-full);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 1.5px 7px 1.5px 6px; white-space: nowrap;
+}
+.pill .dot { width: 5px; height: 5px; }
+.pill-ok { background: var(--ok-wash); color: var(--ok); border: 1px solid var(--ok-line); } .pill-ok .dot { background: var(--ok); }
+.pill-warn { background: var(--warn-wash); color: var(--warn); border: 1px solid var(--warn-line); } .pill-warn .dot { background: var(--warn); }
+.pill-err { background: var(--err-wash); color: var(--err); border: 1px solid var(--err-line); } .pill-err .dot { background: var(--err); }
+.pill-neutral { background: var(--accent-wash); color: var(--text-dim); border: 1px solid var(--border); } .pill-neutral .dot { background: var(--text-faint); }
+.pill-info { background: var(--info-wash); color: var(--info); border: 1px solid var(--info-line); } .pill-info .dot { background: var(--info); }
+.pill-live .dot { animation: blink 1.5s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+.hchip {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 1px 5px; background: var(--bg-elev);
+}
+.hchip.more { color: var(--text-faint); border-style: dashed; }
+.tag-ver { font-family: var(--font-mono); font-size: 9px; color: var(--warn); border: 1px solid var(--warn-line); background: var(--warn-wash); border-radius: var(--radius-full); padding: 0.5px 5px; margin-left: 6px; letter-spacing: 0.03em; }
+.tag-revoked { font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); border: 1px solid var(--border); border-radius: var(--radius-full); padding: 0.5px 5px; margin-left: 6px; letter-spacing: 0.05em; }
+
+/* empty / loading / error views */
+.bigstate { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 72px 24px 48px; gap: 0; min-height: 52vh; }
+.bigstate .glyph { color: var(--border-strong); margin-bottom: 18px; }
+.bigstate h2 { font-size: 15px; font-weight: 600; }
+.bigstate p { margin: 6px 0 0; color: var(--text-dim); font-size: 12.5px; max-width: 380px; line-height: 1.6; }
+.bigstate .actions { display: flex; gap: 8px; margin-top: 18px; align-items: center; }
+.bigstate .hint { margin-top: 16px; display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); border: 1px solid var(--border-faint); background: var(--bg-elev); border-radius: var(--radius); padding: 5px 10px; }
+.skelly { padding: 6px 2px; }
+.sk { position: relative; overflow: hidden; border-radius: var(--radius); background: var(--bg-elev-2); }
+.sk::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(230,230,230,0.045), transparent);
+  animation: shimmer 1.3s infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+.sk-row { display: grid; grid-template-columns: 18px 1.6fr 0.8fr 0.6fr 1.2fr 0.5fr 0.6fr; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-bottom: 1px solid var(--border-faint); }
+.errorcard {
+  margin-top: 40px; border: 1px solid var(--err-line); background: var(--err-wash);
+  border-radius: var(--radius-md); padding: 16px 18px; max-width: 460px; text-align: left;
+}
+.errorcard .row { display: flex; align-items: center; gap: 8px; }
+.errorcard h3 { font-size: 13px; }
+.errorcard code { display: block; margin-top: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 9px; }
+
+/* ── drawer (node / run detail) ────────────────────────────────────────── */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw;
+  background: var(--bg-elev); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 60;
+  transform: translateX(102%); transition: transform 150ms var(--ease);
+  box-shadow: var(--shadow-pop);
+}
+.drawer.open { transform: translateX(0); }
+.drawer-head {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.drawer-head .back { color: var(--text-faint); display: inline-flex; padding: 2px; border-radius: var(--radius-sm); }
+.drawer-head .back:hover { color: var(--foreground); background: var(--accent-wash); }
+.drawer-title { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.drawer-title .nm { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drawer-title .id { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+.iconbtn { color: var(--text-faint); display: inline-flex; padding: 3px; border-radius: var(--radius-sm); transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.iconbtn:hover { color: var(--foreground); background: var(--accent-wash); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 0 0 24px; min-height: 0; }
+
+.banner { display: flex; gap: 9px; align-items: flex-start; margin: 12px 14px 0; border-radius: var(--radius-md); padding: 9px 11px; font-size: 12px; line-height: 1.55; }
+.banner .dot { margin-top: 5px; }
+.banner b { font-weight: 600; }
+.banner .sub { color: var(--text-dim); }
+.banner-ok { background: var(--ok-wash); border: 1px solid var(--ok-line); }
+.banner-warn { background: var(--warn-wash); border: 1px solid var(--warn-line); }
+.banner-err { background: var(--err-wash); border: 1px solid var(--err-line); }
+.banner-neutral { background: var(--accent-wash); border: 1px solid var(--border); }
+
+.sect { margin: 16px 14px 0; }
+.sect > .micro { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; }
+.sect > .micro .n { color: var(--text-faint); font-weight: 400; }
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px; }
+.kv .k { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); padding-top: 2px; }
+.kv .v { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); min-width: 0; overflow-wrap: anywhere; }
+.kv .v.fg { color: var(--foreground); }
+
+.agentrow {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--border-faint); border-radius: var(--radius-md); background: var(--bg-elev-2);
+  margin-bottom: 6px; transition: border-color var(--dur) var(--ease);
+}
+.agentrow:hover { border-color: var(--border-strong); }
+.agentrow .glyph { width: 22px; height: 22px; border-radius: var(--radius); background: var(--bg-active); border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10px; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
+.agentrow .body { flex: 1; min-width: 0; }
+.agentrow .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agentrow .anm { font-weight: 600; font-size: 12.5px; }
+.agentrow .model { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+.agentrow .model .note { color: var(--text-faint); }
+.agentrow .instr { margin-top: 3px; font-size: 11.5px; color: var(--text-dim); line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.agentrow .foot { margin-top: 4px; display: flex; gap: 10px; font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); letter-spacing: 0.03em; }
+
+.runrow {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; width: 100%; text-align: left;
+  border: 1px solid var(--border-faint); border-radius: var(--radius-md); background: var(--bg-elev-2);
+  margin-bottom: 6px; transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.runrow:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+.runrow .tid { font-family: var(--font-mono); font-size: 11px; color: var(--foreground); }
+.runrow .subj { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.runrow .subj b { color: var(--foreground); font-weight: 500; }
+.runrow .when { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+.runrow .fc { font-family: var(--font-mono); font-size: 9px; padding: 1px 5px; border-radius: var(--radius-full); }
+.fc-agent { color: var(--err); border: 1px solid var(--err-line); background: var(--err-wash); }
+.fc-platform { color: var(--warn); border: 1px solid var(--warn-line); background: var(--warn-wash); }
+
+.drawer-actions { display: flex; gap: 8px; margin: 18px 14px 0; flex-wrap: wrap; }
+
+/* run drawer */
+.runmeta { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border-faint); border: 1px solid var(--border-faint); border-radius: var(--radius-md); overflow: hidden; margin: 12px 14px 0; }
+.runmeta > div { background: var(--bg-elev-2); padding: 7px 10px; }
+.runmeta .k { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); }
+.runmeta .v { font-family: var(--font-mono); font-size: 11px; color: var(--foreground); margin-top: 2px; overflow-wrap: anywhere; }
+.runmeta .v.dim { color: var(--text-dim); }
+.runmeta .v .lease-ok { color: var(--ok); }
+.runmeta .v .lease-low { color: var(--warn); }
+
+.failcard { margin: 12px 14px 0; border: 1px solid var(--err-line); background: var(--err-wash); border-radius: var(--radius-md); padding: 10px 12px; }
+.failcard .hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.failcard .code { font-family: var(--font-mono); font-size: 11px; color: var(--err); font-weight: 600; }
+.failcard .msg { margin-top: 6px; font-size: 12px; color: var(--text-dim); line-height: 1.55; }
+.failcard .policy { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-faint); }
+.attempts { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.attempts .a { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-dim); border: 1px solid var(--border); background: var(--bg-elev); border-radius: var(--radius-full); padding: 2px 8px; }
+.attempts .a .dot { width: 5px; height: 5px; }
+.attempts .arr { color: var(--text-faint); font-family: var(--font-mono); font-size: 10px; }
+
+/* transcript */
+.tlist { margin: 4px 14px 0 14px; display: flex; flex-direction: column; }
+.titem { position: relative; padding: 7px 0 7px 14px; border-left: 1px solid var(--border); margin-left: 4px; }
+.titem::before { content: ""; position: absolute; left: -3px; top: 13px; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+.titem .tmeta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.titem .tmeta .kind { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); }
+.titem .tmeta .at { font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); margin-left: auto; }
+.t-think .tbody { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); line-height: 1.6; }
+.t-think::before { background: var(--text-faint); }
+.t-msg .tbody { font-size: 12.5px; line-height: 1.65; color: var(--foreground); }
+.t-msg::before { background: var(--accent); }
+.t-config .tbody { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); background: var(--bg-elev-2); border: 1px solid var(--border-faint); border-radius: var(--radius); padding: 5px 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+.t-config .kv2 { display: inline-flex; gap: 5px; }
+.t-config .kv2 .k2 { color: var(--text-faint); }
+.toolcard { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-elev-2); overflow: hidden; margin-top: 2px; }
+.toolcard .thd { display: flex; align-items: center; gap: 8px; padding: 5px 9px; background: var(--bg-active); border-bottom: 1px solid var(--border-faint); }
+.toolcard .tool { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--accent); }
+.toolcard .dur { margin-left: auto; font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); }
+.toolcard pre {
+  margin: 0; padding: 8px 10px; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.6;
+  color: var(--text-dim); overflow-x: auto; white-space: pre; max-height: 176px; position: relative;
+}
+.toolcard.result pre { color: var(--text-dim); }
+.toolcard .showmore {
+  display: block; width: 100%; padding: 4px; text-align: center; font-family: var(--font-mono); font-size: 9.5px;
+  color: var(--text-faint); border-top: 1px solid var(--border-faint);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.toolcard .showmore:hover { color: var(--foreground); background: var(--accent-wash); }
+.toolcard.open pre { max-height: none; }
+.toolcard .out-ok { color: var(--ok); } .toolcard .out-err { color: var(--err); } .toolcard .out-warn { color: var(--warn); }
+.streaming { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; }
+.streaming .cur { width: 6px; height: 12px; background: var(--accent); animation: blink 1.05s steps(1) infinite; }
+.hms { color: var(--text-faint); }
+
+/* ── modal (connect flow) ──────────────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; background: var(--overlay); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 150ms var(--ease); }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.modal {
+  position: fixed; z-index: 90; left: 50%; top: 50%; transform: translate(-50%, -48%) scale(0.98);
+  width: min(600px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 32px));
+  background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal); display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none; transition: opacity 150ms var(--ease), transform 150ms var(--ease);
+}
+.modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+.modal-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+.modal-head h2 { font-size: 14.5px; }
+.modal-head .sub { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.modal-body { padding: 4px 16px 16px; overflow-y: auto; min-height: 0; }
+.steps { display: flex; align-items: center; gap: 6px; padding: 0 2px 12px; }
+.step { display: flex; align-items: center; gap: 6px; }
+.step .n {
+  width: 17px; height: 17px; border-radius: 50%; border: 1px solid var(--border-strong);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); background: var(--bg-elev-2);
+}
+.step.done .n { background: var(--ok); border-color: var(--ok); color: #06280f; }
+.step.now .n { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.step .sl { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); }
+.step.now .sl { color: var(--foreground); }
+.step.done .sl { color: var(--ok); }
+.steps .join { width: 18px; height: 1px; background: var(--border); flex-shrink: 0; }
+.field label { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 5px; }
+.input {
+  width: 100%; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--foreground); font-family: var(--font-mono); font-size: 12.5px; padding: 7px 10px;
+  transition: border-color var(--dur) var(--ease);
+}
+.input:hover { border-color: var(--border-strong); }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,201,201,0.18); }
+.input::placeholder { color: var(--text-faint); }
+.field .hint { margin-top: 5px; font-size: 11px; color: var(--text-faint); }
+.field .err { margin-top: 5px; font-size: 11px; color: var(--err); display: none; }
+.field.invalid .err { display: block; }
+.field.invalid .input { border-color: var(--err-line); }
+.modal-foot { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-faint); }
+.modal-foot .spacer { flex: 1; }
+
+.tokenbox { border: 1px solid var(--warn-line); background: var(--warn-wash); border-radius: var(--radius-md); padding: 10px 12px; }
+.tokenbox .warnline { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--warn); font-weight: 500; }
+.tokenline {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 7px 9px; font-family: var(--font-mono); font-size: 11.5px; color: var(--foreground);
+  overflow-x: auto; white-space: nowrap;
+}
+.tokenline .tok { flex-shrink: 0; }
+.copybtn {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 7px;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.copybtn:hover { color: var(--foreground); border-color: var(--border-strong); }
+.copybtn.ok { color: var(--ok); border-color: var(--ok-line); }
+.snippet { margin-top: 12px; }
+.snippet .cap { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.snippet .cap .micro { flex: 1; }
+.snippet pre {
+  margin: 0; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; line-height: 1.65;
+  color: var(--text-dim); overflow-x: auto; white-space: pre;
+}
+.snippet pre .k { color: var(--accent); }
+.snippet pre .s { color: var(--ok); }
+.snippet pre .c { color: var(--text-faint); }
+.oshint { display: flex; gap: 6px; margin-top: 8px; }
+.oshint .seg { flex: 0 0 auto; }
+.waitbox { text-align: center; padding: 8px 0 4px; }
+.waitring { position: relative; width: 44px; height: 44px; margin: 6px auto 14px; }
+.waitring svg { display: block; }
+.waitring .ring { animation: spin 0.8s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.waitbox h3 { font-size: 13.5px; }
+.waitbox p { color: var(--text-dim); font-size: 12px; margin: 5px 0 0; }
+.term {
+  margin-top: 14px; background: #0d0d0f; border: 1px solid var(--border); border-radius: var(--radius-md);
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.7; color: var(--text-dim);
+  padding: 10px 12px; text-align: left; min-height: 118px; max-height: 160px; overflow-y: auto;
+}
+.term .ln { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+.term .t { color: var(--text-faint); }
+.term .g { color: var(--ok); }
+.term .a { color: var(--accent); }
+.donebox { text-align: center; padding: 10px 0 4px; }
+.donebox .bigdot { width: 40px; height: 40px; border-radius: 50%; background: var(--ok-wash); border: 1px solid var(--ok-line); color: var(--ok); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.donebox h3 { font-size: 13.5px; }
+.donebox p { color: var(--text-dim); font-size: 12px; margin: 5px 0 0; line-height: 1.6; }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 8px); z-index: 120;
+  background: var(--bg-elev-2); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow-pop); color: var(--foreground); font-size: 12px;
+  padding: 6px 12px; display: flex; align-items: center; gap: 8px;
+  opacity: 0; pointer-events: none; transition: opacity 150ms var(--ease), transform 150ms var(--ease);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast .dot { width: 5px; height: 5px; background: var(--ok); }
+
+/* ── responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .ntable th:nth-child(4), .ntable td:nth-child(4),
+  .ntable th:nth-child(5), .ntable td:nth-child(5) { display: none; }
+  .sk-row { grid-template-columns: 18px 1.6fr 0.8fr 0.6fr 0.6fr; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 232px; transform: translateX(-102%); transition: transform 150ms var(--ease); box-shadow: var(--shadow-pop); }
+  .sidebar.open { transform: translateX(0); }
+  .hamburger { display: inline-flex; }
+  .crumbs .hide-m { display: none; }
+  .stateswitch > .micro { display: none; }
+  .statrow { gap: 10px; padding: 8px 12px 6px; }
+  .content { padding: 0 10px 20px; overflow-x: auto; }
+  .ntable th, .ntable td { white-space: normal; }
+  .ntable th:nth-child(3), .ntable td:nth-child(3),
+  .ntable th:nth-child(5), .ntable td:nth-child(5),
+  .ntable th:nth-child(7), .ntable td:nth-child(7) { display: none; }
+  .ntable th[style*="min-width"] { min-width: 0 !important; }
+  .sk-row { grid-template-columns: 18px 1.6fr 0.6fr 0.6fr; }
+  .drawer { width: 100vw; }
+  .runmeta { grid-template-columns: 1fr; }
+  .seg button { padding: 3px 7px; }
+  .btn-cta-label { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; transition-duration: 0.001s !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar" id="sidebar" aria-label="Primary">
+    <div class="side-head">
+      <span class="wordmark">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect width="16" height="16" rx="3.5" fill="#1b1b1d" stroke="#3a3a3e"/><path d="M8 3.2 12.2 8 8 12.8 3.8 8Z" fill="#c9c9c9"/></svg>
+        Stellarc
+      </span>
+    </div>
+    <div class="side-search" role="button" tabindex="0">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3 3"/></svg>
+      Search
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="side-scroll">
+      <nav class="nav-sec">
+        <span class="micro">Workspace</span>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 3.5h12v7H8l-3 2.5v-2.5H2z"/></svg>Inbox<span class="count">3</span></button>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.2" y="3.2" width="11.6" height="9.6" rx="1.5"/><path d="M2.2 6h11.6M5 2v2M11 2v2"/></svg>My Tickets</button>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.4" r="2.6"/><path d="M2.8 13.2c.7-2.6 2.7-4 5.2-4s4.5 1.4 5.2 4"/></svg>Members</button>
+      </nav>
+      <nav class="nav-sec">
+        <span class="micro">Projects</span>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.4 4.6 8 2.6l5.6 2-5.6 2z"/><path d="M2.4 4.6v6.8L8 13.4l5.6-2V4.6"/></svg>Aurora</button>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.4 4.6 8 2.6l5.6 2-5.6 2z"/><path d="M2.4 4.6v6.8L8 13.4l5.6-2V4.6"/></svg>Kaneo Migration</button>
+      </nav>
+      <nav class="nav-sec">
+        <span class="micro">Boards</span>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.2" y="2.6" width="4.6" height="10.8" rx="1"/><rect x="9.2" y="2.6" width="4.6" height="7" rx="1"/></svg>Board v2</button>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.2" y="2.6" width="4.6" height="10.8" rx="1"/><rect x="9.2" y="2.6" width="4.6" height="7" rx="1"/></svg>Triage</button>
+      </nav>
+      <nav class="nav-sec">
+        <span class="micro">Agents</span>
+        <button class="nav-item active"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="1.6"/><path d="M5.4 6.2v4.4M8 6.2v4.4M10.6 6.2v4.4" stroke-linecap="round"/></svg>Runtimes &amp; Nodes</button>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.6"/><path d="M8 5v3l2 1.4"/></svg>Agents</button>
+        <button class="nav-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.8 4h10.4M2.8 8h10.4M2.8 12h6"/></svg>Transcripts</button>
+      </nav>
+    </div>
+    <div class="side-foot">
+      <span class="ver">v0.4.1</span>
+      <span style="flex:1"></span>
+      <span class="avatar" title="Raisal Pradipta Wardana">RP</span>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main class="main">
+    <header class="topbar">
+      <button class="iconbtn hamburger" id="hamburger" aria-label="Open navigation">
+        <svg width="15" height="15" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
+      </button>
+      <div class="crumbs">
+        <span class="hide-m">Stellarc</span><span class="sep hide-m">/</span>
+        <span class="hide-m">Agents</span><span class="sep hide-m">/</span>
+        <b>Runtimes &amp; Nodes</b>
+      </div>
+      <span class="spacer"></span>
+      <div class="stateswitch" role="group" aria-label="Mockup state">
+        <span class="micro">State</span>
+        <div class="seg" id="stateseg">
+          <button data-view="populated" class="on">populated</button>
+          <button data-view="empty">empty</button>
+          <button data-view="loading">loading</button>
+          <button data-view="error">error</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="connectBtn">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2.8v10.4M2.8 8h10.4"/></svg>
+        <span class="btn-cta-label">Connect a machine</span>
+        <span aria-hidden="true" style="font-family:var(--font-mono);font-size:9px;opacity:.55;padding-left:2px">C</span>
+      </button>
+    </header>
+
+    <div class="statrow" id="statrow"></div>
+
+    <div class="content" id="content"></div>
+  </main>
+</div>
+
+<!-- ══ DRAWER ══ -->
+<div class="drawer" id="drawer" role="dialog" aria-label="Detail">
+  <div class="drawer-head" id="drawerHead"></div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<!-- ══ CONNECT MODAL ══ -->
+<div class="scrim" id="scrim"></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Connect a machine">
+  <div class="modal-head">
+    <div style="flex:1;min-width:0">
+      <h2 id="modalTitle">Connect a machine</h2>
+      <div class="sub" id="modalSub">Run stellarc-node on any machine you own — it holds the harness binaries and their credentials. The plane never sees them.</div>
+    </div>
+    <button class="iconbtn" id="modalClose" aria-label="Close">
+      <svg width="13" height="13" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" fill="none"><path d="m3.5 3.5 9 9M12.5 3.5l-9 9"/></svg>
+    </button>
+  </div>
+  <div class="modal-body" id="modalBody"></div>
+  <div class="modal-foot" id="modalFoot"></div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Copied</span></div>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════════════════
+   Data — shapes mirror packages/agents/src/store.ts + protocol.ts
+   NodeRow: id, name, harnesses[], version, lastSeenAt, createdAt
+   AgentRow: name, nodeId, harness, model|null, instructions, mcpServers[]
+   TaskRow: status ∈ {queued,claimed,running,completed,failed,cancelled},
+            attempt/maxAttempts, failureCode, leaseUntil, nativeSessionId
+   FAILURE_CODES: platform.* (retried) vs agent_error.* (never retried)
+   ════════════════════════════════════════════════════════════════════════ */
+const SERVER = "https://stellarc.nevr.dev";
+
+const NODES = [
+  {
+    id: "node_8f3a91c2d04b", name: "talos-tower", owner: "Talos", status: "online",
+    version: "0.4.1", harnesses: ["hermes", "claude-code", "opencode", "codex"],
+    concurrency: 4, active: 3, lastSeen: "now", created: "2026-08-12",
+    workRoot: "~/.local/share/stellarc-node/work", machine: "Threadripper · Arch Linux",
+    agents: [
+      { name: "atlas", harness: "hermes", model: "glm-4.7", applied: true,
+        instructions: "You own CI hygiene for the Aurora project. Fix flaky tests at the root cause, never by relaxing assertions. Prefer the smallest diff that survives --rerun 5. When a fix needs a design decision, stop and post a comment on the ticket instead of guessing.",
+        mcp: [{ name: "github" }, { name: "otel-local" }] },
+      { name: "kestrel", harness: "claude-code", model: "claude-sonnet-4-5", applied: true,
+        instructions: "Review partner. Read diffs before code. Flag anything that changes wire contracts — parity tests are the source of truth.",
+        mcp: [{ name: "github" }] },
+      { name: "wren", harness: "opencode", model: null,
+        instructions: "Docs scrubber. Keep docs/adrs in sync with shipped reality; an ADR that describes an unbuilt system is a bug.",
+        mcp: [] },
+    ],
+    runs: [
+      { id: "task_a1b2c3d4e5f6", agent: "atlas", status: "running", attempt: 1, maxAttempts: 3,
+        subject: "kaneo:KFL-281", title: "Fix flaky board reorder test", when: "12m", started: "14:02:11 UTC" },
+      { id: "task_b7c8d9e0f1a2", agent: "kestrel", status: "running", attempt: 1, maxAttempts: 3,
+        subject: "kaneo:KFL-279", title: "Review: strangler slice 4 (comments API)", when: "31m", started: "13:43:56 UTC" },
+      { id: "task_c3d4e5f6a7b8", agent: "wren", status: "completed", attempt: 1, maxAttempts: 1,
+        subject: "kaneo:KFL-270", title: "Sync ADR 0012 with shipped effect/v4 state", when: "2h" },
+    ],
+  },
+  {
+    id: "node_51d0aa77be93", name: "raisal-mbp", owner: "Raisal", status: "online",
+    version: "0.4.1", harnesses: ["codex", "goose"],
+    concurrency: 2, active: 1, lastSeen: "26s", created: "2026-09-02",
+    workRoot: "~/.local/share/stellarc-node/work", machine: "M4 Max · macOS 15",
+    agents: [
+      { name: "meridian", harness: "codex", model: "gpt-5.3-codex", applied: false,
+        instructions: "Works the Kaneo migration backlog. Never merges to main — post a PR and a summary comment, then stop.",
+        mcp: [{ name: "github" }] },
+      { name: "puffin", harness: "goose", model: null,
+        instructions: "Triages new issues: label, dedupe, link the matching ADR section when one exists.",
+        mcp: [] },
+    ],
+    runs: [
+      { id: "task_d4e5f6a7b8c9", agent: "meridian", status: "failed", attempt: 1, maxAttempts: 1,
+        subject: "kaneo:KFL-262", title: "Port comment threads to effect/v4", when: "5h",
+        failureCode: "agent_error.refusal",
+        failureMessage: "Refused: merging to main requires human approval per policy M-7. The branch protection rule on kaneo-api is explicit; I did not bypass it." },
+      { id: "task_e5f6a7b8c9d0", agent: "puffin", status: "running", attempt: 1, maxAttempts: 3,
+        subject: "kaneo:KFL-283", title: "Triage inbox backlog from the weekend", when: "8m" },
+      { id: "task_f6a7b8c9d0e1", agent: "puffin", status: "completed", attempt: 1, maxAttempts: 1,
+        subject: "kaneo:KFL-275", title: "Label sync-engine research issues", when: "1d" },
+    ],
+  },
+  {
+    id: "node_0b19cc42fa88", name: "build-farm-01", owner: "Talos", status: "degraded",
+    version: "0.3.7", harnesses: ["claude-code"],
+    concurrency: 8, active: 0, lastSeen: "14m", created: "2026-06-30",
+    workRoot: "/srv/stellarc-node/work", machine: "Xeon · Ubuntu 24.04",
+    agents: [
+      { name: "forge", harness: "claude-code", model: "claude-sonnet-4-5", applied: true,
+        instructions: "Batch reviewer for forge(STL-*) review cycles. Reads the review checklist, executes it verbatim, reports PASS/REWORK with evidence anchors.",
+        mcp: [{ name: "github" }, { name: "shell" }] },
+    ],
+    runs: [
+      { id: "task_91a2b3c4d5e6", agent: "forge", status: "failed", attempt: 3, maxAttempts: 3,
+        subject: "kaneo:KFL-277", title: "forge(STL-23): review c9", when: "38m",
+        failureCode: "platform.harness_exited",
+        failureMessage: "claude-code-acp exited 137 (OOM) while streaming a 2.1k-line review. Attempt 1 retried after lease expiry; attempt 2 hit the same OOM; attempt 3 failed and the task will not be retried again." },
+    ],
+  },
+  {
+    id: "node_77e0d311ab5c", name: "ci-runner-eu", owner: "Raisal", status: "offline",
+    version: "0.4.0", harnesses: ["goose", "opencode"],
+    concurrency: 2, active: 0, lastSeen: "3d", created: "2026-07-18",
+    workRoot: "/home/runner/.local/share/stellarc-node/work", machine: "Hetzner CX32 · Debian 12",
+    agents: [
+      { name: "larks", harness: "goose", model: null,
+        instructions: "Nightly dependency sweep across the monorepo. Opens one PR per lockfile drift.",
+        mcp: [{ name: "github" }] },
+    ],
+    runs: [
+      { id: "task_02b3c4d5e6f7", agent: "larks", status: "queued", attempt: 0, maxAttempts: 3,
+        subject: "kaneo:KFL-284", title: "Nightly lockfile sweep (Tue)", when: "3d" },
+      { id: "task_13c4d5e6f7a8", agent: "larks", status: "cancelled", attempt: 1, maxAttempts: 1,
+        subject: "kaneo:KFL-280", title: "Nightly lockfile sweep (Mon)", when: "4d",
+        stopReason: "cancelled by operator" },
+    ],
+  },
+  {
+    id: "node_aa44ff09cc21", name: "staging-mac-mini", owner: "Talos", status: "revoked",
+    version: "0.2.9", harnesses: ["hermes"],
+    concurrency: 2, active: 0, lastSeen: "12d", created: "2026-05-04",
+    workRoot: "~/stellarc-work", machine: "M2 · macOS 14 (staging closet)",
+    agents: [],
+    runs: [],
+  },
+];
+
+/* transcript for the running atlas run (task_a1b2c3d4e5f6) */
+const TRANSCRIPT_ATLAS = [
+  { kind: "config", at: "14:02:11", body: null, html: `
+      <span class="kv2"><span class="k2">model</span><span>glm-4.7</span></span>
+      <span class="kv2"><span class="k2">applied</span><span style="color:var(--ok)">true</span></span>
+      <span class="kv2"><span class="k2">mcp</span><span>github, otel-local → injected over session/new</span></span>
+      <span class="kv2"><span class="k2">session</span><span class="hms">hms_01j9x4…</span></span>` },
+  { kind: "thinking", at: "14:02:19", body: "The reorder test flakes at L142 in roughly 1 of 3 CI runs but never locally. CI runners are slower, so the drag handler's transitionend probably fires after the assertion already read DOM order. Before touching the code I want the failure to be deterministic: rerun the suite three times and check whether the failing assertion always follows an unfinished transition." },
+  { kind: "message", at: "14:02:21", body: "Re-running the suite with --rerun 3 to confirm the failure is timing-dependent before touching the code." },
+  { kind: "tool_call", at: "14:02:22", tool: "bash", dur: "41.2s", body: "bun test src/board/reorder.test.ts --rerun 3" },
+  { kind: "tool_result", at: "14:03:03", tool: "bash", dur: "", body:
+`src/board/reorder.test.ts:
+ ✓ moves a card across columns (12ms)
+ ✓ moves a card across columns (9ms)
+ ✗ moves a card across columns (231ms)
+   → expected column order ["col-1","col-2","col-3"], received ["col-1","col-3","col-2"]
+     at src/board/reorder.test.ts:142:34
+
+ ✓ moves a card across columns (11ms)
+ ✗ moves a card across columns (228ms)
+   → expected column order ["col-1","col-2","col-3"], received ["col-1","col-3","col-2"]
+     at src/board/reorder.test.ts:142:34
+
+ 2/3 runs failed · 38 passed · 4 skipped
+ Ran 3 times (114 tests total) in 41.2s
+
+ -- 34 more lines --` },
+  { kind: "thinking", at: "14:03:05", body: "Confirmed: 2/3 runs fail, and every failure takes ~230ms while passes take ~10ms — the transition path. The commit ordering in onDrop fires before FLIP cleanup finishes; on slower machines the assertion reads mid-flight state. Reading the handler to find the unguarded await." },
+  { kind: "tool_call", at: "14:03:06", tool: "read_file", dur: "0.1s", body: "apps/stellarc-ui/src/components/board/use-card-dnd.ts" },
+  { kind: "tool_result", at: "14:03:06", tool: "read_file", dur: "", body:
+` 88│   const onDrop = useCallback(async (card: CardRef, to: ColumnRef) => {
+ 89│     const from = columns.current;
+ 90│     // FLIP: record first positions before the DOM move
+ 91│     const first = rects(card.el);
+ 92│     move(card.id, to.id);            // DOM order changes HERE
+ 93│     const last = rects(card.el);
+ 94│     animate(card.el, first, last);   // fires transitionend later
+ 95│     await flushSyncBatch();          // ← resolves before transition ends
+ 96│     commit(orderRef.current);        // assertion reads this
+ 97│   }, [columns]);
+…` },
+  { kind: "message", at: "14:03:24", body: "Found it. The drag handler detaches before the commit — the assertion reads mid-flight DOM order.", streaming: true },
+];
+
+/* short transcript for the completed wren run */
+const TRANSCRIPT_WREN = [
+  { kind: "config", at: "11:40:02", body: null, html: `
+      <span class="kv2"><span class="k2">model</span><span>harness default</span></span>
+      <span class="kv2"><span class="k2">applied</span><span class="hms">false — opencode advertised no model configOptions</span></span>` },
+  { kind: "message", at: "11:40:31", body: "ADR 0012 says “slice 3 of 6 shipped”; the strangler log shows slice 4 merged on Oct 2. Updating the table and adding the comments-API row." },
+  { kind: "tool_call", at: "11:40:33", tool: "edit", dur: "0.3s", body: "docs/adrs/0012-effect-strangler-kaneo.md — 2 hunks" },
+  { kind: "tool_result", at: "11:40:33", tool: "edit", dur: "", body: "2 files changed, 14 insertions(+), 9 deletions(-)" },
+  { kind: "message", at: "11:41:02", body: "Done — ADR table now matches the shipped slices. PR #78 open for review." },
+];
+
+/* transcript for the failed meridian run */
+const TRANSCRIPT_MERIDIAN = [
+  { kind: "config", at: "09:12:40", body: null, html: `
+      <span class="kv2"><span class="k2">model</span><span>gpt-5.3-codex</span></span>
+      <span class="kv2"><span class="k2">applied</span><span class="hms">false — kept harness default (no model configOptions)</span></span>` },
+  { kind: "message", at: "09:12:58", body: "The port compiles and the wire-parity suite is green. Merging kaneo-api → main now." },
+  { kind: "message", at: "09:13:01", body: "Stopped. Branch protection on main requires a human approval — policy M-7 is explicit and my instructions say never bypass it. I have not merged. PR #74 is open for review." },
+];
+
+/* transcript for retried forge run */
+const TRANSCRIPT_FORGE = [
+  { kind: "config", at: "13:18:02", body: null, html: `<span class="kv2"><span class="k2">model</span><span>claude-sonnet-4-5</span></span><span class="kv2"><span class="k2">applied</span><span style="color:var(--ok)">true</span></span>` },
+  { kind: "tool_call", at: "13:18:20", tool: "bash", dur: "312.7s", body: "gh pr view 71 --json reviews,checks && bun test tests/integration/review-c9.test.ts" },
+  { kind: "tool_result", at: "13:23:33", tool: "bash", dur: "", body: "streaming review output (2,141 lines) … [connection lost: harness exited 137 — oom-killed]", cls: "out-err" },
+];
+
+const TRANSCRIPTS = {
+  "task_a1b2c3d4e5f6": TRANSCRIPT_ATLAS,
+  "task_c3d4e5f6a7b8": TRANSCRIPT_WREN,
+  "task_d4e5f6a7b8c9": TRANSCRIPT_MERIDIAN,
+  "task_91a2b3c4d5e6": TRANSCRIPT_FORGE,
+};
+
+/* ── state ─────────────────────────────────────────────────────────────── */
+const S = {
+  view: "populated",
+  sel: null,          // selected node id
+  panel: null,        // null | {t:'node'} | {t:'run', taskId}
+  connect: null,      // null | {step:1|2|3|4, name, token, nodeKey}
+  extraNodes: [],     // nodes created through the connect flow this session
+  lease: 42,          // ticking lease seconds for the running task drawer
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const allNodes = () => NODES.concat(S.extraNodes);
+const nodeById = (id) => allNodes().find((n) => n.id === id);
+
+/* ── status metadata ───────────────────────────────────────────────────── */
+const STATUS = {
+  online:   { dot: "dot dot-ok dot-live",  pill: "pill pill-ok",           label: "online",   seen: (t) => `seen ${t}` },
+  degraded: { dot: "dot dot-warn",          pill: "pill pill-warn",         label: "degraded", seen: (t) => `seen ${t}` },
+  offline:  { dot: "dot dot-err",           pill: "pill pill-err",          label: "offline",  seen: (t) => `last seen ${t}` },
+  revoked:  { dot: "dot dot-faint",         pill: "pill pill-neutral",      label: "revoked",  seen: (t) => `last seen ${t}` },
+  waiting:  { dot: "dot dot-accent",        pill: "pill pill-info pill-live", label: "waiting", seen: () => "waiting for hello" },
+};
+const TASK_PILL = {
+  queued:    ["pill pill-info", "queued"],
+  claimed:   ["pill pill-neutral", "claimed"],
+  running:   ["pill pill-ok pill-live", "running"],
+  completed: ["pill pill-ok", "completed"],
+  failed:    ["pill pill-err", "failed"],
+  cancelled: ["pill pill-neutral", "cancelled"],
+};
+
+/* ── stat row ──────────────────────────────────────────────────────────── */
+function renderStats() {
+  const el = $("statrow");
+  if (S.view === "loading") {
+    el.innerHTML = `<div class="sk" style="width:52px;height:18px"></div><div class="statrule"></div>
+      <div class="sk" style="width:64px;height:18px"></div><div class="statrule"></div>
+      <div class="sk" style="width:72px;height:18px"></div>`;
+    return;
+  }
+  if (S.view === "error") { el.innerHTML = `<span class="micro" style="line-height:18px">runtime fleet — status unknown</span>`; return; }
+  if (S.view === "empty") { el.innerHTML = `<span class="micro" style="line-height:18px">runtime fleet</span>`; return; }
+  const ns = allNodes();
+  const online = ns.filter((n) => n.status === "online").length;
+  const degr = ns.filter((n) => n.status === "degraded").length;
+  const off = ns.filter((n) => n.status === "offline").length;
+  const active = ns.reduce((a, n) => a + (n.active || 0), 0);
+  const queued = 2;
+  el.innerHTML = `
+    <div class="stat"><span class="v">${ns.length}</span><span class="k">machines</span></div><div class="statrule"></div>
+    <div class="stat"><span class="v ok">${online}</span><span class="k">online</span></div>
+    ${degr ? `<div class="statrule"></div><div class="stat"><span class="v warn">${degr}</span><span class="k">degraded</span></div>` : ""}
+    ${off ? `<div class="statrule"></div><div class="stat"><span class="v err">${off}</span><span class="k">offline</span></div>` : ""}
+    <div class="statrule"></div>
+    <div class="stat"><span class="v">${active}</span><span class="k">active runs</span></div>
+    <div class="statrule"></div>
+    <div class="stat"><span class="v">${queued}</span><span class="k">queued</span></div>`;
+}
+
+/* ── table views ───────────────────────────────────────────────────────── */
+function nodeRow(n) {
+  const st = STATUS[n.status];
+  const sel = S.sel === n.id ? " sel" : "";
+  const rev = n.status === "revoked" ? " is-revoked" : "";
+  const outdated = n.version !== "0.4.1" && n.status !== "revoked";
+  const chips = n.harnesses.slice(0, 3).map((h) => `<span class="hchip">${esc(h)}</span>`).join("");
+  const more = n.harnesses.length > 3 ? `<span class="hchip more">+${n.harnesses.length - 3}</span>` : "";
+  const runs = n.status === "revoked" ? "—" : `${n.active}<span style="color:var(--text-faint)">/${n.concurrency}</span>`;
+  return `<tr class="nrow${sel}${rev}" data-id="${n.id}" tabindex="0">
+    <td><span class="${st.dot}"></span></td>
+    <td><div class="cell-name"><span class="nm">${esc(n.name)}</span><span class="id">${esc(n.id)}</span>${outdated ? `<span class="tag-ver" title="node version behind plane (0.4.1)">${esc(n.version)} old</span>` : ""}${n.status === "revoked" ? `<span class="tag-revoked">revoked</span>` : ""}</div></td>
+    <td><div class="cell-owner"><span class="avatar" style="width:16px;height:16px;font-size:8px">${esc(n.owner[0])}</span>${esc(n.owner)}</div></td>
+    <td><span class="cell-ver">v${esc(n.version)}</span></td>
+    <td><div class="cell-harness">${chips}${more}</div></td>
+    <td><span class="cell-runs">${runs}</span></td>
+    <td><span class="cell-seen">${st.seen(n.lastSeen)}</span></td>
+  </tr>`;
+}
+
+function renderContent() {
+  const el = $("content");
+  if (S.view === "loading") {
+    el.innerHTML = `<div class="viewhead"><span class="micro">Machines · loading</span></div><div class="skelly">${'<div class="sk-row">' + '<div class="sk" style="width:10px;height:10px;border-radius:50%"></div>'.repeat(1) + '<div class="sk" style="height:12px"></div><div class="sk" style="height:12px;width:60%"></div><div class="sk" style="height:12px;width:45%"></div><div class="sk" style="height:12px;width:70%"></div><div class="sk" style="height:12px;width:30%"></div><div class="sk" style="height:12px;width:40%"></div>' + "</div>".repeat(6)}</div>`;
+    return;
+  }
+  if (S.view === "empty") {
+    el.innerHTML = `
+    <div class="bigstate">
+      <svg class="glyph" width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="3.5" y="4.5" width="17" height="8" rx="1.4"/><rect x="5.5" y="6.5" width="3" height="1.6" rx="0.4" fill="currentColor" stroke="none"/><rect x="5.5" y="9" width="6" height="1.6" rx="0.4" fill="currentColor" stroke="none" opacity="0.5"/><path d="M12 15.5v2.5M8.5 21h7" /><rect x="6.5" y="17.5" width="11" height="3.5" rx="1"/><circle cx="17" cy="6.4" r="0.2" fill="currentColor"/></svg>
+      <h2>No machines connected</h2>
+      <p>Agents run on <span class="mono" style="font-size:11.5px">stellarc-node</span> — a small daemon you run on hardware you own. It holds the harness binaries and their credentials; the plane only ever sees a name and a heartbeat.</p>
+      <div class="actions">
+        <button class="btn btn-primary" id="emptyConnect">Connect a machine</button>
+        <button class="btn btn-ghost">Read the BYO-agent guide</button>
+      </div>
+      <span class="hint"><span class="mono">$</span> curl -fsSL https://get.stellarc.dev/node | sh</span>
+    </div>`;
+    const b = $("emptyConnect"); if (b) b.onclick = openConnect;
+    return;
+  }
+  if (S.view === "error") {
+    el.innerHTML = `
+    <div class="bigstate">
+      <div class="errorcard">
+        <div class="row"><span class="dot dot-err"></span><h3>Couldn't load runtimes</h3></div>
+        <code>GET ${SERVER}/orgs/nevr/v1/nodes<br>→ 502 Bad Gateway · _tag: "UpstreamUnavailable"<br>retrying with backoff (attempt 3 of 5) · 4.2s</code>
+        <div class="actions" style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-secondary" id="retryBtn">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.8v3.4h-3.4"/></svg>
+            Retry now
+          </button>
+          <button class="btn btn-ghost">Status page</button>
+        </div>
+      </div>
+    </div>`;
+    $("retryBtn").onclick = () => { setView("loading"); renderStats(); setTimeout(() => { setView("populated"); renderStats(); }, 1400); };
+    return;
+  }
+  // populated
+  const rows = allNodes().map(nodeRow).join("");
+  el.innerHTML = `
+    <div class="viewhead">
+      <span class="micro">Machines · ${allNodes().length} registered</span>
+      <button class="btn btn-ghost btn-sm" id="refreshBtn" title="Refresh">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.8v3.4h-3.4"/></svg>
+        refresh
+      </button>
+    </div>
+    <table class="ntable" aria-label="Runtime nodes">
+      <thead><tr>
+        <th style="width:26px"></th><th style="min-width:170px">Node</th><th>Owner</th><th>Version</th><th>Harnesses</th><th>Runs</th><th>Heartbeat</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  $("refreshBtn").onclick = () => { setView("loading"); renderStats(); setTimeout(() => { setView("populated"); renderStats(); }, 1100); };
+  el.querySelectorAll(".nrow").forEach((r) => {
+    const open = () => { openNode(r.dataset.id); };
+    r.onclick = open;
+    r.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+  });
+}
+
+function setView(v) {
+  S.view = v;
+  document.querySelectorAll("#stateseg button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  renderContent();
+  renderStats();
+}
+
+/* ── node drawer ───────────────────────────────────────────────────────── */
+function openNode(id) {
+  S.sel = id; S.panel = { t: "node" };
+  document.querySelectorAll(".nrow").forEach((r) => r.classList.toggle("sel", r.dataset.id === id));
+  renderDrawer();
+  $("drawer").classList.add("open");
+}
+function closeDrawer() {
+  S.panel = null; S.sel = null;
+  $("drawer").classList.remove("open");
+  document.querySelectorAll(".nrow").forEach((r) => r.classList.remove("sel"));
+}
+
+function runRowHTML(n, r) {
+  const [pc, pl] = TASK_PILL[r.status];
+  const fc = r.failureCode
+    ? `<span class="fc ${r.failureCode.startsWith("platform.") ? "fc-platform" : "fc-agent"}" title="${r.failureCode.startsWith("platform.") ? "platform.* faults are retried on the runtime" : "agent_error.* faults are never retried"}">${esc(r.failureCode)}</span>` : "";
+  const att = r.attempt ? `<span class="when">a${r.attempt}/${r.maxAttempts}</span>` : "";
+  return `<button class="runrow" data-task="${r.id}">
+    <span class="${pc}"><span class="dot"></span>${pl}</span>
+    <span class="tid">${r.id.replace("task_", "")}</span>
+    <span class="subj"><b>${esc(r.subject.replace("kaneo:", ""))}</b> · ${esc(r.title)}</span>
+    ${fc}${att}
+    <span class="when">${r.when}</span>
+  </button>`;
+}
+
+function renderDrawer() {
+  const head = $("drawerHead"), body = $("drawerBody");
+  if (!S.panel) return;
+  if (S.panel.t === "node") {
+    const n = nodeById(S.sel);
+    if (!n) { closeDrawer(); return; }
+    const st = STATUS[n.status];
+    head.innerHTML = `
+      <div class="drawer-title">
+        <span class="${st.dot}"></span>
+        <span class="nm">${esc(n.name)}</span>
+        <span class="id">${esc(n.id)}</span>
+      </div>
+      <span class="spacer" style="flex:1"></span>
+      <button class="iconbtn" id="drawerClose" aria-label="Close panel">
+        <svg width="13" height="13" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" fill="none"><path d="m3.5 3.5 9 9M12.5 3.5l-9 9"/></svg>
+      </button>`;
+    body.innerHTML = `
+      ${bannerHTML(n)}
+      <div class="sect"><span class="micro">Node</span>
+        <div class="kv">
+          <span class="k">Owner</span><span class="v fg">${esc(n.owner)}</span>
+          <span class="k">Machine</span><span class="v">${esc(n.machine)}</span>
+          <span class="k">Version</span><span class="v fg">stellarc-node v${esc(n.version)}${n.version !== "0.4.1" && n.status !== "revoked" ? ' <span style="color:var(--warn)">(plane: 0.4.1)</span>' : ""}</span>
+          <span class="k">Heartbeat</span><span class="v fg">${st.seen(n.lastSeen)}</span>
+          <span class="k">Lease</span><span class="v">60s default · renew every 20s</span>
+          <span class="k">Concurrency</span><span class="v fg">${n.active}<span style="color:var(--text-faint)">/${n.concurrency}</span> slots busy</span>
+          <span class="k">Work root</span><span class="v">${esc(n.workRoot)}</span>
+          <span class="k">Plane</span><span class="v">${SERVER.replace("https://", "")}</span>
+          <span class="k">Registered</span><span class="v">${esc(n.created)}</span>
+        </div>
+      </div>
+      <div class="sect"><span class="micro">Harnesses offered <span class="n">· from hello</span></span>
+        <div class="cell-harness" style="flex-wrap:wrap">${n.harnesses.map((h) => `<span class="hchip">${esc(h)}</span>`).join("")}${n.status === "revoked" ? "" : '<button class="hchip more" id="addHarness" title="Any ACP agent is one config entry">+ add</button>'}</div>
+      </div>
+      <div class="sect"><span class="micro">Agents on this node <span class="n">· ${n.agents.length}</span></span>
+        ${n.agents.length ? n.agents.map(agentHTML).join("") : `<div style="color:var(--text-faint);font-size:12px;padding:6px 2px">No agents bound. An agent is <span class="mono" style="font-size:11px">(node, harness, model?, instructions, mcpServers)</span>.</div>`}
+      </div>
+      <div class="sect"><span class="micro">Recent runs <span class="n">· ${n.runs.length}</span></span>
+        ${n.runs.length ? n.runs.map((r) => runRowHTML(n, r)).join("") : `<div style="color:var(--text-faint);font-size:12px;padding:6px 2px">No runs recorded.</div>`}
+      </div>
+      <div class="drawer-actions">
+        ${n.status === "revoked"
+          ? `<span style="font-size:11.5px;color:var(--text-faint)">Token revoked — reconnect requires creating a new node.</span>`
+          : `<button class="btn btn-secondary btn-sm" id="copyStub">Copy node.json stub</button>
+             ${n.status === "offline" ? `<button class="btn btn-secondary btn-sm" id="drainBtn">Drain &amp; reassign queue</button>` : ""}
+             <span style="flex:1"></span>
+             <button class="btn btn-danger btn-sm" id="revokeBtn">Revoke token</button>`}
+      </div>`;
+    wireDrawerCommon(head);
+    const stub = $("copyStub"); if (stub) stub.onclick = () => toast("node.json stub copied");
+    const drain = $("drainBtn"); if (drain) drain.onclick = () => toast("2 queued tasks reassigned");
+    const rev = $("revokeBtn"); if (rev) rev.onclick = () => { n.status = "revoked"; renderContent(); renderStats(); renderDrawer(); toast("Token revoked — node will fail auth on next claim"); };
+    const addh = $("addHarness"); if (addh) addh.onclick = () => toast("Harness = command + args in node.json");
+    body.querySelectorAll(".runrow").forEach((b) => b.onclick = () => openRun(b.dataset.task));
+  }
+  if (S.panel.t === "run") {
+    renderRunDrawer();
+  }
+}
+
+function bannerHTML(n) {
+  switch (n.status) {
+    case "online":
+      return `<div class="banner banner-ok"><span class="dot dot-ok dot-live"></span><div><b>Online.</b> <span class="sub">Heartbeat healthy · lease renewed every 20s · ${n.active} of ${n.concurrency} slots busy.</span></div></div>`;
+    case "degraded":
+      return `<div class="banner banner-warn"><span class="dot dot-warn"></span><div><b>Degraded — heartbeat flapping.</b> <span class="sub">3 missed intervals (last seen ${n.lastSeen} ago). One task was requeued after lease expiry (<span class="mono" style="font-size:10.5px">platform.lease_expired</span>) and re-claimed by another node. Node v${n.version} is behind the plane (0.4.1) — the old claim loop misses every other heartbeat.</span></div></div>`;
+    case "offline":
+      return `<div class="banner banner-err"><span class="dot dot-err"></span><div><b>Offline — last seen ${n.lastSeen} ago.</b> <span class="sub">2 queued tasks are waiting on this node. Leases on in-flight work expired and tasks were reaped back to <span class="mono" style="font-size:10.5px">queued</span>; a node that went dark cannot report on a re-claimed attempt (409).</span></div></div>`;
+    case "revoked":
+      return `<div class="banner banner-neutral"><span class="dot dot-faint"></span><div><b>Token revoked.</b> <span class="sub">Reports from this node fail authentication and its agents can no longer be assigned work. To reconnect, create a new node — the old token is gone for good.</span></div></div>`;
+    case "waiting":
+      return `<div class="banner banner-neutral"><span class="dot dot-accent"></span><div><b>Waiting for hello.</b> <span class="sub">Node registered, token hashed (sha256). Listening for the first <span class="mono" style="font-size:10.5px">POST /v1/node/hello</span> with version + harnesses.</span></div></div>`;
+  }
+  return "";
+}
+
+function agentHTML(a) {
+  const model = a.model
+    ? `<span class="model">${esc(a.model)}${a.applied === false ? ' <span class="note">· requested, not applied</span>' : ""}</span>`
+    : `<span class="model"><span class="note">harness default</span></span>`;
+  return `<div class="agentrow">
+    <span class="glyph">${esc(a.name[0].toUpperCase())}</span>
+    <div class="body">
+      <div class="top"><span class="anm">${esc(a.name)}</span><span class="hchip">${esc(a.harness)}</span>${model}</div>
+      <div class="instr">${esc(a.instructions)}</div>
+      <div class="foot"><span>mcp: ${a.mcp.length ? a.mcp.map((m) => esc(m.name)).join(", ") : "—"}</span><span>injected over session/new</span></div>
+    </div>
+  </div>`;
+}
+
+/* ── run drawer ────────────────────────────────────────────────────────── */
+function findRun(taskId) {
+  for (const n of allNodes()) { const r = n.runs.find((x) => x.id === taskId); if (r) return [n, r]; }
+  return [null, null];
+}
+function openRun(taskId) {
+  S.panel = { t: "run", taskId };
+  renderDrawer();
+  $("drawer").classList.add("open");
+}
+function renderRunDrawer() {
+  const head = $("drawerHead"), body = $("drawerBody");
+  const [n, r] = findRun(S.panel.taskId);
+  if (!n || !r) { closeDrawer(); return; }
+  const [pc, pl] = TASK_PILL[r.status];
+  const agent = n.agents.find((a) => a.name === r.agent);
+  head.innerHTML = `
+    <button class="back" id="runBack" aria-label="Back to node">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9.8 3.2 5 8l4.8 4.8"/></svg>
+    </button>
+    <div class="drawer-title">
+      <span class="${pc}"><span class="dot"></span>${pl}</span>
+      <span class="nm mono" style="font-size:12.5px">${r.id}</span>
+    </div>
+    <span style="flex:1"></span>
+    <button class="iconbtn" id="drawerClose" aria-label="Close panel">
+      <svg width="13" height="13" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" fill="none"><path d="m3.5 3.5 9 9M12.5 3.5l-9 9"/></svg>
+    </button>`;
+  const leaseHTML = r.status === "running"
+    ? `<span class="lease-low" id="leaseV">42s</span> <span class="dim">· renewed on heartbeat</span>`
+    : `<span class="dim">${r.status === "failed" ? "expired" : "—"}</span>`;
+  const failHTML = r.failureCode ? `
+    <div class="failcard">
+      <div class="hd">
+        <span class="dot dot-err"></span>
+        <span class="code">${esc(r.failureCode)}</span>
+        <span class="pill ${r.failureCode.startsWith("platform.") ? "pill-warn" : "pill-err"}">${r.failureCode.startsWith("platform.") ? "retried on runtime" : "never retried"}</span>
+      </div>
+      <div class="msg">${esc(r.failureMessage || "")}</div>
+      <div class="policy">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6M8 4.8v.4"/></svg>
+        ${r.failureCode.startsWith("platform.")
+          ? "platform.* faults are retried while attempt &lt; max_attempts"
+          : "retrying a refusal is how you burn money — agent_error.* never requeues"}
+      </div>
+      ${r.id === "task_91a2b3c4d5e6" ? `
+      <div class="attempts">
+        <span class="a"><span class="dot dot-warn"></span>a1 · lease_expired</span><span class="arr">→</span>
+        <span class="a"><span class="dot dot-warn"></span>a2 · harness_exited</span><span class="arr">→</span>
+        <span class="a"><span class="dot dot-err"></span>a3 · harness_exited</span>
+      </div>` : ""}
+    </div>` : (r.status === "cancelled" ? `
+    <div class="failcard" style="border-color:var(--border);background:var(--accent-wash)">
+      <div class="hd"><span class="dot dot-faint"></span><span class="code" style="color:var(--text-dim)">cancelled</span></div>
+      <div class="msg">${esc(r.stopReason || "")} — the node learns on the next heartbeat and sends ACP <span class="mono">session/cancel</span>.</div>
+    </div>` : "");
+  const items = TRANSCRIPTS[r.id] || [];
+  body.innerHTML = `
+    <div class="runmeta">
+      <div><div class="k">Agent</div><div class="v">${esc(r.agent)} <span class="dim">· ${esc(agent ? agent.harness : "")}</span></div></div>
+      <div><div class="k">Subject</div><div class="v dim">${esc(r.subject)}</div></div>
+      <div><div class="k">Attempt</div><div class="v">${r.attempt || 0} <span class="dim">of ${r.maxAttempts}</span></div></div>
+      <div><div class="k">Lease</div><div class="v">${leaseHTML}</div></div>
+      <div><div class="k">Started</div><div class="v dim">${esc(r.started || r.when + " ago")}</div></div>
+      <div><div class="k">Native session</div><div class="v dim">pointer · raw wire stays on node</div></div>
+    </div>
+    ${failHTML}
+    <div class="sect"><span class="micro">Transcript <span class="n">· items dedup on (task, attempt, seq)</span></span></div>
+    <div class="tlist">${items.map(titemHTML).join("")}</div>`;
+  wireDrawerCommon(head);
+  $("runBack").onclick = () => openNode(n.id);
+  body.querySelectorAll(".showmore").forEach((b) => b.onclick = () => {
+    const card = b.closest(".toolcard");
+    card.classList.toggle("open");
+    b.textContent = card.classList.contains("open") ? "▾ collapse" : "▸ show 34 more lines";
+  });
+}
+function wireDrawerCommon(head) {
+  const c = head.querySelector("#drawerClose");
+  if (c) c.onclick = closeDrawer;
+}
+
+function titemHTML(it) {
+  const stream = it.streaming ? `<span class="streaming"><span class="cur"></span></span>` : "";
+  if (it.kind === "config")
+    return `<div class="titem t-config"><div class="tmeta"><span class="kind">config</span><span class="at">${it.at}</span></div><div class="tbody">${it.html}</div></div>`;
+  if (it.kind === "thinking")
+    return `<div class="titem t-think"><div class="tmeta"><span class="kind">thinking</span><span class="at">${it.at}</span></div><div class="tbody">${esc(it.body)}</div></div>`;
+  if (it.kind === "message")
+    return `<div class="titem t-msg"><div class="tmeta"><span class="kind">message</span><span class="at">${it.at}</span></div><div class="tbody">${esc(it.body)}${stream}</div></div>`;
+  if (it.kind === "tool_call")
+    return `<div class="titem t-tool"><div class="tmeta"><span class="kind">tool_call</span><span class="at">${it.at}</span></div>
+      <div class="toolcard"><div class="thd"><span class="tool">${esc(it.tool)}</span>${it.dur ? `<span class="dur">${it.dur}</span>` : ""}</div><pre>${esc(it.body)}</pre></div></div>`;
+  if (it.kind === "tool_result") {
+    const long = it.body.split("\n").length > 14;
+    return `<div class="titem t-tool"><div class="tmeta"><span class="kind">tool_result</span><span class="at">${it.at}</span></div>
+      <div class="toolcard result${long ? "" : " open"}"><div class="thd"><span class="tool">${esc(it.tool)}</span></div><pre class="${it.cls || ""}">${esc(it.body)}</pre>${long ? `<button class="showmore">▸ show 34 more lines</button>` : ""}</div></div>`;
+  }
+  return `<div class="titem"><div class="tmeta"><span class="kind">${esc(it.kind)}</span></div><div class="tbody mono">${esc(JSON.stringify(it.body))}</div></div>`;
+}
+
+/* ── connect flow ──────────────────────────────────────────────────────── */
+const NEW_TOKEN = "stln_9fJm2Qc4TvX8sK1pZr7wNaE5uDg3HyBx";
+let helloTimer = null;
+
+function openConnect() {
+  S.connect = { step: 1, name: "" };
+  $("scrim").classList.add("open");
+  $("modal").classList.add("open");
+  renderConnect();
+}
+function closeConnect() {
+  S.connect = null;
+  if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
+  $("scrim").classList.remove("open");
+  $("modal").classList.remove("open");
+}
+function stepsHTML(cur) {
+  const s = [
+    [1, "name"], [2, "install"], [3, "hello"],
+  ];
+  return `<div class="steps">${s.map(([n, l], i) => `
+    ${i ? '<span class="join"></span>' : ""}
+    <span class="step ${n < cur ? "done" : n === cur ? "now" : ""}">
+      <span class="n">${n < cur ? "✓" : n}</span><span class="sl">${l}</span>
+    </span>`).join("")}</div>`;
+}
+function renderConnect() {
+  const c = S.connect; if (!c) return;
+  const body = $("modalBody"), foot = $("modalFoot");
+  if (c.step === 1) {
+    $("modalTitle").textContent = "Connect a machine";
+    body.innerHTML = `
+      ${stepsHTML(1)}
+      <div class="field" id="nameField">
+        <label for="nodeName">Node name</label>
+        <input class="input" id="nodeName" placeholder="e.g. talos-tower, build-farm-01" value="${esc(c.name)}" maxlength="64" autocomplete="off" spellcheck="false">
+        <div class="err">Names are 1–64 chars: letters, digits, dot, dash, underscore — and must start alphanumeric.</div>
+        <div class="hint">The plane learns only this name — never how to launch your harnesses, never their API keys.</div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>Runs on</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span class="hchip">macOS</span><span class="hchip">Linux</span><span class="hchip">any ACP host</span>
+        </div>
+      </div>`;
+    foot.innerHTML = `<span class="micro" style="letter-spacing:.03em">POST /orgs/nevr/v1/nodes · { name }</span><span class="spacer"></span>
+      <button class="btn btn-ghost" id="cCancel">Cancel</button>
+      <button class="btn btn-primary" id="cCreate">Create node</button>`;
+    const inp = $("nodeName");
+    setTimeout(() => inp.focus(), 60);
+    const create = () => {
+      const v = inp.value.trim();
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(v)) { $("nameField").classList.add("invalid"); return; }
+      c.name = v; c.step = 2;
+      // appears in the table immediately as waiting
+      const key = "node_" + Math.random().toString(16).slice(2, 14);
+      S.extraNodes.push({
+        id: key, name: v, owner: "Raisal", status: "waiting", version: "—",
+        harnesses: [], concurrency: 2, active: 0, lastSeen: "—", created: "today",
+        workRoot: "~/.local/share/stellarc-node/work", machine: "—",
+        agents: [], runs: [], _key: key,
+      });
+      c.nodeKey = key;
+      if (S.view === "populated") renderContent();
+      renderStats();
+      renderConnect();
+    };
+    $("cCreate").onclick = create;
+    inp.onkeydown = (e) => { if (e.key === "Enter") create(); if (e.key === "Escape") closeConnect(); };
+    inp.oninput = () => $("nameField").classList.remove("invalid");
+    $("cCancel").onclick = closeConnect;
+  }
+  if (c.step === 2) {
+    $("modalTitle").textContent = `Install stellarc-node on “${c.name}”`;
+    body.innerHTML = `
+      ${stepsHTML(2)}
+      <div class="tokenbox">
+        <div class="warnline">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5.8v3M8 11v.4M7 2.2 2.6 10a1.4 1.4 0 0 0 1.2 2.1h8.4a1.4 1.4 0 0 0 1.2-2.1L9 2.2a1.15 1.15 0 0 0-2 0z"/></svg>
+          This token is shown once — the plane stores only its sha256.
+        </div>
+        <div class="tokenline"><span class="tok">${NEW_TOKEN}</span>
+          <button class="copybtn" data-copy="${NEW_TOKEN}">
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.4" y="5.4" width="8" height="8" rx="1.2"/><path d="M10.6 5.4V4a1.2 1.2 0 0 0-1.2-1.2H4A1.2 1.2 0 0 0 2.8 4v5.4A1.2 1.2 0 0 0 4 10.6h1.4"/></svg>
+            copy
+          </button>
+        </div>
+      </div>
+      <div class="snippet">
+        <div class="cap"><span class="micro">1 · Install the daemon</span>
+          <div class="seg" id="osSeg"><button class="on" data-os="sh">sh</button><button data-os="npm">npm</button><button data-os="bun">bun</button></div>
+        </div>
+        <pre id="installPre"><span class="c"># any machine you own — it holds harness binaries + credentials</span>
+curl -fsSL https://get.stellarc.dev/node | sh</pre>
+      </div>
+      <div class="snippet">
+        <div class="cap"><span class="micro">2 · node.json</span>
+          <button class="copybtn" id="copyJson">
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.4" y="5.4" width="8" height="8" rx="1.2"/><path d="M10.6 5.4V4a1.2 1.2 0 0 0-1.2-1.2H4A1.2 1.2 0 0 0 2.8 4v5.4A1.2 1.2 0 0 0 4 10.6h1.4"/></svg>
+            copy
+          </button>
+        </div>
+        <pre>{
+  <span class="k">"server"</span>:     <span class="s">"${SERVER}"</span>,
+  <span class="k">"token"</span>:      <span class="s">"${NEW_TOKEN}"</span>,
+  <span class="k">"workRoot"</span>:   <span class="s">"~/.local/share/stellarc-node/work"</span>,
+  <span class="k">"concurrency"</span>: <span class="s">2</span>,
+  <span class="k">"harnesses"</span>: {
+    <span class="k">"hermes"</span>: <span class="c">null</span>,       <span class="c">// known launcher: hermes acp</span>
+    <span class="k">"claude-code"</span>: <span class="c">null</span>, <span class="c">// npx -y @zed-industries/claude-code-acp</span>
+    <span class="k">"mine"</span>: { <span class="k">"command"</span>: <span class="s">"./my-agent"</span>, <span class="k">"args"</span>: [<span class="s">"--acp"</span>] }
+  }
+}</pre>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-faint)">Drop at <span class="mono" style="font-size:10.5px">~/.config/stellarc/node.json</span> — or point <span class="mono" style="font-size:10.5px">STELLARC_NODE_CONFIG</span> at it. Prefer env? Use <span class="mono" style="font-size:10.5px">"tokenEnv": "STELLARC_NODE_TOKEN"</span> instead of a literal token.</div>
+      </div>
+      <div class="snippet">
+        <div class="cap"><span class="micro">3 · Start it</span></div>
+        <pre>stellarc-node <span class="c">&lt;-- daemonizes; heartbeats every lease/3 (20s)</span></pre>
+      </div>`;
+    foot.innerHTML = `<span class="micro" style="letter-spacing:.03em">token hashed · sha256 · shown once</span><span class="spacer"></span>
+      <button class="btn btn-ghost" id="cBack">Back</button>
+      <button class="btn btn-primary" id="cNext">I've started it</button>`;
+    wireCopy(body); wireCopy(foot);
+    $("osSeg").querySelectorAll("button").forEach((b) => b.onclick = () => {
+      $("osSeg").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      $("installPre").innerHTML = b.dataset.os === "sh"
+        ? `<span class="c"># any machine you own — it holds harness binaries + credentials</span>\ncurl -fsSL https://get.stellarc.dev/node | sh`
+        : b.dataset.os === "npm"
+          ? `npm i -g @nevrlabs/stellarc-node`
+          : `bun add -g @nevrlabs/stellarc-node`;
+    });
+    $("cBack").onclick = () => { c.step = 1; renderConnect(); };
+    $("cNext").onclick = () => { c.step = 3; renderConnect(); playHello(); };
+  }
+  if (c.step === 3) {
+    $("modalTitle").textContent = `Waiting for hello from “${c.name}”`;
+    body.innerHTML = `
+      ${stepsHTML(3)}
+      <div class="waitbox">
+        <div class="waitring">
+          <svg width="44" height="44" viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" stroke-width="2.5"/>
+            <circle class="ring" cx="22" cy="22" r="18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="30 84" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Waiting for hello</h3>
+        <p>The node announces itself with its version and the harnesses it offers.<br>Nothing else runs until it does.</p>
+        <div class="term" id="helloTerm"><span class="ln"><span class="t">14:41:02</span>  node registered · <span class="a">${esc(c.name)}</span> · token hashed (sha256)</span></div>
+        <div style="margin-top:10px;display:flex;justify-content:center">
+          <button class="btn btn-secondary btn-sm" id="simHello">simulate hello from your terminal</button>
+        </div>
+      </div>`;
+    foot.innerHTML = `<span class="micro" style="letter-spacing:.03em">listening · POST /v1/node/hello { version, harnesses }</span><span class="spacer"></span>
+      <button class="btn btn-ghost" id="cCancel3">Close</button>`;
+    $("simHello").onclick = () => finishHello(true);
+    $("cCancel3").onclick = closeConnect;
+  }
+  if (c.step === 4) {
+    const n = S.extraNodes.find((x) => x._key === c.nodeKey);
+    $("modalTitle").textContent = `${c.name} is connected`;
+    body.innerHTML = `
+      ${stepsHTML(3)}
+      <div class="donebox">
+        <div class="bigdot">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3.2 8.4 3.2 3.2 6.4-7"/></svg>
+        </div>
+        <h3>Hello received — node online</h3>
+        <p><span class="mono" style="font-size:11px">v0.4.1</span> · 3 harnesses: <span class="mono" style="font-size:11px">hermes, claude-code, codex</span><br>Bind an agent to <b>${esc(c.name)}</b> and give it work.</p>
+        <div class="actions" style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn btn-primary" id="cView">View node</button>
+          <button class="btn btn-secondary" id="cAgent">Create agent on this node</button>
+        </div>
+      </div>`;
+    foot.innerHTML = `<span style="flex:1"></span><button class="btn btn-ghost" id="cDone">Done</button>`;
+    $("cDone").onclick = closeConnect;
+    $("cView").onclick = () => { const id = c.nodeKey; closeConnect(); setView("populated"); openNode(id); };
+    $("cAgent").onclick = () => { closeConnect(); toast("Agent form — out of scope for this mockup"); };
+  }
+}
+function playHello() {
+  const term = $("helloTerm");
+  if (!term || helloTimer) return;
+  const lines = [
+    [900, `<span class="t">14:41:05</span>  listening for hello · long-poll /v1/node/claim (waitMs 30000)`],
+    [2100, `<span class="t">14:41:07</span>  …`],
+    [3400, `<span class="t">14:41:09</span>  <span class="g">hello received</span> · v0.4.1 · harnesses: hermes, claude-code, codex`],
+    [3800, null],
+  ];
+  lines.forEach(([t, ln]) => {
+    helloTimer = setTimeout(() => {
+      if (ln === null) { finishHello(false); return; }
+      const el = $("helloTerm"); if (!el) return;
+      const s = document.createElement("span"); s.className = "ln"; s.innerHTML = ln;
+      el.appendChild(s); el.scrollTop = el.scrollHeight;
+    }, t);
+  });
+}
+function finishHello(fromButton) {
+  if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
+  const c = S.connect; if (!c) return;
+  const n = S.extraNodes.find((x) => x._key === c.nodeKey);
+  if (n) {
+    n.status = "online"; n.version = "0.4.1"; n.lastSeen = "now";
+    n.harnesses = ["hermes", "claude-code", "codex"]; n.machine = "Your machine";
+  }
+  c.step = 4;
+  if (S.view === "populated") renderContent();
+  renderStats();
+  renderConnect();
+  if (!fromButton) toast("hello received — node online");
+}
+
+function wireCopy(scope) {
+  scope.querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => {
+    copyText(b.dataset.copy);
+    b.classList.add("ok");
+    const old = b.innerHTML;
+    b.innerHTML = "copied";
+    setTimeout(() => { b.classList.remove("ok"); b.innerHTML = old; }, 1400);
+  });
+  const cj = scope.querySelector("#copyJson");
+  if (cj && !cj.dataset.wired) {
+    cj.dataset.wired = "1";
+    cj.onclick = () => { copyText(document.querySelectorAll("#modalBody pre")[1].innerText); toast("node.json copied"); };
+  }
+}
+function copyText(t) {
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).catch(() => {});
+  toast("Copied to clipboard");
+}
+let toastTimer = null;
+function toast(msg) {
+  $("toastMsg").textContent = msg;
+  $("toast").classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 1800);
+}
+
+/* ── global wiring ─────────────────────────────────────────────────────── */
+document.querySelectorAll("#stateseg button").forEach((b) => b.onclick = () => { closeDrawer(); setView(b.dataset.view); });
+$("connectBtn").onclick = openConnect;
+$("modalClose").onclick = closeConnect;
+$("scrim").onclick = closeConnect;
+$("hamburger").onclick = () => $("sidebar").classList.toggle("open");
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (S.connect) return closeConnect();
+    if (S.panel) return closeDrawer();
+    $("sidebar").classList.remove("open");
+  }
+  if ((e.key === "c" || e.key === "C") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const t = document.activeElement;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    if (S.connect) return;
+    e.preventDefault(); openConnect();
+  }
+  if (e.key === "Enter" && S.panel && S.panel.t === "run") { /* noop */ }
+});
+/* lease countdown for the running task drawer */
+setInterval(() => {
+  S.lease = S.lease <= 1 ? 42 : S.lease - 1;
+  const el = $("leaseV");
+  if (el) { el.textContent = S.lease + "s"; el.className = S.lease < 15 ? "lease-low" : "lease-ok"; }
+}, 1000);
+
+/* hash deep links: #view=populated #node=<id> #run=<task> — used by screenshots */
+(function () {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const v = p.get("view");
+  if (v && ["populated", "empty", "loading", "error"].includes(v)) setView(v);
+  else { renderStats(); renderContent(); } /* initial render */
+  const run = p.get("run");
+  const node = p.get("node");
+  const connect = p.get("connect");
+  if (run) { setTimeout(() => openRun(run), 80); }
+  else if (node) { setTimeout(() => openNode(node), 80); }
+  if (connect) {
+    setTimeout(() => {
+      openConnect();
+      if (connect === "2") { /* step 2: token + snippets */
+        S.connect.name = "vault-x1"; S.connect.step = 2; renderConnect();
+      }
+      if (connect === "3") { /* step 3: waiting for hello */
+        S.connect.name = "vault-x1"; S.connect.step = 3; renderConnect();
+        setTimeout(() => { const t = $("helloTerm"); if (t) { const s = document.createElement("span"); s.className = "ln"; s.innerHTML = '<span class="t">14:41:02</span>  node registered · <span class="a">vault-x1</span> · token hashed (sha256)<br><span class="t">14:41:05</span>  listening for hello · long-poll /v1/node/claim (waitMs 30000)'; t.appendChild(s); } }, 100);
+      }
+    }, 120);
+  }
+})();
+</script>
+</body>
+</html>
