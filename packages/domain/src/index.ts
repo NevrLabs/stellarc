@@ -1,4 +1,4 @@
-import { Effect, Metric, Runtime, Schema } from "effect";
+import { Effect, Metric, Schema } from "effect";
 import type { Sql } from "postgres";
 
 export const Probe = Schema.Struct({
@@ -74,24 +74,24 @@ export const mutateProbesEffect = Effect.fn("Domain.mutateProbes")(function* (
 	actor: string,
 	mutations: readonly ProbeMutation[],
 ) {
-	const runtime = yield* Effect.runtime<never>();
+	const services = yield* Effect.context<never>();
 	const result = yield* Effect.tryPromise({
 		try: () =>
 			runMutations(sql, org, actor, mutations, (write, type, seq, txid) =>
-				Runtime.runPromise(runtime)(appendEvent(write, type, seq, txid)),
+				Effect.runPromiseWith(services)(appendEvent(write, type, seq, txid)),
 			),
 		catch: (cause) => cause,
 	});
 	for (const mutation of mutations)
-		yield* Metric.increment(
-			Metric.counter("stellarc_events_appended_total"),
-		).pipe(
-			Effect.tagMetrics(
-				"type",
-				mutation.operation === "upsert"
-					? "foundation:probe-upserted"
-					: "foundation:probe-deleted",
-			),
+		yield* Effect.provideService(
+			Metric.update(Metric.counter("stellarc_events_appended_total"), 1),
+			Metric.CurrentMetricAttributes,
+			{
+				type:
+					mutation.operation === "upsert"
+						? "foundation:probe-upserted"
+						: "foundation:probe-deleted",
+			},
 		);
 	return result;
 });
