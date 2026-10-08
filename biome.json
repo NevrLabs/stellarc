@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
 	"vcs": {
 		"enabled": false,
 		"clientKind": "git",
@@ -36,7 +36,8 @@
 			"!.forge",
 			"!tools/forge/__pycache__",
 			"!packages/kaneo-legacy",
-			"!packages/kaneo-email"
+			"!packages/kaneo-email",
+			"!docs/effect-v4"
 		]
 	},
 	"formatter": {
@@ -53,7 +54,7 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true,
+			"preset": "recommended",
 			"style": {
 				"noParameterAssign": "error",
 				"useAsConstAssertion": "error",
@@ -104,7 +105,7 @@
 			"linter": {
 				"rules": {
 					"a11y": {
-						"recommended": false
+						"preset": "none"
 					},
 					"correctness": {
 						"noUnusedVariables": "off",
