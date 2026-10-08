@@ -14,10 +14,10 @@ import type {
 	UserPublic,
 } from "../../../contracts/src/identity/http";
 
-// Identity service interfaces (Tags only — no Layer, no SQL). Signatures reference
+// Identity service interfaces (Services only — no Layer, no SQL). Signatures reference
 // the contract Schemas; implementations are T1 (#15) app work.
 
-export class IdentityStore extends Context.Tag("stellarc/IdentityStore")<
+export class IdentityStore extends Context.Service<
 	IdentityStore,
 	{
 		readonly userById: (id: string) => Effect.Effect<UserPublic, IdentityError>;
@@ -50,9 +50,9 @@ export class IdentityStore extends Context.Tag("stellarc/IdentityStore")<
 			userId: string,
 		) => Effect.Effect<AvatarPublic, IdentityError>;
 	}
->() {}
+>()("stellarc/IdentityStore") {}
 
-export class OrgRouter extends Context.Tag("stellarc/OrgRouter")<
+export class OrgRouter extends Context.Service<
 	OrgRouter,
 	{
 		readonly resolve: (
@@ -62,24 +62,22 @@ export class OrgRouter extends Context.Tag("stellarc/OrgRouter")<
 			IdentityError
 		>;
 	}
->() {}
+>()("stellarc/OrgRouter") {}
 
-export class PrincipalResolver extends Context.Tag(
-	"stellarc/PrincipalResolver",
-)<
+export class PrincipalResolver extends Context.Service<
 	PrincipalResolver,
 	{
 		readonly resolve: (
 			actor: unknown,
 		) => Effect.Effect<PrincipalPublic, IdentityError>;
 	}
->() {}
+>()("stellarc/PrincipalResolver") {}
 
-export class IdentityEvents extends Context.Tag("stellarc/IdentityEvents")<
+export class IdentityEvents extends Context.Service<
 	IdentityEvents,
 	{
 		readonly append: (
 			event: IdentityEvent,
 		) => Effect.Effect<void, IdentityError>;
 	}
->() {}
+>()("stellarc/IdentityEvents") {}

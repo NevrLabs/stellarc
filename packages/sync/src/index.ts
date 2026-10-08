@@ -1,17 +1,20 @@
-import { Cause, Effect, Exit, Metric, MetricBoundaries, Runtime } from "effect";
+import { Cause, Context, Effect, Exit, Metric } from "effect";
 
 const liveConnections = Metric.gauge("stellarc_shape_live_connections");
-const tailWait = Metric.histogram(
-	"stellarc_shape_tail_wait_seconds",
-	MetricBoundaries.exponential({ start: 0.01, factor: 2, count: 13 }),
-);
+const tailWait = Metric.histogram("stellarc_shape_tail_wait_seconds", {
+	boundaries: Metric.exponentialBoundaries({
+		start: 0.01,
+		factor: 2,
+		count: 13,
+	}),
+});
 let activeLiveConnections = 0;
 
 async function runEffect<A>(
-	runtime: Runtime.Runtime<never>,
+	services: Context.Context<never>,
 	effect: Effect.Effect<A, unknown>,
 ): Promise<A> {
-	const exit = await Runtime.runPromiseExit(runtime)(effect);
+	const exit = await Effect.runPromiseExitWith(services)(effect);
 	if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
 	return exit.value;
 }
@@ -48,25 +51,25 @@ export class ShapeEngine {
 					);
 					self.telemetry?.({ org, log });
 				}
-				const runtime = yield* Effect.runtime<never>();
+				const services = yield* Effect.context<never>();
 				const live = url.searchParams.get("live") === "true";
 				const began = performance.now();
 				const request = Effect.tryPromise({
 					try: (fiberSignal) =>
 						self.runShape(org, url, signal ?? fiberSignal, (pageUrl) =>
-							runEffect(runtime, self.pageEffect(org, pageUrl)),
+							runEffect(services, self.pageEffect(org, pageUrl)),
 						),
 					catch: (cause) => cause,
 				});
 				if (!live) return yield* request;
 				return yield* Effect.acquireUseRelease(
 					Effect.sync(() => ++activeLiveConnections).pipe(
-						Effect.tap((count) => Metric.set(liveConnections, count)),
+						Effect.tap((count) => Metric.update(liveConnections, count)),
 					),
 					() => request,
 					() =>
 						Effect.gen(function* () {
-							yield* Metric.set(liveConnections, --activeLiveConnections);
+							yield* Metric.update(liveConnections, --activeLiveConnections);
 							yield* Metric.update(
 								tailWait,
 								(performance.now() - began) / 1000,
@@ -77,10 +80,7 @@ export class ShapeEngine {
 		},
 	);
 	shape(org: string, url: URL, signal?: AbortSignal): Promise<Response> {
-		return runEffect(
-			Runtime.defaultRuntime,
-			this.shapeEffect(org, url, signal),
-		);
+		return runEffect(Context.empty(), this.shapeEffect(org, url, signal));
 	}
 	private pageEffect(org: string, url: URL) {
 		const offset = url.searchParams.get("offset") ?? "-1";

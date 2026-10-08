@@ -20,7 +20,10 @@ test("T17 configuration refuses missing database and invalid ports; Authz defaul
 		Effect.runPromise(
 			AppConfig.pipe(
 				Effect.provide(ConfigLive),
-				Effect.withConfigProvider(ConfigProvider.fromMap(new Map(entries))),
+				Effect.provideService(
+					ConfigProvider.ConfigProvider,
+					ConfigProvider.fromEnvRecord(Object.fromEntries(entries)),
+				),
 			),
 		);
 	await expect(load([])).rejects.toThrow();
@@ -55,7 +58,7 @@ test("TelemetryTest exports real Effect spans, metrics and logs with resource id
 		await runtime.runPromise(
 			Effect.gen(function* () {
 				yield* Effect.logInfo("safe log");
-				yield* Metric.increment(Metric.counter("stellarc_test_total"));
+				yield* Metric.update(Metric.counter("stellarc_test_total"), 1);
 			}).pipe(Effect.withSpan("test.operation")),
 		);
 		await telemetry.reader.forceFlush();
