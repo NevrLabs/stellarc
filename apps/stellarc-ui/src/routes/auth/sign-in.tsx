@@ -3,7 +3,8 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
-import { Github, KeyRound, UserCheck } from "lucide-react";
+import { Github } from "@/components/icons/github";
+import { KeyRound, UserCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod/v4";
@@ -113,8 +114,9 @@ function SignIn() {
   const handleCustomOAuth = useCallback(async () => {
     setIsCustomOAuthLoading(true);
     try {
-      const result = await authClient.signIn.oauth2({
-        providerId: "custom",
+      const result = await authClient.signIn.social({
+        // better-auth 1.7: generic-oauth providers are first-class social providers
+        provider: "custom",
         callbackURL: getCallbackUrl(),
         errorCallbackURL: `${import.meta.env.VITE_CLIENT_URL}/auth/sign-in`,
       });

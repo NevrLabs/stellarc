@@ -1,10 +1,10 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { Github } from "@/components/icons/github";
 import {
   AlertTriangle,
   CheckCircle,
   ExternalLink,
   GitBranch,
-  Github,
   Import,
   Link,
   RefreshCw,

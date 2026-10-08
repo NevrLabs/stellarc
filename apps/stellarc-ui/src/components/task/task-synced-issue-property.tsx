@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Github } from "lucide-react";
+import { Github } from "@/components/icons/github";
 import useExternalLinks from "@/hooks/queries/external-link/use-external-links";
 import useGetRepos from "@/hooks/queries/repo/use-get-repos";
 import useGetTaskRepoLinks from "@/hooks/queries/task/use-get-task-repo-links";
