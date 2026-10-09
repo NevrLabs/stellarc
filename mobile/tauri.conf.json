@@ -1,0 +1,31 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Stellarc",
+	"version": "0.1.0",
+	"identifier": "dev.stellarc.mobile",
+	"build": {
+		"beforeBuildCommand": "bash scripts/build-ui.sh",
+		"frontendDist": "../apps/stellarc-ui/dist"
+	},
+	"app": {
+		"withGlobalTauri": false,
+		"windows": [],
+		"security": {
+			"csp": "default-src 'self'; connect-src 'self' __STELLARC_API_ORIGIN__; img-src 'self' __STELLARC_IMG_ORIGIN__ data:; style-src 'self' 'unsafe-inline'"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": [
+			"apk"
+		],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/icon.ico",
+			"icons/icon.icns"
+		],
+		"shortDescription": "Stellarc \u2014 control plane for AI coding agents",
+		"longDescription": "Stellarc Mobile is a Tauri 2 shell around the pixel-frozen stellarc-ui bundle. It loads the frozen web UI over Tauri's asset protocol and points it at the stellarc-api deployment."
+	}
+}

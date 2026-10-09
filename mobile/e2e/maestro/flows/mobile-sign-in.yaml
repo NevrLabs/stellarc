@@ -1,0 +1,11 @@
+appId: dev.stellarc.mobile
+name: Mobile sign-in landmark
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Email"
+    timeout: 15000
+- assertVisible: "Sign In"
+- tapOn: "Email"
+- takeScreenshot:
+    path: screenshots/mobile-sign-in

@@ -360,6 +360,7 @@ Three deployables, nothing else yet:
 | `apps/stellarc-worker` | Effect outbox consumer: notifications, search projection, integrations | FSL-1.1-Apache-2.0 |
 | `apps/stellarc-ui` | Vite SPA: TanStack Router + TanStack DB, Base UI via shadcn, Tailwind v4 (ADR 0008) | Apache-2.0 |
 | `desktop/` | Tauri 2 shell around the frozen UI (`desktop:build` / `desktop:check`) | MIT OR Apache-2.0 |
+| `mobile/` | Tauri 2 mobile shells, Android/iOS (`mobile:build` / `mobile:check`) | MIT OR Apache-2.0 |
 
 Not in this branch yet: arclet, tunnel, the v1 UI. They
 arrive as later stages of the rewrite per `docs/v2-charter.md`.
