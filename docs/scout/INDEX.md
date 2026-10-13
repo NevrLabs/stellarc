@@ -38,7 +38,9 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Zero 1.10 (strongest sync alternative) | WATCH | 2026-10-13 | libraries |
 | TypeScript 7 / tsgo (answer via `bun check`) | TRIAL | 2026-10-13 | libraries |
 | @sentry/node 11 (one major ahead of pin) | WATCH | 2026-10-13 | libraries |
-| shadcn chat primitives (message/bubble/scroller/attachment/marker) | ADOPT | 2026-10-13 | design |
+| shadcn chat primitives (message/bubble/scroller/attachment/marker/questionnaire) | ADOPT | 2026-10-13 | design |
+| shadcn Typeset (streaming-safe markdown css) | TRIAL | 2026-10-13 | design |
+| @coss registry entry in components.json (AGPL, unused) | REJECT | 2026-10-13 | design |
 | @shadcn/react (headless chat primitives) | TRIAL | 2026-10-13 | design |
 | skills/migrate-radix-to-base (shadcn method skill) | ADOPT | 2026-10-13 | design |
 | Radix dep tail + components.json dialect (ours) | ADOPT cleanup | 2026-10-13 | design |
