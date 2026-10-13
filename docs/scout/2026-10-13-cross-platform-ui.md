@@ -25,7 +25,7 @@ Also this run: a concrete **accessibility gap in our own house** — the repo ha
 | **Dioxus** | `0.8.0-alpha.1` (2026-07-31) — the 0.8 line has been alpha-only for ~2.5 months; stable remains 0.7.10 | 0.8.0-alpha.1 2026-07-31 | Apache-2.0 / MIT | 3 | **REJECT** | Unchanged; cadence still slower than GPUI Kit's |
 | **Flutter** | 180.0k★, pushed today — steady | active 2026-10-13 | BSD-3-Clause | 5 | **REJECT** | Unchanged |
 | **Electrobun** | `2.0.3-beta.23` on the beta tag (latest stable 2.0.2, 2026-09-29) — still beta-first | 2.0.3-beta.23 | MIT | 2 | **REJECT** | Unchanged |
-| **`@axe-core/playwright`** | axe wrappers for Playwright: `AxeBuilder.analyze()` per page, rules tunable per project. 4.13.0 (2026-08-11) wraps axe-core 4.14-line (4.14.0, 2026-10-05). Single dep, MPL-2.0, zero transitive deps beyond axe-core | 4.13.0 2026-08-11 | MPL-2.0 | 5 | **ADOPT** (proposal 1) | Fills the beat's own gap in our repo: ADR 0009's four viewport projects assert pixels and breakpoints, nothing asserts aria/keyboard. One spec file gives every frozen surface an a11y floor before more UI piles on top |
+| **`@axe-core/playwright`** | axe wrappers for Playwright: `AxeBuilder.analyze()` per page, rules tunable per project. 4.13.0 (2026-08-11) pins `axe-core ~4.13.0` (4.14.0 exists 2026-10-05 but the wrapper hasn't adopted it). Single dep, MPL-2.0, zero transitive deps beyond axe-core | 4.13.0 2026-08-11 | MPL-2.0 | 5 | **ADOPT** (proposal 1) | Fills the beat's own gap in our repo: ADR 0009's four viewport projects assert pixels and breakpoints, nothing asserts aria/keyboard. One spec file gives every frozen surface an a11y floor before more UI piles on top |
 
 ## Proposals
 
