@@ -10,6 +10,7 @@
 		"includes": [
 			"**",
 			"!**/coverage",
+			"!docs/effect-v4",
 			"!**/tsconfig*.json",
 			"!**/routeTree.gen.ts",
 			"!**/dist",
