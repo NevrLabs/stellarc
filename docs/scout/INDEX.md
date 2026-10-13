@@ -38,3 +38,23 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Zero 1.10 (strongest sync alternative) | WATCH | 2026-10-13 | libraries |
 | TypeScript 7 / tsgo (answer via `bun check`) | TRIAL | 2026-10-13 | libraries |
 | @sentry/node 11 (one major ahead of pin) | WATCH | 2026-10-13 | libraries |
+| shadcn chat primitives (message/bubble/scroller/attachment/marker) | ADOPT | 2026-10-13 | design |
+| @shadcn/react (headless chat primitives) | TRIAL | 2026-10-13 | design |
+| skills/migrate-radix-to-base (shadcn method skill) | ADOPT | 2026-10-13 | design |
+| Radix dep tail + components.json dialect (ours) | ADOPT cleanup | 2026-10-13 | design |
+| motion 14 (ex framer-motion) | ADOPT bump | 2026-10-13 | design |
+| lucide-react 1.x | ADOPT bump | 2026-10-13 | design |
+| react-day-picker 10 | TRIAL bump | 2026-10-13 | design |
+| tweakcn (theme token editor) | TRIAL | 2026-10-13 | design |
+| streamdown (streaming markdown) | WATCH | 2026-10-13 | design |
+| vercel/ai-elements registry | WATCH | 2026-10-13 | design |
+| prompt-kit (ibelick) | WATCH | 2026-10-13 | design |
+| @assistant-ui/react | REJECT | 2026-10-13 | design |
+| CopilotKit | REJECT | 2026-10-13 | design |
+| @llm-ui/react (dormant) | REJECT | 2026-10-13 | design |
+| recharts 3 via shadcn charts | WATCH | 2026-10-13 | design |
+| pragmatic-drag-and-drop | WATCH | 2026-10-13 | design |
+| shadcn-admin (satnaing, reference) | WATCH | 2026-10-13 | design |
+| HeroUI | REJECT | 2026-10-13 | design |
+| cmdk (dormant 19mo, in use) | WATCH | 2026-10-13 | design |
+| shadcn DESIGN.md workflow skill | TRIAL | 2026-10-13 | design |
