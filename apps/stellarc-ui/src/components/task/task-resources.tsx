@@ -4,7 +4,6 @@ import {
   CircleDot,
   ExternalLink,
   GitBranch,
-  Github,
   GitMerge,
   GitPullRequest,
   GitPullRequestCreateArrow,
@@ -14,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
+import { Github } from "@/components/icons/github";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,

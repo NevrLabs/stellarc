@@ -4,7 +4,6 @@ import {
   anonymousClient,
   deviceAuthorizationClient,
   emailOTPClient,
-  genericOAuthClient,
   inferAdditionalFields,
   lastLoginMethodClient,
   magicLinkClient,
@@ -52,7 +51,9 @@ export const authClient = createAuthClient({
         enabled: true,
       },
     }),
-    genericOAuthClient(),
+    // better-auth 1.7 removed genericOAuthClient: the generic-oauth endpoints
+    // (signIn.oauth2, oauth2.link) are reached through the server plugin's
+    // inferred routes; no client plugin is needed for them.
     deviceAuthorizationClient(),
     apiKeyClient(),
     adminClient(),

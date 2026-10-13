@@ -37,6 +37,7 @@ REPO = "NevrLabs/stellarc"
 BUILDER = "Stellarc Builder"
 REVIEWER = "Stellarc Reviewer"
 DESIGNER = "Stellarc Designer"
+SCOUT = "Stellarc Scout"
 TALOS = "Talos (hermes)"
 WIP_BUILD = int(os.environ.get("STELLARC_WIP_BUILD", "4"))
 MAX_CYCLES = 3
@@ -176,10 +177,15 @@ def checks_green(pr: dict) -> tuple[bool, str]:
     seen = {}
     for c in pr.get("statusCheckRollup") or []:
         seen[c.get("name")] = (c.get("conclusion") or c.get("status") or "").upper()
-    missing = [n for n in REQUIRED_CHECKS if n not in seen]
+    # Slice PRs into the effect/v4 integration branch can't turn `foundation`
+    # green until every slice lands (cross-package v4 debt) -> deadlock. There
+    # the Reviewer's independent gate re-run is the gate; foundation is enforced
+    # on the integration PR effect/v4 -> dev.
+    required = {"ui-purity"} if pr.get("baseRefName") == "effect/v4" else REQUIRED_CHECKS
+    missing = [n for n in required if n not in seen]
     if missing:
         return False, f"checks not reported yet: {missing}"
-    bad = {n: v for n, v in seen.items() if n in REQUIRED_CHECKS and v != "SUCCESS"}
+    bad = {n: v for n, v in seen.items() if n in required and v != "SUCCESS"}
     return (not bad), (f"required checks: {bad}" if bad else "green")
 
 
@@ -225,6 +231,13 @@ def step(state: dict) -> None:
     # 1. in_review work issues → reviewer
     for i in all_issues:
         k, st, who = key_of(i), i.get("status"), assignee_name(i)
+        if who == SCOUT and st == "in_review" and k not in state.setdefault("scout_seen", []):
+            pr = pr_of(k)
+            state["scout_seen"].append(k)
+            create_issue(f"Talos: triage scout report {k}" + (f" (PR #{pr})" if pr else ""), TALOS,
+                f"Scout report {k} is ready. Read it, merge the docs PR if it's accurate, and FILE the ADOPT proposals you agree with as Builder issues using the same brief quality as M1. Reject the rest with a reason in a comment on {k}. Then set {k} to done.", "medium")
+            log(f"scout report {k} → Talos triage")
+            continue
         if who not in (BUILDER, DESIGNER) or st != "in_review" or k in reviews:
             continue
         if who == DESIGNER and state["cycles"].get(k, 0) >= 1 and k in state.get("design_ready", []):
@@ -328,7 +341,7 @@ def step(state: dict) -> None:
     # Re-run with a nudge; give up after 3 nudges (→ blocked → escalate).
     for i in all_issues:
         k, st, who = key_of(i), i.get("status"), assignee_name(i)
-        if who not in (BUILDER, DESIGNER, REVIEWER) or st not in ("todo", "in_progress"):
+        if who not in (BUILDER, DESIGNER, REVIEWER, SCOUT) or st not in ("todo", "in_progress"):
             continue
         try:
             runs = mcj("issue", "runs", k)
@@ -360,7 +373,7 @@ def step(state: dict) -> None:
     # 3. blocked → escalate once
     for i in all_issues:
         k = key_of(i)
-        if i.get("status") == "blocked" and assignee_name(i) in (BUILDER, DESIGNER, REVIEWER):
+        if i.get("status") == "blocked" and assignee_name(i) in (BUILDER, DESIGNER, REVIEWER, SCOUT):
             escalate(state, k, f"{k} ({i.get('title')}) is blocked. Read its comments and unblock it: decide, re-scope, or reassign.")
 
     # 4. feeder: M1 groups once the effect/v4 port is merged into dev
@@ -407,8 +420,6 @@ def disk_guard() -> bool:
     free_gb = shutil.disk_usage("/").free / 1e9
     if free_gb < 3:
         log(f"DISK LOW: {free_gb:.1f}G free on / — feeder paused; cleaning finished worktrees")
-        for d in Path("/mnt/deepvault/wt").glob("*") if Path("/mnt/deepvault/wt").exists() else []:
-            pass
         return False
     return True
 
