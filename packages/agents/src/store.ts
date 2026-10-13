@@ -425,7 +425,7 @@ export class AgentStore {
 			};
 			return descriptor;
 		}).pipe(
-			Effect.tap((d) => (d ? Metric.increment(tasksClaimed) : Effect.void)),
+			Effect.tap((d) => (d ? Metric.update(tasksClaimed, 1) : Effect.void)),
 		);
 	}
 
@@ -548,8 +548,9 @@ export class AgentStore {
 			return task(u);
 		}).pipe(
 			Effect.tap((t) =>
-				Metric.increment(tasksFinished).pipe(
-					Effect.tagMetrics("status", t.status),
+				Metric.update(
+					Metric.withAttributes(tasksFinished, { status: t.status }),
+					1,
 				),
 			),
 		);

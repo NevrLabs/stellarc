@@ -1,20 +1,30 @@
-import { Data } from "effect";
+import { Schema } from "effect";
 
-export class BadRequest extends Data.TaggedError("BadRequest")<{
-	readonly message: string;
-}> {}
-export class Unauthenticated extends Data.TaggedError("Unauthenticated")<{
-	readonly message: string;
-}> {}
-export class Forbidden extends Data.TaggedError("Forbidden")<{
-	readonly message: string;
-}> {}
-export class NotFound extends Data.TaggedError("NotFound")<{
-	readonly message: string;
-}> {}
-export class Conflict extends Data.TaggedError("Conflict")<{
-	readonly message: string;
-}> {}
+export class BadRequest extends Schema.TaggedError<BadRequest>()(
+	"BadRequest",
+	{ message: Schema.String },
+	{ httpApiStatus: 400 },
+) {}
+export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()(
+	"Unauthenticated",
+	{ message: Schema.String },
+	{ httpApiStatus: 401 },
+) {}
+export class Forbidden extends Schema.TaggedError<Forbidden>()(
+	"Forbidden",
+	{ message: Schema.String },
+	{ httpApiStatus: 403 },
+) {}
+export class NotFound extends Schema.TaggedError<NotFound>()(
+	"NotFound",
+	{ message: Schema.String },
+	{ httpApiStatus: 404 },
+) {}
+export class Conflict extends Schema.TaggedError<Conflict>()(
+	"Conflict",
+	{ message: Schema.String },
+	{ httpApiStatus: 409 },
+) {}
 
 export type AgentsError =
 	| BadRequest

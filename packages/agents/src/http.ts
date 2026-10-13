@@ -80,22 +80,24 @@ export function agentsHttp(
 	},
 ): AgentsHttp {
 	const store = new AgentStore(sql, options.leaseMs);
-	const runtime = ManagedRuntime.make(
-		options.telemetry ?? Layer.empty,
-		options.memoMap,
-	);
-	const body = <A, I>(schema: Schema.Schema<A, I>, request: Request) =>
-		Effect.tryPromise({
-			try: () => request.json(),
-			catch: () => new BadRequest({ message: "Invalid JSON body" }),
-		}).pipe(
-			Effect.flatMap((raw) =>
-				Schema.decodeUnknown(schema)(raw ?? {}).pipe(
+	const runtime = ManagedRuntime.make(options.telemetry ?? Layer.empty, {
+		memoMap: options.memoMap,
+	});
+	const body = <S extends Schema.Constraint>(
+		schema: S,
+		request: Request,
+	): Effect.Effect<S["Type"], AgentsError, S["DecodingServices"]> =>
+		Effect.flatMap(
+			Effect.tryPromise({
+				try: () => request.json(),
+				catch: () => new BadRequest({ message: "Invalid JSON body" }),
+			}),
+			(raw) =>
+				Schema.decodeUnknownEffect(schema)(raw ?? {}).pipe(
 					Effect.mapError(
 						(e) => new BadRequest({ message: e.message.slice(0, 500) }),
 					),
 				),
-			),
 		);
 	const nodeAuth = (request: Request) =>
 		store.authenticateNode(
@@ -211,7 +213,7 @@ export function agentsHttp(
 		handler: (request) =>
 			runtime.runPromise(
 				route(request).pipe(
-					Effect.catchAll((error) =>
+					Effect.catch((error: AgentsError | Error) =>
 						Effect.succeed(
 							isAgentsError(error)
 								? json(statusOf(error), {
