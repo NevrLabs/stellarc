@@ -60,3 +60,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | HeroUI | REJECT | 2026-10-13 | design |
 | cmdk (dormant 19mo, in use) | WATCH | 2026-10-13 | design |
 | shadcn DESIGN.md workflow skill | TRIAL | 2026-10-13 | design |
+| Base UI (house primitive, bump float ^1.9) | ADOPT | 2026-10-13 | design |
+| vaul (superseded by Base UI Drawer; unused) | REJECT | 2026-10-13 | design |
+| animate-ui (stale ~9.5 mo) | WATCH | 2026-10-13 | design |
+| @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-13 | design |
