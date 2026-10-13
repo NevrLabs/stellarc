@@ -1,6 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import type { User } from "better-auth/types";
-import { Github } from "@/components/icons/github";
 import {
   Building2,
   KeyRound,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import Layout from "@/components/common/layout";
+import { Github } from "@/components/icons/github";
 import PageTitle from "@/components/page-title";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

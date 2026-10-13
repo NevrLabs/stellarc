@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Github } from "@/components/icons/github";
 import {
   CircleDot,
   Eye,
@@ -13,6 +12,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import OrganizationLayout from "@/components/common/organization-layout";
+import { Github } from "@/components/icons/github";
 import PageTitle from "@/components/page-title";
 import { useAuth } from "@/components/providers/auth-provider/hooks/use-auth";
 import { AddRepoDialog } from "@/components/repo/add-repo-dialog";

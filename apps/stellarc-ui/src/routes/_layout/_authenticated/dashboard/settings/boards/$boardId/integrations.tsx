@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Github } from "@/components/icons/github";
 import {
   ChevronDown,
   GitFork,
@@ -16,6 +15,7 @@ import { GiteaIntegrationSettings } from "@/components/board/gitea-integration-s
 import { GitHubIntegrationSettings } from "@/components/board/github-integration-settings";
 import { SlackIntegrationSettings } from "@/components/board/slack-integration-settings";
 import { TelegramIntegrationSettings } from "@/components/board/telegram-integration-settings";
+import { Github } from "@/components/icons/github";
 import PageTitle from "@/components/page-title";
 import {
   Collapsible,

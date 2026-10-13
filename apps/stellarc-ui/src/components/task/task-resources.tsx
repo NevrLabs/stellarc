@@ -1,6 +1,5 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Github } from "@/components/icons/github";
 import {
   CircleDot,
   ExternalLink,
@@ -14,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
+import { Github } from "@/components/icons/github";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,

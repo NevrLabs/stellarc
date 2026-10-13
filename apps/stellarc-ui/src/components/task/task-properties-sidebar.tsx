@@ -1,5 +1,4 @@
 import { useParams } from "@tanstack/react-router";
-import { Github } from "@/components/icons/github";
 import {
   Archive,
   Calendar,
@@ -12,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Github } from "@/components/icons/github";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

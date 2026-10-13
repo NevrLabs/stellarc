@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Github } from "@/components/icons/github";
 import { ExternalLink, Unlink } from "lucide-react";
+import { Github } from "@/components/icons/github";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {

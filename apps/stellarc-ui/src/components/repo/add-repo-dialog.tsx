@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Github } from "@/components/icons/github";
 import { Check, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Github } from "@/components/icons/github";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

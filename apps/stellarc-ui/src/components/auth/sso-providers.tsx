@@ -1,7 +1,7 @@
-import { Github } from "@/components/icons/github";
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Github } from "@/components/icons/github";
 import { Button } from "@/components/ui/button";
 import type { GetConfigResponse } from "@/fetchers/config/get-config";
 import { authClient } from "@/lib/auth-client";
