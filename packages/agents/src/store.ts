@@ -1,14 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Effect, Metric } from "effect";
 import type { Sql, TransactionSql } from "postgres";
-import {
-	type AgentsError,
-	BadRequest,
-	Conflict,
-	isAgentsError,
-	NotFound,
-	Unauthenticated,
-} from "./errors";
+import { BadRequest, Conflict, NotFound, Unauthenticated } from "./errors";
+import { appendEvents, txn } from "./events";
+import { appendMemoryEvents, hashContent } from "./memory";
 import {
 	type CreateAgent,
 	type CreateTask,
@@ -17,8 +12,11 @@ import {
 	type Item,
 	isRetryable,
 	type McpServer,
+	MEMORY_KINDS,
+	type MemoryKind as ProtocolMemoryKind,
 	type TaskDescriptor,
 	type TaskStatus,
+	type TaskType,
 } from "./protocol";
 
 export const PLUGIN = "agents";
@@ -54,6 +52,7 @@ export interface TaskRow {
 	readonly subjectRef: string | null;
 	readonly prompt: string;
 	readonly status: TaskStatus;
+	readonly taskType: TaskType;
 	readonly attempt: number;
 	readonly maxAttempts: number;
 	readonly nodeId: string | null;
@@ -104,6 +103,7 @@ const task = (r: Row): TaskRow => ({
 	subjectRef: r.subject_ref ?? null,
 	prompt: r.prompt,
 	status: r.status,
+	taskType: r.task_type ?? "run",
 	attempt: r.attempt,
 	maxAttempts: r.max_attempts,
 	nodeId: r.node_id ?? null,
@@ -120,42 +120,6 @@ const newId = (prefix: string) =>
 	`${prefix}_${randomBytes(12).toString("hex")}`;
 export const hashToken = (token: string) =>
 	createHash("sha256").update(token).digest("hex");
-
-/** Append events to the org log inside the caller's transaction (D10). */
-async function appendEvents(
-	tx: TransactionSql,
-	org: string,
-	actor: string,
-	events: ReadonlyArray<{ type: string; payload: Record<string, unknown> }>,
-) {
-	if (events.length === 0) return;
-	await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
-	const [counter] =
-		await tx`UPDATE org_event_counter SET seq=seq+${events.length} WHERE org=${org} RETURNING seq::text`;
-	const [txn] = await tx`SELECT pg_current_xact_id()::text AS txid`;
-	let seq = BigInt(counter.seq) - BigInt(events.length);
-	for (const event of events) {
-		seq += 1n;
-		await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
-      VALUES (${org},${seq.toString()},${`${PLUGIN}:${event.type}`},${actor},${tx.json(event.payload as never)},1,${txn.txid})`;
-	}
-}
-
-/** Run a transactional body as a span; AgentsError failures pass through typed. */
-const txn = <A>(
-	sql: Sql,
-	name: string,
-	body: (tx: TransactionSql) => Promise<A>,
-): Effect.Effect<A, AgentsError | Error> =>
-	Effect.tryPromise({
-		try: () => sql.begin((tx) => body(tx)) as Promise<A>,
-		catch: (cause) =>
-			isAgentsError(cause)
-				? cause
-				: cause instanceof Error
-					? cause
-					: new Error(String(cause)),
-	}).pipe(Effect.withSpan(`Agents.${name}`));
 
 export class AgentStore {
 	constructor(
@@ -296,6 +260,90 @@ export class AgentStore {
 		});
 	}
 
+	/** Distill trigger (NEVR-179): enqueue a memory.distill task whose prompt
+	 * embeds the agent's recent transcript excerpts. Budget parking: there is
+	 * no budget infra yet (companion issue); the seam is this method — when a
+	 * budget gate lands, it parks here before enqueueing. */
+	createDistillTask(
+		org: string,
+		actor: string,
+		agentId: string,
+		lookbackTasks = 10,
+	) {
+		return txn(this.sql, "createDistillTask", async (tx) => {
+			const [a] =
+				await tx`SELECT * FROM agent WHERE id=${agentId} AND org=${org} AND archived_at IS NULL`;
+			if (!a) throw new NotFound({ message: "Agent not found" });
+			const [policy] =
+				await tx`SELECT memory_enabled FROM org_policy WHERE org=${org}`;
+			if (policy && !policy.memory_enabled)
+				throw new Conflict({
+					message: "Memory is disabled for this workspace",
+				});
+			// Recent completed run transcripts for this agent principal.
+			const tasks = await tx`SELECT id, prompt FROM agent_task
+        WHERE org=${org} AND agent_id=${agentId} AND task_type='run' AND status='completed'
+        ORDER BY created_at DESC LIMIT ${lookbackTasks}`;
+			const ids = tasks.map((r) => r.id);
+			const excerpts: string[] = [];
+			if (ids.length > 0) {
+				const rows = await tx`SELECT task_id, kind, body FROM agent_task_item
+          WHERE org=${org} AND task_id IN ${tx(ids)} AND kind IN ('message','thinking')
+          ORDER BY task_id, attempt, seq`;
+				let current = "";
+				let currentTask = "";
+				for (const r of rows) {
+					if (r.task_id !== currentTask) {
+						if (current) excerpts.push(current);
+						currentTask = r.task_id;
+						current = `# Task ${r.task_id}\n`;
+					}
+					const body = r.body as {
+						role?: string;
+						content?: Array<{ type: string; text?: string }>;
+						text?: string;
+					} | null;
+					let text = "";
+					if (Array.isArray(body?.content))
+						text = (body?.content ?? [])
+							.map((c) => (c.type === "text" ? (c.text ?? "") : ""))
+							.join("");
+					else if (typeof body?.text === "string") text = body.text;
+					current += `- ${r.kind}: ${text.slice(0, 400)}\n`;
+				}
+				if (current) excerpts.push(current);
+			}
+			const corpus = excerpts
+				.slice(0, lookbackTasks)
+				.map((e) => e.slice(0, 4000))
+				.join("\n")
+				.slice(0, 40000);
+			const id = newId("task");
+			const prompt = [
+				"You are distilling long-term memory for an agent.",
+				"Read the recent task transcripts below and emit durable facts, preferences, skills, summaries, and corrections.",
+				"Emit each artifact as a line in one of these forms (no other output):",
+				"WRITE <kind> <content>   where <kind> is one of fact|preference|skill|summary|correction",
+				"DELETE <memory-id>",
+				"",
+				"Transcripts:",
+				corpus || "(no recent transcripts)",
+			].join("\n");
+			const [row] =
+				await tx`INSERT INTO agent_task(id,org,agent_id,subject_ref,prompt,task_type,max_attempts,created_by)
+        VALUES (${id},${org},${agentId},NULL,${prompt},'memory.distill',1,${actor})
+        RETURNING *`;
+			await appendEvents(tx, org, actor, [
+				{
+					type: "task-created",
+					payload: { id, agentId, taskType: "memory.distill" },
+				},
+			]);
+			await tx`SELECT pg_notify('stellarc_agent_task', ${agentId})`;
+			return task(row);
+		});
+	}
+
 	getTask(org: string, id: string) {
 		const sql = this.sql;
 		return Effect.gen(function* () {
@@ -407,6 +455,29 @@ export class AgentStore {
 				},
 			]);
 			const ag = agent(a);
+			// Memory resolution at claim time: only when the workspace switch is on
+			// (NEVR-179 scope+governance). Distill tasks carry no memory forward.
+			const live: Array<{ id: string; kind: string; content: string }> = [];
+			if (claimed.task_type === "run") {
+				const [policy] =
+					await tx`SELECT memory_enabled FROM org_policy WHERE org=${n.org}`;
+				if (!policy || policy.memory_enabled) {
+					const rows =
+						await tx`SELECT id, kind, content FROM agent_memory WHERE org=${n.org} AND agent_id=${ag.id}
+			AND deleted_at IS NULL ORDER BY created_seq DESC LIMIT 500`;
+					const newestFirst = rows.map((r) => ({
+						id: r.id as string,
+						kind: r.kind as string,
+						content: r.content as string,
+					}));
+					let used = 0;
+					for (const entry of newestFirst.reverse()) {
+						if (live.length > 0 && used + entry.content.length > 24000) break;
+						live.push(entry);
+						used += entry.content.length;
+					}
+				}
+			}
 			const descriptor: TaskDescriptor = {
 				id: claimed.id,
 				org: claimed.org,
@@ -414,6 +485,8 @@ export class AgentStore {
 				prompt: claimed.prompt,
 				subjectRef: claimed.subject_ref ?? null,
 				leaseMs,
+				taskType:
+					claimed.task_type === "memory.distill" ? "memory.distill" : "run",
 				agent: {
 					id: ag.id,
 					name: ag.name,
@@ -422,6 +495,7 @@ export class AgentStore {
 					instructions: ag.instructions,
 					mcpServers: ag.mcpServers,
 				},
+				memory: live,
 			};
 			return descriptor;
 		}).pipe(
@@ -498,6 +572,62 @@ export class AgentStore {
 			const row = await this.owned(tx, n, id, attempt);
 			if (row.status !== "running" && row.status !== "claimed")
 				throw new Conflict({ message: `Task is ${row.status}` });
+			// Memory capture (NEVR-179): a memory.distill task's memory_write items
+			// fold into agents:memory_* events + projection while the items land.
+			// Honors the workspace switch: policy off → no memory events at all.
+			if (row.task_type === "memory.distill") {
+				const [policy] =
+					await tx`SELECT memory_enabled FROM org_policy WHERE org=${n.org}`;
+				if (!policy || policy.memory_enabled) {
+					const fold: Array<{
+						type: "memory_written" | "memory_deleted";
+						payload: Record<string, unknown>;
+					}> = [];
+					for (const i of items) {
+						if (i.kind !== "memory_write") continue;
+						const b = i.body as {
+							kind?: string;
+							content?: string;
+							id?: string;
+							deleted?: boolean;
+						};
+						if (b?.deleted === true && typeof b.id === "string") {
+							fold.push({
+								type: "memory_deleted",
+								payload: { id: b.id, agentId: row.agent_id },
+							});
+							continue;
+						}
+						const kind = b?.kind ?? "";
+						const content = (b?.content ?? "").trim();
+						if (
+							!kind ||
+							!content ||
+							!MEMORY_KINDS.includes(kind as ProtocolMemoryKind) ||
+							content.length > 2000
+						)
+							continue;
+						fold.push({
+							type: "memory_written",
+							payload: {
+								id:
+									typeof b.id === "string" && b.id
+										? b.id
+										: `mem_${randomBytes(12).toString("hex")}`,
+								agentId: row.agent_id,
+								kind,
+								content,
+								contentHash: hashContent(kind as ProtocolMemoryKind, content),
+								source: "distill",
+								sourceTaskId: id,
+								actor: `node:${n.id}`,
+							},
+						});
+					}
+					if (fold.length > 0)
+						await appendMemoryEvents(tx, n.org, `node:${n.id}`, fold);
+				}
+			}
 			let inserted = 0;
 			for (const item of items) {
 				const at = new Date(item.occurredAt);
@@ -545,6 +675,26 @@ export class AgentStore {
 					},
 				},
 			]);
+			// Distill completion marker (NEVR-179): one event summarizing the run's
+			// refined artifacts. Counted from the projection, after the fold.
+			if (
+				row.task_type === "memory.distill" &&
+				!retry &&
+				input.outcome === "completed"
+			) {
+				const [live] = await tx`SELECT count(*)::int AS n FROM agent_memory
+			WHERE org=${n.org} AND agent_id=${row.agent_id} AND deleted_at IS NULL`;
+				await appendEvents(tx, n.org, `node:${n.id}`, [
+					{
+						type: "memory_distilled",
+						payload: {
+							taskId: id,
+							agentId: row.agent_id,
+							liveEntries: live?.n ?? 0,
+						},
+					},
+				]);
+			}
 			return task(u);
 		}).pipe(
 			Effect.tap((t) =>
