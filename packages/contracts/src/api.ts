@@ -1,18 +1,20 @@
-import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
 import { Schema } from "effect";
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 
-export const FoundationApi = HttpApi.make("foundation").add(
+export class FoundationApi extends HttpApi.make("foundation").add(
 	HttpApiGroup.make("foundation")
 		.add(
-			HttpApiEndpoint.get("health", "/health").addSuccess(
-				Schema.Struct({ status: Schema.Literal("ok") }),
-			),
+			HttpApiEndpoint.get("health", "/health", {
+				success: Schema.Struct({ status: Schema.Literals(["ok"]) }),
+			}),
 		)
 		.add(
-			HttpApiEndpoint.get("shape", "/orgs/:org/v1/shape").setPath(
-				Schema.Struct({
-					org: Schema.NonEmptyString.pipe(Schema.maxLength(128)),
+			HttpApiEndpoint.get("shape", "/orgs/:org/v1/shape", {
+				params: Schema.Struct({
+					org: Schema.NonEmptyString.pipe(
+						Schema.check(Schema.isMaxLength(128)),
+					),
 				}),
-			),
+			}),
 		),
-);
+) {}

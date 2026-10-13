@@ -8,7 +8,9 @@ const T = Schema.String; // text
 const B = Schema.Boolean; // boolean
 const I = Schema.Int; // integer
 const TS = Schema.String; // timestamp without time zone (ISO-8601 string)
-const BY = Schema.Uint8ArrayFromSelf; // bytea
+// bytea: v4 Schema.Uint8Array is FromSelf (accepts a Uint8Array instance only,
+// matching how postgres returns bytea columns).
+const BY = Schema.Uint8Array; // bytea
 const N = Schema.NullOr; // nullable column
 
 export const UserRow = Schema.Struct({

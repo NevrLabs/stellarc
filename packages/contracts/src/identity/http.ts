@@ -1,47 +1,54 @@
-import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
+import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { statement } from "../legacy/permissions";
 
 // --- §3 validation primitives -----------------------------------------------------------
 // Nonempty opaque ID ≤ 128. Reused for path params and request ID fields.
-export const ID = Schema.NonEmptyString.pipe(Schema.maxLength(128));
+export const ID = Schema.NonEmptyString.pipe(
+	Schema.check(Schema.isMaxLength(128)),
+);
 // Bounded display name ≤ 256.
-export const Name = Schema.NonEmptyString.pipe(Schema.maxLength(256));
+export const Name = Schema.NonEmptyString.pipe(
+	Schema.check(Schema.isMaxLength(256)),
+);
 // Validated email (permissive but real-shape).
 export const Email = Schema.String.pipe(
-	Schema.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/),
+	Schema.check(Schema.isPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)),
 );
 // ISO-8601 UTC date string (date or datetime).
 export const DateString = Schema.String.pipe(
-	Schema.pattern(
-		/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/,
+	Schema.check(
+		Schema.isPattern(
+			/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/,
+		),
 	),
 );
 // Permission = Record(nonempty resource, Array(nonempty action)), constrained to the
 // legacy/permissions vocabulary: keys are exactly the `statement` resources (optional —
-// Schema.partial keeps {} a valid empty ceiling for ApiKeyPublic), values are
+// all-optional fields keep {} a valid empty ceiling for ApiKeyPublic), values are
 // per-resource action Literal unions derived from `statement` (no runtime better-auth
 // calls). The runtime filter re-checks the vocabulary so unknown resources are rejected
 // even by decoders configured to strip excess keys.
 const PermissionFields = Object.fromEntries(
 	Object.entries(statement).map(([resource, actions]) => [
 		resource,
-		Schema.Array(Schema.Literal(...actions)),
+		Schema.optional(Schema.Array(Schema.Literals(actions))),
 	]),
 ) as unknown as {
-	[K in keyof typeof statement]: Schema.Schema<
-		(typeof statement)[K][number][],
-		(typeof statement)[K][number][]
+	[K in keyof typeof statement]: Schema.optional<
+		Schema.Schema<ReadonlyArray<(typeof statement)[K][number]>>
 	>;
 };
-export const Permission = Schema.partial(Schema.Struct(PermissionFields)).pipe(
-	Schema.filter(
-		(permission) => {
-			for (const resource of Object.keys(permission))
-				if (!(resource in statement)) return false;
-			return true;
-		},
-		{ identifier: "Permission" },
+export const Permission = Schema.Struct(PermissionFields).pipe(
+	Schema.check(
+		Schema.makeFilter(
+			(permission) => {
+				for (const resource of Object.keys(permission))
+					if (!(resource in statement)) return false;
+				return true;
+			},
+			{ identifier: "Permission" },
+		),
 	),
 );
 
@@ -133,7 +140,7 @@ export type TeamMemberPublic = Schema.Schema.Type<typeof TeamMemberPublic>;
 
 export const PrincipalPublic = Schema.Struct({
 	id: Schema.String,
-	kind: Schema.Literal("human", "agent"),
+	kind: Schema.Literals(["human", "agent"]),
 	userId: Schema.String,
 });
 export type PrincipalPublic = Schema.Schema.Type<typeof PrincipalPublic>;
@@ -185,14 +192,14 @@ export const AvatarPublic = Schema.Struct({
 export type AvatarPublic = Schema.Schema.Type<typeof AvatarPublic>;
 
 // --- Error union (7 tags, 5 Conflict codes) --------------------------------------------
-export const ConflictCode = Schema.Literal(
+export const ConflictCode = Schema.Literals([
 	"Duplicate",
 	"LastOwner",
 	"RoleInUse",
 	"TeamCycle",
 	"AlreadyAccepted",
-);
-export const IdentityError = Schema.Union(
+]);
+export const IdentityError = Schema.Union([
 	Schema.Struct({
 		_tag: Schema.Literal("ValidationError"),
 		message: Schema.String,
@@ -209,13 +216,23 @@ export const IdentityError = Schema.Union(
 		retryAfterSeconds: Schema.Number,
 	}),
 	Schema.Struct({ _tag: Schema.Literal("Unavailable") }),
-);
+]);
 export type IdentityError = Schema.Schema.Type<typeof IdentityError>;
 
 // --- Mutation envelope ------------------------------------------------------------------
-export const Mutation = <A, I>(data: Schema.Schema<A, I>) =>
+export const Mutation = <A>(data: Schema.Schema<A>) =>
 	Schema.Struct({ data, txid: Schema.Number });
 export const DeletedId = Schema.Struct({ id: Schema.String });
+
+// Avatar bytes are JSON array-encoded on the wire (v3 Uint8ArrayFromArray
+// semantics). v4's Schema.Uint8Array is FromSelf + base64 JSON, so the array
+// codec is expressed explicitly as a decodeTo transformation.
+const Bytes = Schema.Array(Schema.Number).pipe(
+	Schema.decodeTo(Schema.Uint8Array, {
+		decode: SchemaGetter.transform((ns) => Uint8Array.from(ns)),
+		encode: SchemaGetter.transform((u8) => Array.from(u8)),
+	}),
+);
 
 // --- Request schemas --------------------------------------------------------------------
 const Empty = Schema.Struct({});
@@ -263,226 +280,259 @@ export const CreateApiKeyRequest = Schema.Struct({
 });
 
 // --- Endpoints (26, no handlers) --------------------------------------------------------
-const ActiveOrg = HttpApiEndpoint.post("active-org", "/api/identity/active-org")
-	.setPayload(ActiveOrgRequest)
-	.addSuccess(Schema.Struct({ organization: OrganizationPublic }))
-	.addError(IdentityError);
+const ActiveOrg = HttpApiEndpoint.post(
+	"active-org",
+	"/api/identity/active-org",
+	{
+		payload: ActiveOrgRequest,
+		success: Schema.Struct({ organization: OrganizationPublic }),
+		error: IdentityError,
+	},
+);
 
 const ListOrganizations = HttpApiEndpoint.get(
 	"list-organizations",
 	"/api/identity/organizations",
-)
-	.addSuccess(
-		Schema.Struct({ organizations: Schema.Array(OrganizationPublic) }),
-	)
-	.addError(IdentityError);
+	{
+		success: Schema.Struct({ organizations: Schema.Array(OrganizationPublic) }),
+		error: IdentityError,
+	},
+);
 
 const CreateOrganization = HttpApiEndpoint.post(
 	"create-organization",
 	"/api/identity/organizations",
-)
-	.setPayload(CreateOrganizationRequest)
-	.addSuccess(Mutation(OrganizationPublic))
-	.addError(IdentityError);
+	{
+		payload: CreateOrganizationRequest,
+		success: Mutation(OrganizationPublic),
+		error: IdentityError,
+	},
+);
 
 const UpdateOrganization = HttpApiEndpoint.patch(
 	"update-organization",
 	"/api/identity/orgs/:org",
-)
-	.setPath(PathOrg)
-	.setPayload(UpdateOrganizationRequest)
-	.addSuccess(Mutation(OrganizationPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		payload: UpdateOrganizationRequest,
+		success: Mutation(OrganizationPublic),
+		error: IdentityError,
+	},
+);
 
 const ListMembers = HttpApiEndpoint.get(
 	"list-members",
 	"/api/identity/orgs/:org/members",
-)
-	.setPath(PathOrg)
-	.addSuccess(Schema.Struct({ members: Schema.Array(MemberPublic) }))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		success: Schema.Struct({ members: Schema.Array(MemberPublic) }),
+		error: IdentityError,
+	},
+);
 
 const UpdateMember = HttpApiEndpoint.patch(
 	"update-member",
 	"/api/identity/orgs/:org/members/:id",
-)
-	.setPath(PathOrgId)
-	.setPayload(UpdateMemberRequest)
-	.addSuccess(Mutation(MemberPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrgId,
+		payload: UpdateMemberRequest,
+		success: Mutation(MemberPublic),
+		error: IdentityError,
+	},
+);
 
-const DeleteMember = HttpApiEndpoint.del(
+const DeleteMember = HttpApiEndpoint.delete(
 	"delete-member",
 	"/api/identity/orgs/:org/members/:id",
-)
-	.setPath(PathOrgId)
-	.addSuccess(Mutation(DeletedId))
-	.addError(IdentityError);
+	{ params: PathOrgId, success: Mutation(DeletedId), error: IdentityError },
+);
 
 const ListRoles = HttpApiEndpoint.get(
 	"list-roles",
 	"/api/identity/orgs/:org/roles",
-)
-	.setPath(PathOrg)
-	.addSuccess(Schema.Struct({ roles: Schema.Array(RolePublic) }))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		success: Schema.Struct({ roles: Schema.Array(RolePublic) }),
+		error: IdentityError,
+	},
+);
 
 const CreateRole = HttpApiEndpoint.post(
 	"create-role",
 	"/api/identity/orgs/:org/roles",
-)
-	.setPath(PathOrg)
-	.setPayload(CreateRoleRequest)
-	.addSuccess(Mutation(RolePublic))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		payload: CreateRoleRequest,
+		success: Mutation(RolePublic),
+		error: IdentityError,
+	},
+);
 
 const UpdateRole = HttpApiEndpoint.patch(
 	"update-role",
 	"/api/identity/orgs/:org/roles/:id",
-)
-	.setPath(PathOrgId)
-	.setPayload(UpdateRoleRequest)
-	.addSuccess(Mutation(RolePublic))
-	.addError(IdentityError);
+	{
+		params: PathOrgId,
+		payload: UpdateRoleRequest,
+		success: Mutation(RolePublic),
+		error: IdentityError,
+	},
+);
 
-const DeleteRole = HttpApiEndpoint.del(
+const DeleteRole = HttpApiEndpoint.delete(
 	"delete-role",
 	"/api/identity/orgs/:org/roles/:id",
-)
-	.setPath(PathOrgId)
-	.addSuccess(Mutation(DeletedId))
-	.addError(IdentityError);
+	{ params: PathOrgId, success: Mutation(DeletedId), error: IdentityError },
+);
 
 const ListTeams = HttpApiEndpoint.get(
 	"list-teams",
 	"/api/identity/orgs/:org/teams",
-)
-	.setPath(PathOrg)
-	.addSuccess(Schema.Struct({ teams: Schema.Array(TeamPublic) }))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		success: Schema.Struct({ teams: Schema.Array(TeamPublic) }),
+		error: IdentityError,
+	},
+);
 
 const CreateTeam = HttpApiEndpoint.post(
 	"create-team",
 	"/api/identity/orgs/:org/teams",
-)
-	.setPath(PathOrg)
-	.setPayload(CreateTeamRequest)
-	.addSuccess(Mutation(TeamPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		payload: CreateTeamRequest,
+		success: Mutation(TeamPublic),
+		error: IdentityError,
+	},
+);
 
 const UpdateTeam = HttpApiEndpoint.patch(
 	"update-team",
 	"/api/identity/orgs/:org/teams/:id",
-)
-	.setPath(PathOrgId)
-	.setPayload(UpdateTeamRequest)
-	.addSuccess(Mutation(TeamPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrgId,
+		payload: UpdateTeamRequest,
+		success: Mutation(TeamPublic),
+		error: IdentityError,
+	},
+);
 
-const DeleteTeam = HttpApiEndpoint.del(
+const DeleteTeam = HttpApiEndpoint.delete(
 	"delete-team",
 	"/api/identity/orgs/:org/teams/:id",
-)
-	.setPath(PathOrgId)
-	.addSuccess(Mutation(DeletedId))
-	.addError(IdentityError);
+	{ params: PathOrgId, success: Mutation(DeletedId), error: IdentityError },
+);
 
 const ListTeamMembers = HttpApiEndpoint.get(
 	"list-team-members",
 	"/api/identity/orgs/:org/teams/:id/members",
-)
-	.setPath(PathOrgId)
-	.addSuccess(Schema.Struct({ members: Schema.Array(TeamMemberPublic) }))
-	.addError(IdentityError);
+	{
+		params: PathOrgId,
+		success: Schema.Struct({ members: Schema.Array(TeamMemberPublic) }),
+		error: IdentityError,
+	},
+);
 
 const AddTeamMember = HttpApiEndpoint.post(
 	"add-team-member",
 	"/api/identity/orgs/:org/teams/:id/members",
-)
-	.setPath(PathOrgId)
-	.setPayload(AddTeamMemberRequest)
-	.addSuccess(Mutation(TeamMemberPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrgId,
+		payload: AddTeamMemberRequest,
+		success: Mutation(TeamMemberPublic),
+		error: IdentityError,
+	},
+);
 
-const DeleteTeamMember = HttpApiEndpoint.del(
+const DeleteTeamMember = HttpApiEndpoint.delete(
 	"delete-team-member",
 	"/api/identity/orgs/:org/teams/:id/members/:memberId",
-)
-	.setPath(PathTeamMember)
-	.addSuccess(Mutation(DeletedId))
-	.addError(IdentityError);
+	{
+		params: PathTeamMember,
+		success: Mutation(DeletedId),
+		error: IdentityError,
+	},
+);
 
 const ListInvitations = HttpApiEndpoint.get(
 	"list-invitations",
 	"/api/identity/orgs/:org/invitations",
-)
-	.setPath(PathOrg)
-	.addSuccess(Schema.Struct({ invitations: Schema.Array(InvitationPublic) }))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		success: Schema.Struct({ invitations: Schema.Array(InvitationPublic) }),
+		error: IdentityError,
+	},
+);
 
 const CreateInvitation = HttpApiEndpoint.post(
 	"create-invitation",
 	"/api/identity/orgs/:org/invitations",
-)
-	.setPath(PathOrg)
-	.setPayload(CreateInvitationRequest)
-	.addSuccess(Mutation(InvitationPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		payload: CreateInvitationRequest,
+		success: Mutation(InvitationPublic),
+		error: IdentityError,
+	},
+);
 
 const CancelInvitation = HttpApiEndpoint.post(
 	"cancel-invitation",
 	"/api/identity/orgs/:org/invitations/:id/cancel",
-)
-	.setPath(PathOrgId)
-	.setPayload(Empty)
-	.addSuccess(Mutation(InvitationPublic))
-	.addError(IdentityError);
+	{
+		params: PathOrgId,
+		payload: Empty,
+		success: Mutation(InvitationPublic),
+		error: IdentityError,
+	},
+);
 
 const AcceptInvitation = HttpApiEndpoint.post(
 	"accept-invitation",
 	"/api/identity/invitations/:id/accept",
-)
-	.setPath(Schema.Struct({ id: ID }))
-	.setPayload(Empty)
-	.addSuccess(Mutation(MemberPublic))
-	.addError(IdentityError);
+	{
+		params: Schema.Struct({ id: ID }),
+		payload: Empty,
+		success: Mutation(MemberPublic),
+		error: IdentityError,
+	},
+);
 
 const ListApiKeys = HttpApiEndpoint.get(
 	"list-apikeys",
 	"/api/identity/orgs/:org/apikeys",
-)
-	.setPath(PathOrg)
-	.addSuccess(Schema.Struct({ keys: Schema.Array(ApiKeyPublic) }))
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		success: Schema.Struct({ keys: Schema.Array(ApiKeyPublic) }),
+		error: IdentityError,
+	},
+);
 
 const CreateApiKey = HttpApiEndpoint.post(
 	"create-apikey",
 	"/api/identity/orgs/:org/apikeys",
-)
-	.setPath(PathOrg)
-	.setPayload(CreateApiKeyRequest)
-	.addSuccess(
-		Mutation(Schema.Struct({ key: ApiKeyPublic, secret: Schema.String })),
-	)
-	.addError(IdentityError);
+	{
+		params: PathOrg,
+		payload: CreateApiKeyRequest,
+		success: Mutation(
+			Schema.Struct({ key: ApiKeyPublic, secret: Schema.String }),
+		),
+		error: IdentityError,
+	},
+);
 
-const DeleteApiKey = HttpApiEndpoint.del(
+const DeleteApiKey = HttpApiEndpoint.delete(
 	"delete-apikey",
 	"/api/identity/orgs/:org/apikeys/:id",
-)
-	.setPath(PathOrgId)
-	.addSuccess(Mutation(DeletedId))
-	.addError(IdentityError);
+	{ params: PathOrgId, success: Mutation(DeletedId), error: IdentityError },
+);
 
 const UserAvatar = HttpApiEndpoint.get(
 	"user-avatar",
 	"/api/identity/users/:id/avatar",
-)
-	.setPath(Schema.Struct({ id: ID }))
-	.addSuccess(Schema.Uint8Array)
-	.addError(IdentityError);
+	{ params: Schema.Struct({ id: ID }), success: Bytes, error: IdentityError },
+);
 
-export const IdentityApiGroup = HttpApiGroup.make("identity")
+export class IdentityApiGroup extends HttpApiGroup.make("identity")
 	.add(ActiveOrg)
 	.add(ListOrganizations)
 	.add(CreateOrganization)
@@ -508,4 +558,4 @@ export const IdentityApiGroup = HttpApiGroup.make("identity")
 	.add(ListApiKeys)
 	.add(CreateApiKey)
 	.add(DeleteApiKey)
-	.add(UserAvatar);
+	.add(UserAvatar) {}
