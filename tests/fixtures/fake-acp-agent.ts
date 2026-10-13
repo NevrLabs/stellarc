@@ -62,6 +62,30 @@ new acp.AgentSideConnection(
 					await new Promise((r) => setTimeout(r, 50));
 				return { stopReason: "cancelled" };
 			}
+			if (verb === "spend") {
+				// Usage-reporting harness: emits an UNSTABLE usage_update mid-run and
+				// token totals at finish (NEVR-178 capture path).
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "usage_update",
+						used: 1200,
+						size: 200000,
+						cost: { amount: 0.42, currency: "USD" },
+					},
+				});
+				return {
+					stopReason: "end_turn",
+					usage: {
+						totalTokens: 1500,
+						inputTokens: 1000,
+						outputTokens: 500,
+						thoughtTokens: 50,
+						cachedReadTokens: 200,
+						cachedWriteTokens: 0,
+					},
+				};
+			}
 			await conn.sessionUpdate({
 				sessionId: p.sessionId,
 				update: {

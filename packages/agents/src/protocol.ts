@@ -36,6 +36,7 @@ export const ITEM_KINDS = [
 	"checkpoint",
 	"config",
 	"harness_meta",
+	"usage",
 ] as const;
 export const ItemKind = Schema.Literal(...ITEM_KINDS);
 export type ItemKind = typeof ItemKind.Type;
@@ -52,6 +53,43 @@ export const McpServer = Schema.Struct({
 export type McpServer = typeof McpServer.Type;
 
 // ── operator surface ────────────────────────────────────────────────────────
+export const BUDGET_WINDOWS = ["daily", "weekly", "monthly"] as const;
+export type BudgetWindow = (typeof BUDGET_WINDOWS)[number];
+export const BUDGET_SCOPES = ["org", "agent", "node"] as const;
+export type BudgetScope = (typeof BUDGET_SCOPES)[number];
+
+/** Money ceiling on a budget: amount + ISO-4217 currency. */
+export const BudgetCost = Schema.Struct({
+	amount: Schema.Number.pipe(Schema.positive(), Schema.finite()),
+	currency: Schema.String.pipe(
+		Schema.pattern(/^[A-Z]{3}$/),
+		Schema.maxLength(3),
+	),
+});
+export type BudgetCost = typeof BudgetCost.Type;
+
+export const CreateBudget = Schema.Struct({
+	scope: Schema.Literal(...BUDGET_SCOPES),
+	agentId: Schema.optional(Id),
+	nodeId: Schema.optional(Id),
+	window: Schema.Literal(...BUDGET_WINDOWS),
+	/** Token ceiling for the window; at least one ceiling must be set. */
+	ceilingTokens: Schema.optional(
+		Schema.Number.pipe(Schema.positive(), Schema.finite()),
+	),
+	ceilingCost: Schema.optional(BudgetCost),
+});
+export type CreateBudget = typeof CreateBudget.Type;
+
+export const UpdateBudget = Schema.Struct({
+	window: Schema.optional(Schema.Literal(...BUDGET_WINDOWS)),
+	ceilingTokens: Schema.optional(
+		Schema.NullOr(Schema.Number.pipe(Schema.positive(), Schema.finite())),
+	),
+	ceilingCost: Schema.optional(Schema.NullOr(BudgetCost)),
+});
+export type UpdateBudget = typeof UpdateBudget.Type;
+
 export const CreateNode = Schema.Struct({ name: Name });
 export const CreateAgent = Schema.Struct({
 	name: Name,
@@ -105,12 +143,47 @@ export const Items = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.positive()),
 	items: Schema.Array(Item).pipe(Schema.maxItems(500)),
 });
+/** Harness-reported usage for one run attempt (ACP `usage` is cumulative for
+ * the session; the plane records numbers, never invents them — where the
+ * harness reports only tokens, cost stays absent). */
+export const Usage = Schema.Struct({
+	tokensTotal: Schema.optional(
+		Schema.Number.pipe(Schema.nonNegative(), Schema.finite()),
+	),
+	tokensIn: Schema.optional(
+		Schema.Number.pipe(Schema.nonNegative(), Schema.finite()),
+	),
+	tokensOut: Schema.optional(
+		Schema.Number.pipe(Schema.nonNegative(), Schema.finite()),
+	),
+	thoughtTokens: Schema.optional(
+		Schema.NullOr(Schema.Number.pipe(Schema.nonNegative(), Schema.finite())),
+	),
+	cachedReadTokens: Schema.optional(
+		Schema.NullOr(Schema.Number.pipe(Schema.nonNegative(), Schema.finite())),
+	),
+	cachedWriteTokens: Schema.optional(
+		Schema.NullOr(Schema.Number.pipe(Schema.nonNegative(), Schema.finite())),
+	),
+	/** Cumulative session cost when the harness reports one. */
+	costAmount: Schema.optional(
+		Schema.Number.pipe(Schema.nonNegative(), Schema.finite()),
+	),
+	costCurrency: Schema.optional(
+		Schema.String.pipe(Schema.pattern(/^[A-Z]{3}$/), Schema.maxLength(3)),
+	),
+});
+export type Usage = typeof Usage.Type;
+
 export const Finish = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.positive()),
 	outcome: Schema.Literal("completed", "cancelled", "failed"),
 	stopReason: Schema.optional(Schema.String.pipe(Schema.maxLength(64))),
 	failureCode: Schema.optional(FailureCode),
 	failureMessage: Schema.optional(Schema.String.pipe(Schema.maxLength(4000))),
+	/** Harness-reported token/cost totals for this attempt (ACP
+	 * `PromptResponse.usage`, UNSTABLE but SDK-typed). */
+	usage: Schema.optional(Usage),
 });
 export type Finish = typeof Finish.Type;
 
@@ -139,5 +212,9 @@ export const TASK_STATUSES = [
 	"completed",
 	"failed",
 	"cancelled",
+	/** Parked by an exhausted budget: excluded from claims, no attempt burn, no
+	 * failure_code; resumable on window reset (claim loop retries) or an admin
+	 * raise. A platform-shaped condition, never agent_error.*. */
+	"budget_exhausted",
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

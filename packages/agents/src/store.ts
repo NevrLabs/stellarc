@@ -10,7 +10,10 @@ import {
 	Unauthenticated,
 } from "./errors";
 import {
+	type BudgetScope,
+	type BudgetWindow,
 	type CreateAgent,
+	type CreateBudget,
 	type CreateTask,
 	type FailureCode,
 	type Finish,
@@ -19,6 +22,8 @@ import {
 	type McpServer,
 	type TaskDescriptor,
 	type TaskStatus,
+	type UpdateBudget,
+	type Usage,
 } from "./protocol";
 
 export const PLUGIN = "agents";
@@ -64,6 +69,8 @@ export interface TaskRow {
 	readonly nativeSessionId: string | null;
 	readonly createdAt: string;
 	readonly updatedAt: string;
+	/** Present only while parked in budget_exhausted. */
+	readonly parked?: ParkedInfo | null;
 }
 export interface ItemRow {
 	readonly attempt: number;
@@ -71,6 +78,30 @@ export interface ItemRow {
 	readonly kind: string;
 	readonly body: unknown;
 	readonly occurredAt: string;
+}
+export interface BudgetRow {
+	readonly id: string;
+	readonly org: string;
+	readonly scope: BudgetScope;
+	readonly agentId: string | null;
+	readonly nodeId: string | null;
+	readonly window: BudgetWindow;
+	readonly ceilingTokens: number | null;
+	readonly ceilingCostAmount: number | null;
+	readonly ceilingCostCurrency: string | null;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+}
+/** Why a task is parked and when its blocking budget resets. */
+export interface ParkedInfo {
+	readonly budgetId: string;
+	readonly window: BudgetWindow;
+	readonly resetAt: string;
+	readonly consumedTokens: number;
+	readonly ceilingTokens: number | null;
+	readonly consumedCost: number;
+	readonly ceilingCostAmount: number | null;
+	readonly costCurrency: string | null;
 }
 
 const iso = (v: unknown) =>
@@ -115,6 +146,20 @@ const task = (r: Row): TaskRow => ({
 	createdAt: iso(r.created_at) as string,
 	updatedAt: iso(r.updated_at) as string,
 });
+const budget = (r: Row): BudgetRow => ({
+	id: r.id,
+	org: r.org,
+	scope: r.scope,
+	agentId: r.agent_id ?? null,
+	nodeId: r.node_id ?? null,
+	window: r.window,
+	ceilingTokens: r.ceiling_tokens != null ? Number(r.ceiling_tokens) : null,
+	ceilingCostAmount:
+		r.ceiling_cost_amount != null ? Number(r.ceiling_cost_amount) : null,
+	ceilingCostCurrency: r.ceiling_cost_currency ?? null,
+	createdAt: iso(r.created_at) as string,
+	updatedAt: iso(r.updated_at) as string,
+});
 
 const newId = (prefix: string) =>
 	`${prefix}_${randomBytes(12).toString("hex")}`;
@@ -156,6 +201,208 @@ const txn = <A>(
 					? cause
 					: new Error(String(cause)),
 	}).pipe(Effect.withSpan(`Agents.${name}`));
+
+// ── usage capture ───────────────────────────────────────────────────────────
+
+/** Nullable numeric fields the usage table stores; absent → null. */
+interface UsageInput {
+	tokensTotal: number | null;
+	tokensIn: number | null;
+	tokensOut: number | null;
+	thoughtTokens: number | null;
+	cachedReadTokens: number | null;
+	cachedWriteTokens: number | null;
+	contextTokens: number | null;
+	contextWindowSize: number | null;
+	costAmount: number | null;
+	costCurrency: string | null;
+}
+
+const numOf = (v: unknown): number | null =>
+	typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+const curOf = (v: unknown): string | null =>
+	typeof v === "string" && /^[A-Z]{3}$/.test(v) ? v : null;
+
+/** Lenient read of a usage item body (the node already schema-decoded `Item`;
+ * the body itself is harness-reported and tolerated field by field). */
+function parseUsageBody(body: unknown): UsageInput {
+	const b = (body ?? {}) as Record<string, unknown>;
+	return {
+		tokensTotal: numOf(b.tokensTotal),
+		tokensIn: numOf(b.tokensIn),
+		tokensOut: numOf(b.tokensOut),
+		thoughtTokens: numOf(b.thoughtTokens),
+		cachedReadTokens: numOf(b.cachedReadTokens),
+		cachedWriteTokens: numOf(b.cachedWriteTokens),
+		contextTokens: numOf(b.contextTokens),
+		contextWindowSize: numOf(b.contextWindowSize),
+		costAmount: numOf(b.costAmount),
+		costCurrency: curOf(b.costCurrency),
+	};
+}
+
+const usageFromFinish = (u: Usage): UsageInput => ({
+	tokensTotal: numOf(u.tokensTotal),
+	tokensIn: numOf(u.tokensIn),
+	tokensOut: numOf(u.tokensOut),
+	thoughtTokens: numOf(u.thoughtTokens),
+	cachedReadTokens: numOf(u.cachedReadTokens),
+	cachedWriteTokens: numOf(u.cachedWriteTokens),
+	contextTokens: null,
+	contextWindowSize: null,
+	costAmount: numOf(u.costAmount),
+	costCurrency: curOf(u.costCurrency),
+});
+
+const hasAnyUsage = (u: UsageInput) => Object.values(u).some((v) => v != null);
+
+/** Upsert one typed usage record for (task, attempt). Harness numbers are
+ * cumulative for the session, so absent fields keep the stored value. Returns
+ * the merged row, or null when the input carried nothing. */
+async function upsertUsage(
+	tx: TransactionSql,
+	org: string,
+	taskId: string,
+	agentId: string,
+	attempt: number,
+	u: UsageInput,
+	occurredAt: Date,
+) {
+	if (!hasAnyUsage(u)) return null;
+	const [row] = await tx`
+    INSERT INTO agent_task_usage(org,task_id,agent_id,attempt,tokens_total,tokens_in,tokens_out,
+      thought_tokens,cached_read_tokens,cached_write_tokens,context_tokens,context_window_size,
+      cost_amount,cost_currency,occurred_at)
+    VALUES (${org},${taskId},${agentId},${attempt},${u.tokensTotal},${u.tokensIn},${u.tokensOut},
+      ${u.thoughtTokens},${u.cachedReadTokens},${u.cachedWriteTokens},${u.contextTokens},${u.contextWindowSize},
+      ${u.costAmount},${u.costCurrency},${occurredAt})
+    ON CONFLICT (task_id, attempt) DO UPDATE SET
+      tokens_total = COALESCE(EXCLUDED.tokens_total, agent_task_usage.tokens_total),
+      tokens_in = COALESCE(EXCLUDED.tokens_in, agent_task_usage.tokens_in),
+      tokens_out = COALESCE(EXCLUDED.tokens_out, agent_task_usage.tokens_out),
+      thought_tokens = COALESCE(EXCLUDED.thought_tokens, agent_task_usage.thought_tokens),
+      cached_read_tokens = COALESCE(EXCLUDED.cached_read_tokens, agent_task_usage.cached_read_tokens),
+      cached_write_tokens = COALESCE(EXCLUDED.cached_write_tokens, agent_task_usage.cached_write_tokens),
+      context_tokens = COALESCE(EXCLUDED.context_tokens, agent_task_usage.context_tokens),
+      context_window_size = COALESCE(EXCLUDED.context_window_size, agent_task_usage.context_window_size),
+      cost_amount = COALESCE(EXCLUDED.cost_amount, agent_task_usage.cost_amount),
+      cost_currency = COALESCE(EXCLUDED.cost_currency, agent_task_usage.cost_currency),
+      occurred_at = EXCLUDED.occurred_at,
+      updated_at = now()
+    RETURNING *`;
+	return row;
+}
+
+const usageEvent = (taskId: string, attempt: number, r: Row | null) =>
+	r
+		? {
+				type: "usage_recorded",
+				payload: {
+					taskId,
+					attempt,
+					tokensTotal: r.tokens_total != null ? Number(r.tokens_total) : null,
+					tokensIn: r.tokens_in != null ? Number(r.tokens_in) : null,
+					tokensOut: r.tokens_out != null ? Number(r.tokens_out) : null,
+					costAmount: r.cost_amount != null ? Number(r.cost_amount) : null,
+					costCurrency: r.cost_currency ?? null,
+				},
+			}
+		: null;
+
+// ── budget evaluation ───────────────────────────────────────────────────────
+
+interface GateRow {
+	id: string;
+	window: BudgetWindow;
+	ceiling_tokens: string | number | null;
+	ceiling_cost_amount: string | null;
+	ceiling_cost_currency: string | null;
+	tokens_used: string;
+	cost_used: string;
+	reset_at: Date;
+}
+
+/** Applicable budgets for an agent (org + agent-principal + node scopes) that
+ * are exhausted inside their window, most specific first. Run inside the
+ * caller's transaction so enforcement is consistent with the claim write. */
+async function exhaustedBudgets(
+	exec: Sql,
+	org: string,
+	agentId: string,
+): Promise<GateRow[]> {
+	const rows = await exec`
+    WITH target AS (
+      SELECT ${agentId}::text AS agent_id,
+             (SELECT node_id FROM agent WHERE id = ${agentId}) AS node_id
+    )
+    SELECT b.id, b."window" AS "window", b.ceiling_tokens, b.ceiling_cost_amount, b.ceiling_cost_currency,
+      COALESCE(u.tokens, 0)::text AS tokens_used,
+      COALESCE(u.cost, 0)::text AS cost_used,
+      CASE b."window"
+        WHEN 'daily' THEN date_trunc('day', now()) + interval '1 day'
+        WHEN 'weekly' THEN date_trunc('week', now()) + interval '1 week'
+        ELSE date_trunc('month', now()) + interval '1 month'
+      END AS reset_at
+    FROM agent_budget b
+    CROSS JOIN target t
+    LEFT JOIN LATERAL (
+      SELECT SUM(u.tokens_total) AS tokens,
+             SUM(u.cost_amount) FILTER (WHERE u.cost_currency = b.ceiling_cost_currency) AS cost
+      FROM agent_task_usage u
+      WHERE u.org = b.org
+        AND u.occurred_at >= (CASE b."window"
+          WHEN 'daily' THEN date_trunc('day', now())
+          WHEN 'weekly' THEN date_trunc('week', now())
+          ELSE date_trunc('month', now()) END)
+        AND ((b.scope = 'org')
+          OR (b.scope = 'agent' AND u.agent_id = b.agent_id)
+          OR (b.scope = 'node' AND u.agent_id IN (SELECT id FROM agent WHERE node_id = b.node_id)))
+    ) u ON true
+    WHERE b.org = ${org} AND b.archived_at IS NULL
+      AND ((b.scope = 'org')
+        OR (b.scope = 'agent' AND b.agent_id = t.agent_id)
+        OR (b.scope = 'node' AND b.node_id = t.node_id))
+      AND ((b.ceiling_tokens IS NOT NULL AND COALESCE(u.tokens, 0) >= b.ceiling_tokens)
+        OR (b.ceiling_cost_amount IS NOT NULL AND COALESCE(u.cost, 0) >= b.ceiling_cost_amount))
+    ORDER BY CASE b.scope WHEN 'agent' THEN 1 WHEN 'node' THEN 2 ELSE 3 END, b.created_at
+  `;
+	return rows as unknown as GateRow[];
+}
+
+const parkedInfo = (g: GateRow): ParkedInfo => ({
+	budgetId: g.id,
+	window: g.window,
+	resetAt: iso(g.reset_at) as string,
+	consumedTokens: Number(g.tokens_used),
+	ceilingTokens: g.ceiling_tokens != null ? Number(g.ceiling_tokens) : null,
+	consumedCost: Number(g.cost_used),
+	ceilingCostAmount:
+		g.ceiling_cost_amount != null ? Number(g.ceiling_cost_amount) : null,
+	costCurrency: g.ceiling_cost_currency ?? null,
+});
+
+/** Requeue parked tasks whose blocking budgets no longer exhaust (window
+ * reset, admin raise, or budget removal). Returns how many resumed. */
+async function unparkPassing(
+	tx: TransactionSql,
+	org: string,
+	reason: string,
+	actor: string,
+) {
+	const parked = await tx`SELECT id, agent_id FROM agent_task
+    WHERE org = ${org} AND status = 'budget_exhausted' ORDER BY created_at`;
+	let requeued = 0;
+	for (const r of parked) {
+		const blocked = await exhaustedBudgets(tx, org, r.agent_id);
+		if (blocked.length > 0) continue;
+		await tx`UPDATE agent_task SET status='queued', updated_at=now() WHERE id=${r.id}`;
+		await appendEvents(tx, org, actor, [
+			{ type: "task-requeued", payload: { id: r.id, reason } },
+		]);
+		requeued++;
+	}
+	return requeued;
+}
 
 export class AgentStore {
 	constructor(
@@ -270,6 +517,150 @@ export class AgentStore {
 		);
 	}
 
+	// ── budgets (operator side) ──────────────────────────────────────────────
+	createBudget(org: string, actor: string, input: CreateBudget) {
+		return txn(this.sql, "createBudget", async (tx) => {
+			if (input.scope === "org" && (input.agentId || input.nodeId))
+				throw new BadRequest({
+					message: "org-scope budget takes no agentId or nodeId",
+				});
+			if (input.scope === "agent" && !input.agentId)
+				throw new BadRequest({ message: "agent scope requires agentId" });
+			if (input.scope === "node" && !input.nodeId)
+				throw new BadRequest({ message: "node scope requires nodeId" });
+			if (input.scope === "agent" && input.nodeId)
+				throw new BadRequest({ message: "agent scope takes no nodeId" });
+			if (input.scope === "node" && input.agentId)
+				throw new BadRequest({ message: "node scope takes no agentId" });
+			if (input.ceilingTokens == null && input.ceilingCost == null)
+				throw new BadRequest({
+					message: "budget needs ceilingTokens, ceilingCost, or both",
+				});
+			if (input.agentId) {
+				const [a] =
+					await tx`SELECT 1 FROM agent WHERE id=${input.agentId} AND org=${org} AND archived_at IS NULL`;
+				if (!a) throw new NotFound({ message: "Agent not found" });
+			}
+			if (input.nodeId) {
+				const [n] =
+					await tx`SELECT 1 FROM agent_node WHERE id=${input.nodeId} AND org=${org} AND revoked_at IS NULL`;
+				if (!n) throw new NotFound({ message: "Node not found" });
+			}
+			const id = newId("bud");
+			const [row] =
+				await tx`INSERT INTO agent_budget(id,org,scope,agent_id,node_id,"window",ceiling_tokens,ceiling_cost_amount,ceiling_cost_currency,created_by)
+        VALUES (${id},${org},${input.scope},${input.agentId ?? null},${input.nodeId ?? null},${input.window},
+        ${input.ceilingTokens ?? null},${input.ceilingCost?.amount ?? null},${input.ceilingCost?.currency ?? null},${actor})
+        RETURNING *`;
+			await appendEvents(tx, org, actor, [
+				{
+					type: "budget_created",
+					payload: {
+						id,
+						scope: input.scope,
+						agentId: input.agentId ?? null,
+						nodeId: input.nodeId ?? null,
+						window: input.window,
+						ceilingTokens: input.ceilingTokens ?? null,
+						ceilingCostAmount: input.ceilingCost?.amount ?? null,
+						ceilingCostCurrency: input.ceilingCost?.currency ?? null,
+					},
+				},
+			]);
+			return budget(row);
+		});
+	}
+
+	listBudgets(org: string) {
+		return Effect.tryPromise(
+			() =>
+				this
+					.sql`SELECT * FROM agent_budget WHERE org=${org} AND archived_at IS NULL ORDER BY created_at`,
+		).pipe(
+			Effect.map((rows) => rows.map(budget)),
+			Effect.withSpan("Agents.listBudgets"),
+		);
+	}
+
+	getBudget(org: string, id: string) {
+		const sql = this.sql;
+		return Effect.gen(function* () {
+			const rows = yield* Effect.tryPromise(
+				() =>
+					sql`SELECT * FROM agent_budget WHERE id=${id} AND org=${org} AND archived_at IS NULL`,
+			);
+			if (rows.length === 0)
+				return yield* Effect.fail(
+					new NotFound({ message: "Budget not found" }),
+				);
+			return budget(rows[0]);
+		}).pipe(Effect.withSpan("Agents.getBudget"));
+	}
+
+	updateBudget(org: string, actor: string, id: string, input: UpdateBudget) {
+		return txn(this.sql, "updateBudget", async (tx) => {
+			const [row] =
+				await tx`SELECT * FROM agent_budget WHERE id=${id} AND org=${org} AND archived_at IS NULL FOR UPDATE`;
+			if (!row) throw new NotFound({ message: "Budget not found" });
+			const next = {
+				window: input.window ?? (row.window as BudgetWindow),
+				ceilingTokens:
+					input.ceilingTokens === undefined
+						? row.ceiling_tokens
+						: input.ceilingTokens,
+				ceilingCostAmount:
+					input.ceilingCost === undefined
+						? row.ceiling_cost_amount
+						: (input.ceilingCost?.amount ?? null),
+				ceilingCostCurrency:
+					input.ceilingCost === undefined
+						? row.ceiling_cost_currency
+						: (input.ceilingCost?.currency ?? null),
+			};
+			if (next.ceilingTokens == null && next.ceilingCostAmount == null)
+				throw new BadRequest({
+					message: "budget needs at least one remaining ceiling",
+				});
+			const [updated] =
+				await tx`UPDATE agent_budget SET "window"=${next.window}, ceiling_tokens=${next.ceilingTokens},
+        ceiling_cost_amount=${next.ceilingCostAmount}, ceiling_cost_currency=${next.ceilingCostCurrency},
+        updated_at=now() WHERE id=${id} RETURNING *`;
+			const requeued = await unparkPassing(tx, org, "budget_raised", actor);
+			await appendEvents(tx, org, actor, [
+				{
+					type: "budget_updated",
+					payload: {
+						id,
+						window: next.window,
+						ceilingTokens:
+							next.ceilingTokens != null ? Number(next.ceilingTokens) : null,
+						ceilingCostAmount:
+							next.ceilingCostAmount != null
+								? Number(next.ceilingCostAmount)
+								: null,
+						ceilingCostCurrency: next.ceilingCostCurrency ?? null,
+						requeued,
+					},
+				},
+			]);
+			return { budget: budget(updated), requeued };
+		});
+	}
+
+	deleteBudget(org: string, actor: string, id: string) {
+		return txn(this.sql, "deleteBudget", async (tx) => {
+			const [row] =
+				await tx`SELECT * FROM agent_budget WHERE id=${id} AND org=${org} AND archived_at IS NULL FOR UPDATE`;
+			if (!row) throw new NotFound({ message: "Budget not found" });
+			await tx`UPDATE agent_budget SET archived_at=now(), updated_at=now() WHERE id=${id}`;
+			const requeued = await unparkPassing(tx, org, "budget_removed", actor);
+			await appendEvents(tx, org, actor, [
+				{ type: "budget_deleted", payload: { id, requeued } },
+			]);
+			return { id, requeued };
+		});
+	}
+
 	// ── tasks (operator side) ────────────────────────────────────────────────
 	createTask(org: string, actor: string, input: CreateTask) {
 		return txn(this.sql, "createTask", async (tx) => {
@@ -304,12 +695,13 @@ export class AgentStore {
 			);
 			if (rows.length === 0)
 				return yield* Effect.fail(new NotFound({ message: "Task not found" }));
+			const t = task(rows[0]);
 			const items = yield* Effect.tryPromise(
 				() =>
 					sql`SELECT attempt,seq,kind,body,occurred_at FROM agent_task_item WHERE task_id=${id} ORDER BY attempt,seq`,
 			);
-			return {
-				task: task(rows[0]),
+			const out = {
+				task: t,
 				items: items.map(
 					(r): ItemRow => ({
 						attempt: r.attempt,
@@ -320,20 +712,35 @@ export class AgentStore {
 					}),
 				),
 			};
+			if (t.status === "budget_exhausted") {
+				const blocked = yield* Effect.tryPromise(() =>
+					exhaustedBudgets(sql, org, t.agentId),
+				);
+				if (blocked.length > 0)
+					out.task = { ...t, parked: parkedInfo(blocked[0]) };
+			}
+			return out;
 		}).pipe(Effect.withSpan("Agents.getTask"));
 	}
 
 	listTasks(org: string, agentId?: string) {
-		return Effect.tryPromise(() =>
-			agentId
-				? this
-						.sql`SELECT * FROM agent_task WHERE org=${org} AND agent_id=${agentId} ORDER BY created_at DESC LIMIT 200`
-				: this
-						.sql`SELECT * FROM agent_task WHERE org=${org} ORDER BY created_at DESC LIMIT 200`,
-		).pipe(
-			Effect.map((rows) => rows.map(task)),
-			Effect.withSpan("Agents.listTasks"),
-		);
+		const sql = this.sql;
+		return Effect.tryPromise(async () => {
+			const rows = await (agentId
+				? sql`SELECT * FROM agent_task WHERE org=${org} AND agent_id=${agentId} ORDER BY created_at DESC LIMIT 200`
+				: sql`SELECT * FROM agent_task WHERE org=${org} ORDER BY created_at DESC LIMIT 200`);
+			const out: TaskRow[] = [];
+			for (const r of rows) {
+				const t = task(r);
+				if (t.status === "budget_exhausted") {
+					const blocked = await exhaustedBudgets(sql, org, t.agentId);
+					if (blocked.length > 0)
+						out.push({ ...t, parked: parkedInfo(blocked[0]) });
+					else out.push(t);
+				} else out.push(t);
+			}
+			return out;
+		}).pipe(Effect.withSpan("Agents.listTasks"));
 	}
 
 	cancelTask(org: string, actor: string, id: string) {
@@ -354,7 +761,8 @@ export class AgentStore {
 	}
 
 	// ── tasks (node side) ────────────────────────────────────────────────────
-	/** Return expired leases to the queue (platform fault) or fail them out. */
+	/** Return expired leases to the queue (platform fault) or fail them out,
+	 * and resume tasks parked by an exhausted budget whose window rolled over. */
 	reapExpired() {
 		return txn(this.sql, "reapExpired", async (tx) => {
 			const expired =
@@ -382,6 +790,10 @@ export class AgentStore {
 					},
 				]);
 			}
+			const orgs =
+				await tx`SELECT DISTINCT org FROM agent_task WHERE status = 'budget_exhausted'`;
+			for (const { org } of orgs)
+				await unparkPassing(tx, org, "budget_window_reset", "plane");
 			return expired.length;
 		});
 	}
@@ -390,40 +802,71 @@ export class AgentStore {
 		const leaseMs = this.leaseMs;
 		return txn(this.sql, "claim", async (tx) => {
 			await tx`UPDATE agent_node SET last_seen_at=now() WHERE id=${n.id}`;
-			const [row] =
-				await tx`SELECT t.* FROM agent_task t JOIN agent a ON a.id=t.agent_id
+			// Park budget-blocked tasks (no attempt burn, no failure_code) and
+			// keep scanning; bound the work per call, the claim loop retries.
+			for (let scan = 0; scan < 20; scan++) {
+				const [row] =
+					await tx`SELECT t.* FROM agent_task t JOIN agent a ON a.id=t.agent_id
         WHERE t.status='queued' AND a.node_id=${n.id} AND a.archived_at IS NULL
         ORDER BY t.created_at LIMIT 1 FOR UPDATE OF t SKIP LOCKED`;
-			if (!row) return null;
-			const [claimed] =
-				await tx`UPDATE agent_task SET status='claimed', attempt=attempt+1, node_id=${n.id},
+				if (!row) return null;
+				const blocked = await exhaustedBudgets(tx, row.org, row.agent_id);
+				if (blocked.length > 0) {
+					const g = blocked[0];
+					await tx`UPDATE agent_task SET status='budget_exhausted', updated_at=now() WHERE id=${row.id}`;
+					await appendEvents(tx, n.org, `node:${n.id}`, [
+						{
+							type: "task_parked",
+							payload: {
+								id: row.id,
+								attempt: row.attempt,
+								budgetId: g.id,
+								window: g.window,
+								resetAt: iso(g.reset_at),
+								consumedTokens: Number(g.tokens_used),
+								ceilingTokens:
+									g.ceiling_tokens != null ? Number(g.ceiling_tokens) : null,
+								consumedCost: Number(g.cost_used),
+								ceilingCostAmount:
+									g.ceiling_cost_amount != null
+										? Number(g.ceiling_cost_amount)
+										: null,
+							},
+						},
+					]);
+					continue;
+				}
+				const [claimed] =
+					await tx`UPDATE agent_task SET status='claimed', attempt=attempt+1, node_id=${n.id},
         lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
         updated_at=now() WHERE id=${row.id} RETURNING *`;
-			const [a] = await tx`SELECT * FROM agent WHERE id=${claimed.agent_id}`;
-			await appendEvents(tx, n.org, `node:${n.id}`, [
-				{
-					type: "task-claimed",
-					payload: { id: claimed.id, attempt: claimed.attempt, nodeId: n.id },
-				},
-			]);
-			const ag = agent(a);
-			const descriptor: TaskDescriptor = {
-				id: claimed.id,
-				org: claimed.org,
-				attempt: claimed.attempt,
-				prompt: claimed.prompt,
-				subjectRef: claimed.subject_ref ?? null,
-				leaseMs,
-				agent: {
-					id: ag.id,
-					name: ag.name,
-					harness: ag.harness,
-					model: ag.model,
-					instructions: ag.instructions,
-					mcpServers: ag.mcpServers,
-				},
-			};
-			return descriptor;
+				const [a] = await tx`SELECT * FROM agent WHERE id=${claimed.agent_id}`;
+				await appendEvents(tx, n.org, `node:${n.id}`, [
+					{
+						type: "task-claimed",
+						payload: { id: claimed.id, attempt: claimed.attempt, nodeId: n.id },
+					},
+				]);
+				const ag = agent(a);
+				const descriptor: TaskDescriptor = {
+					id: claimed.id,
+					org: claimed.org,
+					attempt: claimed.attempt,
+					prompt: claimed.prompt,
+					subjectRef: claimed.subject_ref ?? null,
+					leaseMs,
+					agent: {
+						id: ag.id,
+						name: ag.name,
+						harness: ag.harness,
+						model: ag.model,
+						instructions: ag.instructions,
+						mcpServers: ag.mcpServers,
+					},
+				};
+				return descriptor;
+			}
+			return null;
 		}).pipe(
 			Effect.tap((d) => (d ? Metric.increment(tasksClaimed) : Effect.void)),
 		);
@@ -499,6 +942,7 @@ export class AgentStore {
 			if (row.status !== "running" && row.status !== "claimed")
 				throw new Conflict({ message: `Task is ${row.status}` });
 			let inserted = 0;
+			const usageEvents = [];
 			for (const item of items) {
 				const at = new Date(item.occurredAt);
 				if (Number.isNaN(at.getTime()))
@@ -508,7 +952,21 @@ export class AgentStore {
           VALUES (${n.org},${id},${attempt},${item.seq},${item.kind},${tx.json((item.body ?? null) as never)},${at})
           ON CONFLICT DO NOTHING`;
 				inserted += res.count;
+				if (item.kind === "usage") {
+					const merged = await upsertUsage(
+						tx,
+						n.org,
+						id,
+						row.agent_id,
+						attempt,
+						parseUsageBody(item.body),
+						at,
+					);
+					const event = usageEvent(id, attempt, merged);
+					if (event) usageEvents.push(event);
+				}
 			}
+			await appendEvents(tx, n.org, `node:${n.id}`, usageEvents);
 			return { inserted };
 		});
 	}
@@ -523,6 +981,20 @@ export class AgentStore {
 				throw new BadRequest({
 					message: "failed outcome requires failureCode",
 				});
+			const events = [];
+			if (input.usage) {
+				const merged = await upsertUsage(
+					tx,
+					n.org,
+					id,
+					row.agent_id,
+					input.attempt,
+					usageFromFinish(input.usage),
+					new Date(),
+				);
+				const event = usageEvent(id, input.attempt, merged);
+				if (event) events.push(event);
+			}
 			const retry =
 				input.outcome === "failed" &&
 				input.failureCode !== undefined &&
@@ -533,18 +1005,17 @@ export class AgentStore {
 				await tx`UPDATE agent_task SET status=${status}, lease_until=NULL,
         stop_reason=${input.stopReason ?? null}, failure_code=${input.failureCode ?? null},
         failure_message=${input.failureMessage ?? null}, updated_at=now() WHERE id=${id} RETURNING *`;
-			await appendEvents(tx, n.org, `node:${n.id}`, [
-				{
-					type: retry ? "task-requeued" : "task-finished",
-					payload: {
-						id,
-						attempt: input.attempt,
-						outcome: input.outcome,
-						stopReason: input.stopReason ?? null,
-						failureCode: input.failureCode ?? null,
-					},
+			events.push({
+				type: retry ? "task-requeued" : "task-finished",
+				payload: {
+					id,
+					attempt: input.attempt,
+					outcome: input.outcome,
+					stopReason: input.stopReason ?? null,
+					failureCode: input.failureCode ?? null,
 				},
-			]);
+			});
+			await appendEvents(tx, n.org, `node:${n.id}`, events);
 			return task(u);
 		}).pipe(
 			Effect.tap((t) =>

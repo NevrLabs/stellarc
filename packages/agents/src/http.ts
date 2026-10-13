@@ -14,12 +14,14 @@ import {
 	Attempt,
 	Claim,
 	CreateAgent,
+	CreateBudget,
 	CreateNode,
 	CreateTask,
 	Finish,
 	Hello,
 	Items,
 	Start,
+	UpdateBudget,
 } from "./protocol";
 import { AgentStore, type NodeRow } from "./store";
 
@@ -178,6 +180,22 @@ export function agentsHttp(
 				if (m === "GET")
 					return json(200, { agents: yield* store.listAgents(org) });
 			}
+			if (kind === "budgets") {
+				if (!id && m === "POST") {
+					const b = yield* body(CreateBudget, request);
+					return json(201, yield* store.createBudget(org, actor, b));
+				}
+				if (!id && m === "GET")
+					return json(200, { budgets: yield* store.listBudgets(org) });
+				if (id && !action && m === "GET")
+					return json(200, yield* store.getBudget(org, id));
+				if (id && !action && m === "PATCH") {
+					const b = yield* body(UpdateBudget, request);
+					return json(200, yield* store.updateBudget(org, actor, id, b));
+				}
+				if (id && action === "delete" && m === "POST")
+					return json(200, yield* store.deleteBudget(org, actor, id));
+			}
 			if (kind === "tasks") {
 				if (!id && m === "POST") {
 					const b = yield* body(CreateTask, request);
@@ -205,7 +223,7 @@ export function agentsHttp(
 			const p = new URL(request.url).pathname;
 			return (
 				p.startsWith("/v1/node/") ||
-				/^\/orgs\/[^/]+\/v1\/(nodes|agents|tasks)(\/|$)/.test(p)
+				/^\/orgs\/[^/]+\/v1\/(nodes|agents|tasks|budgets)(\/|$)/.test(p)
 			);
 		},
 		handler: (request) =>

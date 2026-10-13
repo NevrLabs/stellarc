@@ -350,3 +350,209 @@ test("A8 tasks only route to the node their agent is bound to", async () => {
 		stranger.call(`tasks/${rows[0].id}/start`, { attempt: 1 }),
 	).rejects.toThrow(/409/);
 });
+
+// ── run budgets (NEVR-178) ──────────────────────────────────────────────────
+
+test("B1 budget exhaustion parks the task (no attempt burn) and the window reset resumes it", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	// The fake "spend" run reports exactly 1500 total tokens at finish.
+	const b = await p.op("POST", "budgets", {
+		scope: "agent",
+		agentId,
+		window: "daily",
+		ceilingTokens: 1500,
+	});
+	expect(b.status).toBe(201);
+	expect(b.body.ceilingTokens).toBe(1500);
+
+	// First run fits inside the ceiling and completes normally.
+	const first = await p.op("POST", "tasks", { agentId, prompt: "spend" });
+	const client = new PlaneClient(p.url, token);
+	const c1 = await claim(client);
+	expect(c1.task.id).toBe(first.body.id);
+	const done1 = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c1.task,
+	);
+	expect(done1.outcome).toBe("completed");
+	expect((await p.op("GET", `tasks/${first.body.id}`)).body.task.status).toBe(
+		"completed",
+	);
+
+	// The next task parks: 1500 consumed >= 1500 ceiling, daily window.
+	const second = await p.op("POST", "tasks", { agentId, prompt: "echo hi" });
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	const parked = (await p.op("GET", `tasks/${second.body.id}`)).body;
+	expect(parked.task.status).toBe("budget_exhausted");
+	expect(parked.task.attempt).toBe(0); // no attempt burn
+	expect(parked.task.failureCode).toBeNull(); // parked, not failed
+	expect(parked.task.parked).toMatchObject({
+		budgetId: b.body.id,
+		window: "daily",
+		consumedTokens: 1500,
+		ceilingTokens: 1500,
+	});
+	expect(typeof parked.task.parked.resetAt).toBe("string");
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toContain("agents:task_parked");
+
+	// Window reset: backdate the usage out of the current window (same state a
+	// rolled-over daily window produces), then the claim loop resumes the task.
+	await p.db
+		.sql`UPDATE agent_task_usage SET occurred_at = now() - interval '2 days'`;
+	const c2 = await claim(client);
+	expect(c2.task.id).toBe(second.body.id); // same task, not a new one
+	expect(c2.task.attempt).toBe(1); // first attempt ever → nothing was burned
+	const done2 = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c2.task,
+	);
+	expect(done2.outcome).toBe("completed");
+	expect((await p.op("GET", `tasks/${second.body.id}`)).body.task.status).toBe(
+		"completed",
+	);
+});
+
+test("B2 usage lands as a typed record + agents:usage_recorded event with txid; a raise resumes the parked task", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const b = await p.op("POST", "budgets", {
+		scope: "agent",
+		agentId,
+		window: "daily",
+		ceilingTokens: 1000, // below one "spend" run (1500)
+	});
+	expect(b.status).toBe(201);
+	const client = new PlaneClient(p.url, token);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const t = await p.op("POST", "tasks", { agentId, prompt: "spend" });
+	const c = await claim(client);
+	await executeClaimed(client, cfg, c.task);
+
+	// Typed usage row: token totals from PromptResponse.usage, cost/context from
+	// the mid-run usage_update, merged into one record.
+	const [usage] = (await p.db.sql`
+    SELECT tokens_total::text AS tokens_total, tokens_in::text AS tokens_in, tokens_out::text AS tokens_out,
+      thought_tokens::text AS thought_tokens, cached_read_tokens::text AS cached_read_tokens,
+      context_tokens::text AS context_tokens, cost_amount::text AS cost_amount, cost_currency
+    FROM agent_task_usage WHERE task_id=${t.body.id} AND attempt=1`) as {
+		tokens_total: string;
+		tokens_in: string;
+		tokens_out: string;
+		thought_tokens: string;
+		cached_read_tokens: string;
+		context_tokens: string;
+		cost_amount: string;
+		cost_currency: string;
+	}[];
+	expect(Number(usage.tokens_total)).toBe(1500);
+	expect(Number(usage.tokens_in)).toBe(1000);
+	expect(Number(usage.tokens_out)).toBe(500);
+	expect(Number(usage.thought_tokens)).toBe(50);
+	expect(Number(usage.cached_read_tokens)).toBe(200);
+	expect(Number(usage.context_tokens)).toBe(1200);
+	expect(Number(usage.cost_amount)).toBe(0.42);
+	expect(usage.cost_currency).toBe("USD");
+
+	// Org-log event with a real txid.
+	const [ev] = await p.db.sql<{ plugin_type: string; txid: string }[]>`
+    SELECT plugin_type, txid FROM event WHERE org='acme' AND plugin_type='agents:usage_recorded'`;
+	expect(ev).toBeDefined();
+	expect(Number(ev.txid)).toBeGreaterThan(0);
+
+	// Second task parks (1500 >= 1000)…
+	const t2 = await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	expect((await p.op("GET", `tasks/${t2.body.id}`)).body.task.status).toBe(
+		"budget_exhausted",
+	);
+	// …and an admin raise resumes it without creating a new task.
+	const raise = await p.op("PATCH", `budgets/${b.body.id}`, {
+		ceilingTokens: 100000,
+	});
+	expect(raise.status).toBe(200);
+	expect(raise.body.requeued).toBe(1);
+	expect((await p.op("GET", `tasks/${t2.body.id}`)).body.task.status).toBe(
+		"queued",
+	);
+	const c2 = await claim(client);
+	expect(c2.task.id).toBe(t2.body.id);
+	const done = await executeClaimed(client, cfg, c2.task);
+	expect(done.outcome).toBe("completed");
+	const listed = await p.op("GET", "tasks");
+	expect(listed.body.tasks).toHaveLength(2); // no new task was created
+	const types = (
+		await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' ORDER BY seq`
+	).map((e) => e.plugin_type);
+	for (const expected of [
+		"agents:budget_created",
+		"agents:usage_recorded",
+		"agents:task_parked",
+		"agents:budget_updated",
+	])
+		expect(types).toContain(expected);
+});
+
+test("B3 negative control: no budget configured → claim/finish unchanged, and agent_error never retries", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	// A usage-reporting run completes and records usage, but parks nothing.
+	await p.op("POST", "tasks", { agentId, prompt: "spend" });
+	const c = await claim(client);
+	const done = await executeClaimed(client, cfg, c.task);
+	expect(done.outcome).toBe("completed");
+	// The very next task claims immediately — no budget gating at all.
+	const t2 = await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	const c2 = await claim(client);
+	expect(c2.task.id).toBe(t2.body.id);
+	await executeClaimed(client, cfg, c2.task);
+	expect((await p.op("GET", `tasks/${t2.body.id}`)).body.task.status).toBe(
+		"completed",
+	);
+	const types = (
+		await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' ORDER BY seq`
+	).map((e) => e.plugin_type);
+	expect(types).not.toContain("agents:task_parked");
+	expect(types.filter((x) => x.startsWith("agents:budget_"))).toHaveLength(0);
+	// agent_error.* still fails out at the first attempt, never retried.
+	const t3 = await p.op("POST", "tasks", { agentId, prompt: "refuse" });
+	const c3 = await claim(client);
+	const failed = await executeClaimed(client, cfg, c3.task);
+	expect(failed.failureCode).toBe("agent_error.refusal");
+	const after = (await p.op("GET", `tasks/${t3.body.id}`)).body.task;
+	expect(after.status).toBe("failed");
+	expect(after.attempt).toBe(1);
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+});
