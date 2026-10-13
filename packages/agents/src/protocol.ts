@@ -36,9 +36,21 @@ export const ITEM_KINDS = [
 	"checkpoint",
 	"config",
 	"harness_meta",
+	"memory_write",
 ] as const;
 export const ItemKind = Schema.Literal(...ITEM_KINDS);
 export type ItemKind = typeof ItemKind.Type;
+
+/** Long-term memory artifact kinds (NEVR-179). */
+export const MEMORY_KINDS = [
+	"fact",
+	"preference",
+	"skill",
+	"summary",
+	"correction",
+] as const;
+export const MemoryKind = Schema.Literal(...MEMORY_KINDS);
+export type MemoryKind = typeof MemoryKind.Type;
 
 export const McpServer = Schema.Struct({
 	name: Name,
@@ -76,6 +88,23 @@ export const CreateTask = Schema.Struct({
 	maxAttempts: Schema.optional(Schema.Int.pipe(Schema.between(1, 10))),
 });
 export type CreateTask = typeof CreateTask.Type;
+
+// ── memory (NEVR-179) ───────────────────────────────────────────────────────
+export const WriteMemory = Schema.Struct({
+	kind: MemoryKind,
+	content: Schema.NonEmptyString.pipe(Schema.maxLength(2000)),
+});
+export type WriteMemory = typeof WriteMemory.Type;
+export const DistillMemory = Schema.Struct({
+	lookbackTasks: Schema.optionalWith(Schema.Int.pipe(Schema.between(1, 100)), {
+		default: () => 10,
+	}),
+});
+export type DistillMemory = typeof DistillMemory.Type;
+export const MemoryPolicy = Schema.Struct({
+	memoryEnabled: Schema.Boolean,
+});
+export type MemoryPolicy = typeof MemoryPolicy.Type;
 
 // ── node surface ────────────────────────────────────────────────────────────
 export const Hello = Schema.Struct({
@@ -122,6 +151,9 @@ export interface TaskDescriptor {
 	readonly prompt: string;
 	readonly subjectRef: string | null;
 	readonly leaseMs: number;
+	/** "run" is a normal task; "memory.distill" drives a distill run whose
+	 * transcript the plane folds back into memory events (NEVR-179). */
+	readonly taskType: "run" | "memory.distill";
 	readonly agent: {
 		readonly id: string;
 		readonly name: string;
@@ -130,6 +162,14 @@ export interface TaskDescriptor {
 		readonly instructions: string;
 		readonly mcpServers: ReadonlyArray<McpServer>;
 	};
+	/** Resolved live memory artifacts for the agent principal, injected ahead
+	 * of instructions by the node's context assembly. Empty when the workspace
+	 * switch is off or the agent has no memory yet. */
+	readonly memory: ReadonlyArray<{
+		readonly id: string;
+		readonly kind: string;
+		readonly content: string;
+	}>;
 }
 
 export const TASK_STATUSES = [
@@ -141,3 +181,6 @@ export const TASK_STATUSES = [
 	"cancelled",
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export const TASK_TYPES = ["run", "memory.distill"] as const;
+export type TaskType = (typeof TASK_TYPES)[number];

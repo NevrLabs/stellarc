@@ -40,12 +40,11 @@ new acp.AgentSideConnection(
 			cancelled.add(p.sessionId);
 		},
 		prompt: async (p) => {
-			const text = p.prompt
+			const full = p.prompt
 				.map((b) => (b.type === "text" ? b.text : ""))
 				.join("")
-				.trim()
-				.split("\n")
-				.pop() as string;
+				.trim();
+			const text = full.split("\n").pop() as string;
 			const [verb, ...rest] = text.split(" ");
 			const say = (t: string) =>
 				conn.sessionUpdate({
@@ -55,6 +54,14 @@ new acp.AgentSideConnection(
 						content: { type: "text", text: t },
 					},
 				});
+			// Distill runs answer with the WRITE/DELETE grammar (NEVR-179). The
+			// distill prompt is multi-line; match on its fixed header.
+			if (full.includes("You are distilling long-term memory")) {
+				await say("WRITE fact The user prefers tabs over spaces\n");
+				await say("WRITE preference The user likes terse replies\n");
+				await say("this line is unparseable noise\n");
+				return { stopReason: "end_turn" };
+			}
 			if (verb === "crash") process.exit(3);
 			if (verb === "refuse") return { stopReason: "refusal" };
 			if (verb === "hang") {

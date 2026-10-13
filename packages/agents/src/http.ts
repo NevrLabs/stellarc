@@ -10,16 +10,20 @@ import {
 	statusOf,
 	Unauthenticated,
 } from "./errors";
+import { MemoryStore } from "./memory";
 import {
 	Attempt,
 	Claim,
 	CreateAgent,
 	CreateNode,
 	CreateTask,
+	DistillMemory,
 	Finish,
 	Hello,
 	Items,
+	MemoryPolicy,
 	Start,
+	WriteMemory,
 } from "./protocol";
 import { AgentStore, type NodeRow } from "./store";
 
@@ -80,6 +84,7 @@ export function agentsHttp(
 	},
 ): AgentsHttp {
 	const store = new AgentStore(sql, options.leaseMs);
+	const memory = new MemoryStore(sql);
 	const runtime = ManagedRuntime.make(
 		options.telemetry ?? Layer.empty,
 		options.memoMap,
@@ -195,6 +200,54 @@ export function agentsHttp(
 				if (id && action === "cancel" && m === "POST")
 					return json(200, yield* store.cancelTask(org, actor, id));
 			}
+			// ── memory (NEVR-179): /orgs/:org/v1/agents/:id/memory[...] ──────
+			// `action` here is "memory"; deeper segments live in rest[2].
+			if (kind === "agents" && id && action === "memory") {
+				const rest = parts.slice(6);
+				const sub = rest[0];
+				if (!sub && m === "GET") {
+					const [agent] = yield* store
+						.listAgents(org)
+						.pipe(Effect.map((as) => as.filter((a) => a.id === id)));
+					if (!agent)
+						return yield* Effect.fail(
+							new NotFound({ message: "Agent not found" }),
+						);
+					return json(200, {
+						memory: yield* memory.list(org, id),
+						policy: yield* memory.policy(org),
+					});
+				}
+				if (!sub && m === "POST")
+					return yield* Effect.fail(new NotFound({ message: "No such route" }));
+				if (sub === "entries" && m === "POST") {
+					const b = yield* body(WriteMemory, request);
+					const written = yield* memory.write(org, actor, {
+						agentId: id,
+						kind: b.kind,
+						content: b.content,
+					});
+					return json(201, written);
+				}
+				if (sub === "distill" && m === "POST") {
+					const b = yield* body(DistillMemory, request);
+					return json(
+						202,
+						yield* store.createDistillTask(org, actor, id, b.lookbackTasks),
+					);
+				}
+				if (sub && rest[1] && m === "DELETE")
+					return json(200, yield* memory.delete(org, actor, id, rest[1]));
+			}
+			// ── workspace memory policy: /orgs/:org/v1/memory/policy ────────
+			if (kind === "memory" && id === "policy" && !action) {
+				if (m === "GET") return json(200, yield* memory.policy(org));
+				if (m === "PUT" || m === "POST") {
+					const b = yield* body(MemoryPolicy, request);
+					yield* memory.setPolicy(org, actor, b.memoryEnabled);
+					return json(200, yield* memory.policy(org));
+				}
+			}
 			return yield* Effect.fail(new NotFound({ message: "No such route" }));
 		});
 	};
@@ -205,7 +258,7 @@ export function agentsHttp(
 			const p = new URL(request.url).pathname;
 			return (
 				p.startsWith("/v1/node/") ||
-				/^\/orgs\/[^/]+\/v1\/(nodes|agents|tasks)(\/|$)/.test(p)
+				/^\/orgs\/[^/]+\/v1\/(nodes|agents|tasks|memory)(\/|$)/.test(p)
 			);
 		},
 		handler: (request) =>

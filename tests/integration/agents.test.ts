@@ -10,6 +10,7 @@ import {
 } from "../../apps/stellarc-node/src/main";
 import {
 	agentsHttp,
+	rebuildMemoryProjection,
 	staticOperatorAuth,
 } from "../../packages/agents/src/index";
 import type { TaskDescriptor } from "../../packages/agents/src/protocol";
@@ -349,4 +350,196 @@ test("A8 tasks only route to the node their agent is bound to", async () => {
 	await expect(
 		stranger.call(`tasks/${rows[0].id}/start`, { attempt: 1 }),
 	).rejects.toThrow(/409/);
+});
+
+// ── memory (NEVR-179) ────────────────────────────────────────────────────────
+
+/** One daemon per test, reused across tasks (each runToCompletion spawn
+ * re-claimed slowly and blew the 30s test timeout). */
+async function startDaemon(
+	p: Awaited<ReturnType<typeof plane>>,
+	token: string,
+) {
+	const controller = new AbortController();
+	const node = runNode(
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		{ signal: controller.signal },
+	);
+	resources.push(async () => {
+		controller.abort();
+		await node;
+	});
+	return async (taskId: string) =>
+		waitFor(async () => {
+			const r = await p.op("GET", `tasks/${taskId}`);
+			return ["completed", "failed"].includes(r.body.task.status)
+				? r.body
+				: undefined;
+		});
+}
+
+/** First user message item of a completed task = the composed prompt. */
+// biome-ignore lint/suspicious/noExplicitAny: test JSON
+const composedPrompt = (done: { items: Array<{ kind: string; body: any }> }) =>
+	done.items.find((i) => i.kind === "message" && i.body.role === "user")?.body
+		.content[0].text as string;
+
+test("M1 memory written by operator is injected into the next run's prompt", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const run = await startDaemon(p, token);
+	// Run 1: no memory yet — the prompt is instructions + task prompt only.
+	const t1 = await p.op("POST", "tasks", { agentId, prompt: "echo one" });
+	const done1 = await run(t1.body.id);
+	expect(done1.task.status).toBe("completed");
+	expect(composedPrompt(done1)).not.toContain("Agent memory");
+	// Operator writes memory; run 2's composed prompt contains the block.
+	const w = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "preference",
+		content: "The user prefers tabs over spaces",
+	});
+	expect(w.status).toBe(201);
+	const t2 = await p.op("POST", "tasks", { agentId, prompt: "echo two" });
+	const done2 = await run(t2.body.id);
+	expect(done2.task.status).toBe("completed");
+	const text = composedPrompt(done2);
+	expect(text).toContain("# Agent memory");
+	expect(text).toContain("(preference) The user prefers tabs over spaces");
+	// The memory block is prepended ahead of instructions.
+	expect(text.indexOf("# Agent memory")).toBeLessThan(
+		text.indexOf("You are terse."),
+	);
+	expect(text.indexOf("You are terse.")).toBeLessThan(text.indexOf("echo two"));
+}, 120_000);
+
+test("M2 operator delete is honored: projection loses the entry and the next prompt drops it", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const w = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "fact",
+		content: "Project uses bun workspaces",
+	});
+	expect(w.status).toBe(201);
+	const id = w.body.id as string;
+	const run = await startDaemon(p, token);
+	const t1 = await p.op("POST", "tasks", { agentId, prompt: "echo a" });
+	await run(t1.body.id);
+	const del = await p.op("DELETE", `agents/${agentId}/memory/entries/${id}`);
+	expect(del.status).toBe(200);
+	const list = await p.op("GET", `agents/${agentId}/memory`);
+	expect(list.status).toBe(200);
+	expect(list.body.memory).toHaveLength(0);
+	const t2 = await p.op("POST", "tasks", { agentId, prompt: "echo b" });
+	const done2 = await run(t2.body.id);
+	expect(composedPrompt(done2)).not.toContain("Project uses bun workspaces");
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:memory_%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:memory_written",
+		"agents:memory_deleted",
+	]);
+}, 120_000);
+
+test("M3 workspace switch off → zero memory events and no memory block (negative control)", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const w = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "skill",
+		content: "Knows the deploy pipeline",
+	});
+	expect(w.status).toBe(201);
+	// Turn the workspace switch off.
+	const off = await p.op("PUT", "memory/policy", { memoryEnabled: false });
+	expect(off.status).toBe(200);
+	expect(off.body.memoryEnabled).toBe(false);
+	// Injection is off: the next run's prompt has no memory block.
+	const run = await startDaemon(p, token);
+	const t1 = await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	const done1 = await run(t1.body.id);
+	expect(composedPrompt(done1)).not.toContain("Agent memory");
+	// Distill is refused while memory is off.
+	const d = await p.op("POST", `agents/${agentId}/memory/distill`, {});
+	expect(d.status).toBe(409);
+	// Exactly the one written event from setup; nothing appended after.
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:memory_%' ORDER BY seq`;
+	expect(events).toHaveLength(1);
+	expect(events[0].plugin_type).toBe("agents:memory_written");
+}, 120_000);
+
+test("M4 distill run over fixture transcripts produces memory_distilled + refined memory_written events", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const run = await startDaemon(p, token);
+	// Two completed runs whose transcripts the distill reads.
+	for (const prompt of ["echo hello world", "tool again"]) {
+		const t = await p.op("POST", "tasks", { agentId, prompt });
+		expect((await run(t.body.id)).task.status).toBe("completed");
+	}
+	const d = await p.op("POST", `agents/${agentId}/memory/distill`, {});
+	expect(d.status).toBe(202);
+	expect(d.body.taskType).toBe("memory.distill");
+	const done = await run(d.body.id);
+	expect(done.task.status).toBe("completed");
+	// The fixture's grammar lines became memory events; noise did not.
+	// biome-ignore lint/suspicious/noExplicitAny: event payload JSON
+	const events = await p.db.sql<{ plugin_type: string; payload: any }[]>`
+    SELECT plugin_type, payload FROM event WHERE org='acme' AND plugin_type LIKE 'agents:memory_%' ORDER BY seq`;
+	const types = events.map((e) => e.plugin_type);
+	expect(types).toContain("agents:memory_written");
+	expect(types).toContain("agents:memory_distilled");
+	const written = events.filter(
+		(e) => e.plugin_type === "agents:memory_written",
+	);
+	expect(
+		written.some(
+			(e) => e.payload.content === "The user prefers tabs over spaces",
+		),
+	).toBe(true);
+	expect(
+		written.some((e) => e.payload.content === "The user likes terse replies"),
+	).toBe(true);
+	expect(written).toHaveLength(2);
+	// The projection carries them as live, listable entries.
+	const list = await p.op("GET", `agents/${agentId}/memory`);
+	expect(list.body.memory).toHaveLength(2);
+	// And a subsequent run injects the distilled artifacts.
+	const t2 = await p.op("POST", "tasks", { agentId, prompt: "echo after" });
+	const done2 = await run(t2.body.id);
+	expect(composedPrompt(done2)).toContain("The user prefers tabs over spaces");
+}, 180_000);
+
+test("M5 rebuildMemoryProjection replays the event log into an identical live set", async () => {
+	const p = await plane();
+	const { agentId } = await registerNodeAndAgent(p);
+	const a = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "fact",
+		content: "Kept fact",
+	});
+	const b = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "fact",
+		content: "Doomed fact",
+	});
+	await p.op("DELETE", `agents/${agentId}/memory/entries/${b.body.id}`);
+	const before = await p.op("GET", `agents/${agentId}/memory`);
+	expect(before.body.memory.map((m: { content: string }) => m.content)).toEqual(
+		["Kept fact"],
+	);
+	// Wipe the projection and replay the log; the view must converge.
+	await p.db.sql`DELETE FROM agent_memory WHERE org='acme'`;
+	const gone = await p.op("GET", `agents/${agentId}/memory`);
+	expect(gone.body.memory).toHaveLength(0);
+	await Effect.runPromise(rebuildMemoryProjection(p.db.sql, "acme"));
+	const after = await p.op("GET", `agents/${agentId}/memory`);
+	expect(after.body.memory.map((m: { content: string }) => m.content)).toEqual([
+		"Kept fact",
+	]);
+	expect(a.status).toBe(201);
+	expect(b.status).toBe(201);
 });
