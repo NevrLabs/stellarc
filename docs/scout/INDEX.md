@@ -15,16 +15,18 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Devin (Jira-native agent, inbox, preflight) | WATCH | 2026-10-08 | competitors |
 | Factory Droids (Script waits) | REJECT | 2026-10-08 | competitors |
 | Huly | REJECT | 2026-10-08 | competitors |
-| Tauri 2 (chosen shell, 2.12.2) | ADOPT | 2026-10-09 | cross-platform-ui |
-| Tauri 3.0-alpha (private-API removal) | WATCH | 2026-10-09 | cross-platform-ui |
-| GPUI Kit (ex gpui-component, Rust desktop) | WATCH | 2026-10-09 | cross-platform-ui |
-| Expo / React Native (second stack) | REJECT | 2026-10-09 | cross-platform-ui |
-| react-native-web (revived; signal only) | REJECT | 2026-10-09 | cross-platform-ui |
-| Capacitor 8 | REJECT | 2026-10-09 | cross-platform-ui |
-| Dioxus 0.7 | REJECT | 2026-10-09 | cross-platform-ui |
-| Flutter | REJECT | 2026-10-09 | cross-platform-ui |
-| Lynx 4.1 (web+iOS+Android, bindings pre-1.0) | WATCH | 2026-10-09 | cross-platform-ui |
-| Electrobun (beta, macOS-centric) | REJECT | 2026-10-09 | cross-platform-ui |
+| Tauri 2 (chosen shell, 2.12.3) | ADOPT | 2026-10-13 | cross-platform-ui |
+| Tauri 3.0-alpha (private-API removal) | WATCH | 2026-10-13 | cross-platform-ui |
+| tauri-runtime-cef (Chromium runtime, 3.0 alpha) | WATCH | 2026-10-13 | cross-platform-ui |
+| GPUI Kit (ex gpui-component, Rust desktop) | WATCH | 2026-10-13 | cross-platform-ui |
+| Expo / React Native (second stack) | REJECT | 2026-10-13 | cross-platform-ui |
+| react-native-web (revived; signal only) | REJECT | 2026-10-13 | cross-platform-ui |
+| Capacitor 8 | REJECT | 2026-10-13 | cross-platform-ui |
+| Dioxus 0.7 | REJECT | 2026-10-13 | cross-platform-ui |
+| Flutter | REJECT | 2026-10-13 | cross-platform-ui |
+| Lynx 4.1 (web+iOS+Android, bindings pre-1.0) | WATCH | 2026-10-13 | cross-platform-ui |
+| Electrobun (beta, macOS-centric) | REJECT | 2026-10-13 | cross-platform-ui |
+| @axe-core/playwright (a11y floor, proposal 1) | ADOPT | 2026-10-13 | cross-platform-ui |
 | effect 4.x (GA, 4.0.4; port in flight PR #77–80) | ADOPT | 2026-10-13 | libraries |
 | @effect/sql-drizzle (removed upstream in v4) | REJECT | 2026-10-13 | libraries |
 | packages/drizzle-effect (owned v4 bridge, PR #77) | ADOPT | 2026-10-13 | libraries |
