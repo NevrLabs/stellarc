@@ -9,10 +9,10 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Plane (Agents, Propel, credit limits) | TRIAL | 2026-10-13 | competitors |
 | Multica (wakeups, deliverables, cost curves) | WATCH | 2026-10-08 | competitors |
 | Paseo (plugin registry, usage aggregation) | TRIAL | 2026-10-13 | competitors |
-| Cursor (Projects, iOS remote, MCP allowlists) | WATCH | 2026-10-13 | competitors |
-| Copilot coding agent (sandboxing GA, stacked PRs) | ADOPT | 2026-10-13 | competitors |
-| OpenHands (ACP agents, model discovery) | WATCH | 2026-10-13 | competitors |
-| Devin (inbox, Outposts, plugin governance) | WATCH | 2026-10-13 | competitors |
+| Cursor (Origin App Marketplace, iOS remote, MCP allowlists) | WATCH | 2026-10-13 (evening) | competitors |
+| Copilot coding agent (sandboxing GA, stacked PRs) | ADOPT | 2026-10-13 (evening) | competitors |
+| OpenHands (ACP agents, model discovery) | WATCH | 2026-10-13 (evening) | competitors |
+| Devin (memory/dreaming, inbox, Outposts, plugin governance) | WATCH | 2026-10-13 (evening) | competitors |
 | Factory Droids (Script waits) | REJECT | 2026-10-13 | competitors |
 | Huly | REJECT | 2026-10-13 | competitors |
 | Tauri 2 (chosen shell, 2.12.3) | ADOPT | 2026-10-13 | cross-platform-ui |
