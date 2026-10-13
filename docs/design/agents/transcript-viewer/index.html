@@ -6,10 +6,16 @@
 <title>Run transcript — Stellarc</title>
 <meta name="description" content="NEVR-15 design mockup: full-page run transcript viewer for the BYO-agent runtime (ADR 0011). Interactive, plain JS, no build step." />
 <!--
-  NEVR-15 · Full transcript viewer — design mockup
+  NEVR-15 · Full transcript viewer — design mockup (rework cycle 1)
   Branch design/transcript-viewer · base dev
   Data model mirrors packages/agents/src/protocol.ts (Item kinds, Finish codes)
-  and docs/transcript-schema-v2.md (9-kind union bodies, turn spine D22).
+  and docs/transcript-schema-v2.md: 9-kind union bodies; turn grouping comes
+  from the D22 spine — explicit adapter-emitted turn.opened / turn.closed
+  marker events carrying turn_id on the envelope — NEVER inferred from user
+  messages. file_change bodies are {path, old_text?, new_text, source_call_id?};
+  the visible hunk is a labeled viewer-side projection. message/tool_result
+  content is the block union text|image|resource_link|terminal. approval
+  renders sandbox (no invented tool field). Cancelled is a terminal state.
   Tokens mirror apps/stellarc-ui/src/index.css (.dark). No Inter. No build step.
   Long-run performance: content-visibility:auto windowing + collapsed
   thinking/tool output by default (see LONG RUN note near the renderer).
@@ -19,7 +25,7 @@
 :root{
   --background:#0a0a0b; --card:#131315; --card-2:#171719; --border:#262629;
   --border-faint:#1d1d1f; --border-strong:#3a3a3e;
-  --foreground:#e6e6e6; --muted-foreground:#999a9c; --faint-foreground:#7e7e81;
+  --foreground:#e6e6e6; --muted-foreground:#999a9c; --faint-foreground:#7e7e81; /* AA floor: mono floors raised to 10px in this mockup (review d8b) */
   --accent:#c9c9c9; --accent-ink:#c9c9c9; --on-accent:#0a0a0b;
   --success:#86efac; --warning:#fcd34d; --destructive:#fca5a5;
   --info:#3b82f6; --info-ink:#60a5fa;
@@ -60,15 +66,15 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .sb-logo{width:18px;height:18px;border-radius:5px;background:linear-gradient(180deg,#d8d8d8,#9a9a9e);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:10px;flex:none}
 .sb-org{font-size:12px;font-weight:600;letter-spacing:-.01em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav{padding:4px 8px;display:flex;flex-direction:column;gap:1px}
-.nav-label{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:12px 8px 4px}
+.nav-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:12px 8px 4px}
 .nav-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;color:var(--muted-foreground);font-size:12.5px;font-weight:500;width:100%;text-align:left}
 .nav-item:hover{background:rgba(255,255,255,.04);color:var(--foreground)}
 .nav-item.active{background:rgba(255,255,255,.06);color:var(--foreground)}
 .nav-item svg{width:15px;height:15px;flex:none;opacity:.85}
 .nav-count{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
 .sb-foot{margin-top:auto;padding:8px 12px;border-top:1px solid var(--border-faint);display:flex;align-items:center;gap:8px}
-.sb-ver{font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground)}
-.sb-ava{width:20px;height:20px;border-radius:6px;background:#2a2a2e;color:var(--foreground);display:grid;place-items:center;font-size:9px;font-weight:600;margin-left:auto}
+.sb-ver{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
+.sb-ava{width:20px;height:20px;border-radius:6px;background:#2a2a2e;color:var(--foreground);display:grid;place-items:center;font-size:10px;font-weight:600;margin-left:auto}
 
 /* ── runs list ──────────────────────────────────────────────────────── */
 .runs{border-right:1px solid var(--border);background:var(--background);display:flex;flex-direction:column;min-width:0}
@@ -78,7 +84,7 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .crumb .sep{opacity:.5}
 .runs-title{font-size:14px;font-weight:600;letter-spacing:-.01em}
 .runs-scroll{overflow-y:auto;flex:1;padding:6px 0 24px}
-.rgroup{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:12px 14px 4px;display:flex;gap:6px}
+.rgroup{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:12px 14px 4px;display:flex;gap:6px}
 .rrow{display:grid;grid-template-columns:14px 1fr auto;gap:8px;width:100%;text-align:left;padding:7px 12px 7px 10px;align-items:start}
 .rrow:hover{background:rgba(255,255,255,.03)}
 .rrow.sel{background:rgba(255,255,255,.055);box-shadow:inset 2px 0 0 var(--accent)}
@@ -89,13 +95,18 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .rdot.queued{background:var(--warning)}
 .rdot.cancelled{background:var(--faint-foreground)}
 @keyframes pulse{50%{box-shadow:0 0 0 5px rgba(134,239,172,.04)}}
+@media (prefers-reduced-motion:reduce){
+  .rdot.running,.badge.run .dot,.tstat.pend .dot{animation:none!important}
+  .sk{animation:none!important}
+  .body{scroll-behavior:auto}
+}
 .rmain{min-width:0}
 .rkey{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
 .rtitle{font-size:12.5px;font-weight:500;color:var(--foreground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rmeta{display:flex;gap:6px;align-items:center;margin-top:2px;font-family:var(--font-mono);font-size:9.5px;color:var(--faint-foreground)}
+.rmeta{display:flex;gap:6px;align-items:center;margin-top:2px;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
 .rmeta .h{color:var(--muted-foreground)}
-.rtime{font-family:var(--font-mono);font-size:9.5px;color:var(--faint-foreground);padding-top:2px}
-.stat-pill{font-family:var(--font-mono);font-size:9px;padding:1px 6px;border-radius:99px;border:1px solid var(--border);color:var(--muted-foreground)}
+.rtime{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);padding-top:2px}
+.stat-pill{font-family:var(--font-mono);font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--border);color:var(--muted-foreground)}
 
 /* ── main column ────────────────────────────────────────────────────── */
 .main{display:flex;flex-direction:column;min-width:0;background:var(--background)}
@@ -113,7 +124,7 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
   border-radius:8px;padding:0 66px 0 28px;font-size:12px;color:var(--foreground);
 }
 .search::placeholder{color:var(--faint-foreground)}
-.searchwrap .cnt{position:absolute;right:30px;font-family:var(--font-mono);font-size:9.5px;color:var(--muted-foreground);pointer-events:none}
+.searchwrap .cnt{position:absolute;right:30px;font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground);pointer-events:none}
 .searchwrap .nav-btns{position:absolute;right:4px;display:flex;gap:1px}
 .searchwrap .nav-btns button{width:20px;height:20px;border-radius:4px;display:grid;place-items:center;color:var(--muted-foreground)}
 .searchwrap .nav-btns button:hover{background:rgba(255,255,255,.06);color:var(--foreground)}
@@ -124,11 +135,11 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .menu{position:relative}
 .menu-pop{position:absolute;right:0;top:32px;z-index:40;min-width:230px;background:var(--card);border:1px solid var(--border-strong);border-radius:10px;padding:5px;box-shadow:0 12px 34px rgba(0,0,0,.55);display:none}
 .menu.open .menu-pop{display:block}
-.menu-pop .lbl{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:7px 9px 3px}
+.menu-pop .lbl{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:7px 9px 3px}
 .mi{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:6px 9px;border-radius:6px;font-size:12px;color:var(--foreground)}
 .mi:hover{background:rgba(255,255,255,.06)}
 .mi .dot{width:6px;height:6px;border-radius:50%;flex:none}
-.mi small{margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground)}
+.mi small{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
 .hamb{display:none}
 
 /* toolbar under topbar */
@@ -142,17 +153,20 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .tgl[aria-pressed="true"] .sw{background:rgba(201,201,201,.35)}
 .tgl[aria-pressed="true"] .sw::after{transform:translateX(10px);background:var(--accent)}
 .subbar .vdiv{width:1px;height:16px;background:var(--border);margin:0 4px;flex:none}
-.itemcount{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint-foreground);padding-right:6px;white-space:nowrap}
+.itemcount{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);padding-right:6px;white-space:nowrap}
 
 /* scrubber */
 .scrubwrap{flex:none;border-bottom:1px solid var(--border);padding:8px 14px 10px;background:var(--background);overflow:hidden}
-.scrub-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground);margin-bottom:5px;min-height:12px}
+.scrub-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);margin-bottom:5px;min-height:12px}
 .scrub-meta .legend{display:flex;gap:10px;flex-wrap:wrap;overflow:hidden;max-height:12px}
 .scrub-meta .legend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .scrub{position:relative;height:26px;border-radius:6px;background:var(--card-2);border:1px solid var(--border-faint);overflow:hidden;cursor:pointer;display:flex}
 .scrub i{flex:1 1 0;min-width:1px;opacity:.9}
+.scrub i:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;opacity:1}
 .scrub .vp{position:absolute;top:0;bottom:0;border:1px solid rgba(201,201,201,.55);background:rgba(201,201,201,.08);border-radius:3px;pointer-events:none;transition:left .1s,width .1s}
 .scrub .err-mark{position:absolute;top:0;bottom:0;width:3px;background:var(--destructive);pointer-events:none}
+.scrub .turnseg{flex:0 0 2px;min-width:2px;background:var(--border-strong);opacity:.9}
+.scrub .turnseg:first-child{border-radius:2px 0 0 2px}
 
 /* banners */
 .banner{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border)}
@@ -175,7 +189,7 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .rh-id{font-family:var(--font-mono);font-size:11px;color:var(--faint-foreground)}
 .rh-title{font-size:19px;font-weight:600;letter-spacing:-.015em;margin:4px 0 0;line-height:1.3}
 .rh-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
-.badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:9.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted-foreground)}
+.badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted-foreground)}
 .badge .dot{width:6px;height:6px;border-radius:50%}
 .badge.ok{color:var(--success);border-color:rgba(134,239,172,.25);background:rgba(134,239,172,.06)}
 .badge.ok .dot{background:var(--success)}
@@ -187,7 +201,7 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 .badge.run .dot{background:var(--success);animation:blink 1.4s infinite}
 @keyframes blink{50%{opacity:.35}}
 .rh-prompt{margin-top:12px;border:1px solid var(--border);border-radius:10px;background:var(--card);padding:10px 12px;font-size:12.5px;color:var(--muted-foreground);display:flex;gap:9px}
-.rh-prompt .who{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint-foreground);padding-top:2px;flex:none}
+.rh-prompt .who{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint-foreground);padding-top:2px;flex:none}
 .rh-usage{margin-top:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)}
 .ctxgauge{flex:1;min-width:160px;max-width:280px}
 .ctxtrack{height:4px;border-radius:99px;background:var(--border);overflow:hidden;margin-top:4px}
@@ -196,9 +210,9 @@ kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);b
 /* turns */
 .turn{margin-top:22px}
 .turn-h{display:flex;align-items:center;gap:10px;padding:0 0 8px;user-select:none}
-.turn-h .n{font-family:var(--font-mono);font-size:9.5px;color:var(--faint-foreground);white-space:nowrap}
+.turn-h .n{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);white-space:nowrap}
 .turn-h .rule{flex:1;height:1px;background:var(--border-faint)}
-.turn-h .u{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground);white-space:nowrap}
+.turn-h .u{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);white-space:nowrap}
 .ubar{display:inline-flex;align-items:center;gap:3px}
 .ubar .b{width:5px;height:9px;border-radius:1px;background:var(--border-strong)}
 .ubar .b.i{background:#6d7f9e}.ubar .b.o{background:#9ec7a8}.ubar .b.c{background:#4a4a4f}
@@ -223,7 +237,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 /* message */
 .msg-u .mtxt{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;white-space:pre-wrap}
 .msg-a .mtxt{font-size:13.5px;line-height:1.62;white-space:pre-wrap;color:var(--foreground)}
-.msg-a .msend{display:flex;gap:8px;align-items:center;margin-top:6px;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground);flex-wrap:wrap}
+.msg-a .msend{display:flex;gap:8px;align-items:center;margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);flex-wrap:wrap}
 .msend .model{border:1px solid var(--border);border-radius:99px;padding:1px 7px}
 .msend .stop{color:var(--muted-foreground)}
 .clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:14;overflow:hidden;position:relative}
@@ -250,7 +264,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .tool-h .chev{margin-left:auto;flex:none;color:var(--faint-foreground);display:flex;gap:8px;align-items:center}
 .tool-h .chev svg{width:12px;height:12px;transition:transform .12s}
 .tool.open .tool-h .chev svg.chevron{transform:rotate(90deg)}
-.tstat{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:9px;color:var(--muted-foreground);white-space:nowrap}
+.tstat{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground);white-space:nowrap}
 .tstat .dot{width:6px;height:6px;border-radius:50%;background:var(--muted-foreground)}
 .tstat.ok .dot{background:var(--success)}
 .tstat.bad .dot{background:var(--destructive)}
@@ -260,7 +274,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .tool-in,.tool-out{padding:8px 10px;font-family:var(--font-mono);font-size:11px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--muted-foreground)}
 .tool-out{border-top:1px dashed var(--border-faint);max-height:280px;overflow-y:auto}
 .tool-out.iserr{color:var(--destructive)}
-.tool-sec{font-family:var(--font-mono);font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:6px 10px 0}
+.tool-sec{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint-foreground);padding:6px 10px 0}
 .pair{border:1px solid var(--border);border-radius:0 0 10px 10px;border-top:0;background:var(--card)}
 
 /* diff */
@@ -268,13 +282,15 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .diff-h{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border-faint)}
 .diff-h .path{font-family:var(--font-mono);font-size:11.5px;color:var(--accent-ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .diff-h .path:hover{text-decoration:underline}
-.diff-h .adds{font-family:var(--font-mono);font-size:9.5px;color:var(--success)}
-.diff-h .dels{font-family:var(--font-mono);font-size:9.5px;color:var(--destructive)}
+.diff-h .adds{font-family:var(--font-mono);font-size:10px;color:var(--success)}
+.diff-h .dels{font-family:var(--font-mono);font-size:10px;color:var(--destructive)}
 .diff-h .codelink{margin-left:auto;flex:none;font-size:10px;color:var(--muted-foreground);border:1px solid var(--border);border-radius:6px;padding:2px 8px;white-space:nowrap}
 .diff-h .codelink:hover{color:var(--foreground);background:rgba(255,255,255,.04)}
+.diff-src{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);padding:4px 10px;border-bottom:1px solid var(--border-faint);background:rgba(255,255,255,.015)}
+.diff-src span{color:var(--muted-foreground)}
 .diff-b{font-family:var(--font-mono);font-size:11px;line-height:1.6;overflow-x:auto}
 .dl{display:flex;white-space:pre;padding:0 8px}
-.dl .ln{width:34px;flex:none;text-align:right;padding-right:10px;color:var(--faint-foreground);user-select:none;font-size:9.5px;padding-top:1.5px}
+.dl .ln{width:34px;flex:none;text-align:right;padding-right:10px;color:var(--faint-foreground);user-select:none;font-size:10px;padding-top:1.5px}
 .dl.add{background:rgba(134,239,172,.07);color:#bdf0cc}
 .dl.del{background:rgba(252,165,165,.07);color:#fccfcf}
 .dl.hunk{color:var(--muted-foreground);background:rgba(255,255,255,.02)}
@@ -286,7 +302,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .mini .mh svg{width:12px;height:12px;flex:none;color:var(--faint-foreground)}
 .diff-h svg{width:12px;height:12px;flex:none}
 .mini .md{color:var(--muted-foreground);margin-top:3px;font-size:11.5px}
-.mini .mkv{display:flex;gap:6px;margin-top:5px;font-family:var(--font-mono);font-size:9.5px;color:var(--faint-foreground);flex-wrap:wrap}
+.mini .mkv{display:flex;gap:6px;margin-top:5px;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);flex-wrap:wrap}
 .mini .mkv span{border:1px solid var(--border-faint);border-radius:5px;padding:1px 6px}
 .appr .mh b.ok{color:var(--success)}
 .appr .mh b.pend{color:var(--warning)}
@@ -303,6 +319,27 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .failcard .fc{font-family:var(--font-mono);font-size:10.5px;border:1px solid rgba(252,165,165,.3);border-radius:6px;padding:2px 7px;margin-left:auto}
 .failcard .fm{color:var(--muted-foreground);margin-top:6px;font-size:12px}
 .failcard .fr{font-size:11px;color:var(--faint-foreground);margin-top:8px;font-family:var(--font-mono)}
+
+/* cancelled terminal card (operator stop — ADR 0011 cancel path) */
+.cancelcard{border:1px solid var(--border-strong);background:var(--card);border-radius:10px;padding:12px 14px;margin-top:14px}
+.cancelcard .ft{font-weight:600;color:var(--muted-foreground);display:flex;gap:8px;align-items:center;font-size:13px}
+.cancelcard .fc{font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--border-strong);border-radius:6px;padding:2px 7px;margin-left:auto;color:var(--faint-foreground)}
+.cancelcard .fm{color:var(--muted-foreground);margin-top:6px;font-size:12px}
+.cancelcard .fr{font-size:11px;color:var(--faint-foreground);margin-top:8px;font-family:var(--font-mono)}
+
+/* content blocks (message / tool_result union: text|image|resource_link|terminal) */
+.btxt{white-space:pre-wrap}
+.blk{display:inline-flex;align-items:center;gap:6px;margin:6px 0 0;font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground);border:1px dashed var(--border);border-radius:7px;padding:4px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blk.img{color:var(--accent-ink)}
+.blk.rlink{color:var(--info-ink);text-decoration:none}
+.blk.rlink:hover{text-decoration:underline}
+.blk .hint{color:var(--faint-foreground)}
+
+/* turn spine chrome */
+.turn-h .tid{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);opacity:.7}
+.turn-h .openflag{font-family:var(--font-mono);font-size:10px;color:var(--warning);border:1px solid rgba(252,211,77,.3);border-radius:5px;padding:0 5px}
+.turn-h .contflag{font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground);border:1px dashed var(--border);border-radius:5px;padding:0 5px}
+.proj{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground);border:1px dashed var(--border-faint);border-radius:5px;padding:1px 6px;white-space:nowrap}
 
 /* empty / loading / error states */
 .statefill{height:100%;display:grid;place-items:center;padding:32px}
@@ -336,7 +373,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .cl.hl{background:rgba(201,201,201,.06);box-shadow:inset 2px 0 0 var(--accent)}
 .cl.add{background:rgba(134,239,172,.08)}
 .cl.del{background:rgba(252,165,165,.07)}
-.code-f{border-top:1px solid var(--border);padding:7px 12px;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground)}
+.code-f{border-top:1px solid var(--border);padding:7px 12px;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
 
 /* toast + modal */
 .toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,80px);background:var(--card);border:1px solid var(--border-strong);border-radius:10px;padding:9px 14px;font-size:12px;box-shadow:0 12px 34px rgba(0,0,0,.55);transition:transform .15s;z-index:80;display:flex;gap:8px;align-items:center}
@@ -347,7 +384,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
 .modal{width:min(860px,100%);max-height:82vh;background:var(--card);border:1px solid var(--border-strong);border-radius:14px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
 .modal-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
 .modal-h h3{margin:0;font-size:13.5px;font-weight:600}
-.modal-h .sub{font-family:var(--font-mono);font-size:9.5px;color:var(--faint-foreground)}
+.modal-h .sub{font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)}
 .modal-b{flex:1;overflow:auto;padding:0}
 .modal pre{margin:0;padding:16px;font-family:var(--font-mono);font-size:11px;line-height:1.65;white-space:pre-wrap;word-break:break-word;color:var(--muted-foreground)}
 .modal-f{border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;justify-content:flex-end}
@@ -463,7 +500,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
         <div class="legend" id="scrub-legend"></div>
         <div id="scrub-pos">—</div>
       </div>
-      <div class="scrub" id="scrub" role="slider" aria-label="Timeline" tabindex="0"></div>
+      <div class="scrub" id="scrub" aria-label="Timeline — one segment per item; focus a segment and use arrow keys"></div>
     </div>
 
     <div id="banner-slot"></div>
@@ -534,7 +571,7 @@ mark{background:rgba(252,211,77,.28);color:var(--warning);border-radius:2px;padd
    stable across reloads. */
 
 function rng(seed){let s=seed>>>0;return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const R=rng(1508);
+const R0=rng(1508);let R=R0,RD=rng(911);  // R reset to R0's seed per genItems (determinism); RD: render-side randoms — never feed generation
 
 const HARNESS_MODELS={ "hermes":"glm-4.7", "claude-code":"claude-sonnet-4-5", "codex":"gpt-5-codex", "goose":"llama-4-scout", "opencode":"qwen3-coder" };
 const NODES={
@@ -587,17 +624,23 @@ const KICON={
   config:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   harness_meta:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>',
 };
-const KCOLOR={message:"var(--accent)",thinking:"#6b6b70",tool_call:"#6d7f9e",tool_result:"#6d7f9e",file_change:"#9ec7a8",approval:"#fcd34d",checkpoint:"#d8b44a",config:"#5d5d60",harness_meta:"#4a4a4f"};
+const KCOLOR={message:"var(--accent)",thinking:"#6b6b70",tool_call:"#6d7f9e",tool_result:"#6d7f9e",file_change:"#9ec7a8",approval:"#fcd34d",checkpoint:"#d8b44a",config:"#5d5d60",turn_mark:"#8a8a8f",harness_meta:"#4a4a4f"};
 
-/* item factory */
+/* item factory — D22 spine: turns are delimited ONLY by explicit
+   adapter-emitted turn.opened / turn.closed marker events that carry
+   turn_id; items themselves carry no turn field and the viewer never
+   infers a boundary from item content. */
 let SEQ=0,T0=Date.UTC(2026,9,8,9,41,0);
 function at(ms){return new Date(T0+ms).toISOString()}
-function mkTurn(t,turnIdx,run){
+const turnId=i=>"t_"+(0x3f00+i*0x11).toString(16);
+function mkTurn(turnIdx,run){
   const items=[];let tms=turnIdx*9137+412;
   const step=()=>{tms+=Math.floor(R()*4200+600)};
-  items.push({seq:SEQ++,kind:"message",turn:turnIdx,occurredAt:at(tms),body:{role:"user",content:[{type:"text",text:turnIdx===0?run.prompt:FOLLOWUPS[t%FOLLOWUPS.length]}]}});
+  items.push({seq:SEQ++,kind:"turn_mark",occurredAt:at(tms),body:{phase:"opened",turn_id:turnId(turnIdx),index:turnIdx}});
   step();
-  items.push({seq:SEQ++,kind:"thinking",turn:turnIdx,occurredAt:at(tms),body:{text:THINKING[t%THINKING.length],redacted:false,provider_opaque:false}});
+  items.push({seq:SEQ++,kind:"message",occurredAt:at(tms),body:{role:"user",content:[{type:"text",text:turnIdx===0?run.prompt:FOLLOWUPS[turnIdx%FOLLOWUPS.length]}]}});
+  step();
+  items.push({seq:SEQ++,kind:"thinking",occurredAt:at(tms),body:{text:THINKING[turnIdx%THINKING.length],redacted:turnIdx===9,provider_opaque:turnIdx===9}});
   const ntools=2+Math.floor(R()*3);
   for(let i=0;i<ntools;i++){
     step();
@@ -606,35 +649,50 @@ function mkTurn(t,turnIdx,run){
     const p={path:FILES[Math.floor(R()*FILES.length)],cwd:"~/wt/NEVR-9",q:PATCH_QUERIES[Math.floor(R()*PATCH_QUERIES.length)],glob:SEARCH_GLOBS[Math.floor(R()*SEARCH_GLOBS.length)],cmd:TERMINAL_CMDS[Math.floor(R()*TERMINAL_CMDS.length)],step:["Reading protocol.ts in the worktree","Counting item kinds in schema doc","Clicking agent row in the UI","Waiting for test run output"][Math.floor(R()*4)]};
     const failing=R()<0.06;
     const dur=Math.floor(R()*5200+280);
-    items.push({seq:SEQ++,kind:"tool_call",turn:turnIdx,occurredAt:at(tms),body:{call_id:callId,name:T.n,kind:T.k,title:T.sum(p),input:T.inv(p)}});
+    items.push({seq:SEQ++,kind:"tool_call",occurredAt:at(tms),body:{call_id:callId,name:T.n,kind:T.k,title:T.sum(p),input:T.inv(p)}});
     step();
     const out=TOOLOUT(T,p,failing);
-    items.push({seq:SEQ++,kind:"tool_result",turn:turnIdx,occurredAt:at(tms),body:{call_id:callId,status:failing?"failed":"completed",content:out,is_error:failing,usage:{durationMs:dur}}});
+    items.push({seq:SEQ++,kind:"tool_result",occurredAt:at(tms),body:{call_id:callId,status:failing?"failed":"completed",content:out,is_error:failing,usage:{durationMs:dur}}});
     if(T.n==="patch"&&!failing&&R()<0.7){step();
-      const d=MKDIFF(p.path);
-      items.push({seq:SEQ++,kind:"file_change",turn:turnIdx,occurredAt:at(tms),body:{path:p.path,source_call_id:callId,diff:d}});
+      const e=MKEDIT(p.path);
+      items.push({seq:SEQ++,kind:"file_change",occurredAt:at(tms),body:{path:p.path,old_text:e.old_text,new_text:e.new_text,source_call_id:callId}});
     }
   }
   if(turnIdx===3){step();
-    items.push({seq:SEQ++,kind:"approval",turn:turnIdx,occurredAt:at(tms),body:{call_id:"call_"+(0x1000+SEQ).toString(16),decision:"allow_once",policy:"node-owner unattended",actor:"stellarc-node",tool:"terminal"}});
+    items.push({seq:SEQ++,kind:"approval",occurredAt:at(tms),body:{call_id:"call_"+(0x1000+SEQ).toString(16),decision:"allow_once",policy:"node-owner unattended",sandbox:"workspace-write · network-off",actor:"stellarc-node"}});
   }
   step();
-  items.push({seq:SEQ++,kind:"message",turn:turnIdx,occurredAt:at(tms),body:{role:"assistant",content:[{type:"text",text:ASSISTANT_MSGS[t%ASSISTANT_MSGS.length]}],model:run.model,provider:run.harness,stop_reason:"end_turn",usage:{input_tokens:Math.floor(R()*9000+5200),output_tokens:Math.floor(R()*900+240),cache_read_input_tokens:Math.floor(R()*40000+8000),cache_creation_input_tokens:Math.floor(R()*3000)}}});
+  // turn 2 of the long run exercises the block union NON-TEXT-FIRST:
+  // content[0] is an image block, text follows — the renderer must never
+  // assume content[0].text (schema v2: content is a block union)
+  const lead=turnIdx===2?[{type:"image",uri:"file://shots/claim-poll-p99.png",mime:"image/png"}]:[];
+  const trail=turnIdx===2?[{type:"resource_link",uri:"https://effect.website/docs/schema"}]:[];
+  items.push({seq:SEQ++,kind:"message",occurredAt:at(tms),body:{role:"assistant",content:[...lead,{type:"text",text:ASSISTANT_MSGS[turnIdx%ASSISTANT_MSGS.length]},...trail],model:run.model,provider:run.harness,stop_reason:"end_turn",usage:{input_tokens:Math.floor(R()*9000+5200),output_tokens:Math.floor(R()*900+240),cache_read_input_tokens:Math.floor(R()*40000+8000),cache_creation_input_tokens:Math.floor(R()*3000)}}});
+  step();
+  items.push({seq:SEQ++,kind:"turn_mark",occurredAt:at(tms),body:{phase:"closed",turn_id:turnId(turnIdx),index:turnIdx}});
   return items;
 }
 function TOOLOUT(T,p,failing){
-  if(T.n==="read_file")return[{type:"text",text:`  1\timport { Schema } from "effect";\n  2\t\n  3\t/** Wire contract between the control plane and a runtime node (arclet).\n  4\t * The plane is inert (D4): it hands out task descriptors; the node owns the\n  5\t * harness binary, its credentials, and the raw wire journal (D14/D21). */\n …  (${Math.floor(R()*300+40)} lines · ${(R()*24+3).toFixed(1)} kB)`}];
+  if(T.n==="read_file")return[{type:"text",text:`  1\timport { Schema } from "effect";\n  2\t\n  3\t/** Wire contract between the control plane and a runtime node (arclet).\n * The plane is inert (D4): it hands out task descriptors; the node owns the\n * harness binary, its credentials, and the raw wire journal (D14/D21). */\n  …  (${Math.floor(R()*300+40)} lines · ${(R()*24+3).toFixed(1)} kB)`}];
   if(T.n==="search_files")return[{type:"text",text:`${Math.floor(R()*9+2)} matches in ${Math.floor(R()*5+2)} files\npackages/agents/src/protocol.ts:27: export const isRetryable = (code) => code.startsWith("platform.");\npackages/agents/src/store.ts:112:\twhere lease_until < now()\napps/stellarc-node/src/claim.ts:64:\textend_lease(task, attempt)`}];
   if(T.n==="patch")return[{type:"text",text:failing?"error: old_string not found in packages/agents/src/store.ts — file changed on disk since last read (attempted merge at 2 sites)":"patch applied · packages/agents/src/store.ts · 2 hunks replaced"}];
-  if(T.n==="terminal")return[{type:"text",text:(failing?"error: test timed out after 30s\n":"pass  pass  ")+" ✓ foundation.test.ts (12)\n "+(failing?"":"✓ agents.test.ts (8)\n\n 20 passed\n")}
-  ];
-  if(T.n==="web_search")return[{type:"text",text:`3 results\neffect.website — Schema.Struct optionalWith defaults\ngithub.com/agentclientprotocol — session/update fold\nmultica docs — transcript projections (reference product)`}];
-  return[{type:"text",text:failing?"step failed: net::ERR_CONNECTION_REFUSED after 3 attempts":"step ok · page_info() → 3 tabs, title “Agents · Stellarc”"}];
+  if(T.n==="terminal")return[{type:"text",text:(failing?"error: test timed out after 30s\n":"pass  pass  ")+" ✓ foundation.test.ts (12)\n "+(failing?"":"✓ agents.test.ts (8)\n\n 20 passed\n")},{type:"terminal",id:"tmux-"+(1+Math.floor(R()*3))+"."+Math.floor(R()*4)}];
+  if(T.n==="web_search")return[{type:"text",text:"3 results\neffect.website — Schema.Struct optionalWith defaults\ngithub.com/agentclientprotocol — session/update fold\nmultica docs — transcript projections (reference product)"},{type:"resource_link",uri:"https://effect.website/docs/schema"}];
+  return[{type:"text",text:failing?"step failed: net::ERR_CONNECTION_REFUSED after 3 attempts":"step ok · page_info() → 3 tabs, title “Agents · Stellarc”"},{type:"image",uri:"blob:shot-"+(0x2000+Math.floor(R()*0xfff)).toString(16),mime:"image/png"}];
 }
-function MKDIFF(path){
-  const ln=()=>Math.floor(R()*160+10);
-  const a=ln(),b=ln();
-  return `@@ -${a},7 +${a},7 @@\n context · plane is inert (D4) — descriptors only\n-context   leaseMs: number;\n+context   leaseMs: number;  // heartbeat every lease/3\n-del       const reaped = code === "platform.lease_expired";\n+add       const reaped = code === "platform.lease_expired" || node.dark;\n context   if (reaped && attempt < maxAttempts) requeue(task);\n-add       report.items.forEach(append);\n+add       for (const it of report.items) append(it); // dedupe on (task, attempt, seq)\n+add       link_code_refs(report.items);\n context   return Finish.accept;`;
+/* file_change bodies on the wire are {path, old_text?, new_text, source_call_id?}
+   — never a precomputed diff string. The hunk is a viewer-side projection. */
+function MKEDIT(path){
+  const base=path.split("/").pop();
+  if(base==="protocol.ts")return{
+    old_text:'export const isRetryable = (code: FailureCode) =>\n  code.startsWith("platform.");',
+    new_text:'/** platform.* faults retry on the runtime; agent_error.* never do. */\nexport const isRetryable = (code: FailureCode) =>\n  code.startsWith("platform.");'};
+  if(base.endsWith(".sql"))return{
+    old_text:"create index agent_task_claim_idx\n  on agent_task (status, lease_until);",
+    new_text:"-- reaper scan: claimed rows with expired leases\ncreate index agent_task_reaper_idx\n  on agent_task (status, lease_until)\n  where status = 'claimed';"};
+  return{
+    old_text:'const reaped = code === "platform.lease_expired";\nif (reaped && attempt < maxAttempts) requeue(task);',
+    new_text:'const reaped = code === "platform.lease_expired" || node.dark;\nif (reaped && attempt < maxAttempts) {\n  requeue(task, { attempt: attempt + 1 });\n  journal.tag(task, "reaped");\n}'};
 }
 const FOLLOWUPS=[
  "Now check the lease reaping path the same way.",
@@ -666,33 +724,49 @@ const RUNS=[
 ];
 
 function genItems(run){
-  SEQ=0;const all=[];
+  SEQ=0;R=rng(1508);const all=[];  // reseed: same run ⇒ identical items, whatever rendering consumed before
   if(run.gen==="queued")return all;
-  all.push({seq:SEQ++,kind:"config",turn:0,occurredAt:at(0),body:{model:run.model,provider:run.harness,cwd:"~/wt/"+run.key.replace("NEVR-","NEVR-"),git_branch:"agent/"+run.agent+"/"+run.id.slice(4),mcp:["github","postgres-readonly"],thinking_level:"default"}});
+  all.push({seq:-1,kind:"config",occurredAt:at(0),body:{model:run.model,provider:run.harness,cwd:"~/wt/"+run.key.replace("NEVR-","NEVR-"),git_branch:"agent/"+run.agent+"/"+run.id.slice(4),mcp:["github","postgres-readonly"],thinking_level:"default"}});
   const n=run.gen==="long"?run.turns:run.turns;
-  for(let t=0;t<n;t++)all.push(...mkTurn(t,t,run));
-  // sprinkle harness_meta
+  for(let t=0;t<n;t++)all.push(...mkTurn(t,run));
+  // sprinkle harness_meta (interleaved by log position)
   const metas=Math.floor(all.length/40)+2;
   for(let i=0;i<metas;i++){
     const at2=Math.floor(R()*all.length);
-    all.splice(at2,0,{seq:SEQ++,kind:"harness_meta",turn:all[at2]?.turn??0,occurredAt:at(0),body:{subtype:"session.wire_notice",data:{note:"unrecognised session/update variant folded verbatim",wire:"hermes/acp@1.4"}}});
+    all.splice(at2,0,{seq:-1,kind:"harness_meta",occurredAt:at(0),body:{subtype:"session.wire_notice",data:{note:"unrecognised session/update variant folded verbatim",wire:"hermes/acp@1.4"}}});
   }
-  all.sort((a,b)=>a.seq-b.seq);
   if(run.gen==="long"){
-    // very long content item (state: long content)
-    const m=all.find(i=>i.kind==="message"&&i.body.role==="assistant"&&i.turn===5);
-    if(m)m.body.content[0].text=LONGMSG;
+    // very long content item (state: long content) — set on the TEXT block;
+    // content[0] is not guaranteed to be text (block union)
+    const m=all.find(i=>i.kind==="message"&&i.body.role==="assistant"&&i.seq>200&&i.seq<600);
+    if(m){const tb=m.body.content.find(c=>c.type==="text");if(tb)tb.text=LONGMSG}
     // checkpoint (compaction) deep in the run
     const cpIdx=Math.floor(all.length*0.55);
-    all.splice(cpIdx,0,{seq:SEQ++,kind:"checkpoint",turn:all[cpIdx]?.turn??20,occurredAt:at(0),body:{reason:"compaction",summary:"Folded turns 1–19: protocol trace complete (lease math, 409 path, reaper index). Retained the prompt, the failing-call taxonomy and the last 3 tool exchanges.",tokens_before:141_200,retained_tail:12}});
+    all.splice(cpIdx,0,{seq:-1,kind:"checkpoint",occurredAt:at(0),body:{reason:"compaction",summary:"Folded turns 1–19: protocol trace complete (lease math, 409 path, reaper index). Retained the prompt, the failing-call taxonomy and the last 3 tool exchanges.",tokens_before:141_200,retained_tail:12}});
+    // last turn of the live run is still open: its turn.closed event has
+    // NOT been emitted, so no close marker exists in the log. The spine
+    // itself says the turn is open — nothing is inferred.
+    const lastMarkIdx=[...all].reverse().findIndex(i=>i.kind==="turn_mark"&&i.body.phase==="closed");
+    if(lastMarkIdx>=0)all.splice(all.length-1-lastMarkIdx,1);
   }
   if(run.gen==="failed"){
-    const last=all.length;
-    all.push({seq:SEQ++,kind:"message",turn:99,occurredAt:at(0),body:{role:"assistant",content:[{type:"text",text:"— output truncated at the token ceiling mid-sentence while rewriting the row comp"}],model:run.model,stop_reason:"max_turn_requests",usage:{input_tokens:21044,output_tokens:32000,cache_read_input_tokens:88410}}});
+    all.push({seq:-1,kind:"message",occurredAt:at(0),body:{role:"assistant",content:[{type:"text",text:"— output truncated at the token ceiling mid-sentence while rewriting the row comp"}],model:run.model,stop_reason:"max_tokens",usage:{input_tokens:21044,output_tokens:32000,cache_read_input_tokens:88410}}});
+    const lastMarkIdx=[...all].reverse().findIndex(i=>i.kind==="turn_mark"&&i.body.phase==="closed");
+    if(lastMarkIdx>=0)all.splice(all.length-1-lastMarkIdx,1);
   }
   if(run.gen==="offline"){
-    all.push({seq:SEQ++,kind:"harness_meta",turn:99,occurredAt:at(0),body:{subtype:"node.heartbeat_lost",data:{node:"europa",last_seen:"09:48:31Z",lease_until:"09:49:31Z"}}});
+    all.push({seq:-1,kind:"harness_meta",occurredAt:at(0),body:{subtype:"node.heartbeat_lost",data:{node:"europa",last_seen:"09:48:31Z",lease_until:"09:49:31Z"}}});
   }
+  if(run.status==="cancelled"){
+    // the operator stop arrived mid-turn: no turn.closed was ever emitted,
+    // so the last turn stays open on the spine (nothing inferred)
+    const lastMarkIdx=[...all].reverse().findIndex(i=>i.kind==="turn_mark"&&i.body.phase==="closed");
+    if(lastMarkIdx>=0)all.splice(all.length-1-lastMarkIdx,1);
+  }
+  /* seq is per-session monotonic and ordering is OURS (D22) — renumber the
+     final log so seq matches display order exactly, including spliced-in
+     projections (checkpoint, harness_meta). No gaps, no inversions. */
+  all.forEach((it,i)=>it.seq=i);
   return all;
 }
 const LONGMSG=`The claim long-poll seam deserves its own note before it disappears into iroh. What follows is the full accounting, kept in one place so the handover prompt can quote it verbatim.
@@ -758,6 +832,7 @@ function setState(name){
     "long":()=>selectRun("run-9f31"),
     "small":()=>selectRun("run-8e02"),
     "failed":()=>selectRun("run-7c44"),
+    "cancelled":()=>selectRun("run-3e51"),
     "offline":()=>selectRun("run-6b19"),
     "empty":()=>{ui.sel=null;renderRuns();renderEmpty();},
     "error":()=>{ui.sel="run-5a77";renderRuns();renderLoading();setTimeout(()=>{ui.fetchError=true;renderFetchError()},650);},
@@ -805,9 +880,22 @@ function clearChrome(){
 function renderRun(r){
   const items=r.items;
   const pairs=pairTools(items);
-  const turns=[];const seen=new Set();
-  for(const it of items){if(it.kind==="message"&&it.body.role==="user"&&!seen.has(it.turn)){seen.add(it.turn);turns.push({turn:it.turn,items:[],tok:{i:0,o:0,c:0},dur:8+Math.floor(R()*70)})}}
-  for(const it of items){const t=turns.find(x=>x.turn===it.turn);if(t)t.items.push(it)}
+
+  /* D22 spine: group strictly by adapter-emitted turn.opened/turn.closed
+     markers (turn_id on the envelope). Items outside any turn — config,
+     node-level harness_meta — carry turn_id:null on the envelope and render
+     in a null section (split head/tail by log position), never guessed into
+     a turn. No item content is consulted. */
+  const turns=[];let cur=null;const preHead=[],preTail=[];let sawTurn=false;
+  for(const it of items){
+    if(it.kind==="turn_mark"){
+      if(it.body.phase==="opened"){sawTurn=true;cur={id:it.body.turn_id,index:it.body.index,closed:false,items:[],tok:{i:0,o:0,c:0},dur:8+Math.floor(RD()*70)};turns.push(cur)}
+      else if(cur&&cur.id===it.body.turn_id){cur.closed=true;cur=null}
+      continue;
+    }
+    (cur?cur.items:(sawTurn?preTail:preHead)).push(it);
+  }
+  turns.sort((a,b)=>a.index-b.index);
   for(const t of turns)for(const it of t.items){const u=it.body?.usage;if(u){t.tok.i+=u.input_tokens||0;t.tok.o+=u.output_tokens||0;t.tok.c+=(u.cache_read_input_tokens||0)+(u.cache_creation_input_tokens||0)}}
 
   /* banners */
@@ -815,6 +903,7 @@ function renderRun(r){
   const node=NODES[r.node];
   if(!node.online)banners+=banner("warn",`Runtime offline — transcript may be stale`,`Node <code>${r.node}</code> last heartbeat ${node.lastHb} ago (lease expired). Items stop at seq ${items.length-1}; a re-claim on attempt ${r.attempt+1} continues under its own transcript.`,r.status==="running");
   if(r.status==="failed"&&r.failureCode)banners+=banner("err",`Run failed — ${r.failureCode}`,esc(r.failureMessage||""),false);
+  if(r.status==="cancelled")banners+=banner("warn","Run cancelled by operator",`Finish.outcome=<code>cancelled</code> — the operator stopped the run; the node learned on heartbeat and sent ACP <code>session/cancel</code>. The transcript is complete up to the stop.`,false);
   if(r.status==="queued")banners+=banner("warn","Queued — waiting for a node claim",`No transcript yet. The task sits in the queue until a node with the <code>${r.harness}</code> harness long-polls a claim.`,false);
   $("#banner-slot").innerHTML=banners;
 
@@ -842,17 +931,25 @@ function renderRun(r){
     </div>
   </div>`;
 
+  /* pre-turn items (turn_id null on the envelope — e.g. session config) */
+  if(preHead.length)hh+=nullTurnSection(preHead,"before turns",pairs);
+
   /* turns + items */
   let th="";
   for(const t of turns){
-    th+=`<section class="turn" data-turn="${t.turn}">
+    th+=`<section class="turn" data-turn="${t.id}">
       <div class="turn-h"><button class="fold" data-fold aria-label="Collapse turn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg></button>
-        <span class="n">Turn ${t.turn+1}</span><span class="rule"></span>
+        <span class="n">Turn ${t.index+1}</span><span class="tid">${t.id}</span>
+        ${t.closed?`<span class="contflag" title="adapter-emitted turn.closed received">turn.closed</span>`:`<span class="openflag" title="no turn.closed yet — the spine says this turn is still live">open · awaiting turn.closed</span>`}
+        <span class="rule"></span>
         <span class="u"><span class="ubar" title="in ${fmtK(t.tok.i+t.tok.c)} · out ${fmtK(t.tok.o)}"><span class="b i"></span><span class="b o"></span><span class="b c"></span></span>${fmtK(t.tok.i+t.tok.c)} in · ${fmtK(t.tok.o)} out · ${t.dur}s</span>
       </div>
       <div class="turn-body">${t.items.map(it=>itemHTML(it,pairs)).join("")}</div>
     </section>`;
   }
+  /* items after the last turn.closed (turn_id null — e.g. node-level
+     heartbeat_lost emitted while no turn was open) */
+  if(preTail.length)th+=nullTurnSection(preTail,"after last turn.closed",pairs);
   if(r.status==="failed"&&r.failureCode){
     th+=`<div class="failcard">
       <div class="ft"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>Run failed<span class="fc">${r.failureCode}</span></div>
@@ -860,13 +957,25 @@ function renderRun(r){
       <div class="fr">${r.failureCode.startsWith("platform.")?"platform.* — retried on the runtime":"agent_error.* — never retried"} · outcome=${r.outcome||"failed"} · attempt ${r.attempt}/10</div>
     </div>`;
   }
+  if(r.status==="cancelled"){
+    th+=`<div class="cancelcard">
+      <div class="ft"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg>Run cancelled<span class="fc">outcome: cancelled</span></div>
+      <div class="fm">Stopped by the operator at ${r.dur} in — the row flips immediately; the node learned on the next heartbeat and sent ACP <code style="font-family:var(--font-mono)">session/cancel</code>. No failure code: a cancelled run is not a failed run.</div>
+      <div class="fr">Finish.outcome=cancelled · attempt ${r.attempt}/10 · transcript retained in full</div>
+    </div>`;
+  }
   body.innerHTML=hh+th+`</div>`;
   $("#subbar").hidden=false;
-  $("#item-count").textContent=`${items.length} items · ${items.filter(i=>i.kind==="harness_meta").length} harness_meta`;
+  const nMarks=items.filter(i=>i.kind==="turn_mark").length;
+  $("#item-count").textContent=`${items.length} items · ${nMarks} turn marks · ${items.filter(i=>i.kind==="harness_meta").length} harness_meta`;
   buildScrub(items);
   wireRun(r);
   applyToggles(false);
   body.scrollTop=0;
+  /* keep the demo-state menu honest: the long-run entry shows the count the
+     header actually rendered (generated data is the source of truth) */
+  const longMi=document.querySelector('#state-pop .mi[data-state="long"]');
+  if(longMi&&r.gen==="long"){longMi.childNodes.forEach(n=>{if(n.nodeType===3&&n.textContent.includes("long run"))n.textContent=`Populated · long run (${turns.length} turns · ${items.length} items)`})}
 }
 function banner(kind,title,desc,retry){
   return `<div class="banner ${kind}">
@@ -874,6 +983,15 @@ function banner(kind,title,desc,retry){
     <div><div class="t">${title}</div><div class="d">${desc}</div></div>
     ${retry?`<button class="retry" id="banner-retry">Reconnect</button>`:""}
   </div>`;
+}
+/* turn_id:null section — items whose envelope carries no turn_id (before the
+   first turn.opened or after the last turn.closed). Rendered where they sit
+   in the log, never guessed into a turn. */
+function nullTurnSection(list,where,pairs){
+  return `<section class="turn" data-turn="pre">
+    <div class="turn-h"><span class="n">outside turns</span><span class="tid">turn_id: null</span><span class="rule"></span><span class="u">${where} · ${list.length} item${list.length>1?"s":""} · envelope carries no turn_id</span></div>
+    <div class="turn-body">${list.map(it=>itemHTML(it,pairs)).join("")}</div>
+  </section>`;
 }
 function pairTools(items){
   const m=new Map();
@@ -904,13 +1022,25 @@ function itemHTML(it,pairs){
     <div class="irow"><span class="ikind">${KICON[it.kind]||""}</span><div class="imain">${inner}</div></div>
   </div>`;
 }
+/* content block union (schema v2): text | image | resource_link | terminal */
+function blocksHTML(content){
+  if(!Array.isArray(content)||!content.length)return `<div class="btxt" style="color:var(--faint-foreground)">— no content blocks —</div>`;
+  return content.map(bl=>{
+    if(bl.type==="text")return `<div class="btxt">${hl(esc(bl.text||""))}</div>`;
+    if(bl.type==="image")return `<span class="blk img" title="${esc(bl.uri||"")}">◫ image · ${esc((bl.mime||"").split("/").pop()||"binary")}${bl.uri?` · ${esc(bl.uri.split("/").pop()||bl.uri)}`:""}</span>`;
+    if(bl.type==="resource_link")return `<a class="blk rlink" href="${esc(bl.uri||"#")}" target="_blank" rel="noopener">⛓ ${esc(bl.uri||"")}</a>`;
+    if(bl.type==="terminal")return `<span class="blk" title="terminal stream — collapsed id, expand the tool card for output">▸ terminal ${esc(bl.id||"")}</span>`;
+    return `<span class="blk">? ${esc(bl.type||"unknown block")}</span>`;
+  }).join("");
+}
 function msgHTML(it){
   const b=it.body;
-  if(b.role==="user")return `<div class="msg-u"><div class="mtxt">${hl(esc(b.content[0].text))}</div></div>`;
+  if(b.role==="user")return `<div class="msg-u"><div class="mtxt">${blocksHTML(b.content)}</div></div>`;
   const u=b.usage||{};
-  const long=b.content[0].text.length>1500;
+  const texts=b.content.filter(c=>c.type==="text").map(c=>c.text).join("\n");
+  const long=texts.length>1500;
   return `<div class="msg-a"${long?' data-long="1"':""}>
-    <div class="mtxt clamp">${hl(esc(b.content[0].text))}</div>
+    <div class="mtxt clamp">${blocksHTML(b.content)}</div>
     ${long?`<button class="morebtn" data-more>Show more</button>`:""}
     <div class="msend"><span class="model">${b.model||""}</span>
       ${u.input_tokens?`<span>${fmtK(u.input_tokens+((u.cache_read_input_tokens||0)+(u.cache_creation_input_tokens||0)))} in · ${fmtK(u.output_tokens)} out</span>`:""}
@@ -920,7 +1050,7 @@ function msgHTML(it){
 function thinkHTML(it){
   const open=it.body.redacted?"":"";
   const txt=it.body.redacted?"Redacted by provider — encrypted reasoning content is provider+org bound (D21). It is flagged, not hidden.":it.body.text;
-  const secs=6+Math.floor(R()*18);
+  const secs=6+Math.floor(RD()*18);
   return `<div class="think${open}"><button class="think-h" data-think>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m9 6 6 6-6 6"/></svg>
     Thought for ${secs}s · ${fmtK(txt.length/4|0)} tok${it.body.provider_opaque?" · provider-opaque":""}</button>
@@ -932,7 +1062,7 @@ function toolHTML(call,res){
   const stT=res?(res.body.is_error?"failed":res.body.status):"in progress";
   const dur=res?.body.usage?.durationMs;
   const inTxt=JSON.stringify(b.input,null,2).replace(/^\{|\}$/g,"").trim().split("\n").slice(0,6).join("\n");
-  const outTxt=res?res.body.content.map(c=>c.text).join("\n"):"";
+  const outTxt=res?blocksText(res.body.content):"";
   return `<div class="tool${open?" open":""}" data-call="${b.call_id}">
     <div class="tool-h" data-tool>
       <span class="tname">${b.name}</span><span class="tsum">${hl(esc(b.title||""))}</span>
@@ -942,33 +1072,67 @@ function toolHTML(call,res){
     <div class="tool-b">
       <div class="tool-sec">input</div>
       <div class="tool-in">${hl(esc(inTxt))}</div>
-      ${res?`<div class="tool-sec">result · seq ${res.seq}</div><div class="tool-out${res.body.is_error?" iserr":""}">${hl(esc(outTxt))}</div>`:`<div class="tool-out" style="color:var(--faint-foreground)">streaming…</div>`}
+      ${res?`<div class="tool-sec">result · seq ${res.seq}</div><div class="tool-out${res.body.is_error?" iserr":""}">${hl(esc(outTxt))}${res?blockChips(res.body.content):""}</div>`:`<div class="tool-out" style="color:var(--faint-foreground)">streaming…</div>`}
     </div>
   </div>`;
 }
+/* plain-text projection of a block list (search + markdown export) */
+function blocksText(content){
+  if(!Array.isArray(content))return"";
+  return content.filter(c=>c.type==="text").map(c=>c.text||"").join("\n");
+}
+function blockChips(content){
+  if(!Array.isArray(content))return"";
+  const chips=content.filter(c=>c.type!=="text").map(bl=>{
+    if(bl.type==="image")return `<span class="blk img">◫ image</span>`;
+    if(bl.type==="resource_link")return `<a class="blk rlink" href="${esc(bl.uri||"#")}" target="_blank" rel="noopener">⛓ link</a>`;
+    if(bl.type==="terminal")return `<span class="blk">▸ terminal ${esc(bl.id||"")}</span>`;
+    return `<span class="blk">? ${esc(bl.type)}</span>`;
+  });
+  return chips.length?`<div style="margin-top:6px">${chips.join(" ")}</div>`:"";
+}
 function diffHTML(it){
   const b=it.body;
-  const lines=b.diff.split("\n");
+  /* wire body is {path, old_text?, new_text, source_call_id?} — no diff
+     string. The unified hunk below is a VIEWER-SIDE PROJECTION computed
+     from old_text/new_text (simple line LCS, label it as such). */
+  const hunk=projectDiff(b.old_text??"",b.new_text??"");
   let adds=0,dels=0,ln=0,out="";
-  for(const l of lines){
+  for(const l of hunk){
     if(l.startsWith("@@")){out+=`<div class="dl hunk"><span class="ln"></span>${hl(esc(l))}</div>`;continue}
     const cls=l.startsWith("+")?(adds++,"add"):l.startsWith("-")?(dels++,"del"):"";
     out+=`<div class="dl ${cls}"><span class="ln">${++ln}</span>${hl(esc(l))||"&nbsp;"}</div>`;
   }
+  const proj=b.old_text!=null?"diff projected from old_text → new_text":"new file — old_text absent on the wire";
   return `<div class="diffwrap">
     <div class="diff-h"><span style="color:var(--faint-foreground)">${KICON.file_change}</span>
       <span class="path" data-code="${esc(b.path)}" data-seq="${it.seq}">${hl(esc(b.path))}</span>
+      <span class="proj" title="${esc(proj)}">projection</span>
       <span class="adds">+${adds}</span><span class="dels">−${dels}</span>
       <button class="codelink" data-code="${esc(b.path)}" data-seq="${it.seq}">Open in code<kbd style="margin-left:4px">L</kbd></button>
     </div>
+    ${b.source_call_id?`<div class="diff-src">via <span>${esc(b.source_call_id)}</span> · ${proj}</div>`:`<div class="diff-src">${proj}</div>`}
     <div class="diff-b">${out}</div></div>`;
 }
+/* minimal line-level diff projection: trim common prefix/suffix, mark the
+   rest as removed/added. Good enough for a mockup; the real viewer gets a
+   proper LCS. */
+function projectDiff(oldText,newText){
+  const A=oldText.split("\n"),B=newText.split("\n");
+  let s=0;while(s<A.length&&s<B.length&&A[s]===B[s])s++;
+  let e=0;while(e<A.length-s&&e<B.length-s&&A[A.length-1-e]===B[B.length-1-e])e++;
+  const out=[];
+  out.push(`@@ -${s+1},${A.length-s-e} +${s+1},${B.length-s-e} @@`);
+  for(let i=s;i<A.length-e;i++)out.push("-"+A[i]);
+  for(let j=s;j<B.length-e;j++)out.push("+"+B[j]);
+  return out;
+}
 function apprHTML(it){const b=it.body;
-  return `<div class="mini appr"><div class="mh"><b class="${b.decision==="allow_once"?"ok":"pend"}">${b.decision}</b><span>· ${b.tool}()</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground)">${esc(b.call_id||"")}</span></div>
+  return `<div class="mini appr"><div class="mh"><b class="${b.decision==="allow_once"?"ok":"pend"}">${b.decision}</b>${b.sandbox?`<span>· ${esc(b.sandbox)}</span>`:""}<span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)">${esc(b.call_id||"")}</span></div>
   <div class="md">Policy <b>${esc(b.policy)}</b> — answered by <b>${esc(b.actor)}</b> on the node. The node owner chose unattended operation; sandboxing is the harness’s job.</div></div>`;
 }
 function chkHTML(it){const b=it.body;
-  return `<div class="mini chkpt"><div class="mh"><b style="color:var(--warning)">Checkpoint · ${b.reason}</b><span style="margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--faint-foreground)">${fmtK(b.tokens_before)} tok before</span></div>
+  return `<div class="mini chkpt"><div class="mh"><b style="color:var(--warning)">Checkpoint · ${b.reason}</b><span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint-foreground)">${fmtK(b.tokens_before)} tok before</span></div>
   <div class="md">${hl(esc(b.summary))}</div>
   <div class="mkv"><span>retained tail: ${b.retained_tail} items</span><span>superseded items stay queryable</span></div></div>`;
 }
@@ -980,43 +1144,79 @@ function hmetaHTML(it){const b=it.body;
   return `<div class="hmeta"><span class="hk">harness_meta</span> · subtype=<span class="hk">${esc(b.subtype)}</span>\n${hl(esc(JSON.stringify(b.data,null,2)))}</div>`;
 }
 
-/* scrubber */
+/* scrubber — segments are focusable listitems, not a bare slider role:
+   each segment is its own control (arrow keys step item-by-item) so the
+   ARIA slider contract (single valuemin/max/now) is never faked. */
 function buildScrub(items){
   $("#scrubwrap").hidden=false;
   const scrub=$("#scrub");scrub.innerHTML="";
+  /* the container is a listbox of focusable segments; each segment is its
+     own control (arrow keys step item-by-item) so the ARIA slider contract
+     (single valuemin/max/now) is never faked */
+  scrub.setAttribute("role","list");
+  scrub.setAttribute("aria-label","Timeline — one segment per item; focus a segment and use arrow keys");
   const frag=document.createDocumentFragment();
   for(const it of items){
+    if(it.kind==="turn_mark"){
+      const s=document.createElement("div");
+      s.className="turnseg";
+      s.title=`${it.body.phase==="opened"?"turn.opened":"turn.closed"} · ${it.body.turn_id}`;
+      frag.appendChild(s);
+      continue;
+    }
     const i=document.createElement("i");
     i.style.background=KCOLOR[it.kind]||"var(--border)";
     i.title=`seq ${it.seq} · ${it.kind}${it.body?.role?` (${it.body.role})`:""}${it.body?.name?` ${it.body.name}`:""}`;
     i.dataset.seq=it.seq;
+    i.setAttribute("role","listitem");
+    i.setAttribute("aria-label",`Jump to item ${it.seq}: ${it.kind}${it.body?.name?` ${it.body.name}`:it.body?.role?` (${it.body.role})`:""}`);
+    i.tabIndex=-1;
     frag.appendChild(i);
   }
   scrub.appendChild(frag);
+  /* roving tabindex: exactly one segment (the first) is tab-reachable
+     (query after append — the fragment is empty once attached) */
+  const firstSeg=scrub.querySelector("i");if(firstSeg)firstSeg.tabIndex=0;
   const run=RUNS.find(r=>r.id===ui.sel);
   if(run&&run.status==="failed"){
     const m=document.createElement("div");m.className="err-mark";m.style.right="0";m.title="failure";scrub.appendChild(m);
   }
   const vp=document.createElement("div");vp.className="vp";scrub.appendChild(vp);
   const lg=$("#scrub-legend");
-  lg.innerHTML=Object.entries({message:KCOLOR.message,thinking:KCOLOR.thinking,"tool call/result":KCOLOR.tool_call,"file change":KCOLOR.file_change,approval:KCOLOR.approval,checkpoint:KCOLOR.checkpoint,config:KCOLOR.config,"harness meta":KCOLOR.harness_meta})
+  lg.innerHTML=Object.entries({message:KCOLOR.message,thinking:KCOLOR.thinking,"tool call/result":KCOLOR.tool_call,"file change":KCOLOR.file_change,approval:KCOLOR.approval,checkpoint:KCOLOR.checkpoint,config:KCOLOR.config,"turn marks":KCOLOR.turn_mark,"harness meta":KCOLOR.harness_meta})
     .map(([n,c])=>`<span><i style="background:${c}"></i>${n}</span>`).join("");
   scrub.onclick=e=>{
     const t=e.target.closest("i");if(!t)return;
     jumpToSeq(+t.dataset.seq);
+  };
+  scrub.onkeydown=e=>{
+    const segs=[...scrub.querySelectorAll("i")];
+    if(!segs.length)return;
+    const cur=segs.indexOf(document.activeElement);
+    let next=null;
+    if(e.key==="ArrowRight"||e.key==="ArrowDown")next=segs[Math.min(segs.length-1,cur<0?0:cur+1)];
+    else if(e.key==="ArrowLeft"||e.key==="ArrowUp")next=segs[Math.max(0,cur-1)];
+    else if(e.key==="Home")next=segs[0];
+    else if(e.key==="End")next=segs[segs.length-1];
+    else if(e.key==="Enter"||e.key===" "){if(cur>=0){e.preventDefault();jumpToSeq(+segs[cur].dataset.seq)}return}
+    else return;
+    e.preventDefault();
+    if(next){segs.forEach(s=>s.tabIndex=-1);next.tabIndex=0;next.focus();jumpToSeq(+next.dataset.seq)}
   };
   updateScrubVp();
 }
 function updateScrubVp(){
   const scrub=$("#scrub");const vp=scrub.querySelector(".vp");
   if(!vp)return;
-  const items=RUN?.items||[];
+  const items=(RUN?.items||[]).filter(i=>i.kind!=="turn_mark");
   const total=body.scrollHeight,vis=body.clientHeight,top=body.scrollTop;
   const pctStart=total?top/total:0,pctLen=total?Math.min(1,vis/total):1;
   vp.style.left=(pctStart*100)+"%";vp.style.width=(pctLen*100)+"%";
   const idx=Math.min(items.length-1,Math.floor((pctStart+pctLen/2)*items.length));
   const it=items[idx];
-  $("#scrub-pos").textContent=it?`seq ${it.seq} · ${it.kind} · T${(it.turn??0)+1}`:"";
+  const openTurns=(RUN?.items||[]).filter(i=>i.kind==="turn_mark"&&i.body.phase==="opened").length
+    -(RUN?.items||[]).filter(i=>i.kind==="turn_mark"&&i.body.phase==="closed").length;
+  $("#scrub-pos").textContent=it?`seq ${it.seq} · ${it.kind}${openTurns?` · ${openTurns} open turn${openTurns>1?"s":""}`:""}`:"";
 }
 function jumpToSeq(seq){
   const el=document.querySelector(`.item[data-seq="${seq}"]`);
@@ -1056,7 +1256,12 @@ function runSearch(qv){
   ui.q=qv;
   if(!RUN||!qv){if(RUN)renderRun(RUN);clearSearchUi();return}
   const needle=qv.toLowerCase();
-  ui.matches=RUN.items.filter(it=>matchText(it,needle));
+  const pairs=pairTools(RUN.items);const seen=new Set();
+  /* tool_result items render nested under their call — jump to the call */
+  ui.matches=RUN.items.filter(it=>matchText(it,needle)).map(it=>{
+    if(it.kind==="tool_result"){const p=pairs.get(it.body.call_id);if(p&&p.call)return p.call}
+    return it;
+  }).filter(it=>!seen.has(it.seq)&&seen.add(it.seq));
   ui.mi=0;
   renderRun(RUN);
   $("#q-cnt").hidden=false;$("#q-nav").hidden=false;
@@ -1065,10 +1270,11 @@ function runSearch(qv){
 }
 function matchText(it,needle){
   const b=it.body;
-  if(it.kind==="message"||it.kind==="thinking")return (b.content?.[0]?.text||b.text||"").toLowerCase().includes(needle);
+  if(it.kind==="turn_mark")return false;
+  if(it.kind==="message"||it.kind==="thinking")return (blocksText(b.content)||b.text||"").toLowerCase().includes(needle);
   if(it.kind==="tool_call")return (b.name+" "+(b.title||"")+" "+JSON.stringify(b.input)).toLowerCase().includes(needle);
-  if(it.kind==="tool_result")return b.content.map(c=>c.text).join(" ").toLowerCase().includes(needle);
-  if(it.kind==="file_change")return (b.path+" "+b.diff).toLowerCase().includes(needle);
+  if(it.kind==="tool_result")return (blocksText(b.content)+" "+JSON.stringify(b.content)).toLowerCase().includes(needle);
+  if(it.kind==="file_change")return (b.path+" "+(b.old_text||"")+" "+b.new_text).toLowerCase().includes(needle);
   return JSON.stringify(b).toLowerCase().includes(needle);
 }
 function hl(html){ // highlight current query in already-escaped html
@@ -1091,34 +1297,40 @@ function toMarkdown(r){
   L.push(`- **Agent:** ${r.agent} · ${r.harness} · ${r.model}`);
   L.push(`- **Node:** ${r.node} (${NODES[r.node].host}${NODES[r.node].online?"":" · offline"})`);
   L.push(`- **Subject:** ${r.subjectRef||"—"} · started ${r.startedAt} · ${r.dur}`);
-  L.push(`- **Items:** ${r.items.length} across ${new Set(r.items.map(i=>i.turn)).size} turns`,"");
+  L.push(`- **Items:** ${r.items.length} across ${r.items.filter(i=>i.kind==="turn_mark"&&i.body.phase==="opened").length} turns`, "");
   L.push(`> **Prompt**`,"",r.prompt,"","---","");
   const pairs=pairTools(r.items);
-  let turn=-1;
+  let turn=null;
   for(const it of r.items){
-    if(it.turn!==turn){turn=it.turn;L.push(`## Turn ${turn+1}`,"")}
+    if(it.kind==="turn_mark"){
+      if(it.body.phase==="opened"){turn=it.body;L.push(`## Turn ${turn.index+1} \`${turn.turn_id}\``,"")}
+      continue;
+    }
+    if(turn===null)L.push("_(outside any turn — envelope turn_id: null)_","");
     const b=it.body;
     switch(it.kind){
       case"message":
-        if(b.role==="user")L.push(`**User:**`,"",b.content[0].text,"");
-        else{L.push(`**Assistant** \`${b.model}\`${b.usage?` — ${fmtK(b.usage.input_tokens+(b.usage.cache_read_input_tokens||0))} in / ${fmtK(b.usage.output_tokens)} out`:""}`,"",b.content[0].text,"")}
+        if(b.role==="user")L.push(`**User:**`,"",blocksText(b.content),"");
+        else{L.push(`**Assistant** \`${b.model}\`${b.usage?` — ${fmtK(b.usage.input_tokens+(b.usage.cache_read_input_tokens||0))} in / ${fmtK(b.usage.output_tokens)} out`:""}`,"",blocksText(b.content),"")}
         break;
       case"thinking":L.push(`<details><summary>Thought (${fmtK((b.text||"").length/4|0)} tok)</summary>`,"",b.redacted?"_redacted — provider-opaque_":b.text,"`</details>`".replace(/`/g,""),"</details>","");break;
       case"tool_call":{const p=pairs.get(b.call_id);
         L.push(`**Tool \`${b.name}\`** ${b.title?`— ${b.title}`:""}`,"");
         L.push("```json",JSON.stringify(b.input,null,2),"```","");
-        if(p){const out=p.result.body.content.map(c=>c.text).join("\n");
+        if(p){const out=blocksText(p.result.body.content);
           L.push(`↳ result (${p.result.body.status}${p.result.body.usage?.durationMs?`, ${fmtDur(p.result.body.usage.durationMs)}`:""})`,"");
           L.push("```",out,"```","")}
         break}
-      case"file_change":L.push(`**File change \`${b.path}\`**`,"","```diff",b.diff,"```","");break;
-      case"approval":L.push(`> **Approval** — ${b.decision} · policy ${b.policy} · actor ${b.actor} (${b.tool}())`,"");break;
+      case"file_change":{const h=projectDiff(b.old_text??"",b.new_text??"");
+        L.push(`**File change \`${b.path}\`**${b.source_call_id?` · via \`${b.source_call_id}\``:""}`,"","```diff",h.join("\n"),"```","_hunk projected from old_text → new_text (viewer-side)_","");break}
+      case"approval":L.push(`> **Approval** — ${b.decision} · policy ${b.policy}${b.sandbox?` · sandbox ${b.sandbox}`:""} · actor ${b.actor}`,"");break;
       case"checkpoint":L.push(`> **Checkpoint (${b.reason})** — ${fmtK(b.tokens_before)} tok before, retained tail ${b.retained_tail} items.`,"","> "+b.summary.split("\n").join("\n> "),"");break;
       case"config":L.push(`<sub>config: ${Object.entries({model:b.model,cwd:b.cwd,branch:b.git_branch,mcp:(b.mcp||[]).join(",")}).filter(([,v])=>v).map(([k,v])=>`${k}=${v}`).join(" ")}</sub>`,"");break;
       case"harness_meta":L.push(`<sub>harness_meta ${b.subtype}: ${JSON.stringify(b.data)}</sub>`,"");break;
     }
   }
   if(r.failureCode){L.push("---","",`**Run failed — \`${r.failureCode}\`**`,"",r.failureMessage||"","_agent_error.* codes are never retried; retrying a refusal is how you burn money._")}
+  if(r.status==="cancelled")L.push("---","","**Run cancelled** — operator stop; Finish.outcome=cancelled. Transcript retained in full.","");
   return L.join("\n");
 }
 
@@ -1189,9 +1401,10 @@ function init(){
   renderRuns();
   // states menu
   const STATES=[
-    ["long","Populated · long run (500+ items)","var(--success)","NEVR-9"],
+    ["long","Populated · long run (38 turns · 400+ items)","var(--success)","NEVR-9"],
     ["small","Populated · completed run","var(--muted-foreground)","NEVR-12"],
     ["failed","Error · failed run (agent_error)","var(--destructive)","NEVR-13"],
+    ["cancelled","Cancelled · operator stop","var(--faint-foreground)","NEVR-18"],
     ["offline","Offline runtime · stale transcript","var(--warning)","NEVR-14"],
     ["error","Error · fetch failed (retry)","var(--destructive)","503"],
     ["loading","Loading · skeleton","var(--info)",""],
