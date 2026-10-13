@@ -5,16 +5,16 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 
 | Item | Ring | Last checked | Beat |
 |---|---|---|---|
-| Linear (Loops, coding sessions) | WATCH | 2026-10-08 | competitors |
-| Plane (Agents, Propel, AI Memory) | TRIAL | 2026-10-08 | competitors |
+| Linear (Loops, coding sessions, spend caps) | WATCH | 2026-10-13 | competitors |
+| Plane (Agents, Propel, credit limits) | TRIAL | 2026-10-13 | competitors |
 | Multica (wakeups, deliverables, cost curves) | WATCH | 2026-10-08 | competitors |
-| Paseo (orchestration, profiles, heartbeats) | TRIAL | 2026-10-08 | competitors |
-| Cursor (Projects, iOS remote control) | WATCH | 2026-10-08 | competitors |
-| Copilot coding agent (`.github/agents/` pattern) | ADOPT | 2026-10-08 | competitors |
-| OpenHands (agent profiles, Model Router) | WATCH | 2026-10-08 | competitors |
-| Devin (Jira-native agent, inbox, preflight) | WATCH | 2026-10-08 | competitors |
-| Factory Droids (Script waits) | REJECT | 2026-10-08 | competitors |
-| Huly | REJECT | 2026-10-08 | competitors |
+| Paseo (plugin registry, usage aggregation) | TRIAL | 2026-10-13 | competitors |
+| Cursor (Projects, iOS remote, MCP allowlists) | WATCH | 2026-10-13 | competitors |
+| Copilot coding agent (sandboxing GA, stacked PRs) | ADOPT | 2026-10-13 | competitors |
+| OpenHands (ACP agents, model discovery) | WATCH | 2026-10-13 | competitors |
+| Devin (inbox, Outposts, plugin governance) | WATCH | 2026-10-13 | competitors |
+| Factory Droids (Script waits) | REJECT | 2026-10-13 | competitors |
+| Huly | REJECT | 2026-10-13 | competitors |
 | Tauri 2 (chosen shell, 2.12.3) | ADOPT | 2026-10-13 | cross-platform-ui |
 | Tauri 3.0-alpha (private-API removal) | WATCH | 2026-10-13 | cross-platform-ui |
 | tauri-runtime-cef (Chromium runtime, 3.0 alpha) | WATCH | 2026-10-13 | cross-platform-ui |
