@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Effect } from "effect";
 import type { Sql, TransactionSql } from "postgres";
-import { type AgentsError, NotFound } from "./errors";
+import { type AgentsError, Conflict, NotFound } from "./errors";
 import { appendEvents, txn } from "./events";
 import {
 	MEMORY_KINDS as PROTOCOL_KINDS,
@@ -73,10 +73,10 @@ export async function applyMemoryEvent(
 		return res.count;
 	}
 	if (event.type === "memory_deleted") {
-		const p = event.payload as { id: string };
+		const p = event.payload as { id: string; agentId: string };
 		const res =
 			await tx`UPDATE agent_memory SET deleted_at=now(), deleted_seq=${event.seq.toString()}
-      WHERE id=${p.id} AND org=${org} AND deleted_at IS NULL`;
+      WHERE id=${p.id} AND org=${org} AND agent_id=${p.agentId} AND deleted_at IS NULL`;
 		return res.count;
 	}
 	return 0;
@@ -261,6 +261,7 @@ export class MemoryStore {
 		},
 	): Effect.Effect<{ id: string; inserted: number }, AgentsError | Error> {
 		return txn(this.sql, "writeMemory", async (tx) => {
+			await assertMemoryEnabled(tx, org);
 			await assertLiveAgent(tx, org, input.agentId);
 			const id = newMemoryId();
 			const payload = {
@@ -284,6 +285,7 @@ export class MemoryStore {
 	/** Operator delete (soft): event first, projection follows. */
 	delete(org: string, actor: string, agentId: string, id: string) {
 		return txn(this.sql, "deleteMemory", async (tx) => {
+			await assertMemoryEnabled(tx, org);
 			const [row] =
 				await tx`SELECT 1 FROM agent_memory WHERE id=${id} AND org=${org} AND agent_id=${agentId} AND deleted_at IS NULL`;
 			if (!row) throw new NotFound({ message: "Memory entry not found" });
@@ -319,4 +321,13 @@ async function assertLiveAgent(
 	const [row] =
 		await tx`SELECT id FROM agent WHERE id=${agentId} AND org=${org} AND archived_at IS NULL`;
 	if (!row) throw new NotFound({ message: "Agent not found" });
+}
+
+/** Workspace off-switch applies to every memory-event append path: when the
+ * policy row says disabled, no memory events may be written (NEVR-179). */
+async function assertMemoryEnabled(tx: TransactionSql, org: string) {
+	const [policy] =
+		await tx`SELECT memory_enabled FROM org_policy WHERE org=${org}`;
+	if (policy && !policy.memory_enabled)
+		throw new Conflict({ message: "Memory is disabled for this workspace" });
 }

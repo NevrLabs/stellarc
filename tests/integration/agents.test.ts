@@ -10,6 +10,7 @@ import {
 } from "../../apps/stellarc-node/src/main";
 import {
 	agentsHttp,
+	appendMemoryEvents,
 	rebuildMemoryProjection,
 	staticOperatorAuth,
 } from "../../packages/agents/src/index";
@@ -466,6 +467,18 @@ test("M3 workspace switch off → zero memory events and no memory block (negati
 	// Distill is refused while memory is off.
 	const d = await p.op("POST", `agents/${agentId}/memory/distill`, {});
 	expect(d.status).toBe(409);
+	// Operator write/delete are refused too: the off-switch gates EVERY
+	// memory-event append path, not just injection and distill.
+	const w2 = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "skill",
+		content: "Should be refused",
+	});
+	expect(w2.status).toBe(409);
+	const del = await p.op(
+		"DELETE",
+		`agents/${agentId}/memory/entries/${w.body.id}`,
+	);
+	expect(del.status).toBe(409);
 	// Exactly the one written event from setup; nothing appended after.
 	const events = await p.db.sql<{ plugin_type: string }[]>`
     SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:memory_%' ORDER BY seq`;
@@ -542,4 +555,73 @@ test("M5 rebuildMemoryProjection replays the event log into an identical live se
 	]);
 	expect(a.status).toBe(201);
 	expect(b.status).toBe(201);
+});
+
+test("M6 cross-agent isolation: a delete event for another agent cannot soft-delete this agent's entry", async () => {
+	const p = await plane();
+	const { agentId, nodeId } = await registerNodeAndAgent(p);
+	// A second agent principal in the same org.
+	const second = await p.op("POST", "agents", {
+		name: "other",
+		nodeId,
+		harness: "fake",
+		model: "fake-large",
+		instructions: "You are other.",
+		mcpServers: [],
+	});
+	expect(second.status).toBe(201);
+	const w = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "fact",
+		content: "A's fact",
+	});
+	expect(w.status).toBe(201);
+	// Forge the defect's exact shape at the single writer: a memory_deleted
+	// event naming agent B but carrying agent A's entry id. The projection
+	// fold must scope the soft-delete by agent principal, so A keeps its entry.
+	await p.db.sql.begin((tx) =>
+		appendMemoryEvents(tx, "acme", "operator", [
+			{
+				type: "memory_deleted",
+				payload: { id: w.body.id as string, agentId: second.body.id as string },
+			},
+		]),
+	);
+	const list = await p.op("GET", `agents/${agentId}/memory`);
+	expect(list.body.memory.map((m: { content: string }) => m.content)).toEqual([
+		"A's fact",
+	]);
+	// The legitimate delete (same agent) still works through the same path.
+	await p.db.sql.begin((tx) =>
+		appendMemoryEvents(tx, "acme", "operator", [
+			{
+				type: "memory_deleted",
+				payload: { id: w.body.id as string, agentId: agentId as string },
+			},
+		]),
+	);
+	const emptied = await p.op("GET", `agents/${agentId}/memory`);
+	expect(emptied.body.memory).toHaveLength(0);
+});
+
+test("M7 DELETE memory route only matches /entries/:id", async () => {
+	const p = await plane();
+	const { agentId } = await registerNodeAndAgent(p);
+	const w = await p.op("POST", `agents/${agentId}/memory/entries`, {
+		kind: "fact",
+		content: "Route fact",
+	});
+	expect(w.status).toBe(201);
+	// The over-permissive shape: a non-"entries" sub-segment must NOT delete.
+	const bad = await p.op("DELETE", `agents/${agentId}/memory/foo/${w.body.id}`);
+	expect(bad.status).toBe(404);
+	const list = await p.op("GET", `agents/${agentId}/memory`);
+	expect(list.body.memory).toHaveLength(1);
+	// The real route still deletes.
+	const good = await p.op(
+		"DELETE",
+		`agents/${agentId}/memory/entries/${w.body.id}`,
+	);
+	expect(good.status).toBe(200);
+	const gone = await p.op("GET", `agents/${agentId}/memory`);
+	expect(gone.body.memory).toHaveLength(0);
 });

@@ -236,7 +236,7 @@ export function agentsHttp(
 						yield* store.createDistillTask(org, actor, id, b.lookbackTasks),
 					);
 				}
-				if (sub && rest[1] && m === "DELETE")
+				if (sub === "entries" && rest[1] && m === "DELETE")
 					return json(200, yield* memory.delete(org, actor, id, rest[1]));
 			}
 			// ── workspace memory policy: /orgs/:org/v1/memory/policy ────────

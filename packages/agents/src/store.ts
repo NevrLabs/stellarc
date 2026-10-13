@@ -3,7 +3,12 @@ import { Effect, Metric } from "effect";
 import type { Sql, TransactionSql } from "postgres";
 import { BadRequest, Conflict, NotFound, Unauthenticated } from "./errors";
 import { appendEvents, txn } from "./events";
-import { appendMemoryEvents, hashContent } from "./memory";
+import {
+	appendMemoryEvents,
+	hashContent,
+	MEMORY_MAX_CHARS,
+	MEMORY_MAX_ENTRIES,
+} from "./memory";
 import {
 	type CreateAgent,
 	type CreateTask,
@@ -464,7 +469,7 @@ export class AgentStore {
 				if (!policy || policy.memory_enabled) {
 					const rows =
 						await tx`SELECT id, kind, content FROM agent_memory WHERE org=${n.org} AND agent_id=${ag.id}
-			AND deleted_at IS NULL ORDER BY created_seq DESC LIMIT 500`;
+        AND deleted_at IS NULL ORDER BY created_seq DESC LIMIT ${MEMORY_MAX_ENTRIES}`;
 					const newestFirst = rows.map((r) => ({
 						id: r.id as string,
 						kind: r.kind as string,
@@ -472,7 +477,11 @@ export class AgentStore {
 					}));
 					let used = 0;
 					for (const entry of newestFirst.reverse()) {
-						if (live.length > 0 && used + entry.content.length > 24000) break;
+						if (
+							live.length > 0 &&
+							used + entry.content.length > MEMORY_MAX_CHARS
+						)
+							break;
 						live.push(entry);
 						used += entry.content.length;
 					}
