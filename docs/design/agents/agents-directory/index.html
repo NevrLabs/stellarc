@@ -417,6 +417,7 @@ button { font-family: inherit; }
 .mcp-row .n { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
 .mcp-row .c { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mcp-row .left { flex: 1; min-width: 0; }
+.sec { background: var(--muted); border-radius: 4px; padding: 0 5px; color: var(--muted-foreground); letter-spacing: .08em; }
 .skills { display: flex; flex-wrap: wrap; gap: 6px; }
 .rt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); font-size: 12.5px; }
 .rt-row:last-child { border-bottom: none; }
@@ -541,6 +542,8 @@ pre.codeblock.tall { max-height: 300px; }
 .nodecard-sel .bd { flex: 1; min-width: 0; }
 .nodecard-sel .nm { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nodecard-sel .hs { color: var(--muted-foreground); font-size: 11px; font-family: var(--font-mono); margin-top: 3px; }
+.nodecard-sel.off { opacity: .45; cursor: not-allowed; }
+.nodecard-sel.off:hover { border-color: var(--input); }
 
 .harness-grid { display: flex; flex-wrap: wrap; gap: 7px; }
 .hchip {
@@ -630,7 +633,7 @@ pre.codeblock.tall { max-height: 300px; }
       <button class="navitem" data-action="toast" data-toast="Members — outside this mockup"><span data-icon="users"></span><span class="grow">Members</span></button>
       <div class="sb-div"></div>
       <div class="sb-label">Workspace</div>
-      <button class="navitem active" data-action="go" data-hash="#/agents"><span data-icon="bot"></span><span class="grow">Agents</span><span class="navbadge">7</span></button>
+      <button class="navitem active" data-action="go" data-hash="#/agents"><span data-icon="bot"></span><span class="grow">Agents</span><span class="navbadge" id="navAgentsCount">5</span></button>
       <div class="sb-label">Projects</div>
       <button class="navitem" data-action="toast" data-toast="Project — outside this mockup"><span data-icon="folder"></span><span class="grow">Stellarc v2</span></button>
       <div class="sb-label">Boards</div>
@@ -740,11 +743,11 @@ const NODES = [
 ];
 const AGENTS = [
   { id:'agt_atlas',   name:'atlas',   harness:'hermes',      model:'gpt-5.2',        nodeId:'node_8f3a91', owner:'Raisal W.', created:'Sep 12', instructions:'You are atlas, an infra automations agent for Neb Labs.\n\n- Work in the stellarc monorepo; prefer Effect-shaped changes.\n- Open a worktree under /mnt/deepvault/dev/wt/ before touching code.\n- Cite file:line evidence for every claim in PR descriptions.\n- When a task fails twice with platform.*, stop and report, don\u2019t retry.',
-    mcp:[{name:'github', cmd:'mcp-server-github', args:['--read-only']},{name:'postgres', cmd:'pg-mcp', args:['--dsn','postgresql://stellar/prod']}],
+    mcp:[{name:'github', cmd:'mcp-server-github', args:['--read-only'], env:[{name:'GITHUB_TOKEN', value:'ghp_9f2Kx7Qb2Vv8sL4m'}]},{name:'postgres', cmd:'pg-mcp', args:['--dsn','postgresql://stellar:hunter2@db.neb.lab/prod'], env:[{name:'PGPASSWORD', value:'hunter2'}]}],
     skills:['infrastructure','effect-ts','code-review','postgres','pr-descriptions'],
     runs:182, ok:169, failed:11, cancelled:2, tokens:412_000_000, cost:41.82, avgMs:96_000 },
   { id:'agt_nyx',     name:'nyx',     harness:'claude-code', model:'claude-sonnet-4.6', nodeId:'node_8f3a91', owner:'Talos',      created:'Sep 03', instructions:'Design reviewer. Evaluate mocks against docs/design/DESIGN_SYSTEM.md. Never approve hardcoded hex values. Prefer screenshot evidence over prose claims.',
-    mcp:[{name:'playwright', cmd:'npx', args:['@playwright/mcp']}],
+    mcp:[{name:'playwright', cmd:'npx', args:['@playwright/mcp'], env:[{name:'PLAYWRIGHT_TOKEN', value:'pk_live_4mX0Qb9z'}]}],
     skills:['design-review','tokens','a11y','screenshots'], tokens:96_400_000, runs:97, ok:91, failed:4, cancelled:2, cost:22.40, avgMs:64_000 },
   { id:'agt_vesta',   name:'vesta',   harness:'codex',       model:'gpt-5.2-codex',  nodeId:'node_2c77e0', owner:'Raisal W.', created:'Aug 28', instructions:'Backend worker for the kaneo migration slices. Follow ADR 0012 seams. All SQL goes through packages/db migrations, never ad-hoc.',
     mcp:[], skills:['sql','migrations','api-parity','tests'], tokens:288_500_000, runs:143, ok:128, failed:13, cancelled:2, cost:33.17, avgMs:121_000 },
@@ -768,7 +771,7 @@ const TASKS = [
 ];
 const MODELS = ['gpt-5.2','gpt-5.2-codex','claude-sonnet-4.6','glm-5.3','qwen3-coder-plus','llama-4-scout'];
 
-/* transcript items for tsk_9f21 (atlas, running) — ITEM_KINDS from ADR 0003 */
+/* transcript items for tsk_9f21 (atlas, running) — item kinds per packages/agents/src/protocol.ts (ADR 0011) */
 const RUN_TRANSCRIPT = [
   { kind:'message', role:'user', meta:'attempt 1', body:'Fix the drop-target hit testing in the kanban board. Cards dropped near a column boundary land on the wrong column — see STL-142 screen recording. Add a regression test with two adjacent columns.' },
   { kind:'config', kv:{ model:'gpt-5.2', provider:'openai', cwd:'/mnt/deepvault/dev/wt/stl-142', git:'branch fix/stl-142-drop' } },
@@ -782,6 +785,7 @@ const RUN_TRANSCRIPT = [
   { kind:'file_change', path:'apps/stellarc-ui/src/components/kanban-board/dnd.ts', add:14, del:6, diff:'+  function resolveDropTarget(x: number, y: number) {\n+    // Re-measure at drop time: rects captured at dragstart go stale on scroll.\n+    const rects = columns.map((c) => ({ id: c.id, r: c.el.getBoundingClientRect() }));\n+    const hit = rects.find(({ r }) => x >= r.left && x <= r.right);\n+    if (hit) return hit.id;\n+    return nearest(rects, x);\n-    for (const col of columns) {\n-      const r = col.rect;\n-      if (x >= r.left && x <= r.right) return col.id;\n-    }\n-    return nearest(columns, x);' },
   { kind:'tool_call', title:'terminal  bun test kanban-board/dnd.test.ts', meta:'seq 9 · running' },
   { kind:'tool_result', status:'ok', out:'dnd.test.ts:\n✓ clamps drop to hovered lane (12ms)\n✓ re-measures rects after scroll (8ms)\n✓ adjacent-column boundary: 1px each side (14ms)\n\n3 pass, 0 fail (34ms)' },
+  { kind:'approval', request:'terminal · git push -u origin fix/stl-142-drop', outcome:'allow_once', decidedBy:'policy: safe-command allow-once', meta:'seq 10' },
   { kind:'message', role:'assistant', meta:'streaming', body:'Root cause found and fixed. `resolveDropTarget` used column rects measured at dragstart, so any scroll during the drag made the hit test land on the wrong column. It now re-measures at drop time and clamps to the hovered lane.\n\nThree regression tests added, all green. Opening the PR next — branch `fix/stl-142-drop` is pushed.' },
   { kind:'checkpoint', body:'context compaction', tokensBefore:'48.2k → 11.9k', retained:'tail of current turn' },
   { kind:'harness_meta', body:'hermes: tool_use_cache_hit rate=0.31 (plan cache)' },
@@ -803,6 +807,7 @@ const LIVE_TRANSCRIPT = [
   { kind:'tool_call', title:'read_file  apps/stellarc-ui/src/index.css:134-261', meta:'seq 3' },
   { kind:'tool_result', status:'ok', out:':root { --background:#f6f6f7; --primary:#2a2a2e; … }\n.dark { --background:#0a0a0b; --primary:#c9c9c9; … }' },
   { kind:'message', role:'assistant', meta:'streaming', body:'Token audit so far: backgrounds, borders and the silver primary match the v2 block exactly. Two findings pending — mobile paddings and the state-bar contrast on light theme. Capturing screenshots no' },
+  { kind:'approval', request:'browser · capture screenshot 390×844 — docs/design/agents/agents-directory', outcome:'pending', meta:'seq 6' },
 ];
 const TRANSCRIPTS = { tsk_9f21:RUN_TRANSCRIPT, tsk_7b55:FAIL_TRANSCRIPT, tsk_6a19:LIVE_TRANSCRIPT };
 
@@ -836,6 +841,21 @@ function harnessGlyph(h){
   const map = { hermes:'zap', 'claude-code':'sparkles', codex:'terminal', goose:'bot', opencode:'pencil', gemini:'sparkles' };
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex:none;opacity:.75">'+ICONS[map[h]||'bot']+'</svg>';
 }
+/* secret masking for MCP display — never echo credential-bearing args or env values */
+const SECRET_ARG_FLAGS = /^(--?(dsn|token|password|passwd|pwd|secret|api[-_]key|auth|credential))$/i;
+const SECRET_VAL = /(password|passwd|token|secret|api[-_]key)\s*=|^[a-z][a-z0-9+.-]*:\/\/[^/@\s]+:[^@\s]+@/i;
+const MASK = '<span class="sec" title="value masked — secrets are never rendered">••••••••</span>';
+function mcpCmdHTML(m){
+  const parts = [esc(m.cmd)];
+  let flagged = false;
+  for (let i = 0; i < m.args.length; i++){
+    const a = m.args[i];
+    if (SECRET_ARG_FLAGS.test(a) && i + 1 < m.args.length){ parts.push(esc(a) + ' ' + MASK); flagged = true; i++; }
+    else if (SECRET_VAL.test(a)){ parts.push(MASK); flagged = true; }
+    else parts.push(esc(a));
+  }
+  return { html: parts.join(' '), flagged };
+}
 function toast(msg, isErr){
   const w = $('#toastwrap');
   const el = document.createElement('div');
@@ -845,7 +865,7 @@ function toast(msg, isErr){
   setTimeout(() => { el.style.transition = 'opacity .2s ease'; el.style.opacity = '0'; setTimeout(() => el.remove(), 220); }, 2600);
 }
 
-/* ── transcript rendering (ADR-0003 item kinds) ─────────────────────── */
+/* ── transcript rendering — all nine protocol.ts item kinds ────────── */
 function renderTranscript(items){
   const out = [];
   for (const it of items){
@@ -887,6 +907,16 @@ function renderTranscript(items){
       out.push('<div class="titem ckpt"><div class="ti-head">'+icon('history')
         +'<span class="ti-kind">checkpoint</span></div><div class="ti-body">'+esc(it.body)
         +' <span class="mono" style="font-size:11px">'+esc(it.tokensBefore)+' tokens · retained: '+esc(it.retained)+'</span></div></div>');
+    } else if (k === 'approval'){
+      const oc = it.outcome === 'allow_once'
+        ? '<span class="badge success">'+icon('check')+'allow_once</span>'
+        : it.outcome === 'deny'
+          ? '<span class="badge error">'+icon('x')+'denied</span>'
+          : '<span class="badge warning"><span class="dot warn pulse"></span>awaiting decision</span>';
+      out.push('<div class="titem appr"><div class="ti-head">'+icon('shield')
+        +'<span class="ti-kind">approval · session/request_permission</span><span class="ti-meta">'+esc(it.meta||'')+'</span></div>'
+        +'<div class="ti-body"><span class="mono" style="font-size:11.5px;color:var(--foreground)">'+esc(it.request)+'</span>'+oc
+        +(it.decidedBy?'<span style="font-size:11px">'+esc(it.decidedBy)+'</span>':'')+'</div></div>');
     } else { /* harness_meta */
       out.push('<div class="titem meta-item"><div class="ti-head">'+icon('alert')
         +'<span class="ti-kind">harness_meta</span></div><div class="ti-body">'+esc(it.body)+'</div></div>');
@@ -901,8 +931,9 @@ let dirState = { view:'grid', q:'', f:'all' };
 function agentCardHTML(a){
   const st = STATUS_META[agentStatus(a)];
   const cur = tasksOf(a.id).find(t => t.status==='running' || t.status==='claimed');
+  const q = tasksOf(a.id).filter(t => t.status==='queued');
   const node = nodeById(a.nodeId);
-  const sr = Math.round((a.ok / a.runs) * 100);
+  const sr = a.runs > 0 ? Math.round((a.ok / a.runs) * 100) : null;
   return '<div class="acard" data-action="go" data-hash="#/agents/'+a.id+'" tabindex="0" role="link" aria-label="'+esc(a.name)+'">'
     +'<div class="acard-head"><span class="avatar">'+initials(a.name)+'</span>'
     +'<div style="min-width:0"><div class="acard-name">'+esc(a.name)+'</div>'
@@ -912,9 +943,11 @@ function agentCardHTML(a){
     +'<div class="acard-task">'
     +(cur
       ? '<div class="t">'+esc(cur.title)+'</div><div style="display:flex;gap:8px;align-items:center">'+(cur.subjectRef?'<span class="ticket-chip">'+esc(cur.subjectRef)+'</span>':'')+'<span class="badge success">'+cur.status+' · '+esc(cur.elapsed)+'</span></div>'
-      : '<div class="t dim" style="font-style:italic">No active task</div><div class="dim mono" style="font-size:10.5px">last run '+esc(a.created)+'</div>')
+      : q.length
+        ? '<div class="t">'+esc(q[0].title)+'</div><div style="display:flex;gap:8px;align-items:center">'+(q[0].subjectRef?'<span class="ticket-chip">'+esc(q[0].subjectRef)+'</span>':'')+'<span class="badge warning"><span class="dot warn"></span>queued · '+q.length+' pending</span></div>'
+        : '<div class="t dim" style="font-style:italic">No active task</div><div class="dim mono" style="font-size:10.5px">'+(a.runs===0?'no runs yet':'last run '+esc(a.created))+'</div>')
     +'</div>'
-    +'<div class="acard-foot"><span>'+sr+'% ok</span><span class="sep">·</span><span>'+a.runs+' runs</span><span class="sep">·</span><span>$'+a.cost.toFixed(2)+'</span>'
+    +'<div class="acard-foot"><span>'+(sr==null?'—':sr+'% ok')+'</span><span class="sep">·</span><span>'+a.runs+' runs</span><span class="sep">·</span><span>$'+a.cost.toFixed(2)+'</span>'
     +'<span class="owner"><span class="avatar xs soft">'+initials(a.owner)+'</span></span></div></div>';
 }
 
@@ -922,15 +955,16 @@ function agentRowHTML(a){
   const st = STATUS_META[agentStatus(a)];
   const cur = tasksOf(a.id).find(t => t.status==='running' || t.status==='claimed');
   const last = tasksOf(a.id)[0];
-  const sr = Math.round((a.ok / a.runs) * 100);
+  const q = tasksOf(a.id).filter(t => t.status==='queued');
+  const sr = a.runs > 0 ? Math.round((a.ok / a.runs) * 100) : null;
   return '<tr data-action="go" data-hash="#/agents/'+a.id+'" tabindex="0">'
     +'<td><div class="agentcell"><span class="avatar xs">'+initials(a.name)+'</span><div><div style="font-weight:500">'+esc(a.name)+'</div><div class="sub">'+esc(a.owner)+'</div></div></div></td>'
     +'<td><span class="chip">'+harnessGlyph(a.harness)+esc(a.harness)+'</span></td>'
     +'<td class="num">'+esc(a.model||'harness default')+'</td>'
     +'<td><span class="acard-node" style="gap:4px">'+icon(nodeById(a.nodeId).online?'wifi':'wifi-off').replace('<svg','<svg style="width:11px;height:11px;flex:none"')+'@'+esc(nodeLabel(a.nodeId))+'</span></td>'
     +'<td><span class="badge '+st.cls+'"><span class="dot '+st.dot+'"></span>'+st.label+'</span></td>'
-    +'<td><div class="taskcell">'+(cur ? esc(cur.title) : '<span class="dim">—</span>')+'</div></td>'
-    +'<td class="num">'+sr+'%</td><td class="num">'+a.runs+'</td><td class="num">$'+a.cost.toFixed(2)+'</td></tr>';
+    +'<td><div class="taskcell">'+(cur ? esc(cur.title) : q.length ? esc(q[0].title)+' <span class="badge warning">queued</span>' : '<span class="dim">—</span>')+'</div></td>'
+    +'<td class="num">'+(sr==null?'—':sr+'%')+'</td><td class="num">'+a.runs+'</td><td class="num">$'+a.cost.toFixed(2)+'</td></tr>';
 }
 
 function directoryHTML(){
@@ -988,7 +1022,7 @@ function profileHTML(a){
   const st = STATUS_META[agentStatus(a)];
   const node = nodeById(a.nodeId);
   const runs = tasksOf(a.id);
-  const sr = Math.round((a.ok / a.runs) * 100);
+  const sr = a.runs > 0 ? Math.round((a.ok / a.runs) * 100) : null;
   const cur = runs.find(t => t.status==='running' || t.status==='claimed');
   const head =
     '<button class="backlink" data-action="go" data-hash="#/agents">'+icon('chevron-right').replace('<svg','<svg style="transform:rotate(180deg)"')+'Agents</button>'
@@ -1004,11 +1038,11 @@ function profileHTML(a){
     +'<button class="btn btn-ghost" data-action="toast" data-toast="Agent settings — outside this mockup">'+icon('settings')+'</button></div></div>';
 
   const stats = '<div class="pstats">'
-    +'<div class="pstat"><div class="v">'+sr+'<span class="u">%</span></div><div class="l">success rate</div><div class="bar"><i style="width:'+sr+'%"></i></div></div>'
+    +'<div class="pstat"><div class="v">'+(sr==null?'—':sr+'<span class="u">%</span>')+'</div><div class="l">success rate</div>'+(sr==null?'':'<div class="bar"><i style="width:'+sr+'%"></i></div>')+'</div>'
     +'<div class="pstat"><div class="v">'+a.runs+'</div><div class="l">total runs</div></div>'
     +'<div class="pstat"><div class="v">'+(tokensOf(a)/1e6).toFixed(1)+'<span class="u">M tok</span></div><div class="l">tokens</div></div>'
     +'<div class="pstat"><div class="v">$'+a.cost.toFixed(2)+'</div><div class="l">spend</div></div>'
-    +'<div class="pstat"><div class="v">'+fmtMs(a.avgMs)+'</div><div class="l">median run</div></div></div>';
+    +'<div class="pstat"><div class="v">'+(a.runs===0?'—':fmtMs(a.avgMs))+'</div><div class="l">median run</div></div></div>';
 
   const tabs = '<div class="ptabs">'+PROFILE_TABS.map(([k,l,c]) => {
     const cnt = k==='runs' ? runs.length : k==='tickets' ? runs.filter(t=>t.subjectRef).length : (k==='transcript'&&cur?1:null);
@@ -1029,7 +1063,7 @@ function profileHTML(a){
       +'<div class="kv">'
       +'<span class="k">requested</span><span class="v mono" style="font-size:12px">'+(modelRow.requested?esc(modelRow.requested):'<span class="dim">— none —</span>')+'</span>'
       +'<span class="k">applied</span><span class="v mono" style="font-size:12px">'+esc(modelRow.applied)+(modelRow.requested?' '+icon('check').replace('<svg','<svg style="width:12px;height:12px;color:var(--success-foreground);vertical-align:-2px"'):'')+'</span>'
-      +'<span class="k">change</span><span class="v"><select class="input" style="height:28px;width:200px" data-action="noop"><option>'+esc(modelRow.applied)+'</option>'+MODELS.filter(m=>m!==modelRow.applied).map(m=>'<option>'+esc(m)+'</option>').join('')+'</select></span>'
+      +'<span class="k">change</span><span class="v"><select class="input" style="height:28px;width:200px" id="profModel" data-agent="'+a.id+'" aria-label="Change requested model"><option value="">Harness default</option>'+MODELS.map(m=>'<option'+(a.model===m?' selected':'')+'>'+esc(m)+'</option>').join('')+'</select></span>'
       +'</div><div class="field-hint" style="margin-top:8px">'+esc(modelRow.note)+'.</div></div>'
       /* recent runs mini */
       +'<div class="pcard"><div class="pcard-head">'+icon('history')+'<span class="pcard-title">Recent runs</span><button class="btn btn-ghost btn-xs act" data-action="ptab" data-tab="runs">View all</button></div>'
@@ -1044,9 +1078,14 @@ function profileHTML(a){
       +'<span class="k">last hello</span><span class="v mono" style="font-size:11px">'+esc(node.lastSeen)+'</span></div></div>'
       /* mcp */
       +'<div class="pcard"><div class="pcard-head">'+icon('plug')+'<span class="pcard-title">MCP servers</span><span class="chip" style="margin-left:auto">'+a.mcp.length+'</span></div>'
-      +(a.mcp.length ? a.mcp.map(m => '<div class="mcp-row"><span class="dot ok"></span><div class="left"><div class="n">'+esc(m.name)+'</div><div class="c">'+esc(m.cmd)+(m.args.length?' '+esc(m.args.join(' ')):'')+'</div></div><span class="badge outline">injected</span></div>').join('')
+      +(a.mcp.length ? a.mcp.map(m => { const c = mcpCmdHTML(m); const env = m.env || [];
+        return '<div class="mcp-row"><span class="dot ok"></span><div class="left"><div class="n">'+esc(m.name)
+          +(c.flagged ? ' <span class="badge warning">'+icon('key').replace('<svg','<svg style="width:10px;height:10px;vertical-align:-1px"')+'secret-bearing arg</span>' : '')+'</div>'
+          +'<div class="c">'+c.html+'</div>'
+          +(env.length ? '<div class="c">env '+env.map(v => esc(v.name)+'='+MASK).join(' · ')+'</div>' : '')
+          +'</div><span class="badge outline">injected</span></div>'; }).join('')
         : '<div class="dim" style="font-size:12px">None. Config travels with the task and is never written into harness files.</div>')
-      +'<div class="field-hint" style="margin-top:8px">Injected over <span class="mono">session/new</span> at task claim.</div></div>'
+      +'<div class="field-hint" style="margin-top:8px">Injected over <span class="mono">session/new</span> at task claim. Secret-bearing arguments and env values are masked in the UI — the node holds the real values.</div></div>'
       /* skills */
       +'<div class="pcard"><div class="pcard-head">'+icon('sparkles')+'<span class="pcard-title">Skills</span><span class="chip" style="margin-left:auto">'+a.skills.length+'</span></div>'
       +'<div class="skills">'+a.skills.map(s => '<span class="chip">'+esc(s)+'</span>').join('')+'</div>'
@@ -1094,11 +1133,15 @@ function transcriptViewHTML(a, cur){
 }
 
 /* ── runtimes view ──────────────────────────────────────────────────── */
+let rtState = { q:'' };
 function runtimesHTML(){
   const agentsOn = id => AGENTS.filter(a => a.nodeId === id);
-  return '<div class="toolbar"><div class="search">'+icon('search')+'<input class="input" placeholder="Filter nodes…"></div>'
+  const q = rtState.q.toLowerCase();
+  const matched = NODES.filter(n => !q || n.name.toLowerCase().includes(q) || n.host.toLowerCase().includes(q) || n.harnesses.some(h => h.includes(q)));
+  return '<div class="toolbar"><div class="search">'+icon('search')+'<input class="input" id="nodeFilter" placeholder="Filter nodes…" value="'+esc(rtState.q)+'"></div>'
     +'<button class="btn btn-outline" style="margin-left:auto" data-action="register">'+icon('server')+'Register runtime</button></div>'
-    + NODES.map(n => {
+    + (matched.length ? '' : '<div class="empty"><div class="empty-media">'+icon('server')+'</div><div class="empty-title">No nodes match</div><div class="empty-msg">No registered runtime matches “'+esc(rtState.q)+'”. Clear the filter or register a new node.</div></div>')
+    + matched.map(n => {
       const ags = agentsOn(n.id);
       return '<div class="nodecard'+(n.online?'':' offline')+'"><div class="node-head">'
         +'<span class="dot '+(n.online?'ok pulse':'err')+'" style="width:8px;height:8px"></span>'
@@ -1112,7 +1155,9 @@ function runtimesHTML(){
         +(ags.length ? ags.map(a => '<div class="rt-row" data-action="go" data-hash="#/agents/'+a.id+'" style="cursor:pointer"><span class="avatar xs">'+initials(a.name)+'</span><span class="tid" style="flex:1">'+esc(a.name)+'</span><span class="badge '+STATUS_META[agentStatus(a)].cls+'">'+STATUS_META[agentStatus(a)].label+'</span></div>').join('')
           : '<div class="dim" style="font-size:12px">No agents bound to this node.</div>')
         +'</div>'
-        +'<div class="node-actions"><button class="btn btn-outline btn-xs" data-action="wizard" data-node="'+n.id+'">'+icon('plus')+'New agent</button></div></div>'
+        +'<div class="node-actions">'+(n.online
+          ? '<button class="btn btn-outline btn-xs" data-action="wizard" data-node="'+n.id+'">'+icon('plus')+'New agent</button>'
+          : '<button class="btn btn-outline btn-xs" disabled aria-disabled="true" title="Node offline — cannot host agents until it hellos again">'+icon('plus')+'New agent</button>')+'</div></div>'
         +(n.online ? '' : '<div class="alert warn node-offline-note">'+icon('alert-triangle')+'<div>Offline since '+esc(n.lastSeen)+' — leases held by this node expire after 60s and its queued tasks are reaped back with <span class="mono">platform.lease_expired</span>. Agents bound here report offline and receive no new claims.</div></div>')
         +'</div>';
     }).join('');
@@ -1135,7 +1180,7 @@ function wizardHTML(){
   let body = '';
   if (wiz.step === 1){
     body = '<div class="field-label" style="margin-bottom:8px">Pick a runtime node</div>'
-      + NODES.map(n => '<div class="nodecard-sel'+(wiz.node===n.id?' sel':'')+(n.online?'':' ')+'" data-action="wiz-node" data-node="'+n.id+'" role="button" tabindex="0">'
+      + NODES.map(n => '<div class="nodecard-sel'+(wiz.node===n.id?' sel':'')+(n.online?'':' off')+'"'+(n.online?' data-action="wiz-node" data-node="'+n.id+'"':' aria-disabled="true"')+' role="button" tabindex="'+(n.online?'0':'-1')+'">'
         +'<span class="radio"></span><div class="bd"><div class="nm">'+esc(n.name)
         +(n.online?' <span class="badge success"><span class="dot ok"></span>online</span>':' <span class="badge error"><span class="dot err"></span>offline</span>')
         +'</div><div class="hs">'+esc(n.harnesses.length)+' harnesses: '+esc(n.harnesses.join(', '))+'</div></div></div>').join('')
@@ -1188,8 +1233,8 @@ function runtaskHTML(a){
   return '<div class="dialog" style="width:min(520px,100%)"><div class="dlg-head"><span class="dlg-title">Run task — '+esc(a.name)+'</span><button class="iconbtn" data-action="close-runtask">'+icon('x')+'</button></div>'
     +'<div class="dlg-body"><div class="field"><label class="field-label">Prompt</label><textarea class="textarea" id="rtPrompt" rows="5" placeholder="One prompt turn — smallest useful unit…">Reproduce STL-142 with two adjacent columns and confirm the fix lands the card on the hovered column.</textarea></div>'
     +'<div class="field"><label class="field-label">Subject ref <span class="dim" style="font-weight:400">(optional)</span></label><input class="input" id="rtSubject" value="STL-142"></div>'
-    +'<div class="field"><label class="field-label">Max attempts</label><select class="input" id="rtAttempts"><option>1</option><option selected>3</option><option>5</option></select>'
-    +'<div class="field-hint"><span class="mono">platform.*</span> faults retry on the runtime; <span class="mono">agent_error.*</span> never does — retrying a refusal burns money.</div></div>'
+    +'<div class="field"><label class="field-label">Max attempts <span class="dim" style="font-weight:400">(1–10)</span></label><select class="input" id="rtAttempts">'+Array.from({length:10},(_,i)=>i+1).map(n=>'<option value="'+n+'"'+(n===3?' selected':'')+'>'+n+'</option>').join('')+'</select>'
+    +'<div class="field-hint">Protocol allows <span class="mono">1–10</span> attempts. <span class="mono">platform.*</span> faults retry on the runtime; <span class="mono">agent_error.*</span> never does — retrying a refusal burns money.</div></div>'
     +'<div class="kv"><span class="k">routes to</span><span class="v mono" style="font-size:12px">'+esc(nodeLabel(a.nodeId))+' → '+esc(a.harness)+(a.model?' → '+esc(a.model):'')+'</span></div></div>'
     +'<div class="dlg-foot"><button class="btn btn-ghost" data-action="close-runtask">Cancel</button><div class="spacer"></div>'
     +'<button class="btn btn-primary" data-action="dispatch-task">'+icon('play')+'Dispatch</button></div></div>';
@@ -1267,9 +1312,16 @@ function render(){
   } else {
     c.innerHTML = ({ populated:directoryHTML, loading:directoryLoadingHTML, empty:directoryEmptyHTML, error:directoryErrorHTML })[mockState]();
   }
+  /* sidebar agent count derives from the same AGENTS data as the directory */
+  const nac = $('#navAgentsCount'); if (nac) nac.textContent = String(AGENTS.length);
   /* re-focus search */
   const s = $('#dirSearch');
   if (s){ s.oninput = e => { dirState.q = e.target.value; const pos=e.target.selectionStart; render(); const s2=$('#dirSearch'); if(s2){ s2.focus(); s2.setSelectionRange(pos,pos); } }; }
+  const nf = $('#nodeFilter');
+  if (nf){ nf.oninput = e => { rtState.q = e.target.value; const pos=e.target.selectionStart; render(); const n2=$('#nodeFilter'); if(n2){ n2.focus(); n2.setSelectionRange(pos,pos); } }; }
+  const pm = $('#profModel');
+  if (pm){ pm.onchange = () => { const ag = agentById(pm.dataset.agent); if (!ag) return; ag.model = pm.value || null;
+    toast(ag.name+': model '+(ag.model||'(harness default)')+' requested — applied at next session/new; requested, not imposed'); render(); }; }
   $$('#stateSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.s === mockState));
 }
 
@@ -1342,7 +1394,8 @@ document.addEventListener('click', (e) => {
     case 'close-runtask': overlayClose(); break;
     case 'dispatch-task': {
       const a = agentById(route.id);
-      TASKS.unshift({ id:'tsk_'+Math.random().toString(16).slice(2,6), agentId:a.id, status:'queued', subjectRef:($('#rtSubject')||{}).value||null, title:(($('#rtPrompt')||{}).value||'Custom task').slice(0,60), attempt:0, maxAttempts:3, elapsed:'—', prompt:'' });
+      const attempts = Math.min(10, Math.max(1, parseInt(($('#rtAttempts')||{value:'3'}).value, 10) || 3));
+      TASKS.unshift({ id:'tsk_'+Math.random().toString(16).slice(2,6), agentId:a.id, status:'queued', subjectRef:($('#rtSubject')||{}).value||null, title:(($('#rtPrompt')||{}).value||'Custom task').slice(0,60), attempt:0, maxAttempts:attempts, elapsed:'—', prompt:'' });
       overlayClose(); toast('Task queued for '+a.name); profState.tab='runs'; render(); break;
     }
     case 'register': $('#registerOverlay').innerHTML = registerHTML(); $('#registerOverlay').classList.add('open'); hydrateIcons($('#registerOverlay')); break;
@@ -1378,6 +1431,14 @@ hydrateIcons(document);
     const d = p.get('dialog');
     if (d === 'wizard'){ wiz = { step:1, node:null, harness:null, model:'', name:'', instructions:'', mcp:'github' }; $('#wizardOverlay').innerHTML = wizardHTML(); $('#wizardOverlay').classList.add('open'); hydrateIcons($('#wizardOverlay')); }
     if (d === 'register'){ $('#registerOverlay').innerHTML = registerHTML(); $('#registerOverlay').classList.add('open'); hydrateIcons($('#registerOverlay')); }
+    if (d === 'runtask'){ const ag = agentById(p.get('agent')) || AGENTS[0]; location.hash = '#/agents/'+ag.id; $('#runtaskOverlay').innerHTML = runtaskHTML(ag); $('#runtaskOverlay').classList.add('open'); hydrateIcons($('#runtaskOverlay')); }
+  }
+  /* zero-run demo agent — screenshot coverage for the guarded profile stats (fix 2) */
+  if (p.has('demo-zero') && !agentById('agt_pilot')){
+    AGENTS.push({ id:'agt_pilot', name:'pilot', harness:'goose', model:null, nodeId:'node_8f3a91', owner:'Raisal W.', created:'just now',
+      instructions:'Freshly created via the wizard — no runs recorded yet.', mcp:[], skills:['onboarding'],
+      runs:0, ok:0, failed:0, cancelled:0, tokens:0, cost:0, avgMs:0 });
+    if (!p.has('dialog')) location.hash = '#/agents/agt_pilot';
   }
 })();
 window.addEventListener('hashchange', render);
