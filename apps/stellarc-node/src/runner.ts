@@ -7,6 +7,7 @@ import type {
 	Item,
 	ItemKind,
 	TaskDescriptor,
+	Usage,
 } from "../../../packages/agents/src/protocol";
 
 /** A locally installed harness the node is willing to launch. Credentials and
@@ -32,6 +33,9 @@ export interface RunOutcome {
 	readonly stopReason?: string;
 	readonly failureCode?: FailureCode;
 	readonly failureMessage?: string;
+	/** Harness-reported token/cost totals for this run (ACP
+	 * `PromptResponse.usage`, UNSTABLE); the plane records, never invents. */
+	readonly usage?: Usage;
 }
 
 const STOP: Record<string, RunOutcome> = {
@@ -65,6 +69,7 @@ export class TranscriptFolder {
 		at: string;
 	} | null = null;
 	private ready: Item[] = [];
+	private cost: { amount: number; currency: string } | null = null;
 
 	private push(kind: ItemKind, body: unknown, at = new Date().toISOString()) {
 		this.ready.push({ seq: this.seq++, kind, body, occurredAt: at });
@@ -102,6 +107,19 @@ export class TranscriptFolder {
 				return this.chunk("thinking", u.content);
 			case "user_message_chunk":
 				return;
+			case "usage_update": {
+				// UNSTABLE ACP extension: context + cumulative session cost. Typed
+				// capture at the seam (NEVR-178); absent harness fields stay absent.
+				this.close();
+				if (u.cost)
+					this.cost = { amount: u.cost.amount, currency: u.cost.currency };
+				return this.push("usage", {
+					contextTokens: u.used,
+					contextWindowSize: u.size,
+					costAmount: u.cost?.amount,
+					costCurrency: u.cost?.currency,
+				});
+			}
 			case "tool_call":
 				this.close();
 				return this.push("tool_call", {
@@ -140,6 +158,11 @@ export class TranscriptFolder {
 		const out = this.ready;
 		this.ready = [];
 		return out;
+	}
+
+	/** Latest cumulative session cost reported via usage_update, if any. */
+	sessionCost() {
+		return this.cost;
 	}
 }
 
@@ -287,13 +310,25 @@ export async function runTask(
 				prompt: [{ type: "text", text }],
 			});
 			if (cancelled) return { outcome: "cancelled", stopReason: "cancelled" };
-			return (
-				STOP[res.stopReason] ?? {
-					outcome: "failed",
-					stopReason: res.stopReason,
-					failureCode: "agent_error.prompt_failed",
-				}
-			);
+			const uc = folder.sessionCost();
+			const usage: Usage | undefined = res.usage
+				? {
+						tokensTotal: res.usage.totalTokens,
+						tokensIn: res.usage.inputTokens,
+						tokensOut: res.usage.outputTokens,
+						thoughtTokens: res.usage.thoughtTokens ?? null,
+						cachedReadTokens: res.usage.cachedReadTokens ?? null,
+						cachedWriteTokens: res.usage.cachedWriteTokens ?? null,
+						costAmount: uc?.amount,
+						costCurrency: uc?.currency,
+					}
+				: undefined;
+			const base = STOP[res.stopReason] ?? {
+				outcome: "failed" as const,
+				stopReason: res.stopReason,
+				failureCode: "agent_error.prompt_failed" as FailureCode,
+			};
+			return usage ? { ...base, usage } : base;
 		} catch (error) {
 			const message =
 				error instanceof Error
