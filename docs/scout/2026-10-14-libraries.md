@@ -31,7 +31,7 @@ Also this run: **drizzle-orm upstream is still actively iterating Effect integra
 
 ### 1. TRIAL — port the legacy MCP surface onto `effect/ai`'s McpServer during the v4 legacy migration
 The reference-SDK MCP server in `packages/kaneo-legacy/src/mcp/` (1,727 lines) is one of the last big non-Effect islands in the backend, and Effect v4 core now ships a production-shaped MCP server that would delete the `@modelcontextprotocol/sdk` dependency from the v4 tree: streamable HTTP transport with session termination, protocol-version negotiation through `v2026_07_28`, origin allowlists, and Effect Schema-native tool definitions. Spike it as part of (not before) the legacy→v4 migration: port `tools.ts` first (largest file, pure schema+handler shapes), keep `oauth.ts`/`oauth-store.ts`/`permissions.ts` host-side (the module expects the surrounding HTTP server to own auth — which matches Stellarc's token gate design).
-*(Issue brief posted as a separate comment for Talos.)*
+*(Issue brief included in the run's NEVR-183 comment for Talos.)*
 
 ### 2. ADOPT (no new brief) — one-line v4 dependency-hygiene check at merge time
 `@effect/sql` (umbrella), `@effect/ai`, and `@effect/platform` on npm are v3-only and will never publish 4.x — their v4 content moved into core (`effect/sql`, `effect/ai`) and per-driver packages (`@effect/sql-pg` …). The `effect/v4` branch is already clean (only `@effect/platform-bun`, `@effect/sql-pg`, `@effect/opentelemetry`, all 4.0.2). Before `effect/v4` merges to dev, assert no v3-only `@effect/*` umbrella package appears in any workspace `package.json` — a later careless `bun update`/`bun add` could reintroduce one and drag the v3 `effect` peer into the tree. Fits inside NEVR-156's existing bump item; no separate issue needed.
