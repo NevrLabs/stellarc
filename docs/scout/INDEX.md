@@ -27,15 +27,23 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Lynx 4.1 (web+iOS+Android, bindings pre-1.0) | WATCH | 2026-10-13 | cross-platform-ui |
 | Electrobun (beta, macOS-centric) | REJECT | 2026-10-13 | cross-platform-ui |
 | @axe-core/playwright (a11y floor, proposal 1) | ADOPT | 2026-10-13 | cross-platform-ui |
-| effect 4.x (GA, 4.0.4; port in flight PR #77–80) | ADOPT | 2026-10-13 | libraries |
+| effect 4.x (GA, 4.0.4; port merged to effect/v4 branch, pin 4.0.2) | ADOPT | 2026-10-14 | libraries |
 | @effect/sql-drizzle (removed upstream in v4) | REJECT | 2026-10-13 | libraries |
-| packages/drizzle-effect (owned v4 bridge, PR #77) | ADOPT | 2026-10-13 | libraries |
-| effect `eventlog` module (SqlEventJournal; unstable) | WATCH | 2026-10-13 | libraries |
-| Bun 1.4.3 (`bun check`, FetchSession, idle CPU) | ADOPT | 2026-10-13 | libraries |
+| packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156) | ADOPT | 2026-10-14 | libraries |
+| effect `eventlog` module (SqlEventJournal; unstable; unchanged 4.0.0→4.0.4) | WATCH | 2026-10-14 | libraries |
+| Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked) | ADOPT | 2026-10-14 | libraries |
 | @tanstack/db 0.13 + electric collection 0.5.9 | TRIAL | 2026-10-13 | libraries |
 | @tanstack/tauri-db-sqlite-persistence (desktop offline) | WATCH | 2026-10-13 | libraries |
-| ACP v1.25 (session compaction, notices); v2 alpha | ADOPT bump | 2026-10-13 | libraries |
-| Zero 1.10 (strongest sync alternative) | WATCH | 2026-10-13 | libraries |
+| ACP v1.25 (session compaction, notices); v2 alpha | ADOPT bump | 2026-10-14 | libraries |
+| Zero 1.10 (strongest sync alternative) | WATCH | 2026-10-14 | libraries |
+| effect v4 core layout (ai/sql/graphql/rpc in core; v3-only umbrellas dead) | ADOPT hygiene | 2026-10-14 | libraries |
+| effect/ai McpServer (drops @modelcontextprotocol/sdk at v4) | TRIAL | 2026-10-14 | libraries |
+| drizzle-orm 1.0 line (upstream effect* dist-tags live) | WATCH | 2026-10-14 | libraries |
+| jazz-tools (correction: 0.20.19 + 2.0-alpha; not 1.2.0) | REJECT | 2026-10-14 | libraries |
+| pragmatic-drag-and-drop 4.0 (major velocity warning) | WATCH | 2026-10-14 | libraries |
+| virtua (dnd/list virtualization alternative) | WATCH | 2026-10-14 | libraries |
+| effect-lens (v4 community libs signal) | WATCH | 2026-10-14 | libraries |
+| hono 5.0.0-rc line opened | WATCH | 2026-10-14 | libraries |
 | TypeScript 7 / tsgo (answer via `bun check`) | TRIAL | 2026-10-13 | libraries |
 | @sentry/node 11 (one major ahead of pin) | WATCH | 2026-10-13 | libraries |
 | shadcn chat primitives (message/bubble/scroller/attachment/marker/questionnaire) | ADOPT | 2026-10-13 | design |
