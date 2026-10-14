@@ -9,10 +9,11 @@
  * - The fiber's Context is threaded per query (not module-global), so
  *   concurrent fibers and nested transactions each use their own connection.
  */
+
+import type { DrizzleConfig } from "drizzle-orm";
 import { PgSelectBase } from "drizzle-orm/pg-core";
 import { drizzle, type PgRemoteDatabase } from "drizzle-orm/pg-proxy";
 import { QueryPromise } from "drizzle-orm/query-promise";
-import type { DrizzleConfig } from "drizzle-orm";
 import { Context, Effect, Effectable, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
@@ -73,9 +74,17 @@ declare module "drizzle-orm" {
 	interface QueryPromise<T> extends Effect.Effect<T, SqlError> {}
 }
 declare module "drizzle-orm/pg-core" {
-	// biome-ignore lint/suspicious/noExplicitAny: mirrors drizzle's generic arity
-	interface PgSelectBase<TTableName, TSelection, TSelectMode, TNullabilityMap, TDynamic, TExcludedMethods, TResult extends any[], TSelectedFields>
-		extends Effect.Effect<TResult, SqlError> {}
+	interface PgSelectBase<
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		// biome-ignore lint/suspicious/noExplicitAny: mirrors drizzle's generic arity
+		TResult extends any[],
+		TSelectedFields,
+	> extends Effect.Effect<TResult, SqlError> {}
 }
 
 const makeRemoteCallback = Effect.gen(function* () {

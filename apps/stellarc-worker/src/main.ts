@@ -1,6 +1,6 @@
 import { BunRuntime } from "@effect/platform-bun";
 import { PgClient } from "@effect/sql-pg";
-import { Effect } from "effect";
+import { Cause, Effect, Exit, Runtime } from "effect";
 import { SqlLive } from "../../../packages/db/src/index";
 import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import { ConfigLive } from "../../stellarc-api/src/config";
@@ -24,7 +24,7 @@ if (import.meta.main)
 	BunRuntime.runMain(
 		worker.pipe(
 			Effect.provide(TelemetryLive("stellarc-worker")),
-			Effect.catchAll(() =>
+			Effect.catch(() =>
 				Effect.sync(() => {
 					// biome-ignore lint/suspicious/noConsole: fatal startup handler cannot depend on telemetry
 					console.error("Worker startup failed");
@@ -32,4 +32,14 @@ if (import.meta.main)
 				}),
 			),
 		),
+		{
+			// SIGTERM/SIGINT is the orchestrator's normal stop signal: scoped
+			// releases have already run, so the worker reports a clean exit.
+			// Real failures (incl. startup) still exit nonzero via defaultTeardown.
+			teardown: ((exit, onExit) => {
+				if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause))
+					return onExit(0);
+				Runtime.defaultTeardown(exit, onExit);
+			}) as Runtime.Teardown,
+		},
 	);

@@ -6,7 +6,9 @@
  * lifted legacy tree. Each migrated group removes a slice of legacy without
  * the UI noticing — same paths, same JSON.
  */
-import { Cause, Effect, Layer } from "effect";
+
+import { PgClient } from "@effect/sql-pg";
+import { Cause, Effect, Layer, Redacted } from "effect";
 import { HttpRouter, HttpServer, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { KaneoApi } from "./api";
@@ -58,11 +60,24 @@ export function kaneoNativeHandler(options: {
 	);
 	const ApiRoutes = HttpApiBuilder.layer(KaneoApi).pipe(
 		Layer.provide(Handlers),
+		// v4: SqlClient became a request-scoped requirement (drizzle queries
+		// resolve it from the fiber context per request), so the pg pool is
+		// provided per request rather than baked into the layer.
+		HttpRouter.provideRequest(
+			PgClient.layer({
+				url: Redacted.make(options.databaseUrl),
+				maxConnections: 10,
+				applicationName: "stellarc-kaneo",
+			}),
+		),
 	);
 	return HttpRouter.toWebHandler(
 		ApiRoutes.pipe(
 			Layer.provide(HttpServer.layerServices),
-			Layer.provide(options.telemetry ?? Layer.empty),
+			// provideMerge so telemetry services stay in the request context
+			// (spans/loggers) — `provide` treats them as private deps of the
+			// router build and drops them from the final context.
+			Layer.provideMerge(options.telemetry ?? Layer.empty),
 		),
 		{
 			memoMap: options.memoMap,
