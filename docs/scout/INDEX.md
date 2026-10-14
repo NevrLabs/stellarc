@@ -46,29 +46,35 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | hono 5.0.0-rc line opened | WATCH | 2026-10-14 | libraries |
 | TypeScript 7 / tsgo (answer via `bun check`) | TRIAL | 2026-10-13 | libraries |
 | @sentry/node 11 (one major ahead of pin) | WATCH | 2026-10-13 | libraries |
-| shadcn chat primitives (message/bubble/scroller/attachment/marker/questionnaire) | ADOPT | 2026-10-13 | design |
-| shadcn Typeset (streaming-safe markdown css) | TRIAL | 2026-10-13 | design |
-| @coss registry entry in components.json (AGPL, unused) | REJECT | 2026-10-13 | design |
-| @shadcn/react (headless chat primitives) | TRIAL | 2026-10-13 | design |
-| skills/migrate-radix-to-base (shadcn method skill) | ADOPT | 2026-10-13 | design |
-| Radix dep tail + components.json dialect (ours) | ADOPT cleanup | 2026-10-13 | design |
-| motion 14 (ex framer-motion) | ADOPT bump | 2026-10-13 | design |
-| lucide-react 1.x | ADOPT bump | 2026-10-13 | design |
-| react-day-picker 10 | TRIAL bump | 2026-10-13 | design |
-| tweakcn (theme token editor) | TRIAL | 2026-10-13 | design |
-| streamdown (streaming markdown) | WATCH | 2026-10-13 | design |
-| vercel/ai-elements registry | WATCH | 2026-10-13 | design |
-| prompt-kit (ibelick) | WATCH | 2026-10-13 | design |
-| @assistant-ui/react | REJECT | 2026-10-13 | design |
+| shadcn chat primitives (PR #91 = NEVR-170; blocked by T02 freeze guard) | ADOPT | 2026-10-14 | design |
+| shadcn Typeset (streaming-safe markdown css; rides PR #91) | TRIAL | 2026-10-14 | design |
+| @coss registry entry in components.json (AGPL, unused; removal rides PR #92) | REJECT | 2026-10-14 | design |
+| @shadcn/react (headless chat primitives; rides PR #91) | TRIAL | 2026-10-14 | design |
+| skills/migrate-radix-to-base (shadcn method skill; used by PR #92) | ADOPT | 2026-10-14 | design |
+| Radix dep tail + components.json dialect (PR #92 = NEVR-171; blocked by T02) | ADOPT cleanup | 2026-10-14 | design |
+| motion 14 (rides PR #90 = NEVR-172; blocked by T02) | ADOPT bump | 2026-10-14 | design |
+| lucide-react 1.x (1.57.0 out 10-14; PR #90's ^1.56 covers it) | ADOPT bump | 2026-10-14 | design |
+| react-day-picker 10 (rides PR #90) | TRIAL bump | 2026-10-14 | design |
+| mermaid 12.2.0 (major; PR #90 bumps ^12.2.0) | TRIAL bump | 2026-10-14 | design |
+| tweakcn (npm 13mo stale; one-shot token editor only) | WATCH (demoted) | 2026-10-14 | design |
+| streamdown (streaming markdown) | WATCH | 2026-10-14 | design |
+| vercel/ai elements registry (folded into shadcn registry) | WATCH | 2026-10-14 | design |
+| prompt-kit (ibelick) | WATCH | 2026-10-14 | design |
+| @assistant-ui/react | REJECT | 2026-10-14 | design |
 | CopilotKit | REJECT | 2026-10-13 | design |
-| @llm-ui/react (dormant) | REJECT | 2026-10-13 | design |
-| recharts 3 via shadcn charts | WATCH | 2026-10-13 | design |
-| pragmatic-drag-and-drop | WATCH | 2026-10-13 | design |
-| shadcn-admin (satnaing, reference) | WATCH | 2026-10-13 | design |
+| @llm-ui/react (dormant) | REJECT | 2026-10-14 | design |
+| recharts 3 via shadcn charts | WATCH | 2026-10-14 | design |
+| pragmatic-drag-and-drop (design-lane view; dnd-kit stays) | WATCH | 2026-10-14 | design |
+| shadcn-admin (satnaing, reference) | WATCH | 2026-10-14 | design |
 | HeroUI | REJECT | 2026-10-13 | design |
-| cmdk (dormant 19mo, in use) | WATCH | 2026-10-13 | design |
-| shadcn DESIGN.md workflow skill | TRIAL | 2026-10-13 | design |
-| Base UI (house primitive, bump float ^1.9) | ADOPT | 2026-10-13 | design |
-| vaul (superseded by Base UI Drawer; unused) | REJECT | 2026-10-13 | design |
-| animate-ui (stale ~9.5 mo) | WATCH | 2026-10-13 | design |
-| @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-13 | design |
+| cmdk (dormant 19mo, in use) | WATCH | 2026-10-14 | design |
+| shadcn DESIGN.md workflow skill (seed for post-freeze design-system merge) | TRIAL | 2026-10-14 | design |
+| Base UI (house primitive; 1.9.0; float ^1.9 rides PR #90) | ADOPT | 2026-10-14 | design |
+| shadcn named styles (8 styles × 3 dialects; `base-nova` = converged choice) | TRIAL | 2026-10-14 | design |
+| vaul (superseded by Base UI Drawer; npm dormant since 2024-12) | REJECT | 2026-10-14 | design |
+| animate-ui (stale ~9.5 mo) | WATCH | 2026-10-14 | design |
+| @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-14 | design |
+| T02 frozen-UI guard vs UI PRs #90/#91/#92 (owner decision needed) | ADOPT decision | 2026-10-14 | design |
+| desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07) | WATCH (ops) | 2026-10-14 | design |
+| shadcn community registries (pmndrs added 10-11; directory growing) | WATCH | 2026-10-14 | design |
+| shadcn CLI 4.21.5 (undici + MCP SDK security bumps, 10-14) | ADOPT (tooling hygiene) | 2026-10-14 | design |
