@@ -5,16 +5,17 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 
 | Item | Ring | Last checked | Beat |
 |---|---|---|---|
-| Linear (Loops, coding sessions, spend caps) | WATCH | 2026-10-13 | competitors |
-| Plane (Agents, Propel, credit limits) | TRIAL | 2026-10-13 | competitors |
-| Multica (wakeups, deliverables, cost curves) | WATCH | 2026-10-08 | competitors |
-| Paseo (plugin registry, usage aggregation) | TRIAL | 2026-10-13 | competitors |
-| Cursor (Origin App Marketplace, iOS remote, MCP allowlists) | WATCH | 2026-10-13 (evening) | competitors |
-| Copilot coding agent (sandboxing GA, stacked PRs) | ADOPT | 2026-10-13 (evening) | competitors |
-| OpenHands (ACP agents, model discovery) | WATCH | 2026-10-13 (evening) | competitors |
-| Devin (memory/dreaming, inbox, Outposts, plugin governance) | WATCH | 2026-10-13 (evening) | competitors |
-| Factory Droids (Script waits) | REJECT | 2026-10-13 | competitors |
-| Huly | REJECT | 2026-10-13 | competitors |
+| Linear (stacked PRs, realtime diffs, spend caps; unchanged 10-14) | WATCH | 2026-10-14 | competitors |
+| Plane (Agents GA, Propel; self-host 3.3.3; unchanged 10-14) | TRIAL | 2026-10-14 | competitors |
+| Multica (v0.6.2 10-13: run-continuity fixes, wakeup drain, daemon autostart) | WATCH | 2026-10-14 | competitors |
+| Paseo (plugin registry; 30+ commits 10-13/14 on run continuity) | TRIAL | 2026-10-14 | competitors |
+| Cursor (Origin App Marketplace, iOS remote; unchanged 10-14) | WATCH | 2026-10-14 | competitors |
+| Copilot coding agent (sandboxing GA, stacked PRs, budgets; platform: push attribution + Actions lockfiles 10-12/14) | ADOPT (pattern) | 2026-10-14 | competitors |
+| OpenHands (ACP agents; hold-until-reachable + wake-from-resume on main) | WATCH | 2026-10-14 | competitors |
+| Devin (memory/dreaming, inbox, Outposts; unchanged 10-14) | WATCH | 2026-10-14 | competitors |
+| Factory Droids (Script approvals, injection hardening, doctor; v0.240.0) | WATCH (promoted from REJECT) | 2026-10-14 | competitors |
+| GitHub push attribution (durable authenticated-pusher on commits) | WATCH (steal requirement) | 2026-10-14 | competitors |
+| Huly (authz-grant fix #11067; no agent story; next check Jan 2027) | REJECT | 2026-10-14 | competitors |
 | Tauri 2 (chosen shell, 2.12.3; Cargo.lock uncommitted — brief posted) | ADOPT | 2026-10-14 | cross-platform-ui |
 | Tauri 3.0-alpha (alpha.4; alpha.6 staged via release PR) | WATCH | 2026-10-14 | cross-platform-ui |
 | tauri-runtime-cef (Chromium runtime, 3.0-alpha.5; OSR + fullscreen landed) | WATCH | 2026-10-14 | cross-platform-ui |
