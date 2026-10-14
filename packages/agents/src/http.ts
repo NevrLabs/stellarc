@@ -20,6 +20,8 @@ import {
 	Finish,
 	Hello,
 	Items,
+	PermissionDecision,
+	PermissionPark,
 	Start,
 	UpdateBudget,
 } from "./protocol";
@@ -150,6 +152,10 @@ export function agentsHttp(
 						const f = yield* body(Finish, request);
 						return json(200, yield* store.finish(n, id, f));
 					}
+					if (action === "permission") {
+						const pr = yield* body(PermissionPark, request);
+						return json(200, yield* store.permissionRequest(n, id, pr));
+					}
 				}
 				return yield* Effect.fail(new NotFound({ message: "No such route" }));
 			});
@@ -212,6 +218,10 @@ export function agentsHttp(
 					return json(200, yield* store.getTask(org, id));
 				if (id && action === "cancel" && m === "POST")
 					return json(200, yield* store.cancelTask(org, actor, id));
+				if (id && action === "permission" && m === "POST") {
+					const b = yield* body(PermissionDecision, request);
+					return json(200, yield* store.resolvePermission(org, actor, id, b));
+				}
 			}
 			return yield* Effect.fail(new NotFound({ message: "No such route" }));
 		});

@@ -6,6 +6,8 @@ import type {
 	FailureCode,
 	Item,
 	ItemKind,
+	PermissionPolicy,
+	PermissionRequestReport,
 	TaskDescriptor,
 	Usage,
 } from "../../../packages/agents/src/protocol";
@@ -21,11 +23,20 @@ export interface HarnessSpec {
 export interface RunHooks {
 	readonly onStart: (nativeSessionId: string) => Promise<void>;
 	readonly onItems: (items: ReadonlyArray<Item>) => Promise<void>;
-	/** Resolves true when the plane says the task was cancelled. */
-	readonly heartbeat: () => Promise<boolean>;
+	/** Latest plane state: cancelled flag plus, exactly once, the operator
+	 * verdict on a parked permission request. */
+	readonly heartbeat: () => Promise<{
+		cancelled: boolean;
+		permission?: "granted" | "denied";
+	}>;
 	readonly heartbeatMs: number;
 	readonly workdir: string;
 	readonly log?: (msg: string) => void;
+	/** The node parked on a permission request: report it to the plane so a
+	 * human can decide (called with the approval transcript item flushed). */
+	readonly onPermissionRequest: (
+		request: PermissionRequestReport,
+	) => Promise<void>;
 }
 
 export interface RunOutcome {
@@ -99,6 +110,13 @@ export class TranscriptFolder {
 		this.push("message", { role: "user", content: [{ type: "text", text }] });
 	}
 
+	/** A permission decision artifact (NEVR-198): the request with resolved
+	 * arguments plus its status, written outside the ACP update stream. */
+	approval(body: Record<string, unknown>) {
+		this.close();
+		this.push("approval", body);
+	}
+
 	update(u: acp.SessionUpdate) {
 		switch (u.sessionUpdate) {
 			case "agent_message_chunk":
@@ -166,17 +184,65 @@ export class TranscriptFolder {
 	}
 }
 
+/** Glob-style tool-pattern match for permission policies. `*` spans within a
+ * dot-separated segment (`mcp:github.list_*`), `?` one char; no cross-segment
+ * wildcard — an allowlist entry names the tool it allows, not a prefix. */
+function toolMatches(pattern: string, tool: string): boolean {
+	const re = new RegExp(
+		`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === "*" ? "[^.]*" : c === "?" ? "[^.]" : `\\${c}`))}$`,
+	);
+	return re.test(tool);
+}
+
+/** Does the agent's policy auto-approve this permission request? A null
+ * policy preserves the legacy behaviour exactly: everything auto-allowed. */
+export function policyAllows(
+	policy: PermissionPolicy | null | undefined,
+	toolName: string | null,
+): boolean {
+	if (!policy) return true;
+	if (!toolName) return false;
+	return policy.autoAllow.some((p) => toolMatches(p, toolName));
+}
+
+/** Legacy answer for policy-less agents (and allowlisted requests): prefer
+ * allow_once, then allow_always; otherwise cancel the tool call. */
 function pickPermission(
 	options: ReadonlyArray<acp.PermissionOption>,
 ): acp.RequestPermissionResponse {
-	// The node owner chose to run this agent unattended on their own machine;
-	// harness-level sandboxing is the harness's business (D4).
 	const allow =
 		options.find((o) => o.kind === "allow_once") ??
 		options.find((o) => o.kind === "allow_always");
 	return allow
 		? { outcome: { outcome: "selected", optionId: allow.optionId } }
 		: { outcome: { outcome: "cancelled" } };
+}
+
+function denyPermission(
+	options: ReadonlyArray<acp.PermissionOption>,
+): acp.RequestPermissionResponse {
+	const reject =
+		options.find((o) => o.kind === "reject_once") ??
+		options.find((o) => o.kind === "reject_always");
+	return reject
+		? { outcome: { outcome: "selected", optionId: reject.optionId } }
+		: { outcome: { outcome: "cancelled" } };
+}
+
+/** Environment a harness child is born with: an explicit allowlist, never the
+ * node's own `process.env` — STELLARC_NODE_TOKEN and every other STELLARC_*
+ * var must be unreachable from the harness and its MCP descendants
+ * (NEVR-198: a prompt-injected harness could otherwise exfiltrate the node's
+ * own credential). */
+export function harnessEnv(
+	spec: Pick<HarnessSpec, "env">,
+): Record<string, string> {
+	const env: Record<string, string> = {};
+	for (const key of ["PATH", "HOME", "TMPDIR", "LANG"]) {
+		const v = process.env[key];
+		if (v !== undefined) env[key] = v;
+	}
+	return { ...env, ...spec.env };
 }
 
 export async function runTask(
@@ -190,7 +256,7 @@ export async function runTask(
 	try {
 		child = spawn(harness.command, [...harness.args], {
 			cwd: hooks.workdir,
-			env: { ...process.env, ...harness.env },
+			env: harnessEnv(harness),
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 	} catch (error) {
@@ -236,7 +302,49 @@ export async function runTask(
 					sessionUpdate: "tool_call_update",
 					toolCallId: p.toolCall.toolCallId,
 				} as acp.SessionUpdate);
-				return pickPermission(p.options);
+				const toolName = p.toolCall.name ?? null;
+				if (policyAllows(task.agent.permissionPolicy, toolName))
+					return pickPermission(p.options);
+				// Not allowlisted: park. Write the approval transcript item
+				// (options + RESOLVED argument values — Factory v0.237 lesson),
+				// tell the plane, and hold the session open until a verdict
+				// arrives on the heartbeat.
+				const report: PermissionRequestReport = {
+					sessionId: p.sessionId,
+					toolCallId: p.toolCall.toolCallId,
+					toolName,
+					title: p.toolCall.title ?? null,
+					options: p.options.map((o) => ({
+						optionId: o.optionId,
+						name: o.name,
+						kind: o.kind,
+					})),
+				};
+				folder.approval({
+					request: {
+						...report,
+						arguments: p.toolCall.rawInput ?? null,
+					},
+					status: "pending",
+				});
+				await flush(true).catch(() => {});
+				await hooks.onPermissionRequest(report);
+				const verdict = await new Promise<"granted" | "denied">((resolve) => {
+					if (permissionVerdict) return resolve(permissionVerdict);
+					verdictWaiters.push(resolve);
+				});
+				folder.approval({
+					request: {
+						...report,
+						arguments: p.toolCall.rawInput ?? null,
+					},
+					status: verdict === "granted" ? "granted" : "denied",
+					decidedAt: new Date().toISOString(),
+				});
+				await flush(true).catch(() => {});
+				return verdict === "granted"
+					? pickPermission(p.options)
+					: denyPermission(p.options);
 			},
 		}),
 		stream,
@@ -250,10 +358,21 @@ export async function runTask(
 	};
 	let sessionId: string | undefined;
 	let cancelled = false;
+	/** The operator verdict on a parked permission request, delivered exactly
+	 * once by the heartbeat; consumed by the pending requestPermission call. */
+	let permissionVerdict: "granted" | "denied" | undefined;
+	const verdictWaiters: Array<(v: "granted" | "denied") => void> = [];
+	const deliverVerdict = (v: "granted" | "denied") => {
+		permissionVerdict = v;
+		while (verdictWaiters.length) verdictWaiters.shift()?.(v);
+	};
 	const flushTimer = setInterval(() => void flush().catch(() => {}), 500);
 	const beat = setInterval(async () => {
 		try {
-			if ((await hooks.heartbeat()) && !cancelled) {
+			const state = await hooks.heartbeat();
+			if (state.permission && !permissionVerdict)
+				deliverVerdict(state.permission);
+			if (state.cancelled && !cancelled) {
 				cancelled = true;
 				if (sessionId) await conn.cancel({ sessionId });
 			}

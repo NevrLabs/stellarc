@@ -128,6 +128,91 @@ new acp.AgentSideConnection(
 					await new Promise((r) => setTimeout(r, 50));
 				return { stopReason: "cancelled" };
 			}
+			if (verb === "env") {
+				// Env-isolation probe (NEVR-198): report the child env as tool
+				// output — the test asserts STELLARC_* never reaches us.
+				const stellarc = Object.keys(process.env).filter((k) =>
+					k.startsWith("STELLARC"),
+				);
+				const seen: Record<string, string | undefined> = {};
+				for (const k of [
+					"PATH",
+					"HOME",
+					"TMPDIR",
+					"LANG",
+					"STELLARC_NODE_TOKEN",
+				])
+					seen[k] = process.env[k];
+				await say(
+					JSON.stringify({ stellarcKeys: stellarc, env: seen, mcpNames: [] }),
+				);
+				return { stopReason: "end_turn" };
+			}
+			if (verb === "mcp-env") {
+				// Spawn an MCP-shaped child (as a harness would launch an MCP
+				// server) and report which env keys it inherits.
+				const proc = Bun.spawn({
+					cmd: [
+						process.execPath,
+						"-e",
+						"console.log(JSON.stringify(Object.keys(process.env).sort()))",
+					],
+					env: { ...process.env, CHILD_MARKER: "mcp-descendant" },
+					stdout: "pipe",
+				});
+				const out = await new Response(proc.stdout).text();
+				await proc.exited;
+				await say(out.trim());
+				return { stopReason: "end_turn" };
+			}
+			if (verb === "perm-park") {
+				// Permission-parking harness (NEVR-198): requests permission with
+				// a resolved (non-template) argument; a grant must continue the
+				// SAME session to completion, a reject must end the turn.
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "tool_call",
+						toolCallId: "call-park",
+						title: "Deploy to production",
+						kind: "execute",
+						status: "pending",
+						name: "deploy",
+						rawInput: { target: "prod", force: true },
+					},
+				});
+				const perm = await conn.requestPermission({
+					sessionId: p.sessionId,
+					toolCall: {
+						toolCallId: "call-park",
+						title: "Deploy to production",
+						name: "deploy",
+						rawInput: { target: "prod", force: true },
+					},
+					options: [
+						{ optionId: "yes", name: "Allow", kind: "allow_once" },
+						{ optionId: "always", name: "Always allow", kind: "allow_always" },
+						{ optionId: "no", name: "Reject", kind: "reject_once" },
+					],
+				});
+				const picked =
+					perm.outcome.outcome === "selected" ? perm.outcome.optionId : "none";
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "tool_call_update",
+						toolCallId: "call-park",
+						status: "completed",
+						rawOutput: { picked },
+					},
+				});
+				if (picked !== "yes" && picked !== "always") {
+					await say(`rejected:${picked}`);
+					return { stopReason: "end_turn" };
+				}
+				await say("granted-and-ran");
+				return { stopReason: "end_turn" };
+			}
 			if (verb === "spend") {
 				// Usage-reporting harness: emits an UNSTABLE usage_update mid-run and
 				// token totals at finish (NEVR-178 capture path).

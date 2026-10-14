@@ -21,6 +21,9 @@ import {
 	isRetryable,
 	type McpServer,
 	type Push,
+	type PermissionDecision,
+	type PermissionPark,
+	type PermissionPolicy,
 	type TaskDescriptor,
 	type TaskStatus,
 	type UpdateBudget,
@@ -51,6 +54,8 @@ export interface AgentRow {
 	readonly model: string | null;
 	readonly instructions: string;
 	readonly mcpServers: ReadonlyArray<McpServer>;
+	/** Null = legacy behaviour (every permission auto-allowed). */
+	readonly permissionPolicy: PermissionPolicy | null;
 	readonly createdAt: string;
 }
 export interface TaskRow {
@@ -68,6 +73,9 @@ export interface TaskRow {
 	readonly failureCode: FailureCode | null;
 	readonly failureMessage: string | null;
 	readonly nativeSessionId: string | null;
+	/** Operator verdict on a permission park: 'granted' until the heartbeat
+	 * delivers it (then cleared), 'denied' terminal. Null otherwise. */
+	readonly permissionDecision: "granted" | "denied" | null;
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	/** Present only while parked in budget_exhausted. */
@@ -135,6 +143,10 @@ const agent = (r: Row): AgentRow => ({
 	model: r.model ?? null,
 	instructions: r.instructions,
 	mcpServers: r.mcp_servers ?? [],
+	permissionPolicy:
+		r.permission_policy && Array.isArray(r.permission_policy.autoAllow)
+			? (r.permission_policy as PermissionPolicy)
+			: null,
 	createdAt: iso(r.created_at) as string,
 });
 const task = (r: Row): TaskRow => ({
@@ -152,6 +164,7 @@ const task = (r: Row): TaskRow => ({
 	failureCode: r.failure_code ?? null,
 	failureMessage: r.failure_message ?? null,
 	nativeSessionId: r.native_session_id ?? null,
+	permissionDecision: r.permission_decision ?? null,
 	createdAt: iso(r.created_at) as string,
 	updatedAt: iso(r.updated_at) as string,
 });
@@ -585,9 +598,9 @@ export class AgentStore {
 				throw new Conflict({ message: `Agent "${input.name}" already exists` });
 			const id = newId("agt");
 			const [row] =
-				await tx`INSERT INTO agent(id,org,name,node_id,harness,model,instructions,mcp_servers,created_by)
-        VALUES (${id},${org},${input.name},${input.nodeId},${input.harness},${input.model ?? null},
-        ${input.instructions},${tx.json(input.mcpServers as never)},${actor}) RETURNING *`;
+				await tx`INSERT INTO agent(id,org,name,node_id,harness,model,instructions,mcp_servers,permission_policy,created_by)
+			VALUES (${id},${org},${input.name},${input.nodeId},${input.harness},${input.model ?? null},
+			${input.instructions},${tx.json(input.mcpServers as never)},${input.permissionPolicy ? tx.json(input.permissionPolicy as never) : null},${actor}) RETURNING *`;
 			await appendEvents(tx, org, actor, [
 				{
 					type: "agent-created",
@@ -863,7 +876,7 @@ export class AgentStore {
 				throw new Conflict({ message: `Task already ${row.status}` });
 			const [updated] =
 				await tx`UPDATE agent_task SET status='cancelled', lease_until=NULL,
-        stop_reason='cancelled', updated_at=now() WHERE id=${id} RETURNING *`;
+			stop_reason='cancelled', permission_decision=NULL, updated_at=now() WHERE id=${id} RETURNING *`;
 			await appendEvents(tx, org, actor, [
 				{ type: "task-cancelled", payload: { id, attempt: row.attempt } },
 			]);
@@ -876,13 +889,17 @@ export class AgentStore {
 	 * and resume tasks parked by an exhausted budget whose window rolled over. */
 	reapExpired() {
 		return txn(this.sql, "reapExpired", async (tx) => {
+			// needs_permission keeps its lease only while the holding node
+			// heartbeats; a node that went dark mid-park loses the held session,
+			// so expiry requeues (fresh attempt) like any platform fault.
 			const expired =
-				await tx`SELECT * FROM agent_task WHERE status IN ('claimed','running') AND lease_until < now() FOR UPDATE SKIP LOCKED`;
+				await tx`SELECT * FROM agent_task WHERE status IN ('claimed','running','needs_permission') AND lease_until < now() FOR UPDATE SKIP LOCKED`;
 			for (const r of expired) {
 				const retry = r.attempt < r.max_attempts;
 				await tx`UPDATE agent_task SET status=${retry ? "queued" : "failed"}, lease_until=NULL,
-          failure_code='platform.lease_expired', failure_message='Node stopped heartbeating', updated_at=now()
-          WHERE id=${r.id}`;
+			permission_decision=NULL,
+			failure_code='platform.lease_expired', failure_message='Node stopped heartbeating', updated_at=now()
+			WHERE id=${r.id}`;
 				await appendEvents(tx, r.org, "plane", [
 					{
 						type: retry ? "task-requeued" : "task-finished",
@@ -949,8 +966,9 @@ export class AgentStore {
 				}
 				const [claimed] =
 					await tx`UPDATE agent_task SET status='claimed', attempt=attempt+1, node_id=${n.id},
-        lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
-        updated_at=now() WHERE id=${row.id} RETURNING *`;
+				lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
+				permission_decision=NULL,
+				updated_at=now() WHERE id=${row.id} RETURNING *`;
 				const [a] = await tx`SELECT * FROM agent WHERE id=${claimed.agent_id}`;
 				await appendEvents(tx, n.org, `node:${n.id}`, [
 					{
@@ -973,6 +991,7 @@ export class AgentStore {
 						model: ag.model,
 						instructions: ag.instructions,
 						mcpServers: ag.mcpServers,
+						permissionPolicy: ag.permissionPolicy,
 					},
 				};
 				return descriptor;
@@ -1027,18 +1046,105 @@ export class AgentStore {
 		});
 	}
 
-	/** Extend the lease. Returns cancelled=true when the operator cancelled. */
+	/** Extend the lease. Returns cancelled=true when the operator cancelled,
+	 * and permission='granted' exactly once when an operator granted a parked
+	 * permission request (the marker is consumed on delivery). */
 	heartbeat(n: NodeRow, id: string, attempt: number) {
 		const leaseMs = this.leaseMs;
 		return txn(this.sql, "heartbeat", async (tx) => {
 			const row = await this.owned(tx, n, id, attempt);
 			await tx`UPDATE agent_node SET last_seen_at=now() WHERE id=${n.id}`;
 			if (row.status === "cancelled") return { cancelled: true };
-			if (row.status !== "claimed" && row.status !== "running")
+			// A deny already failed the row; deliver the verdict so the node
+			// rejects the held request and winds the session down (its finish
+			// report is then a no-op).
+			if (row.status === "failed" && row.permission_decision === "denied") {
+				await tx`UPDATE agent_task SET permission_decision=NULL, updated_at=now() WHERE id=${id}`;
+				return { cancelled: false, permission: "denied" as const };
+			}
+			if (
+				row.status !== "claimed" &&
+				row.status !== "running" &&
+				row.status !== "needs_permission"
+			)
 				throw new Conflict({ message: `Task is ${row.status}` });
-			await tx`UPDATE agent_task SET lease_until=now() + ${`${leaseMs} milliseconds`}::interval,
-        updated_at=now() WHERE id=${id}`;
-			return { cancelled: false };
+			const permission =
+				row.status === "needs_permission" &&
+				row.permission_decision === "granted"
+					? ("granted" as const)
+					: undefined;
+			await tx`UPDATE agent_task SET
+          lease_until=now() + ${`${leaseMs} milliseconds`}::interval,
+          permission_decision = CASE WHEN ${permission ?? null}::text IS NULL THEN permission_decision ELSE NULL END,
+          status = CASE WHEN ${permission ?? null}::text IS NULL THEN status ELSE 'running' END,
+          updated_at=now() WHERE id=${id}`;
+			return { cancelled: false, ...(permission ? { permission } : {}) };
+		});
+	}
+
+	/** Node → plane: park the task on a non-allowlisted permission request.
+	 * Attempt, lease, and native session are preserved — the node holds the
+	 * ACP session open and resumes it on the operator's grant. */
+	permissionRequest(n: NodeRow, id: string, input: PermissionPark) {
+		return txn(this.sql, "permissionRequest", async (tx) => {
+			const row = await this.owned(tx, n, id, input.attempt);
+			if (row.status !== "running" && row.status !== "claimed")
+				throw new Conflict({ message: `Task is ${row.status}` });
+			const leaseMs = this.leaseMs;
+			const [u] =
+				await tx`UPDATE agent_task SET status='needs_permission', permission_decision=NULL,
+        lease_until=now() + ${`${leaseMs} milliseconds`}::interval, updated_at=now() WHERE id=${id} RETURNING *`;
+			await appendEvents(tx, n.org, `node:${n.id}`, [
+				{
+					type: "task_permission_requested",
+					payload: {
+						id,
+						attempt: input.attempt,
+						request: input.request,
+					},
+				},
+			]);
+			return task(u);
+		});
+	}
+
+	/** Operator → plane: resolve a parked permission request. Grant flips the
+	 * task back to resumable (the node picks the verdict up on its next
+	 * heartbeat and continues the held session); deny fails the task with
+	 * agent_error.permission_denied — never retried, exactly like every other
+	 * agent_error (retrying a human denial burns money). */
+	resolvePermission(
+		org: string,
+		actor: string,
+		id: string,
+		input: PermissionDecision,
+	) {
+		return txn(this.sql, "resolvePermission", async (tx) => {
+			const [row] =
+				await tx`SELECT * FROM agent_task WHERE id=${id} AND org=${org} FOR UPDATE`;
+			if (!row) throw new NotFound({ message: "Task not found" });
+			if (row.status !== "needs_permission")
+				throw new Conflict({ message: `Task is ${row.status}` });
+			if (input.decision === "grant") {
+				await tx`UPDATE agent_task SET permission_decision='granted', updated_at=now() WHERE id=${id}`;
+				await appendEvents(tx, org, actor, [
+					{
+						type: "task_permission_granted",
+						payload: { id, attempt: row.attempt },
+					},
+				]);
+				return task(await tx`SELECT * FROM agent_task WHERE id=${id}`);
+			}
+			await tx`UPDATE agent_task SET status='failed', lease_until=NULL, permission_decision='denied',
+        stop_reason='permission_denied', failure_code='agent_error.permission_denied',
+        failure_message='Operator denied the permission request', updated_at=now() WHERE id=${id}`;
+			await appendEvents(tx, org, actor, [
+				{
+					type: "task_permission_denied",
+					payload: { id, attempt: row.attempt },
+				},
+			]);
+			return task(await tx`SELECT * FROM agent_task WHERE id=${id}`);
 		});
 	}
 
@@ -1050,7 +1156,11 @@ export class AgentStore {
 	) {
 		return txn(this.sql, "appendItems", async (tx) => {
 			const row = await this.owned(tx, n, id, attempt);
-			if (row.status !== "running" && row.status !== "claimed")
+			if (
+				row.status !== "running" &&
+				row.status !== "claimed" &&
+				row.status !== "needs_permission"
+			)
 				throw new Conflict({ message: `Task is ${row.status}` });
 			let inserted = 0;
 			const usageEvents = [];
@@ -1105,6 +1215,15 @@ export class AgentStore {
 				return task(row);
 			}
 			if (row.status !== "running" && row.status !== "claimed")
+			if (row.status === "cancelled") return task(row);
+			// A deny already failed the task; the node's late finish report for
+			// the held session is a no-op (the decision is the outcome).
+			if (row.status === "failed") return task(row);
+			if (
+				row.status !== "running" &&
+				row.status !== "claimed" &&
+				row.status !== "needs_permission"
+			)
 				throw new Conflict({ message: `Task is ${row.status}` });
 			if (input.outcome === "failed" && !input.failureCode)
 				throw new BadRequest({
@@ -1137,7 +1256,7 @@ export class AgentStore {
 			const [u] =
 				await tx`UPDATE agent_task SET status=${status}, lease_until=NULL,
         stop_reason=${input.stopReason ?? null}, failure_code=${input.failureCode ?? null},
-        failure_message=${input.failureMessage ?? null}, updated_at=now() WHERE id=${id} RETURNING *`;
+        failure_message=${input.failureMessage ?? null}, permission_decision=NULL, updated_at=now() WHERE id=${id} RETURNING *`;
 			events.push({
 				type: retry ? "task-requeued" : "task-finished",
 				payload: {

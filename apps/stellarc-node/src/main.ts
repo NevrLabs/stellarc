@@ -148,13 +148,19 @@ export async function executeClaimed(
 			onItems: async (items: ReadonlyArray<Item>) => {
 				await plane.call(`tasks/${task.id}/items`, { ...base, items });
 			},
-			heartbeat: async () =>
-				(
-					await plane.call<{ cancelled: boolean }>(
-						`tasks/${task.id}/heartbeat`,
-						base,
-					)
-				)?.cancelled ?? false,
+			heartbeat: async () => {
+				const state = await plane.call<{
+					cancelled: boolean;
+					permission?: "granted" | "denied";
+				}>(`tasks/${task.id}/heartbeat`, base);
+				return state ?? { cancelled: false };
+			},
+			onPermissionRequest: async (request) => {
+				await plane.call(`tasks/${task.id}/permission`, {
+					...base,
+					request,
+				});
+			},
 		});
 		// Durable push attribution (NEVR-199): read what THIS run pushed from
 		// the workdir's remote-tracking reflogs; failures never fail the finish.
