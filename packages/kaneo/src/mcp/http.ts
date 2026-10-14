@@ -9,11 +9,31 @@
  * WWW-Authenticate resource-metadata shape as the legacy tree. Session
  * ownership is enforced per request — a session id minted for user A answers
  * 404, never 200, for user B (same anti-enumeration posture as legacy
- * isMcpSessionOwner).
+ * isMcpSessionOwner). A resolved principal with an empty token does not
+ * authenticate (rework cycle 2, defect 3): legacy `validateBearerToken`
+ * required `Authorization: Bearer …` or `x-api-key`, so a cookie-only
+ * session — which `resolvePrincipal` would otherwise accept — is a 401 here
+ * too, never a session whose proxied calls all fail with `Bearer `.
+ *
+ * Origin policy lives in this wrapper, not the transport (cycle 2, defects
+ * 2 & 4), mirroring the legacy `cors()` middleware and host `withCors`:
+ * - Preflight (OPTIONS) is answered BEFORE the token gate with the same
+ *   204 + reflected headers hono's cors() produced: browsers send no
+ *   credentials with an OPTIONS preflight, so a 401 there breaks every
+ *   browser-based MCP client.
+ * - No Origin header (non-browser clients) always passes. An empty
+ *   configured origin list reflects ANY origin outside production (dev
+ *   convenience, same rule as withCors); otherwise exact membership.
+ *   Disallowed origins get 403 — effect/ai's DNS-rebinding posture,
+ *   deliberately stricter than legacy's silent no-ACAO response; recorded
+ *   in the PR's behavioral-differences table.
+ * - Origin is stripped before the request enters the transport, so the
+ *   transport's own membership check always passes and this wrapper is the
+ *   single origin authority; allowed-origin responses carry the ACAO echo.
  *
  * All HTTP methods on /api/mcp route here (REWORK defect 4): the transport
- * itself answers GET/PUT/PATCH/OPTIONS with 405, matching the legacy
- * `mcp.all("/mcp")` fall-through.
+ * itself answers GET/PUT/PATCH with 405, matching the legacy
+ * `mcp.all("/mcp")` fall-through, and OPTIONS is the CORS preflight above.
  *
  * OAuth consent endpoints (/mcp/register, /mcp/authorize*, /mcp/token,
  * well-knowns) are NOT part of this port: they stay in the legacy Hono tree
@@ -60,6 +80,64 @@ const sessionNotFound = Response.json(
 	{ status: 404 },
 );
 
+/* ---------- origin policy (cycle-2 defects 2 & 4) ---------- */
+
+/** `withCors` semantics: no Origin (non-browser) always passes; an empty
+ * configured list reflects any origin outside production; else membership. */
+export const isMcpOriginAllowed = (
+	origin: string | null,
+	allowedOrigins: ReadonlyArray<string>,
+): boolean =>
+	origin === null ||
+	(allowedOrigins.length === 0
+		? process.env.NODE_ENV !== "production"
+		: allowedOrigins.includes(origin));
+
+/** Preflight exactly as the legacy hono `cors()` middleware answered it:
+ * always 204 — never authenticated (browsers send no credentials with
+ * OPTIONS) — ACAO reflected only for allowed origins, credentials true,
+ * Access-Control-Request-Headers echoed, Vary set. */
+const preflight = (
+	request: Request,
+	origin: string | null,
+	allowed: boolean,
+): Response => {
+	const headers = new Headers();
+	if (allowed) {
+		headers.set("access-control-allow-origin", origin ?? "*");
+		headers.set("vary", "Origin");
+	}
+	headers.set("access-control-allow-credentials", "true");
+	headers.set(
+		"access-control-allow-methods",
+		"GET, HEAD, PUT, POST, DELETE, PATCH",
+	);
+	const requestHeaders = request.headers.get("access-control-request-headers");
+	if (requestHeaders) {
+		headers.set("access-control-allow-headers", requestHeaders);
+		headers.append("vary", "Access-Control-Request-Headers");
+	}
+	return new Response(null, { status: 204, headers });
+};
+
+/** Same request with the Origin header removed: this wrapper is the single
+ * origin authority, so the transport's own check must always pass. */
+const withoutOrigin = (request: Request): Request => {
+	const forwarded = new Request(request);
+	forwarded.headers.delete("origin");
+	return forwarded;
+};
+
+/** ACAO echo for allowed-origin responses — the `withCors` behaviour,
+ * repeated so the handler is self-contained when mounted without it. */
+const withAcao = (response: Response, origin: string): Response => {
+	const headers = new Headers(response.headers);
+	headers.set("access-control-allow-origin", origin);
+	headers.set("access-control-allow-credentials", "true");
+	headers.append("vary", "Origin");
+	return new Response(response.body, { status: response.status, headers });
+};
+
 /* ---------- tool registration ---------- */
 
 const registerTools = (tools: ReadonlyArray<McpToolSpec>) =>
@@ -86,7 +164,8 @@ const registerTools = (tools: ReadonlyArray<McpToolSpec>) =>
 export interface McpHttpOptions {
 	readonly tools: ReadonlyArray<McpToolSpec>;
 	readonly principalResolver: PrincipalResolver;
-	/** Origins allowed to call the MCP endpoint (DNS-rebinding guard). */
+	/** Origins allowed to call the MCP endpoint (DNS-rebinding guard).
+	 * Empty list = reflect any origin outside production (withCors parity). */
 	readonly allowedOrigins: ReadonlyArray<string>;
 	/** Loopback Kaneo API root (e.g. http://localhost:1337) the tools proxy
 	 * to. Required and asserted non-empty (REWORK defect 1). */
@@ -101,7 +180,7 @@ export interface McpHttpOptions {
 /**
  * Build the Effect-native MCP endpoint: gate + layerHttp, as a web handler.
  * Route ALL methods on /api/mcp here — `isNative` gives this handler the
- * whole path and the transport 405s what it does not serve.
+ * whole path; OPTIONS is the CORS preflight, the transport 405s the rest.
  */
 export function mcpHttpHandler(options: McpHttpOptions) {
 	// REWORK defect 1: an empty base URL is mis-wired production — fail
@@ -125,7 +204,10 @@ export function mcpHttpHandler(options: McpHttpOptions) {
 					McpProtocol.v2025_03_26,
 					McpProtocol.v2024_11_05,
 				],
-				allowedOrigins: options.allowedOrigins,
+				// Origin enforcement lives in this wrapper (withCors parity,
+				// including the dev reflect-all rule); requests reach the
+				// transport Origin-less so its own check always passes.
+				allowedOrigins: [],
 				allowSessionTermination: true,
 			}).pipe(Layer.provideMerge(HttpRouter.layer)),
 		),
@@ -139,12 +221,20 @@ export function mcpHttpHandler(options: McpHttpOptions) {
 			) as unknown as typeof app,
 	});
 	const wrapped = async (request: Request): Promise<Response> => {
+		// Origin policy first (cycle-2 defects 2 & 4): preflight is never
+		// authenticated, and disallowed origins never reach the token gate.
+		const origin = request.headers.get("origin");
+		const allowed = isMcpOriginAllowed(origin, options.allowedOrigins);
+		if (request.method === "OPTIONS") return preflight(request, origin, allowed);
+		if (!allowed) return new Response(null, { status: 403 });
 		// Single principal resolution per request (REWORK defect 5): reused by
 		// the gate, the tools, and the session-owner bookkeeping below.
 		const principal = await options
 			.principalResolver(new Headers(request.headers))
 			.catch(() => null);
-		if (!principal) return unauthenticated(apiRoot);
+		// Defect 3 (cycle 2): a principal without a token (cookie-only
+		// session) does NOT authenticate — legacy required a bearer/api key.
+		if (!principal || principal.token === "") return unauthenticated(apiRoot);
 		const sid = request.headers.get("mcp-session-id");
 		if (sid !== null) {
 			const owner = sessionOwners.get(sid);
@@ -154,7 +244,7 @@ export function mcpHttpHandler(options: McpHttpOptions) {
 				return sessionNotFound;
 		}
 		const response = await requestPrincipal.run(principal, () =>
-			handler(request),
+			handler(origin === null ? request : withoutOrigin(request)),
 		);
 		// Learn session ownership from the initialize response header; forget
 		// ended sessions after a terminating DELETE.
@@ -164,7 +254,7 @@ export function mcpHttpHandler(options: McpHttpOptions) {
 			const ended = request.headers.get("mcp-session-id");
 			if (ended && response.status === 204) sessionOwners.delete(ended);
 		}
-		return response;
+		return origin === null ? response : withAcao(response, origin);
 	};
 	return {
 		handler: wrapped,

@@ -28,7 +28,16 @@ import { disposablePostgres } from "../helpers/postgres";
  *  M12  zod `.datetime({offset:true})` parity: date-only rejected (defect 3),
  *  M13  GET /api/mcp → 405 from the transport (defect 4),
  *  M14  principal resolved exactly once per request (defect 5),
- *  M5   strengthened: termination ABORTS the upstream fetch (defect 6).
+ *  M5   strengthened: termination ABORTS the upstream fetch (defect 6),
+ *  M16  PRODUCTION wiring: kaneoNativeHandler-built MCP endpoint — the
+ *       assembly in kaneo/src/http.ts (adapter, KANEO_API_URL, mcpTools
+ *       call, guards+services) end-to-end against a stub upstream and a
+ *       real PG-migrated guard (cycle-2 defect 1),
+ *  M17  CORS preflight: OPTIONS /api/mcp answered 204 + legacy header set
+ *       BEFORE auth (cycle-2 defect 2),
+ *  M18  cookie-only session: 401 + WWW-Authenticate (cycle-2 defect 3),
+ *  M19  origin policy parity with withCors: empty list reflects any origin
+ *       outside production; configured list = membership (cycle-2 defect 4).
  */
 
 const resources: Array<() => Promise<void>> = [];
@@ -54,6 +63,10 @@ const principalFor: PrincipalResolver = async (headers) => {
 	const token = m?.[1] ?? headers.get("x-api-key") ?? "";
 	if (token === "token-a") return USER_A;
 	if (token === "token-b") return USER_B;
+	// M18: what resolvePrincipal yields for a cookie-only caller — a valid
+	// principal whose token is "" (session cookie, no bearer/api-key).
+	if (token === "empty-token-principal")
+		return { userId: "user-a", userRole: null, token: "" };
 	return null;
 };
 
@@ -158,6 +171,12 @@ beforeAll(async () => {
 			});
 			if (url.pathname === "/api/organization") {
 				return Response.json([{ id: "org-1", name: "Org" }]);
+			}
+			if (url.pathname === "/api/auth/get-session") {
+				return Response.json({ user: { id: "user-a", name: "A" } });
+			}
+			if (url.pathname.startsWith("/api/task/")) {
+				return Response.json({ id: "task-1", title: "T" });
 			}
 			if (url.pathname.startsWith("/api/board")) {
 				// M5 black-hole: hold until the client aborts.
@@ -387,6 +406,226 @@ test("M14 principal resolved exactly once per request (defect 5)", async () => {
 	// A request with an unknown session id is rejected by the transport; the
 	// resolver still ran exactly once for it.
 	expect(resolverCalls).toBe(1);
+});
+
+/* ── M16: production wiring through kaneoNativeHandler (cycle-2 defect 1) ── */
+
+test("M16 production wiring: kaneoNativeHandler's own MCP assembly proxies with the caller's token and carries userRole", async () => {
+	const { kaneoNativeHandler } = await import("../../packages/kaneo/src/http");
+	// Real PG for the guard path; the upstream is the shared stub.
+	const db = await disposablePostgres();
+	resources.push(db.close);
+	const opts = db.sql.options as unknown as {
+		host: string[];
+		database: string;
+		user: string;
+	};
+	const url = `postgresql://${opts.user}@localhost/${opts.database}?host=${encodeURIComponent(opts.host[0])}`;
+	process.env.DATABASE_URL = url;
+	const { migrate } = await import("drizzle-orm/postgres-js/migrator");
+	const { drizzle } = await import("drizzle-orm/postgres-js");
+	await migrate(drizzle(db.sql), {
+		migrationsFolder: "packages/kaneo-legacy/drizzle",
+	});
+
+	// Seed a task whose board belongs to an org the caller does NOT belong
+	// to: only the instance-admin branch can pass guardTask.
+	const { schema, DbLive } = await import("../../packages/kaneo/src/kernel");
+	const adminId = "prodw-admin";
+	const taskId = "prodw-task";
+	const boardId = "prodw-board";
+	const orgId = "prodw-org";
+	await Effect.runPromise(
+		Effect.gen(function* () {
+			const database = yield* Db;
+			yield* database.insert(schema.userTable).values({
+				id: adminId,
+				name: "ProdAdmin",
+				email: "admin@prodw.test",
+				role: "admin",
+			});
+			yield* database.insert(schema.organizationTable).values({
+				id: orgId,
+				name: "PO",
+				slug: "prodw-org",
+				createdAt: new Date(),
+			});
+			yield* database.insert(schema.boardTable).values({
+				id: boardId,
+				name: "PB",
+				slug: "prodw-board",
+				organizationId: orgId,
+			});
+			yield* database.insert(schema.taskTable).values({
+				id: taskId,
+				title: "PT",
+				boardId,
+			});
+		}).pipe(Effect.provide(DbLive(url))),
+	);
+
+	// The host production assembly: KANEO_API_URL → the stub upstream; the
+	// adapter maps the resolved principal exactly as kaneo/src/http.ts does.
+	const savedApiUrl = process.env.KANEO_API_URL;
+	process.env.KANEO_API_URL = upstreamBase;
+	const savedCors = process.env.CORS_ORIGINS;
+	delete process.env.CORS_ORIGINS;
+	const savedClient = process.env.KANEO_CLIENT_URL;
+	delete process.env.KANEO_CLIENT_URL;
+	const prod = kaneoNativeHandler({
+		databaseUrl: url,
+		resolvePrincipal: async (headers) => {
+			const token = headers
+				.get("authorization")
+				?.match(/^Bearer\s+(\S+)$/i)?.[1];
+			if (token !== "prod-token") return null;
+			return { userId: adminId, userRole: "admin", apiKey: null };
+		},
+		ports: {
+			publish: async () => {},
+			labelSync: {
+				upsert: async () => {},
+				remove: async () => {},
+			},
+		},
+	});
+	resources.push(prod.dispose);
+	const prodSrv = Bun.serve({
+		port: 0,
+		hostname: "127.0.0.1",
+		fetch: (r) => prod.handler(r),
+	});
+	const prodBase = prodSrv.url.origin;
+	resources.push(async () => {
+		prodSrv.stop(true);
+	});
+
+	// Initialize through the PRODUCTION handler, then call two tools:
+	// list_organizations (pure proxy) and get_task (guard + proxy).
+	const init = await fetch(`${prodBase}/api/mcp`, {
+		method: "POST",
+		headers: { ...j, authorization: "Bearer prod-token" },
+		body: initBody("2025-06-18"),
+	});
+	expect(init.status).toBe(200);
+	const sid = init.headers.get("mcp-session-id") ?? "";
+	const ver = (await readRpc(init))?.result?.protocolVersion ?? "";
+	expect(sid).toBeTruthy();
+
+	const hitsBefore = upstreamHits.length;
+	const listOrgs = await call(prodBase, sid, ver, "prod-token", "tools/call", {
+		name: "list_organizations",
+		arguments: {},
+	});
+	// The stub upstream was reached — the base URL flowed from
+	// KANEO_API_URL through mcpTools into the proxy — and it saw the
+	// caller's bearer token, not an empty one.
+	expect(listOrgs.body?.result?.isError).toBeFalsy();
+	expect(upstreamHits.length).toBe(hitsBefore + 1);
+	expect(upstreamHits.at(-1)?.path).toBe("/api/organization");
+	expect(upstreamHits.at(-1)?.auth).toBe("Bearer prod-token");
+
+	// Guard-backed tool through production wiring: the adapter carried
+	// userRole:"admin", so guardTask passes the instance-admin branch for a
+	// board the caller does not belong to, then proxies with the token.
+	const hitsBefore2 = upstreamHits.length;
+	const getTask = await call(prodBase, sid, ver, "prod-token", "tools/call", {
+		name: "get_task",
+		arguments: { taskId },
+	});
+	expect(getTask.body?.result?.isError).toBeFalsy();
+	expect(upstreamHits.length).toBe(hitsBefore2 + 1);
+	expect(upstreamHits.at(-1)?.path).toBe(`/api/task/${taskId}`);
+	expect(upstreamHits.at(-1)?.auth).toBe("Bearer prod-token");
+
+	// Restore env for the other tests sharing this process.
+	process.env.KANEO_API_URL = savedApiUrl;
+	if (savedCors !== undefined) process.env.CORS_ORIGINS = savedCors;
+	else delete process.env.CORS_ORIGINS;
+	if (savedClient !== undefined) process.env.KANEO_CLIENT_URL = savedClient;
+	else delete process.env.KANEO_CLIENT_URL;
+}, 120_000);
+
+/* ── M17–M19: origin/preflight/cookie gate (cycle-2 defects 2–4) ── */
+
+test("M17 CORS preflight: OPTIONS /api/mcp → 204 + legacy header set, never 401 (defect 2)", async () => {
+	const r = await fetch(`${effBase}/api/mcp`, {
+		method: "OPTIONS",
+		headers: {
+			origin: "http://localhost:5273",
+			"access-control-request-method": "POST",
+			"access-control-request-headers":
+				"authorization,content-type,mcp-session-id,mcp-protocol-version",
+		},
+	});
+	expect(r.status).toBe(204);
+	expect(r.headers.get("access-control-allow-origin")).toBe(
+		"http://localhost:5273",
+	);
+	expect(r.headers.get("access-control-allow-credentials")).toBe("true");
+	expect(r.headers.get("access-control-allow-methods")).toContain("POST");
+	expect(r.headers.get("access-control-allow-headers")).toContain(
+		"mcp-session-id",
+	);
+	expect(r.headers.get("www-authenticate")).toBeNull();
+	// No credentials on a preflight must not leak a session either: even a
+	// bogus token gets the 204 — preflight is unauthenticated by design.
+	const noAuth = await fetch(`${effBase}/api/mcp`, {
+		method: "OPTIONS",
+		headers: {
+			origin: "https://evil.example",
+			"access-control-request-method": "POST",
+		},
+	});
+	expect(noAuth.status).toBe(204);
+	// Disallowed origin: still 204 (a non-2xx preflight reads as failure to
+	// the browser) but WITHOUT the ACAO echo — the legacy cors() posture.
+	expect(noAuth.headers.get("access-control-allow-origin")).toBeNull();
+});
+
+test("M18 cookie-only session: 401 + WWW-Authenticate, not an empty-Bearer session (defect 3)", async () => {
+	// The resolver accepts the cookie session (returns a principal), but the
+	// wrapper must refuse it: no bearer, no x-api-key → 401. Modeled here
+	// with a principal whose token is "" (what resolvePrincipal yields for a
+	// cookie-only caller).
+	const r = await fetch(`${effBase}/api/mcp`, {
+		method: "POST",
+		headers: { ...j, authorization: "Bearer empty-token-principal" },
+		body: initBody("2025-06-18"),
+	});
+	expect(r.status).toBe(401);
+	expect(r.headers.get("www-authenticate")).toMatch(/^Bearer resource_metadata/);
+	const body = await r.json();
+	expect(body.error).toBe("invalid_token");
+});
+
+test("M19 origin policy parity with withCors (defect 4): empty list reflects any origin outside production", async () => {
+	// Fresh handler with NO configured origins, like a dev deployment that
+	// sets neither CORS_ORIGINS nor KANEO_CLIENT_URL: any origin passes and
+	// gets the ACAO echo (withCors reflect-unconfigured dev behaviour).
+	const dev = mcpHttpHandler({
+		tools: mcpTools(guards, upstreamBase),
+		principalResolver: principalFor,
+		allowedOrigins: [],
+		apiBaseUrl: upstreamBase,
+	});
+	const srv = Bun.serve({
+		port: 0,
+		hostname: "127.0.0.1",
+		fetch: (r) => dev.handler(r),
+	});
+	try {
+		const r = await fetch(`${srv.url.origin}/api/mcp`, {
+			method: "POST",
+			headers: { ...j, authorization: "Bearer token-a", origin: "http://x" },
+			body: initBody("2025-06-18"),
+		});
+		expect(r.status).toBe(200);
+		expect(r.headers.get("access-control-allow-origin")).toBe("http://x");
+	} finally {
+		srv.stop(true);
+		await dev.dispose();
+	}
 });
 
 /* ── M10: guard behaviour against a real database (defect 2) ── */

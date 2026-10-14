@@ -62,18 +62,24 @@ export function kaneoNativeHandler(options: {
 	// validateBearerToken does; malformed/absent -> 401 + WWW-Authenticate.
 	const mcpPrincipal = async (headers: Headers) => {
 		const p = await options.resolvePrincipal(headers);
-		return p && p !== "malformed" && p.userId
-			? {
-					userId: p.userId,
-					// Instance role rides along so MCP guards keep the legacy
-					// isInstanceAdmin bypass for admins without org membership.
-					userRole: p.userRole ?? null,
-					token:
-						headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1] ??
-						headers.get("x-api-key") ??
-						"",
-				}
-			: null;
+		if (!p || p === "malformed" || !p.userId) return null;
+		// Cycle-2 defect 3: legacy validateBearerToken required a bearer or
+		// x-api-key; resolvePrincipal also accepts cookie sessions, whose
+		// token here would be "" — every proxied tool would then send
+		// "Bearer " and fail upstream. Cookie-only callers are a 401, exactly
+		// as the legacy MCP gate answered them.
+		const token =
+			headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1] ??
+			headers.get("x-api-key") ??
+			"";
+		if (token === "") return null;
+		return {
+			userId: p.userId,
+			// Instance role rides along so MCP guards keep the legacy
+			// isInstanceAdmin bypass for admins without org membership.
+			userRole: p.userRole ?? null,
+			token,
+		};
 	};
 	const mcpApiRoot = (
 		process.env.KANEO_API_URL ?? "http://localhost:1337"
