@@ -23,16 +23,15 @@ export type Authorize = (
 // the test-only mutation routes — carries a server span in one trace.
 // Receives the inner application as an Effect yielding the response, per
 // HttpRouter.toWebHandler's middleware contract.
-export const requestTelemetry = (
-	httpApp: Effect.Effect<
-		HttpServerResponse.HttpServerResponse,
-		unknown,
-		HttpServerRequest.HttpServerRequest | Scope.Scope
-	>,
+export const requestTelemetry = <
+	E,
+	R extends HttpServerRequest.HttpServerRequest | Scope.Scope,
+>(
+	httpApp: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
 ): Effect.Effect<
 	HttpServerResponse.HttpServerResponse,
-	unknown,
-	HttpServerRequest.HttpServerRequest | Scope.Scope
+	E,
+	R | HttpServerRequest.HttpServerRequest
 > =>
 	Effect.fn("stellarc.http.request")(function* () {
 		const request = yield* HttpServerRequest.HttpServerRequest;
@@ -165,7 +164,7 @@ export function foundationHandler(
 		),
 		{
 			memoMap,
-			middleware: requestTelemetry as never,
+			middleware: requestTelemetry,
 		},
 	);
 }

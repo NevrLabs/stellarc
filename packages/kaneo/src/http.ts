@@ -7,8 +7,7 @@
  * the UI noticing — same paths, same JSON.
  */
 
-import { PgClient } from "@effect/sql-pg";
-import { Cause, Effect, Layer, Redacted } from "effect";
+import { Cause, Effect, Layer } from "effect";
 import { HttpRouter, HttpServer, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { KaneoApi } from "./api";
@@ -59,17 +58,11 @@ export function kaneoNativeHandler(options: {
 		Layer.provideMerge(Services),
 	);
 	const ApiRoutes = HttpApiBuilder.layer(KaneoApi).pipe(
-		Layer.provide(Handlers),
-		// v4: SqlClient became a request-scoped requirement (drizzle queries
-		// resolve it from the fiber context per request), so the pg pool is
-		// provided per request rather than baked into the layer.
-		HttpRouter.provideRequest(
-			PgClient.layer({
-				url: Redacted.make(options.databaseUrl),
-				maxConnections: 10,
-				applicationName: "stellarc-kaneo",
-			}),
-		),
+		// provideMerge, not provide: Handlers carries the DbLive pg pool
+		// (Db, PgClient, SqlClient) — merging it into the router layer keeps
+		// the pool in the request context (drizzle resolves SqlClient from
+		// the fiber per query) instead of leaving it a private dependency.
+		Layer.provideMerge(Handlers),
 	);
 	return HttpRouter.toWebHandler(
 		ApiRoutes.pipe(

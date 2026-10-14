@@ -36,10 +36,13 @@ if (import.meta.main)
 			// SIGTERM/SIGINT is the orchestrator's normal stop signal: scoped
 			// releases have already run, so the worker reports a clean exit.
 			// Real failures (incl. startup) still exit nonzero via defaultTeardown.
-			teardown: ((exit, onExit) => {
+			teardown: <E, A>(
+				exit: Exit.Exit<E, A>,
+				onExit: (code: number) => void,
+			) => {
 				if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause))
 					return onExit(0);
 				Runtime.defaultTeardown(exit, onExit);
-			}) as Runtime.Teardown,
+			},
 		},
 	);
