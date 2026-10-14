@@ -67,7 +67,7 @@ const guard = Effect.fn("mcp.guard")(function* (
 	// apiKey is null because MCP keys are pre-resolved to their userId.
 	const principal: Principal = {
 		userId: me.userId,
-		userRole: null,
+		userRole: me.userRole,
 		apiKey: null,
 	};
 	yield* access.requirePermission(organizationId, required).pipe(

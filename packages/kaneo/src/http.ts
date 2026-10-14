@@ -37,8 +37,9 @@ for (const group of Object.values(KaneoApi.groups))
 /** True when the Effect-native API owns this method+path. */
 export const isNative = (request: Request) => {
 	const path = new URL(request.url).pathname;
-	if (path === "/api/mcp")
-		return ["POST", "DELETE", "OPTIONS"].includes(request.method);
+	// The whole MCP endpoint is native (REWORK defect 4): the transport
+	// answers GET/PUT/PATCH/OPTIONS with 405, like legacy mcp.all("/mcp").
+	if (path === "/api/mcp") return true;
 	return ROUTES.some(([m, re]) => m === request.method && re.test(path));
 };
 
@@ -64,6 +65,9 @@ export function kaneoNativeHandler(options: {
 		return p && p !== "malformed" && p.userId
 			? {
 					userId: p.userId,
+					// Instance role rides along so MCP guards keep the legacy
+					// isInstanceAdmin bypass for admins without org membership.
+					userRole: p.userRole ?? null,
 					token:
 						headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1] ??
 						headers.get("x-api-key") ??
@@ -71,8 +75,11 @@ export function kaneoNativeHandler(options: {
 				}
 			: null;
 	};
+	const mcpApiRoot = (
+		process.env.KANEO_API_URL ?? "http://localhost:1337"
+	).replace(/\/api\/?$/, "");
 	const mcp = mcpHttpHandler({
-		tools: mcpTools(mcpPrincipal, mcpGuardsLive()),
+		tools: mcpTools(mcpGuardsLive(), mcpApiRoot),
 		principalResolver: mcpPrincipal,
 		// Guards resolve Db/Access per request; sharing the host memoMap keeps
 		// one PG pool across the API and MCP runtimes.
@@ -86,10 +93,7 @@ export function kaneoNativeHandler(options: {
 			.split(",")
 			.map((o) => o.trim())
 			.filter(Boolean),
-		apiBaseUrl: (process.env.KANEO_API_URL ?? "http://localhost:1337").replace(
-			/\/api\/?$/,
-			"",
-		),
+		apiBaseUrl: mcpApiRoot,
 	});
 	const Services = Layer.mergeAll(Access.layer, AuthenticationLive).pipe(
 		Layer.provideMerge(Base),

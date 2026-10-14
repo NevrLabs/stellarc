@@ -20,9 +20,9 @@ export const Priority = Schema.Literals([
 	"urgent",
 ]);
 
-/** Non-empty trimmed string (zod `.trim().min(1)` parity). */
-const NonEmpty = Schema.String.pipe(
-	Schema.check(Schema.isTrimmed()),
+/** Non-empty trimmed string (zod `.trim().min(1)` parity: decode TRIMS, then
+ * rejects empty — "  abc  " decodes to "abc", "   " is invalid). */
+const NonEmpty = Schema.Trim.pipe(
 	Schema.check(
 		Schema.makeFilter((s: string) => (s.trim().length > 0 ? true : "Required")),
 	),
@@ -33,8 +33,14 @@ export const NullableOptionalNonEmpty = Schema.optional(
 	Schema.NullOr(NonEmpty),
 );
 
+// zod `.datetime({ offset: true })` exactly: date-T-time, optional seconds
+// and fraction, and a REQUIRED zone (Z or ±HH:MM) — date-only and naive
+// local times are invalid, "2026-01-01" is rejected.
+// zod `.datetime({ offset: true })` exactly: date-T-time, optional seconds
+// and fraction, and a REQUIRED zone (Z or ±HH:MM) — date-only and naive
+// local times are invalid, "2026-01-01" is rejected.
 const isoRe =
-	/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 const IsoDateTime = Schema.String.pipe(
 	Schema.check(
 		Schema.makeFilter(
