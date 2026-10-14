@@ -1,11 +1,11 @@
+import { Effect, Layer, type Scope } from "effect";
 import {
-	HttpApiBuilder,
-	type HttpApp,
+	HttpRouter,
 	HttpServer,
 	HttpServerRequest,
 	HttpServerResponse,
-} from "@effect/platform";
-import { Effect, Layer } from "effect";
+} from "effect/http";
+import { HttpApiBuilder } from "effect/http-api";
 import type { Sql } from "postgres";
 import { FoundationApi } from "../../../packages/contracts/src/api";
 import type { ShapeEngine } from "../../../packages/sync/src/index";
@@ -22,10 +22,17 @@ export type Authorize = (
 // Shared by the foundation and fixture handlers so every request — including
 // the test-only mutation routes — carries a server span in one trace.
 // Receives the inner application as an Effect yielding the response, per
-// HttpApiBuilder.toWebHandler's middleware contract.
-export const requestTelemetry = (
-	httpApp: HttpApp.Default<never, never>,
-): HttpApp.Default<never, never> =>
+// HttpRouter.toWebHandler's middleware contract.
+export const requestTelemetry = <
+	E,
+	R extends HttpServerRequest.HttpServerRequest | Scope.Scope,
+>(
+	httpApp: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+): Effect.Effect<
+	HttpServerResponse.HttpServerResponse,
+	E,
+	R | HttpServerRequest.HttpServerRequest
+> =>
 	Effect.fn("stellarc.http.request")(function* () {
 		const request = yield* HttpServerRequest.HttpServerRequest;
 		const pathname = new URL(request.url, "http://localhost").pathname;
@@ -93,17 +100,17 @@ export function foundationHandler(
 		handlers
 			.handleRaw("health", () =>
 				(healthQuery ?? Effect.tryPromise(() => sql`SELECT 1`)).pipe(
-					Effect.as(HttpServerResponse.unsafeJson({ status: "ok" })),
-					Effect.catchAll((error) => Effect.succeed(errorResponse(error))),
+					Effect.as(HttpServerResponse.jsonUnsafe({ status: "ok" })),
+					Effect.catch((error) => Effect.succeed(errorResponse(error))),
 				),
 			)
-			.handleRaw("shape", ({ path, request }) =>
+			.handleRaw("shape", ({ params, request }) =>
 				Effect.gen(function* () {
 					const principal = principalFrom(
-						path.org,
+						params.org,
 						request.headers.authorization,
 					);
-					const decision = authorize(path.org, request.headers, principal);
+					const decision = authorize(params.org, request.headers, principal);
 					if (decision !== "ok")
 						return errorResponse({
 							_tag:
@@ -112,10 +119,10 @@ export function foundationHandler(
 									: "Forbidden",
 						});
 					const response = yield* engine.shapeEffect(
-						path.org,
+						params.org,
 						new URL(request.url, "http://localhost"),
 					);
-					const resumed = authorize(path.org, request.headers, principal);
+					const resumed = authorize(params.org, request.headers, principal);
 					if (resumed !== "ok")
 						return errorResponse({
 							_tag:
@@ -140,20 +147,24 @@ export function foundationHandler(
 							principal,
 						),
 					});
-				}).pipe(
-					Effect.catchAll((error) => Effect.succeed(errorResponse(error))),
-				),
+				}).pipe(Effect.catch((error) => Effect.succeed(errorResponse(error)))),
 			),
 	);
-	return HttpApiBuilder.toWebHandler(
-		Layer.mergeAll(
-			HttpApiBuilder.api(FoundationApi).pipe(Layer.provide(group)),
-			HttpServer.layerContext,
-			telemetry,
+	const apiRoutes = HttpApiBuilder.layer(FoundationApi).pipe(
+		Layer.provide(group),
+	);
+	return HttpRouter.toWebHandler(
+		apiRoutes.pipe(
+			Layer.provide(HttpServer.layerServices),
+			// provideMerge, not provide: the telemetry services (Tracer, Logger,
+			// metrics) must remain in the final context — the request middleware's
+			// spans/reads resolve from the built layer context, so `provide`
+			// (private deps) would leave them on the no-op native tracer.
+			Layer.provideMerge(telemetry),
 		),
 		{
-			middleware: requestTelemetry,
 			memoMap,
+			middleware: requestTelemetry,
 		},
 	);
 }

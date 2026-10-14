@@ -6,6 +6,7 @@
  * lifted legacy tree. Each migrated group removes a slice of legacy without
  * the UI noticing — same paths, same JSON.
  */
+
 import { Cause, Effect, Layer } from "effect";
 import { HttpRouter, HttpServer, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
@@ -57,12 +58,19 @@ export function kaneoNativeHandler(options: {
 		Layer.provideMerge(Services),
 	);
 	const ApiRoutes = HttpApiBuilder.layer(KaneoApi).pipe(
-		Layer.provide(Handlers),
+		// provideMerge, not provide: Handlers carries the DbLive pg pool
+		// (Db, PgClient, SqlClient) — merging it into the router layer keeps
+		// the pool in the request context (drizzle resolves SqlClient from
+		// the fiber per query) instead of leaving it a private dependency.
+		Layer.provideMerge(Handlers),
 	);
 	return HttpRouter.toWebHandler(
 		ApiRoutes.pipe(
 			Layer.provide(HttpServer.layerServices),
-			Layer.provide(options.telemetry ?? Layer.empty),
+			// provideMerge so telemetry services stay in the request context
+			// (spans/loggers) — `provide` treats them as private deps of the
+			// router build and drops them from the final context.
+			Layer.provideMerge(options.telemetry ?? Layer.empty),
 		),
 		{
 			memoMap: options.memoMap,

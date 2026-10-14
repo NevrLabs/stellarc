@@ -1,12 +1,11 @@
+import { Effect, Layer, ManagedRuntime, Schema } from "effect";
+import { HttpRouter, HttpServer, HttpServerResponse } from "effect/http";
 import {
 	HttpApi,
 	HttpApiBuilder,
 	HttpApiEndpoint,
 	HttpApiGroup,
-	HttpServer,
-	HttpServerResponse,
-} from "@effect/platform";
-import { Effect, Layer, ManagedRuntime, Schema } from "effect";
+} from "effect/http-api";
 import { errorResponse } from "../../apps/stellarc-api/src/errors";
 import { migrate } from "../../packages/db/src/migrate";
 import {
@@ -38,7 +37,7 @@ export async function startTestServer() {
 	// MeterProvider binding, so each build must reuse one instance.
 	const telemetry = TelemetryTest();
 	const memoMap = await Effect.runPromise(Layer.makeMemoMap);
-	const runtime = ManagedRuntime.make(telemetry.layer, memoMap);
+	const runtime = ManagedRuntime.make(telemetry.layer, { memoMap });
 	const { foundationHandler } = await import(
 		"../../apps/stellarc-api/src/http"
 	);
@@ -56,30 +55,30 @@ export async function startTestServer() {
 		// test-composed server (§3): the production module must not know it.
 		testPrincipalFrom,
 	);
-	const id = Schema.NonEmptyString.pipe(Schema.maxLength(128));
+	const id = Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(128)));
 	const api = HttpApi.make("fixtures").add(
 		HttpApiGroup.make("probes")
 			.add(
-				HttpApiEndpoint.post("write", "/orgs/:org/__test/probes").setPath(
-					Schema.Struct({ org: id }),
-				),
+				HttpApiEndpoint.post("write", "/orgs/:org/__test/probes", {
+					params: Schema.Struct({ org: id }),
+				}),
 			)
 			.add(
-				HttpApiEndpoint.del("delete", "/orgs/:org/__test/probes/:id").setPath(
-					Schema.Struct({ org: id, id }),
-				),
+				HttpApiEndpoint.delete("delete", "/orgs/:org/__test/probes/:id", {
+					params: Schema.Struct({ org: id, id }),
+				}),
 			),
 	);
 	const reply = (status: number, _tag: string, message: string) =>
-		HttpServerResponse.unsafeJson({ _tag, message }, { status });
+		HttpServerResponse.jsonUnsafe({ _tag, message }, { status });
 	const fixtureGroup = HttpApiBuilder.group(api, "probes", (handlers) =>
 		handlers
-			.handleRaw("write", ({ path, request }) =>
+			.handleRaw("write", ({ params, request }) =>
 				Effect.tryPromise({
 					try: async () => {
 						if (!request.headers.authorization)
 							return reply(401, "Unauthenticated", "Authentication required");
-						if (request.headers.authorization !== `Bearer ${path.org}`)
+						if (request.headers.authorization !== `Bearer ${params.org}`)
 							return reply(403, "Forbidden", "Access denied");
 						const body = await Effect.runPromise(request.json).catch(
 							() => null,
@@ -89,11 +88,11 @@ export async function startTestServer() {
 						)(body);
 						if (decoded._tag === "None")
 							return reply(400, "BadRequest", "Invalid request");
-						return HttpServerResponse.unsafeJson(
+						return HttpServerResponse.jsonUnsafe(
 							await runtime.runPromise(
 								writeProbeEffect(
 									db.sql,
-									path.org,
+									params.org,
 									"test-actor",
 									decoded.value.id,
 									decoded.value.value,
@@ -102,19 +101,24 @@ export async function startTestServer() {
 						);
 					},
 					catch: errorResponse,
-				}).pipe(Effect.catchAll(Effect.succeed)),
+				}).pipe(Effect.catch(Effect.succeed)),
 			)
-			.handleRaw("delete", ({ path, request }) =>
+			.handleRaw("delete", ({ params, request }) =>
 				Effect.tryPromise({
 					try: async () => {
 						if (!request.headers.authorization)
 							return reply(401, "Unauthenticated", "Authentication required");
-						if (request.headers.authorization !== `Bearer ${path.org}`)
+						if (request.headers.authorization !== `Bearer ${params.org}`)
 							return reply(403, "Forbidden", "Access denied");
 						try {
-							return HttpServerResponse.unsafeJson(
+							return HttpServerResponse.jsonUnsafe(
 								await runtime.runPromise(
-									deleteProbeEffect(db.sql, path.org, "test-actor", path.id),
+									deleteProbeEffect(
+										db.sql,
+										params.org,
+										"test-actor",
+										params.id,
+									),
 								),
 							);
 						} catch (error) {
@@ -124,14 +128,17 @@ export async function startTestServer() {
 						}
 					},
 					catch: errorResponse,
-				}).pipe(Effect.catchAll(Effect.succeed)),
+				}).pipe(Effect.catch(Effect.succeed)),
 			),
 	);
-	const fixtures = HttpApiBuilder.toWebHandler(
-		Layer.mergeAll(
-			HttpApiBuilder.api(api).pipe(Layer.provide(fixtureGroup)),
-			HttpServer.layerContext,
-			telemetry.layer,
+	const fixturesRoutes = HttpApiBuilder.layer(api).pipe(
+		Layer.provide(fixtureGroup),
+	);
+	const fixtures = HttpRouter.toWebHandler(
+		fixturesRoutes.pipe(
+			Layer.provide(HttpServer.layerServices),
+			// provideMerge: telemetry must survive into the request context.
+			Layer.provideMerge(telemetry.layer),
 		),
 		{ memoMap },
 	);

@@ -2,12 +2,19 @@
  * Wire contract of the Kaneo-compatible API (`/api/*`), as Effect HttpApi
  * groups. Pure declarations: no handlers, no database.
  */
-import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
+
 import { Schema } from "effect";
+import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { DomainErrors } from "./errors";
 import { BACKLOG_STATUS_SLUGS, TASK_STATUS_ORDER_SLUGS } from "./status";
 
-const Json = Schema.Unknown;
+// v4: success bodies are opaque kaneo-shaped JSON. `Schema.Unknown` is NOT it:
+// toCodecJson rewrites Unknown into the Json declaration, which rejects any
+// non-JSON value at encode time — drizzle rows carry Date timestamps, so every
+// handler 500s with "Expected JSON value". `Schema.Any` is the documented
+// escape hatch (internal/schema/toCodec.js: "`Schema.Any` is used as an escape
+// hatch") and encodes passthrough, matching legacy Hono c.json behaviour.
+const Json = Schema.Any;
 const Id = Schema.String;
 
 const statusOrder = (allowed: readonly string[]) =>

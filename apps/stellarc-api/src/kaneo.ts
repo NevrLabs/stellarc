@@ -37,10 +37,10 @@ export interface KaneoDomainService {
 	readonly ports: import("../../../packages/kaneo/src/kernel").DomainPorts;
 }
 
-export class KaneoDomain extends Context.Tag("stellarc/KaneoDomain")<
+export class KaneoDomain extends Context.Service<
 	KaneoDomain,
 	KaneoDomainService
->() {}
+>()("stellarc/KaneoDomain") {}
 
 /** The legacy tree is type-checked by its own config (packages/kaneo-legacy
  * keeps Kaneo's looser settings). Here it is loaded by path through a narrow
@@ -61,7 +61,7 @@ const load = (path: string): Effect.Effect<any, unknown> =>
 export const kaneoDatabaseUrl = () =>
 	process.env.KANEO_DATABASE_URL ?? process.env.DATABASE_URL ?? "";
 
-export const KaneoDomainLive = Layer.scoped(
+export const KaneoDomainLive = Layer.effect(
 	KaneoDomain,
 	Effect.gen(function* () {
 		// The lifted tree reads DATABASE_URL at import time.
@@ -78,7 +78,7 @@ export const KaneoDomainLive = Layer.scoped(
 				catch: (cause) => cause,
 			}).pipe(
 				Effect.withSpan("kaneo.startup"),
-				Effect.zipRight(Effect.logInfo("kaneo domain started")),
+				Effect.andThen(Effect.logInfo("kaneo domain started")),
 			),
 			() =>
 				Effect.gen(function* () {

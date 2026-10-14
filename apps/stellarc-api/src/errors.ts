@@ -1,4 +1,4 @@
-import { HttpServerResponse } from "@effect/platform";
+import { HttpServerResponse } from "effect/http";
 
 /** Driver diagnostics never cross the HTTP boundary. */
 export function errorResponse(
@@ -6,7 +6,7 @@ export function errorResponse(
 ): HttpServerResponse.HttpServerResponse {
 	if (typeof error === "object" && error !== null && "_tag" in error) {
 		if (error._tag === "Unauthenticated" || error._tag === "Forbidden")
-			return HttpServerResponse.unsafeJson(
+			return HttpServerResponse.jsonUnsafe(
 				{
 					_tag: error._tag,
 					message:
@@ -24,7 +24,10 @@ export function errorResponse(
 		typeof error === "object" &&
 		error !== null &&
 		"_tag" in error &&
-		["SqlError", "UnknownException"].includes(String(error._tag));
+		// v4 renamed Cause.UnknownException → Cause.UnknownError (docs/effect-v4/cause.md)
+		["SqlError", "UnknownException", "UnknownError"].includes(
+			String(error._tag),
+		);
 	if (wrapped && "cause" in error) return errorResponse(error.cause);
 	const code =
 		typeof error === "object" && error !== null && "code" in error
@@ -42,7 +45,7 @@ export function errorResponse(
 			"ENOTFOUND",
 			"ETIMEDOUT",
 		].includes(code);
-	return HttpServerResponse.unsafeJson(
+	return HttpServerResponse.jsonUnsafe(
 		unavailable
 			? { _tag: "Unavailable", message: "Service unavailable" }
 			: { _tag: "InternalError", message: "Internal server error" },

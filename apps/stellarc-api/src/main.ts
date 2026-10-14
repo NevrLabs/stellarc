@@ -1,6 +1,15 @@
 import { BunRuntime } from "@effect/platform-bun";
 import { PgClient } from "@effect/sql-pg";
-import { Context, Effect, Layer, ManagedRuntime, Redacted } from "effect";
+import {
+	Cause,
+	Context,
+	Effect,
+	Exit,
+	Layer,
+	ManagedRuntime,
+	Redacted,
+	Runtime,
+} from "effect";
 import { websocket as bunWebsocket } from "hono/bun";
 import postgres from "postgres";
 import {
@@ -169,13 +178,13 @@ export const api = Effect.gen(function* () {
 				yield* Effect.never;
 			}).pipe(
 				Effect.scoped,
-				Effect.catchAllCause((cause) =>
+				Effect.catchCause((cause) =>
 					Effect.logError("kaneo domain failed to start", cause),
 				),
 			),
 		);
 	const runtime = yield* Effect.acquireRelease(
-		Effect.sync(() => ManagedRuntime.make(telemetry, memoMap)),
+		Effect.sync(() => ManagedRuntime.make(telemetry, { memoMap })),
 		(rt) => Effect.promise(() => rt.dispose()),
 	);
 	const serveKaneo = (request: Request, server: Bun.Server<unknown>) =>
@@ -192,7 +201,7 @@ export const api = Effect.gen(function* () {
 						response?.status ?? 101,
 					),
 				),
-				Effect.catchAll((error) =>
+				Effect.catch((error) =>
 					Effect.logError("kaneo handler failed", error).pipe(
 						Effect.as(
 							Response.json(
@@ -251,7 +260,7 @@ export const api = Effect.gen(function* () {
 if (import.meta.main)
 	BunRuntime.runMain(
 		api.pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					// biome-ignore lint/suspicious/noConsole: fatal startup handler cannot depend on telemetry
 					console.error(
@@ -262,4 +271,17 @@ if (import.meta.main)
 				}),
 			),
 		),
+		{
+			// SIGTERM/SIGINT is the orchestrator's normal stop signal: scoped
+			// releases (server, DB pool) have already run, so report a clean
+			// exit. Real failures still exit nonzero via defaultTeardown.
+			teardown: <E, A>(
+				exit: Exit.Exit<E, A>,
+				onExit: (code: number) => void,
+			) => {
+				if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause))
+					return onExit(0);
+				Runtime.defaultTeardown(exit, onExit);
+			},
+		},
 	);

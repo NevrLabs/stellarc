@@ -297,7 +297,7 @@ test("T11 live connection gauge returns to zero and wait histogram records abort
 		);
 		url.searchParams.set("live", "true");
 		const pending = runtime.runPromise(
-			engine.shapeEffect("metrics", url, controller.signal).pipe(Effect.either),
+			engine.shapeEffect("metrics", url, controller.signal).pipe(Effect.result),
 		);
 		await expect
 			.poll(
@@ -369,15 +369,11 @@ test("SqlLive exports query metadata without SQL text or parameter values", asyn
 			}).pipe(
 				Effect.provide(SqlLive),
 				Effect.provide(ConfigLive),
-				Effect.withConfigProvider(
-					ConfigProvider.fromMap(
-						new Map([
-							[
-								"DATABASE_URL",
-								`postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
-							],
-						]),
-					),
+				Effect.provideService(
+					ConfigProvider.ConfigProvider,
+					ConfigProvider.fromEnvRecord({
+						DATABASE_URL: `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`,
+					}),
 				),
 			),
 		);
@@ -453,13 +449,10 @@ test("T05 append spans share the mutation trace and report committed event ident
 	const readCounter = async () => {
 		const pairs = await runtime.runPromise(Metric.snapshot);
 		return pairs
-			.filter(
-				(pair) => pair.metricKey.name === "stellarc_events_appended_total",
-			)
+			.filter((pair) => pair.id === "stellarc_events_appended_total")
 			.reduce(
 				(sum, pair) =>
-					sum +
-					Number((pair.metricState as unknown as { count: number }).count),
+					sum + Number((pair.state as unknown as { count: number }).count),
 				0,
 			);
 	};
@@ -652,8 +645,9 @@ test("T17 worker emits start/stop lifecycle spans and releases SQL on interrupti
 	const databaseUrl = `postgresql://stellarc_owner@localhost/postgres?host=${encodeURIComponent(db.sql.options.host[0])}`;
 	const fiber = runtime.runFork(
 		worker.pipe(
-			Effect.withConfigProvider(
-				ConfigProvider.fromMap(new Map([["DATABASE_URL", databaseUrl]])),
+			Effect.provideService(
+				ConfigProvider.ConfigProvider,
+				ConfigProvider.fromEnvRecord({ DATABASE_URL: databaseUrl }),
 			),
 		),
 	);
