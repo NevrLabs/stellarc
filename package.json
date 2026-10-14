@@ -36,7 +36,6 @@
 		"@hono/standard-validator": "0.3.0",
 		"@kaneo/email": "workspace:*",
 		"@kaneo/permissions": "workspace:*",
-		"@modelcontextprotocol/sdk": "1.29.0",
 		"@octokit/webhooks": "14.2.0",
 		"@opentelemetry/exporter-logs-otlp-http": "0.203.0",
 		"@opentelemetry/exporter-metrics-otlp-http": "0.222.0",
