@@ -37,6 +37,7 @@ export const ITEM_KINDS = [
 	"config",
 	"harness_meta",
 	"usage",
+	"push",
 ] as const;
 export const ItemKind = Schema.Literal(...ITEM_KINDS);
 export type ItemKind = typeof ItemKind.Type;
@@ -175,6 +176,18 @@ export const Usage = Schema.Struct({
 });
 export type Usage = typeof Usage.Type;
 
+/** One durable push fact observed in the run's workdir (NEVR-199): commit
+ * authorship is spoofable free text; the push event is the attribution the
+ * plane keeps. Populated by stellarc-node from the harness workdir's git
+ * remote-tracking reflogs at finish — no GitHub API at this stage. */
+export const Push = Schema.Struct({
+	commitSha: Schema.String.pipe(Schema.pattern(/^[0-9a-f]{40}$/)),
+	ref: Schema.NonEmptyString.pipe(Schema.maxLength(256)),
+	remote: Schema.NonEmptyString.pipe(Schema.maxLength(512)),
+	pushedAt: Schema.String,
+});
+export type Push = typeof Push.Type;
+
 export const Finish = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.positive()),
 	outcome: Schema.Literal("completed", "cancelled", "failed"),
@@ -184,6 +197,9 @@ export const Finish = Schema.Struct({
 	/** Harness-reported token/cost totals for this attempt (ACP
 	 * `PromptResponse.usage`, UNSTABLE but SDK-typed). */
 	usage: Schema.optional(Usage),
+	/** Commits the run's workdir pushed to git remotes during this attempt.
+	 * Absent or empty when nothing was pushed (NEVR-199). */
+	pushes: Schema.optional(Schema.Array(Push).pipe(Schema.maxItems(200))),
 });
 export type Finish = typeof Finish.Type;
 

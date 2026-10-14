@@ -20,6 +20,7 @@ import {
 	type Item,
 	isRetryable,
 	type McpServer,
+	type Push,
 	type TaskDescriptor,
 	type TaskStatus,
 	type UpdateBudget,
@@ -78,6 +79,14 @@ export interface ItemRow {
 	readonly kind: string;
 	readonly body: unknown;
 	readonly occurredAt: string;
+}
+/** Durable push attribution (NEVR-199): task → run → commit sha → ref. */
+export interface PushRow {
+	readonly attempt: number;
+	readonly commitSha: string;
+	readonly ref: string;
+	readonly remote: string;
+	readonly pushedAt: string;
 }
 export interface BudgetRow {
 	readonly id: string;
@@ -166,12 +175,18 @@ const newId = (prefix: string) =>
 export const hashToken = (token: string) =>
 	createHash("sha256").update(token).digest("hex");
 
-/** Append events to the org log inside the caller's transaction (D10). */
+/** Append events to the org log inside the caller's transaction (D10). An
+ * event may carry its own `actor` when the attributed principal differs from
+ * the authenticated reporter (D12: the agent acts, the node reports). */
 async function appendEvents(
 	tx: TransactionSql,
 	org: string,
 	actor: string,
-	events: ReadonlyArray<{ type: string; payload: Record<string, unknown> }>,
+	events: ReadonlyArray<{
+		type: string;
+		payload: Record<string, unknown>;
+		actor?: string;
+	}>,
 ) {
 	if (events.length === 0) return;
 	await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
@@ -182,7 +197,7 @@ async function appendEvents(
 	for (const event of events) {
 		seq += 1n;
 		await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
-      VALUES (${org},${seq.toString()},${`${PLUGIN}:${event.type}`},${actor},${tx.json(event.payload as never)},1,${txn.txid})`;
+      VALUES (${org},${seq.toString()},${`${PLUGIN}:${event.type}`},${event.actor ?? actor},${tx.json(event.payload as never)},1,${txn.txid})`;
 	}
 }
 
@@ -308,6 +323,59 @@ const usageEvent = (taskId: string, attempt: number, r: Row | null) =>
 				},
 			}
 		: null;
+
+// ── push attribution (NEVR-199) ─────────────────────────────────────────────
+
+/** Next transcript seq for (task, attempt), continuing after any items the
+ * node already streamed. */
+async function maxItemSeq(
+	tx: TransactionSql,
+	taskId: string,
+	attempt: number,
+): Promise<number> {
+	const [row] =
+		await tx`SELECT COALESCE(MAX(seq), -1) AS max FROM agent_task_item WHERE task_id=${taskId} AND attempt=${attempt}`;
+	return Number(row?.max ?? -1);
+}
+
+/** Insert typed push rows (idempotent on re-delivery) and return one
+ * `task_pushed` event per newly inserted push. */
+async function recordPushes(
+	tx: TransactionSql,
+	org: string,
+	taskId: string,
+	attempt: number,
+	agentId: string,
+	onBehalfOf: string | null,
+	pushes: ReadonlyArray<Push>,
+) {
+	const events = [];
+	for (const p of pushes) {
+		const res =
+			await tx`INSERT INTO agent_task_push(org,task_id,attempt,commit_sha,ref,remote,pushed_at)
+      VALUES (${org},${taskId},${attempt},${p.commitSha},${p.ref},${p.remote},${new Date(p.pushedAt)})
+      ON CONFLICT (task_id, attempt, commit_sha, ref) DO NOTHING`;
+		if (res.count === 0) continue;
+		// D12 attribution chain: the agent principal acted, on behalf of the
+		// task creator; the node merely reports it (D14). The future GitHub
+		// linkage joins on commitSha.
+		events.push({
+			type: "task_pushed",
+			actor: `agent:${agentId}`,
+			payload: {
+				id: taskId,
+				attempt,
+				agentId,
+				commitSha: p.commitSha,
+				ref: p.ref,
+				remote: p.remote,
+				pushedAt: p.pushedAt,
+				onBehalfOf,
+			},
+		});
+	}
+	return events;
+}
 
 // ── budget evaluation ───────────────────────────────────────────────────────
 
@@ -700,6 +768,10 @@ export class AgentStore {
 				() =>
 					sql`SELECT attempt,seq,kind,body,occurred_at FROM agent_task_item WHERE task_id=${id} ORDER BY attempt,seq`,
 			);
+			const pushes = yield* Effect.tryPromise(
+				() =>
+					sql`SELECT attempt,commit_sha,ref,remote,pushed_at FROM agent_task_push WHERE task_id=${id} ORDER BY attempt,pushed_at`,
+			);
 			const out = {
 				task: t,
 				items: items.map(
@@ -709,6 +781,15 @@ export class AgentStore {
 						kind: r.kind,
 						body: r.body,
 						occurredAt: iso(r.occurred_at) as string,
+					}),
+				),
+				pushes: pushes.map(
+					(r): PushRow => ({
+						attempt: r.attempt,
+						commitSha: r.commit_sha,
+						ref: r.ref,
+						remote: r.remote,
+						pushedAt: iso(r.pushed_at) as string,
 					}),
 				),
 			};
@@ -994,6 +1075,37 @@ export class AgentStore {
 				);
 				const event = usageEvent(id, input.attempt, merged);
 				if (event) events.push(event);
+			}
+			if (input.pushes && input.pushes.length > 0) {
+				// Typed push items alongside the usage-shaped capture: the transcript
+				// and the org log agree, and the read surface joins on commit_sha.
+				const seen = new Set<string>();
+				let seq = await maxItemSeq(tx, id, input.attempt);
+				for (const p of input.pushes) {
+					const key = `${p.commitSha}\n${p.ref}`;
+					if (seen.has(key)) continue;
+					seen.add(key);
+					seq += 1;
+					await tx`INSERT INTO agent_task_item(org,task_id,attempt,seq,kind,body,occurred_at)
+            VALUES (${n.org},${id},${input.attempt},${seq},'push',${tx.json({
+							commitSha: p.commitSha,
+							ref: p.ref,
+							remote: p.remote,
+							pushedAt: p.pushedAt,
+						} as never)},${new Date(p.pushedAt)})
+            ON CONFLICT DO NOTHING`;
+				}
+				events.push(
+					...(await recordPushes(
+						tx,
+						n.org,
+						id,
+						input.attempt,
+						row.agent_id,
+						row.created_by,
+						input.pushes,
+					)),
+				);
 			}
 			const retry =
 				input.outcome === "failed" &&

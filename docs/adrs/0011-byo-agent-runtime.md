@@ -66,6 +66,15 @@ becomes `harness_meta` and is never dropped. Items are deduplicated on
 node (D21). The harness's native session id is stored as a pointer (paseo's
 persistence-as-pointer).
 
+**Pushes** (NEVR-199): at finish, stellarc-node reads the workdir's
+remote-tracking reflogs (`update by push` entries inside the attempt's time
+window) and reports one `{commitSha, ref, remote, pushedAt}` tuple per push
+in the `Finish` payload. The plane stores them as typed `push` transcript
+items + `agent_task_push` rows and appends one `agents:task_pushed` event
+per push (actor = agent principal, `onBehalfOf` = task creator) — the durable
+attribution chain the GitHub linkage joins on. Commit authorship is spoofable
+free text; the push event is the authenticated fact.
+
 ## Interim choices (explicitly temporary)
 
 | Choice | Why now | Replaced by |
