@@ -61,7 +61,6 @@ test("supervisor-class commands, bare or under sudo", () => {
 	for (const s of supervisors) {
 		expect(cmd(s), s).toBe(true);
 		expect(cmd(`sudo ${s}`)).toBe(true);
-		expect(cmd(`sudo shutdown -h now`)).toBe(true);
 	}
 });
 
@@ -116,9 +115,9 @@ test("command substitution resolving self pids refuses", () => {
 });
 
 test("pipelines feeding self pids to kill refuse", () => {
-	expect(
-		cmd("ps aux | grep stellarc | awk '{print $2}' | xargs kill"),
-	).toBe(true);
+	expect(cmd("ps aux | grep stellarc | awk '{print $2}' | xargs kill")).toBe(
+		true,
+	);
 	expect(cmd("pgrep stellarc | xargs kill -9")).toBe(true);
 });
 

@@ -282,6 +282,16 @@ new acp.AgentSideConnection(
 					await new Promise((r) => setTimeout(r, 50));
 				return { stopReason: "cancelled" };
 			}
+			if (verb === "streamcrash") {
+				// Crash-after-chunks harness (NEVR-230 defect 6): stream a few
+				// chunks, then die mid-stream — the run ends with an open item
+				// and no cancel, the harness_exit interrupt path.
+				for (let i = 0; i < 3; i++) {
+					await say(`chunk-${i} `);
+					await new Promise((r) => setTimeout(r, 40));
+				}
+				process.exit(3);
+			}
 			if (verb === "perm-cmd") {
 				// Self-kill guard harness (NEVR-229): request permission for
 				// an arbitrary command (rest joined, e.g. "kill 12345"),
