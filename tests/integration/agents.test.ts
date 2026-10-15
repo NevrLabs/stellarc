@@ -1017,6 +1017,20 @@ test("P2 non-allowlisted request parks in needs_permission: approval item with r
 	expect(after.body.task.attempt).toBe(1);
 	// Denied tasks never retry.
 	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	// The approval item is settled by the deny itself (the node's flush
+	// would 409 on the terminal row): denied, with who and when.
+	const deniedItems = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(deniedItems).toHaveLength(1);
+	const deniedBody = deniedItems[0].body as {
+		status: string;
+		decidedAt?: string;
+		decidedBy?: string;
+	};
+	expect(deniedBody.status).toBe("denied");
+	expect(deniedBody.decidedAt).toBeTruthy();
+	expect(deniedBody.decidedBy).toBe("operator");
 	// Second decision attempt conflicts.
 	expect(
 		(await p.op("POST", `tasks/${t.body.id}/permission`, { decision: "grant" }))

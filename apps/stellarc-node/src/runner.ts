@@ -338,7 +338,9 @@ export async function runTask(
 					},
 					status: "pending",
 				});
-				await flush(true).catch(() => {});
+				await flush(true).catch((e) =>
+					hooks.log?.(`approval flush failed: ${e}`),
+				);
 				await hooks.onPermissionRequest(report);
 				const v = await verdict;
 				folder.approval({
@@ -349,7 +351,9 @@ export async function runTask(
 					status: v,
 					decidedAt: new Date().toISOString(),
 				});
-				await flush(true).catch(() => {});
+				await flush(true).catch((e) =>
+					hooks.log?.(`approval flush failed: ${e}`),
+				);
 				// A cancelled run answers reject too: the harness gets a
 				// settled response and can wind down instead of blocking on a
 				// permission answer that will never come.

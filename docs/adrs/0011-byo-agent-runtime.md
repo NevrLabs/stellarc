@@ -43,7 +43,11 @@ and an agent is `(node, harness, model?, instructions, mcpServers)`.
   holds the ACP session open. An operator grant resumes the *same* attempt
   and native session; a deny fails the task with
   `agent_error.permission_denied` and is never retried (retrying a human
-  denial burns money). Agents without a policy keep the legacy behaviour
+  denial burns money). Policy matching keys on the harness-reported
+  `toolCall.name` — an optional ACP field. A harness that omits it cannot
+  be matched against `autoAllow`, so such a request always parks (fail
+  closed) even when the agent allowlists the tool; harnesses should always
+  report `toolCall.name`. Agents without a policy keep the legacy behaviour
   exactly: every request auto-allowed. Decisions travel on the heartbeat
   response. Harness children run with an explicit env allowlist
   (`PATH`, `HOME`, `TMPDIR`, `LANG`, plus the harness spec's own `env`) —

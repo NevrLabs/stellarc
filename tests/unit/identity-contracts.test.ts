@@ -577,7 +577,7 @@ test("D1 runMigration returns every entry's version+checksum in order; re-run ve
 		"0005_pushes",
 		"0006_permissions",
 	]);
-	expect(fresh.inserted).toHaveLength(5);
+	expect(fresh.inserted).toHaveLength(6);
 });
 
 test("D1 applyMigration annotates stellarc.migration.version with the run's versions", async () => {

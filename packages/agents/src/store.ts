@@ -20,10 +20,10 @@ import {
 	type Item,
 	isRetryable,
 	type McpServer,
-	type Push,
 	type PermissionDecision,
 	type PermissionPark,
 	type PermissionPolicy,
+	type Push,
 	type TaskDescriptor,
 	type TaskStatus,
 	type UpdateBudget,
@@ -882,10 +882,10 @@ export class AgentStore {
 			// so the plane records the cancellation itself — the operator sees
 			// the request was cancelled, not left dangling as pending.
 			await tx`UPDATE agent_task_item
-			SET body = jsonb_set(body, '{status}', '"cancelled"', true)
-			|| jsonb_build_object('decidedAt', to_jsonb(now()::text))
-			WHERE org=${org} AND task_id=${id}
-			AND kind='approval' AND body->>'status'='pending'`;
+				SET body = jsonb_set(body, '{status}', '"cancelled"', true)
+				|| jsonb_build_object('decidedAt', to_jsonb(now()::text), 'decidedBy', ${actor}::text)
+				WHERE org=${org} AND task_id=${id}
+				AND kind='approval' AND body->>'status'='pending'`;
 			await appendEvents(tx, org, actor, [
 				{ type: "task-cancelled", payload: { id, attempt: row.attempt } },
 			]);
@@ -906,9 +906,20 @@ export class AgentStore {
 			for (const r of expired) {
 				const retry = r.attempt < r.max_attempts;
 				await tx`UPDATE agent_task SET status=${retry ? "queued" : "failed"}, lease_until=NULL,
-			permission_decision=NULL,
-			failure_code='platform.lease_expired', failure_message='Node stopped heartbeating', updated_at=now()
-			WHERE id=${r.id}`;
+				permission_decision=NULL,
+				failure_code='platform.lease_expired', failure_message='Node stopped heartbeating', updated_at=now()
+				WHERE id=${r.id}`;
+				// A requeue from needs_permission abandons the parked attempt:
+				// settle its pending approval as cancelled so the audit trail
+				// never shows a request still awaiting an answer (the new
+				// attempt, if the harness re-requests, creates its own item).
+				if (r.status === "needs_permission") {
+					await tx`UPDATE agent_task_item
+						SET body = jsonb_set(body, '{status}', '"cancelled"', true)
+						|| jsonb_build_object('decidedAt', to_jsonb(now()::text), 'decidedBy', 'plane')
+						WHERE org=${r.org} AND task_id=${r.id}
+						AND kind='approval' AND body->>'status'='pending'`;
+				}
 				await appendEvents(tx, r.org, "plane", [
 					{
 						type: retry ? "task-requeued" : "task-finished",
@@ -1145,8 +1156,16 @@ export class AgentStore {
 				return task(await tx`SELECT * FROM agent_task WHERE id=${id}`);
 			}
 			await tx`UPDATE agent_task SET status='failed', lease_until=NULL, permission_decision='denied',
-        stop_reason='permission_denied', failure_code='agent_error.permission_denied',
-        failure_message='Operator denied the permission request', updated_at=now() WHERE id=${id}`;
+			stop_reason='permission_denied', failure_code='agent_error.permission_denied',
+			failure_message='Operator denied the permission request', updated_at=now() WHERE id=${id}`;
+			// Settle the pending approval item in the same transaction, exactly
+			// like cancelTask: the row is now terminal so the node's flush of the
+			// decided item would 409 — record the denial here, with who decided.
+			await tx`UPDATE agent_task_item
+				SET body = jsonb_set(body, '{status}', '"denied"', true)
+				|| jsonb_build_object('decidedAt', to_jsonb(now()::text), 'decidedBy', ${actor}::text)
+				WHERE org=${org} AND task_id=${id}
+				AND kind='approval' AND body->>'status'='pending'`;
 			await appendEvents(tx, org, actor, [
 				{
 					type: "task_permission_denied",
@@ -1224,7 +1243,7 @@ export class AgentStore {
 				return task(row);
 			}
 			if (row.status !== "running" && row.status !== "claimed")
-			if (row.status === "cancelled") return task(row);
+				if (row.status === "cancelled") return task(row);
 			// A deny already failed the task; the node's late finish report for
 			// the held session is a no-op (the decision is the outcome).
 			if (row.status === "failed") return task(row);
