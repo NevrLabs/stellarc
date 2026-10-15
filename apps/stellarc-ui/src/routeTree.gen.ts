@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LayoutRouteImport } from './routes/_layout'
+import { Route as AgentTranscriptFixturesRouteImport } from './routes/agent-transcript-fixtures'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DeviceRouteImport } from './routes/device'
 import { Route as TestErrorRouteImport } from './routes/test-error'
@@ -98,6 +99,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentTranscriptFixturesRoute = AgentTranscriptFixturesRouteImport.update({
+  id: '/agent-transcript-fixtures',
+  path: '/agent-transcript-fixtures',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -654,6 +660,7 @@ const LayoutAuthenticatedDashboardOrganizationOrganizationSlugRepoRepoIdPullsNum
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agent-transcript-fixtures': typeof AgentTranscriptFixturesRoute
   '/auth': typeof AuthRouteWithChildren
   '/device': typeof DeviceRouteWithChildren
   '/test-error': typeof TestErrorRoute
@@ -735,6 +742,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agent-transcript-fixtures': typeof AgentTranscriptFixturesRoute
   '/auth': typeof AuthRouteWithChildren
   '/test-error': typeof TestErrorRoute
   '/auth/check-email': typeof AuthCheckEmailRoute
@@ -815,6 +823,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_layout': typeof LayoutRouteWithChildren
+  '/agent-transcript-fixtures': typeof AgentTranscriptFixturesRoute
   '/auth': typeof AuthRouteWithChildren
   '/device': typeof DeviceRouteWithChildren
   '/test-error': typeof TestErrorRoute
@@ -899,6 +908,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agent-transcript-fixtures'
     | '/auth'
     | '/device'
     | '/test-error'
@@ -980,6 +990,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/agent-transcript-fixtures'
     | '/auth'
     | '/test-error'
     | '/auth/check-email'
@@ -1059,6 +1070,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_layout'
+    | '/agent-transcript-fixtures'
     | '/auth'
     | '/device'
     | '/test-error'
@@ -1143,6 +1155,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LayoutRoute: typeof LayoutRouteWithChildren
+  AgentTranscriptFixturesRoute: typeof AgentTranscriptFixturesRoute
   AuthRoute: typeof AuthRouteWithChildren
   DeviceRoute: typeof DeviceRouteWithChildren
   TestErrorRoute: typeof TestErrorRoute
@@ -1165,6 +1178,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof LayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agent-transcript-fixtures': {
+      id: '/agent-transcript-fixtures'
+      path: '/agent-transcript-fixtures'
+      fullPath: '/agent-transcript-fixtures'
+      preLoaderRoute: typeof AgentTranscriptFixturesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -2078,6 +2098,7 @@ const DeviceRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LayoutRoute: LayoutRouteWithChildren,
+  AgentTranscriptFixturesRoute: AgentTranscriptFixturesRoute,
   AuthRoute: AuthRouteWithChildren,
   DeviceRoute: DeviceRouteWithChildren,
   TestErrorRoute: TestErrorRoute,
