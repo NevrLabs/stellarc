@@ -16,18 +16,18 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Factory Droids (Script approvals, injection hardening, doctor; v0.240.0) | WATCH (promoted from REJECT) | 2026-10-14 | competitors |
 | GitHub push attribution (durable authenticated-pusher on commits) | WATCH (steal requirement) | 2026-10-14 | competitors |
 | Huly (authz-grant fix #11067; no agent story; next check Jan 2027) | REJECT | 2026-10-14 | competitors |
-| Tauri 2 (chosen shell, 2.12.3; Cargo.lock uncommitted — brief posted) | ADOPT | 2026-10-14 | cross-platform-ui |
-| Tauri 3.0-alpha (alpha.4; alpha.6 staged via release PR) | WATCH | 2026-10-14 | cross-platform-ui |
-| tauri-runtime-cef (Chromium runtime, 3.0-alpha.5; OSR + fullscreen landed) | WATCH | 2026-10-14 | cross-platform-ui |
-| GPUI Kit (ex gpui-component, Rust desktop, v0.7.3) | WATCH | 2026-10-14 | cross-platform-ui |
-| Expo / React Native (second stack) | REJECT | 2026-10-14 | cross-platform-ui |
-| react-native-web (revived; signal only) | REJECT | 2026-10-14 | cross-platform-ui |
-| Capacitor 8 | REJECT | 2026-10-14 | cross-platform-ui |
-| Dioxus 0.7 | REJECT | 2026-10-14 | cross-platform-ui |
-| Flutter | REJECT | 2026-10-14 | cross-platform-ui |
-| Lynx 4.1 (web+iOS+Android, bindings pre-1.0) | WATCH | 2026-10-14 | cross-platform-ui |
-| Electrobun (beta, macOS-centric) | REJECT | 2026-10-14 | cross-platform-ui |
-| @axe-core/playwright (a11y floor; brief posted 10-13, not yet landed) | ADOPT | 2026-10-14 | cross-platform-ui |
+| Tauri 2 (chosen shell; 2.12.4 out 10-14 — IPC/asset empty-path panic fix; Cargo.lock committed @2.12.3 + weekly dependabot via NEVR-191/PR #98; await dependabot 2.12.4 PR, review for #16197) | ADOPT | 2026-10-15 | cross-platform-ui |
+| Tauri 3.0-alpha (core alpha.5 10-14, dep-sync only; npm next: cli α.5, api α.3) | WATCH | 2026-10-15 | cross-platform-ui |
+| tauri-runtime-cef (α.6 10-14: OSR IME/input/composition app-provided #16225, session-restore fix, CEF 154.5; webkitgtk tail 77 open) | WATCH | 2026-10-15 | cross-platform-ui |
+| GPUI Kit (ex gpui-component, Rust desktop, v0.7.3; code Apache-2.0, docs CC BY 4.0) | WATCH | 2026-10-15 | cross-platform-ui |
+| Expo / React Native (SDK 57.0.29; RN 0.87.1; second stack) | REJECT | 2026-10-15 | cross-platform-ui |
+| react-native-web (0.21.4; signal only) | REJECT | 2026-10-15 | cross-platform-ui |
+| Capacitor (8.5.3; 9.0.0-alpha.8 on next — Tauri mobile covers) | REJECT | 2026-10-15 | cross-platform-ui |
+| Dioxus (0.8.0-alpha.2 10-14, first movement since Jul; stable 0.7.10) | REJECT | 2026-10-15 | cross-platform-ui |
+| Flutter | REJECT | 2026-10-15 | cross-platform-ui |
+| Lynx 4.1 (web+iOS+Android, bindings 0.127.0 pre-1.0) | WATCH | 2026-10-15 | cross-platform-ui |
+| Electrobun (beta .25, macOS-centric) | REJECT | 2026-10-15 | cross-platform-ui |
+| @axe-core/playwright (4.13.0; NEVR-150 filed+todo — row open until built) | ADOPT (pending) | 2026-10-15 | cross-platform-ui |
 | effect 4.x (4.0.5 out 10-15 — npm skew: satellites live, core 404; v4 branch pin 4.0.2; bump gate = core resolves on npm) | ADOPT | 2026-10-15 | libraries |
 | effect `reactivity` + @effect/atom-react (core atoms, React hooks; unstable) | WATCH | 2026-10-15 | libraries |
 | @a2a-js/sdk 1.3 (A2A protocol; no Stellarc consumer today) | WATCH | 2026-10-15 | libraries |
