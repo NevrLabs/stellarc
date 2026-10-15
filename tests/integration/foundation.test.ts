@@ -607,6 +607,85 @@ test("T09 real fixture HttpApi commits mutations and stock awaitTxId settles", a
 	expect(await server.eventCount("http")).toBe(2);
 });
 
+// electric-db-collection 0.6 (#2127): while an `onError` handler decides to
+// retry a stream error, the collection stays `loading` — it must not enter
+// `error` (the pre-0.6 behavior). The retried stream then settles the same
+// waiting preload. Sabotage control: asserting `status === "error"` on the
+// old expectation turns this test red.
+test("T24 stream error behind a retrying onError keeps the collection loading and settles on the retried stream", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	await server.write("retrying", "one", "seeded");
+	let failedOnce = false;
+	const statuses: string[] = [];
+	const collection = createCollection(
+		electricCollectionOptions<{
+			org: string;
+			id: string;
+			value: string;
+			last_seq: string;
+		}>({
+			id: `retrying:${crypto.randomUUID()}`,
+			getKey: (row) => JSON.stringify([row.org, row.id]),
+			shapeOptions: {
+				url: `${server.url}/orgs/retrying/v1/shape`,
+				params: { table: "sync_probe" },
+				headers: { authorization: "Bearer retrying" },
+				// A non-retryable 4xx reaches onError immediately (no client
+				// backoff); returning {} requests a retry with the same
+				// params. Zero-delay backoff keeps the test fast.
+				backoffOptions: { initialDelay: 1, maxDelay: 1, multiplier: 1 },
+				onError: (error) => {
+					if (failedOnce) return;
+					failedOnce = true;
+					expect(error).toBeInstanceOf(Error);
+					return {};
+				},
+				fetchClient: Object.assign(
+					async (
+						input: Parameters<typeof fetch>[0],
+						init?: Parameters<typeof fetch>[1],
+					) => {
+						if (!failedOnce) {
+							return new Response(JSON.stringify({ error: "boom" }), {
+								status: 400,
+								headers: { "content-type": "application/json" },
+							});
+						}
+						return fetch(input, init);
+					},
+					{ preconnect: fetch.preconnect },
+				),
+			},
+		}),
+	);
+	collection.on("status:change", (event) => statuses.push(event.status));
+	resources.push(async () => {
+		await collection.cleanup();
+	});
+	try {
+		await collection.preload();
+		// 0.6 contract: a retryable error behind a retrying onError never
+		// failed the initial sync — the collection stayed loading until the
+		// retried stream delivered the snapshot.
+		expect(collection.status).toBe("ready");
+		expect(collection.get(JSON.stringify(["retrying", "one"]))?.value).toBe(
+			"seeded",
+		);
+		// The transient error never surfaced as a status the UI could mistake
+		// for terminal: `error` is absent from the observed transitions.
+		expect(statuses).not.toContain("error");
+		// And the retried stream keeps delivering: awaitTxId still settles.
+		const { txid } = await server.write("retrying", "two", "post-retry");
+		await collection.utils.awaitTxId(txid, 5000);
+		expect(collection.get(JSON.stringify(["retrying", "two"]))?.value).toBe(
+			"post-retry",
+		);
+	} finally {
+		expect(collection.status).not.toBe("error");
+	}
+});
+
 test("T18 fixture mutations reject unauthorized and invalid bodies without writes", async () => {
 	const server = await startTestServer();
 	resources.push(server.close);
