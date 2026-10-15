@@ -726,10 +726,18 @@ test("T25 tail labelling: re-created rows re-insert and cursor replays stay byte
 		cursor = response.headers.get("electric-offset") ?? cursor;
 		return { body, ops: opsAt(body) };
 	};
-	// Upsert, delete and re-create row x, each on its own tail page.
+	// Upsert, rewrite, delete and re-create row x, each on its own tail page.
 	await server.write(org, "x", "v1");
 	const upsert1 = await tail();
 	expect(upsert1.ops).toEqual(["insert"]);
+	// A rewrite of an already-delivered row on a LATER tail page must be
+	// `update` — the cursor the previous page issued records x as known.
+	// Without recording the post-page set under the issued cursor, every
+	// page rebuilds known-ness from the snapshot rows alone and mislabels
+	// this `insert`, which 0.6 clients re-insert instead of update.
+	await server.write(org, "x", "v1b");
+	const rewrite = await tail();
+	expect(rewrite.ops).toEqual(["update"]);
 	await server.delete(org, "x");
 	const deletion = await tail();
 	expect(deletion.ops).toEqual(["delete"]);
