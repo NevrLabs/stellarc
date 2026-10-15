@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
@@ -108,6 +109,33 @@ const claim = async (client: PlaneClient) => {
 	if (!c) throw new Error("expected a claimable task");
 	return c;
 };
+
+/** Bare git repo the fake agent clones and pushes to (NEVR-199). */
+async function bareRepo() {
+	const dir = await mkdtemp(join(tmpdir(), "stellarc-remote-"));
+	resources.push(() => rm(dir, { recursive: true, force: true }));
+	const bare = join(dir, "origin.git");
+	await mkdir(bare, { recursive: true });
+	execFileSync("git", ["init", "--quiet", "--bare", "-b", "main", bare]);
+	return { dir, bare };
+}
+
+/** Run the next claimed task end-to-end through the node seam. */
+async function runOne(p: Awaited<ReturnType<typeof plane>>, token: string) {
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	return executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+}
 
 const waitFor = async <T>(f: () => Promise<T | undefined>, ms = 15000) => {
 	const end = Date.now() + ms;
@@ -555,4 +583,252 @@ test("B3 negative control: no budget configured → claim/finish unchanged, and 
 	expect(after.status).toBe("failed");
 	expect(after.attempt).toBe(1);
 	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+});
+
+// ── push attribution (NEVR-199) ─────────────────────────────────────────────
+
+test("P1 a run that pushes records one agents:task_pushed event per push, typed and queryable", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const { bare } = await bareRepo();
+	// The fake agent clones the bare repo inside the harness workdir, commits
+	// as the agent, and pushes — real git in the harness workdir.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `push ${bare}`,
+	});
+	expect(t.status).toBe(201);
+	const finish = await runOne(p, token);
+	expect(finish.outcome).toBe("completed");
+	expect(finish.pushes).toHaveLength(1);
+	const [push] = finish.pushes as [
+		{ commitSha: string; ref: string; remote: string; pushedAt: string },
+	];
+	expect(push.commitSha).toMatch(/^[0-9a-f]{40}$/);
+	expect(push.ref).toBe("refs/remotes/origin/main");
+	expect(push.remote).toContain(bare);
+
+	// Read surface: the push tuple is queryable on the task view.
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.pushes).toHaveLength(1);
+	expect(view.pushes[0]).toMatchObject({
+		attempt: 1,
+		commitSha: push.commitSha,
+		ref: "refs/remotes/origin/main",
+		remote: push.remote,
+	});
+	// Typed transcript item, never harness_meta.
+	const pushItems = view.items.filter(
+		(i: { kind: string }) => i.kind === "push",
+	);
+	expect(pushItems).toHaveLength(1);
+	expect(pushItems[0].body).toMatchObject({
+		commitSha: push.commitSha,
+		ref: "refs/remotes/origin/main",
+	});
+	// The pushed sha is real: it is the bare repo's new main.
+	const remoteHead = execFileSync("git", [
+		"--git-dir",
+		bare,
+		"rev-parse",
+		"refs/heads/main",
+	])
+		.toString()
+		.trim();
+	expect(push.commitSha).toBe(remoteHead);
+
+	// Org log: one task_pushed event with the D12 attribution chain —
+	// actor = the agent principal, onBehalfOf = the task creator ("operator").
+	const events = await p.db.sql<
+		{
+			plugin_type: string;
+			actor: string;
+			payload: {
+				id: string;
+				attempt: number;
+				agentId: string;
+				commitSha: string;
+				ref: string;
+				remote: string;
+				onBehalfOf: string;
+			};
+		}[]
+	>`SELECT plugin_type, actor, payload FROM event WHERE org='acme' AND plugin_type='agents:task_pushed' ORDER BY seq`;
+	expect(events).toHaveLength(1);
+	const [ev] = events;
+	expect(ev.actor).toBe(`agent:${agentId}`);
+	expect(ev.payload).toMatchObject({
+		id: t.body.id,
+		attempt: 1,
+		agentId,
+		commitSha: push.commitSha,
+		ref: "refs/remotes/origin/main",
+		remote: push.remote,
+		onBehalfOf: "operator",
+	});
+});
+
+test("P2 runs with no pushes emit nothing", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", { agentId, prompt: "echo hi" });
+	const finish = await runOne(p, token);
+	expect(finish.outcome).toBe("completed");
+	// Node omits the field entirely when nothing was pushed.
+	expect(finish.pushes).toBeUndefined();
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.pushes).toEqual([]);
+	expect(
+		view.items.filter((i: { kind: string }) => i.kind === "push"),
+	).toHaveLength(0);
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(0);
+});
+
+test("P3 per-attempt attribution with a shared workdir: a crash-after-push retry never re-records the earlier push", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const { bare } = await bareRepo();
+	const client = new PlaneClient(p.url, token);
+	// One task, two attempts, ONE workdir (workdir is keyed by task id). The
+	// harness pushes a commit and then crashes; the retry pushes another.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `pushcrash ${bare}`,
+		maxAttempts: 2,
+	});
+	expect(t.status).toBe(201);
+	const workRootDir = await workRoot();
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: workRootDir,
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const first = await executeClaimed(client, cfg, (await claim(client)).task);
+	expect(first.failureCode).toBe("platform.harness_exited");
+	// The push still landed and is attributed — the commit exists on the
+	// remote regardless of the harness crashing afterwards.
+	expect(first.pushes).toHaveLength(1);
+	const second = await executeClaimed(client, cfg, (await claim(client)).task);
+	expect(second.failureCode).toBe("platform.harness_exited");
+	expect(second.pushes).toHaveLength(1);
+	expect(second.pushes?.[0].commitSha).not.toBe(first.pushes?.[0].commitSha);
+
+	// Org log: exactly two task_pushed events, one per attempt, distinct shas.
+	const events = await p.db.sql<
+		{ payload: { attempt: number; commitSha: string } }[]
+	>`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:task_pushed' ORDER BY seq`;
+	expect(events).toHaveLength(2);
+	expect(events[0].payload.attempt).toBe(1);
+	expect(events[1].payload.attempt).toBe(2);
+	expect(events[0].payload.commitSha).not.toBe(events[1].payload.commitSha);
+
+	// Read surface carries both, keyed by attempt.
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.task.status).toBe("failed");
+	expect(view.pushes).toHaveLength(2);
+	expect(view.pushes.map((x: { attempt: number }) => x.attempt)).toEqual([
+		1, 2,
+	]);
+});
+
+test("P4 remote credentials never leave the node: userinfo stripped from finish, org log, and read surface", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const { bare } = await bareRepo();
+	// The harness pushes, then rewrites its remote URL to embed credentials —
+	// the node reads the reflog AFTER the harness ran, so the URL it sees
+	// carries the secret. The secret must be stripped everywhere downstream.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `pushsecret ${bare}`,
+	});
+	expect(t.status).toBe(201);
+	const finish = await runOne(p, token);
+	expect(finish.outcome).toBe("completed");
+	expect(finish.pushes).toHaveLength(1);
+	expect(finish.pushes?.[0].remote).toBe("https://github.com/org/repo.git");
+	// Nothing the plane stores or emits contains the secret.
+	const view = JSON.stringify((await p.op("GET", `tasks/${t.body.id}`)).body);
+	expect(view).not.toContain("sekrit");
+	const events = await p.db.sql<{ payload: unknown }[]>`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(1);
+	expect(JSON.stringify(events)).not.toContain("sekrit");
+	expect(events[0].payload).toMatchObject({
+		remote: "https://github.com/org/repo.git",
+	});
+});
+
+test("P5 a cancelled finish still records the pushes the harness already made", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const { bare } = await bareRepo();
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `pushhang ${bare}`,
+	});
+	expect(t.status).toBe(201);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status === "running"
+			? true
+			: undefined,
+	);
+	expect((await p.op("POST", `tasks/${t.body.id}/cancel`)).status).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("cancelled");
+	// The push that landed before the cancel is recorded anyway.
+	expect(f.pushes).toHaveLength(1);
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.task.status).toBe("cancelled");
+	expect(view.pushes).toHaveLength(1);
+	expect(view.pushes[0].attempt).toBe(1);
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(1);
+});
+
+test("P6 plane-side redaction: a node that reports a credential-bearing remote gets it stripped on ingest", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	expect(t.status).toBe(201);
+	const c = await claim(client);
+	// A misbehaving node reports the secret directly in Finish.pushes.
+	await client.call(`tasks/${c.task.id}/finish`, {
+		attempt: c.task.attempt,
+		outcome: "completed",
+		pushes: [
+			{
+				commitSha: "a".repeat(40),
+				ref: "refs/remotes/origin/main",
+				remote: "https://agent:tok3n@github.com/org/repo.git",
+				pushedAt: new Date().toISOString(),
+			},
+		],
+	});
+	const view = JSON.stringify((await p.op("GET", `tasks/${t.body.id}`)).body);
+	expect(view).not.toContain("tok3n");
+	const events = await p.db.sql<{ payload: unknown }[]>`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(1);
+	expect(JSON.stringify(events)).not.toContain("tok3n");
 });

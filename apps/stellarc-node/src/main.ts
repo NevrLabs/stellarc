@@ -4,8 +4,10 @@ import { join } from "node:path";
 import type {
 	Finish,
 	Item,
+	Push,
 	TaskDescriptor,
 } from "../../../packages/agents/src/protocol";
+import { collectPushes, snapshotPushState } from "./pushes";
 import { type HarnessSpec, runTask } from "./runner";
 
 /** stellarc-node: the bring-your-own-agent runtime. Runs on the agent owner's
@@ -119,6 +121,7 @@ export async function executeClaimed(
 ): Promise<Finish> {
 	const base = { attempt: task.attempt };
 	const harness = config.harnesses[task.agent.harness];
+	const workdir = join(config.workRoot, task.org, task.agent.name, task.id);
 	let finish: Finish;
 	if (!harness) {
 		finish = {
@@ -128,8 +131,12 @@ export async function executeClaimed(
 			failureMessage: `harness "${task.agent.harness}" not configured on this node`,
 		};
 	} else {
+		// Durable push attribution (NEVR-199): snapshot the workdir's reflogs
+		// before the harness spawns; at finish, exactly the entries appended
+		// since are this run's pushes. The plane never runs git (D4/D14).
+		const baseline = await snapshotPushState(workdir);
 		const result = await runTask(task, harness, {
-			workdir: join(config.workRoot, task.org, task.agent.name, task.id),
+			workdir,
 			heartbeatMs: Math.max(1000, Math.floor(task.leaseMs / 3)),
 			log,
 			onStart: async (nativeSessionId) => {
@@ -149,7 +156,20 @@ export async function executeClaimed(
 					)
 				)?.cancelled ?? false,
 		});
-		finish = { ...base, ...result };
+		// Durable push attribution (NEVR-199): read what THIS run pushed from
+		// the workdir's remote-tracking reflogs; failures never fail the finish.
+		let pushes: Push[] = [];
+		try {
+			pushes = await collectPushes(workdir, baseline);
+			if (pushes.length > 0)
+				log(`task ${task.id} pushed ${pushes.length} ref(s)`);
+		} catch (error) {
+			log(`push collection failed: ${error}`);
+		}
+		finish =
+			pushes.length > 0
+				? { ...base, ...result, pushes }
+				: { ...base, ...result };
 	}
 	await plane.call(`tasks/${task.id}/finish`, finish);
 	return finish;
