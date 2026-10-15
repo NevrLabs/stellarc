@@ -12,6 +12,7 @@ const MIGRATIONS = [
 	{ version: "0003_agents", file: "../migrations/0003_agents.sql" },
 	{ version: "0004_budgets", file: "../migrations/0004_budgets.sql" },
 	{ version: "0005_pushes", file: "../migrations/0005_pushes.sql" },
+	{ version: "0006_permissions", file: "../migrations/0006_permissions.sql" },
 ] as const;
 
 /** Owner-only provisioning; the runtime principal must already exist. */

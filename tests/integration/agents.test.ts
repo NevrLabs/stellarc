@@ -832,3 +832,636 @@ test("P6 plane-side redaction: a node that reports a credential-bearing remote g
 	expect(events).toHaveLength(1);
 	expect(JSON.stringify(events)).not.toContain("tok3n");
 });
+
+// ── scoped permissions (NEVR-198) ───────────────────────────────────────────
+
+/** registerNodeAndAgent variant that takes a permissionPolicy. */
+async function registerNodeAndPolicyAgent(
+	p: Awaited<ReturnType<typeof plane>>,
+	permissionPolicy: { autoAllow: string[] } | undefined,
+) {
+	const n = await p.op("POST", "nodes", { name: "laptop" });
+	expect(n.status).toBe(201);
+	const client = new PlaneClient(p.url, n.body.token);
+	await client.call("hello", { version: "test", harnesses: ["fake"] });
+	const a = await p.op("POST", "agents", {
+		name: "scoped",
+		nodeId: n.body.node.id,
+		harness: "fake",
+		permissionPolicy,
+	});
+	expect(a.status).toBe(201);
+	return {
+		token: n.body.token as string,
+		agentId: a.body.id as string,
+		client,
+	};
+}
+
+test("P1 env isolation: harness child and MCP descendant see no STELLARC_* var", async () => {
+	process.env.STELLARC_NODE_TOKEN = "stln_super_secret_node_token";
+	process.env.STELLARC_OPERATOR_TOKEN = "op_secret";
+	try {
+		const p = await plane();
+		// The agent carries a REAL MCP server entry: the node injects it over
+		// session/new, the fake harness launches it as its own child (the
+		// exact path a leaked credential would take), and the probe prints
+		// what that child can see.
+		const n = await p.op("POST", "nodes", { name: "laptop" });
+		const client = new PlaneClient(p.url, n.body.token);
+		await client.call("hello", { version: "test", harnesses: ["fake"] });
+		const a = await p.op("POST", "agents", {
+			name: "scoped",
+			nodeId: n.body.node.id,
+			harness: "fake",
+			mcpServers: [
+				{
+					name: "env-probe",
+					command: process.execPath,
+					args: [
+						"-e",
+						"console.log(JSON.stringify(Object.keys(process.env).sort()))",
+					],
+				},
+			],
+		});
+		expect(a.status).toBe(201);
+		const agentId = a.body.id as string;
+		const token = n.body.token as string;
+		const t = await p.op("POST", "tasks", { agentId, prompt: "env probe" });
+		const c = await claim(client);
+		const done = await executeClaimed(
+			client,
+			{
+				server: p.url,
+				token,
+				workRoot: await workRoot(),
+				concurrency: 1,
+				harnesses: { fake: FAKE },
+			},
+			c.task,
+		);
+		expect(done.outcome).toBe("completed");
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		const text = r.body.items
+			.filter((i: { kind: string }) => i.kind === "message")
+			.map(
+				(i: { body: { content: { text: string }[] } }) =>
+					i.body.content[0].text,
+			)
+			.join("");
+		const seen = JSON.parse(text.slice(text.indexOf("{"))) as {
+			stellarcKeys: string[];
+			env: Record<string, string | undefined>;
+		};
+		// The harness child cannot observe any STELLARC_* var…
+		expect(seen.stellarcKeys).toEqual([]);
+		expect(seen.env.STELLARC_NODE_TOKEN).toBeUndefined();
+		// …but the allowlist essentials survive.
+		expect(seen.env.PATH).toContain("/");
+		// MCP descendant: launched from the session's mcpServers config with
+		// the harness's own inherited env — still no STELLARC_* keys.
+		const t2 = await p.op("POST", "tasks", {
+			agentId,
+			prompt: "mcp-env probe",
+		});
+		const c2 = await claim(client);
+		await executeClaimed(
+			client,
+			{
+				server: p.url,
+				token,
+				workRoot: await workRoot(),
+				concurrency: 1,
+				harnesses: { fake: FAKE },
+			},
+			c2.task,
+		);
+		const r2 = await p.op("GET", `tasks/${t2.body.id}`);
+		const text2 = r2.body.items
+			.filter((i: { kind: string }) => i.kind === "message")
+			.map(
+				(i: { body: { content: { text: string }[] } }) =>
+					i.body.content[0].text,
+			)
+			.join("");
+		// The harness relays "<mcp-name>:<probe output>"; the probe output is
+		// itself a JSON array of env keys.
+		const relayed = text2.slice(text2.indexOf("env-probe:"));
+		const childKeys = JSON.parse(
+			relayed.slice(relayed.indexOf("["), relayed.lastIndexOf("]") + 1),
+		) as string[];
+		expect(childKeys).toContain("PATH"); // the harness env it inherited
+		expect(childKeys.filter((k) => k.startsWith("STELLARC"))).toEqual([]);
+	} finally {
+		delete process.env.STELLARC_NODE_TOKEN;
+		delete process.env.STELLARC_OPERATOR_TOKEN;
+	}
+});
+
+test("P2 non-allowlisted request parks in needs_permission: approval item with resolved values, no attempt burn", async () => {
+	// Short lease: the deny verdict rides the next heartbeat, and the default
+	// 60s lease would beat every 20s — far past the 30s vitest timeout.
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: ["read", "grep"],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park please",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	expect(c.task.attempt).toBe(1);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	// Drive the run but do NOT await it: the permission park must hold it open.
+	const running = executeClaimed(client, cfg, c.task);
+	const parked = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "needs_permission" ? r.body : undefined;
+	});
+	// Parked, not failed: same attempt, no failure code, lease alive.
+	expect(parked.task.attempt).toBe(1);
+	expect(parked.task.failureCode).toBeNull();
+	expect(parked.task.nativeSessionId).toMatch(/^fake-/);
+	// The approval item carries options AND resolved argument values.
+	const approvals = parked.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(approvals).toHaveLength(1);
+	const body = approvals[0].body as {
+		request: { toolName: string; arguments: unknown };
+		status: string;
+	};
+	expect(body.request.toolName).toBe("deploy");
+	expect(body.request.arguments).toEqual({ target: "prod", force: true });
+	expect(body.status).toBe("pending");
+	// Parked tasks are excluded from claims.
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	// Deny: fails exactly once with agent_error.permission_denied.
+	expect(
+		(await p.op("POST", `tasks/${t.body.id}/permission`, { decision: "deny" }))
+			.status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed"); // the harness ran to its rejected end_turn
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("failed");
+	expect(after.body.task.failureCode).toBe("agent_error.permission_denied");
+	expect(after.body.task.attempt).toBe(1);
+	// Denied tasks never retry.
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	// The approval item is settled by the deny itself (the node's flush
+	// would 409 on the terminal row): denied, with who and when.
+	const deniedItems = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(deniedItems).toHaveLength(1);
+	const deniedBody = deniedItems[0].body as {
+		status: string;
+		decidedAt?: string;
+		decidedBy?: string;
+	};
+	expect(deniedBody.status).toBe("denied");
+	expect(deniedBody.decidedAt).toBeTruthy();
+	expect(deniedBody.decidedBy).toBe("operator");
+	// Second decision attempt conflicts.
+	expect(
+		(await p.op("POST", `tasks/${t.body.id}/permission`, { decision: "grant" }))
+			.status,
+	).toBe(409);
+	// Events: requested (node actor) + denied (operator actor) on the org log.
+	const events = await p.db.sql<
+		{ plugin_type: string; actor: string; payload: unknown }[]
+	>`SELECT plugin_type, actor, payload FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_denied",
+	]);
+	expect(events[0].actor).toMatch(/^node:node_/);
+	expect(events[1].actor).toBe("operator");
+});
+
+test("P3 grant resumes the same attempt and native session", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park please",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	const parked = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "needs_permission" ? r.body : undefined;
+	});
+	const native = parked.task.nativeSessionId;
+	// Wait for the harness to actually block on the permission request, then
+	// grant: the node continues the held session (no reclaim, same attempt).
+	await waitFor(async () =>
+		parked.items.some((i: { kind: string }) => i.kind === "approval")
+			? true
+			: undefined,
+	);
+	expect(
+		(await p.op("POST", `tasks/${t.body.id}/permission`, { decision: "grant" }))
+			.status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("completed");
+	expect(after.body.task.attempt).toBe(1); // same attempt
+	expect(after.body.task.nativeSessionId).toBe(native); // same native session
+	// Approval lifecycle recorded: pending → granted.
+	const approvals = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(
+		approvals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted"]);
+	// The tool actually ran after the grant.
+	const toolResult = after.body.items.find(
+		(i: { kind: string }) => i.kind === "tool_result",
+	);
+	expect(toolResult.body.output).toEqual({ picked: "yes" });
+	const events = await p.db.sql<{ plugin_type: string; actor: string }[]>`
+    SELECT plugin_type, actor FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+	expect(events[1].actor).toBe("operator");
+});
+
+test("P4 allowlisted tool auto-approves with no plane round-trip", async () => {
+	const p = await plane();
+	// Policy allows the tool the fake agent requests ("deploy" via verb
+	// perm-park); everything else parks.
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: ["deploy"],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park please",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const done = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	expect(done.outcome).toBe("completed");
+	const r = await p.op("GET", `tasks/${t.body.id}`);
+	expect(r.body.task.status).toBe("completed");
+	// No park, no approval item, no permission events.
+	expect(
+		r.body.items.filter((i: { kind: string }) => i.kind === "approval"),
+	).toHaveLength(0);
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%'`;
+	expect(events).toHaveLength(0);
+	// The tool ran (auto-allow chose allow_once).
+	const toolResult = r.body.items.find(
+		(i: { kind: string }) => i.kind === "tool_result",
+	);
+	expect(toolResult.body.output).toEqual({ picked: "yes" });
+});
+
+test("P5 negative control: no policy → legacy behaviour, everything auto-allowed", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, undefined);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park please",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const done = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	expect(done.outcome).toBe("completed");
+	const r = await p.op("GET", `tasks/${t.body.id}`);
+	expect(r.body.task.status).toBe("completed");
+	expect(
+		r.body.items.filter((i: { kind: string }) => i.kind === "approval"),
+	).toHaveLength(0);
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%'`;
+	expect(events).toHaveLength(0);
+});
+
+test("P6 one grant approves exactly one request (NEVR-201 defect 1): the second parks again", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park twice",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	// First request parks; grant it.
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status ===
+		"needs_permission"
+			? true
+			: undefined,
+	);
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	// The second request must park AGAIN — the grant must not leak. NOTE: a
+	// grant keeps status=needs_permission until the node's heartbeat delivers
+	// it, so status alone cannot distinguish park #1 from park #2 — the
+	// approval items are the source of truth. Wait for the first grant to be
+	// consumed and the SECOND request to park with its own pending item
+	// (tool "destroy").
+	const second = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		const approvals = r.body.items.filter(
+			(i: { kind: string }) => i.kind === "approval",
+		);
+		const statuses = approvals.map(
+			(a: { body: { status: string } }) => a.body.status,
+		);
+		return statuses.length >= 3 &&
+			statuses[1] === "granted" &&
+			statuses[2] === "pending"
+			? r.body
+			: undefined;
+	});
+	const approvals = second.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	// pending(deploy) + granted(deploy) + pending(destroy): the second
+	// request is awaiting its OWN verdict.
+	expect(
+		approvals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted", "pending"]);
+	expect(approvals[2].body.request.toolName).toBe("destroy");
+	// NEGATIVE-CONTROL WINDOW: with no second verdict delivered, the run must
+	// stay parked at the second request — a leaked/sticky grant would
+	// auto-approve it (NEVR-201 defect 1). Two-plus heartbeat periods.
+	await new Promise((r) => setTimeout(r, 2000));
+	const mid = await p.op("GET", `tasks/${t.body.id}`);
+	const midApprovals = mid.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(
+		midApprovals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted", "pending"]);
+	expect(mid.body.task.status).toBe("needs_permission");
+	// Grant the second too; the run completes with BOTH tools allowed.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	const msg = after.body.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("picked:yes,yes");
+	// Both requests got their own decision events.
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+});
+
+test("P7 operator cancel while parked releases the run (NEVR-201 defect 2): no leaked node run or child", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", { agentId, prompt: "perm-park hold" });
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status ===
+		"needs_permission"
+			? true
+			: undefined,
+	);
+	// Cancel while parked. The parked permission request must settle (reject)
+	// and the whole run must wind down to a cancelled outcome. Race a deadline
+	// so a leaked run fails the test with a clear message instead of hanging.
+	expect((await p.op("POST", `tasks/${t.body.id}/cancel`)).status).toBe(200);
+	const f = await Promise.race([
+		running,
+		new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error(
+							"run did not settle within 15s of cancel — parked request leaked",
+						),
+					),
+				15000,
+			),
+		),
+	]);
+	expect(f.outcome).toBe("cancelled");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("cancelled");
+	// The approval item records the cancellation, not a phantom decision:
+	// the plane settles the pending item atomically with the cancel (the
+	// node's post-cancel flush correctly 409s on a terminal row).
+	const approvals = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(
+		approvals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["cancelled"]);
+	expect(approvals[0].body.decidedAt).toBeTruthy();
+	// No stray grant can resurrect it.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(409);
+});
+
+test("P8 two concurrent requests each park and are decided individually (NEVR-212 defect 1): no orphan, no requeue", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park parallel",
+	});
+	const taskId = t.body.id as string;
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	type Approval = {
+		body: { status: string; request: { toolName: string } };
+	};
+	const approvalsOf = (b: { items: unknown[] }) =>
+		b.items.filter(
+			(i): i is Approval =>
+				typeof i === "object" &&
+				i !== null &&
+				(i as { kind?: string }).kind === "approval",
+		);
+	// The first request (deploy) parks; the second (destroy) queues behind it.
+	// NOTE: the pending approval item flushes BEFORE the park POST, so wait
+	// for the row to actually reach needs_permission, not just the item.
+	const first = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${taskId}`);
+		const a = approvalsOf(r.body);
+		return r.body.task.status === "needs_permission" &&
+			a.length >= 1 &&
+			a[0].body.status === "pending"
+			? r.body
+			: undefined;
+	});
+	expect(first.task.status).toBe("needs_permission");
+	expect(approvalsOf(first)[0].body.request.toolName).toBe("deploy");
+	// Grant #1. The queued second request must then park for its OWN
+	// verdict — not be auto-approved, orphaned, or requeued onto a fresh
+	// attempt.
+	expect(
+		(
+			await p.op("POST", `tasks/${taskId}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const second = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${taskId}`);
+		const a = approvalsOf(r.body);
+		const s = a.map((x) => x.body.status);
+		// Append semantics: [pending(deploy), granted(deploy), pending(destroy)]
+		return r.body.task.status === "needs_permission" &&
+			s.length >= 3 &&
+			s[1] === "granted" &&
+			s[2] === "pending" &&
+			a[2].body.request.toolName === "destroy"
+			? r.body
+			: undefined;
+	});
+	expect(second.task.attempt).toBe(c.task.attempt); // never requeued
+	expect(approvalsOf(second)[2].body.request.toolName).toBe("destroy");
+	// Grant #2; the run completes with BOTH requests individually allowed.
+	expect(
+		(
+			await p.op("POST", `tasks/${taskId}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const f = await Promise.race([
+		running,
+		new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error("run did not settle within 15s — concurrent park wedged"),
+					),
+				15000,
+			),
+		),
+	]);
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${taskId}`);
+	expect(after.body.task.attempt).toBe(c.task.attempt);
+	const msg = after.body.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("picked:yes,yes");
+	// No requeue ever happened for this task, and every request got its own
+	// decision event — one grant never approved both.
+	const events = await p.db.sql<
+		{
+			plugin_type: string;
+			payload: unknown;
+		}[]
+	>`SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_%permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+	const requeues = await p.db.sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task_requeued'`;
+	expect(requeues[0].n).toBe(0);
+});

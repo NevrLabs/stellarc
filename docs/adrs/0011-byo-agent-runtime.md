@@ -33,9 +33,29 @@ and an agent is `(node, harness, model?, instructions, mcpServers)`.
   `{model, applied}` either way.
 - **MCP:** injected over `session/new` (stolen from Multica): config travels
   with the task and is never written into harness config files.
-- **Permissions:** the node owner chose to run the agent unattended on their
-  own machine, so the node answers `session/request_permission` with
-  `allow_once`. Sandboxing is the harness's job.
+- **Permissions (scoped, NEVR-198):** an agent may carry a
+  `permissionPolicy` — a glob-style `autoAllow` list of tool patterns
+  (`read`, `grep`, `mcp:github.list_*`). A request whose tool matches is
+  answered `allow_once` with no plane round-trip. A non-matching request
+  parks the task in `needs_permission`: the node writes an `approval`
+  transcript item carrying the harness's options and the *resolved* argument
+  values (not the template — Factory v0.237 lesson), reports the park, and
+  holds the ACP session open. An operator grant resumes the *same* attempt
+  and native session; a deny fails the task with
+  `agent_error.permission_denied` and is never retried (retrying a human
+  denial burns money). Policy matching keys on the harness-reported
+  `toolCall.name` — an optional ACP field. A harness that omits it cannot
+  be matched against `autoAllow`, so such a request always parks (fail
+  closed) even when the agent allowlists the tool; harnesses should always
+  report `toolCall.name`. Agents without a policy keep the legacy behaviour
+  exactly: every request auto-allowed. Decisions travel on the heartbeat
+  response. Harness children run with an explicit env allowlist
+  (`PATH`, `HOME`, `TMPDIR`, `LANG`, plus the harness spec's own `env`) —
+  the node's `STELLARC_*` credentials never reach the harness or its MCP
+  descendants. Consequence for operators: a harness that needs credentials
+  (its own model API keys, MCP tokens) must now receive them through the
+  harness spec's `env` in the node config — they are no longer inherited
+  from the node's own environment.
 
 ### Task state machine (Multica-derived)
 
@@ -83,6 +103,8 @@ free text; the push event is the authenticated fact.
 | Static operator token (`STELLARC_OPERATOR_TOKEN`) | Identity (STL-15) is parked | `OperatorAuth` is a function seam. BetterAuth principals plug in without touching the store. |
 | Mutable `agent_task` projection + event log | Matches the foundation's probe pattern | Projection rebuild from `agents:*` events once upcasters generalise |
 | One task = one prompt turn | Smallest useful unit | Multi-turn sessions and follow-ups (reuse `nativeSessionId`) |
+| ~~Blanket `allow_once` permission answer~~ | Interim node-owner-trusts-the-agent choice | **Replaced (NEVR-198)** by agent-level `permissionPolicy` + `needs_permission` park with operator grant/deny; env-isolated harness children. |
+| Policy is agent-scoped only | First cut: one place to define, one place to enforce | Inheritance from node/org scope once more than a handful of agents exist |
 
 ## Proof (on this branch)
 

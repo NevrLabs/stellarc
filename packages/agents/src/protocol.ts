@@ -21,6 +21,7 @@ export const FAILURE_CODES = [
 	"agent_error.max_tokens",
 	"agent_error.max_turn_requests",
 	"agent_error.prompt_failed",
+	"agent_error.permission_denied",
 ] as const;
 export const FailureCode = Schema.Literal(...FAILURE_CODES);
 export type FailureCode = typeof FailureCode.Type;
@@ -52,6 +53,37 @@ export const McpServer = Schema.Struct({
 	),
 });
 export type McpServer = typeof McpServer.Type;
+
+/** Agent-level permission policy (NEVR-198). `autoAllow` holds glob-style
+ * tool patterns (`read`, `grep`, `mcp:github.list_*`) that the node may
+ * auto-approve without a human. A null policy preserves the legacy behaviour
+ * exactly: every `session/request_permission` answered allow_once. */
+export const PermissionPolicy = Schema.Struct({
+	autoAllow: Schema.Array(
+		Schema.NonEmptyString.pipe(Schema.maxLength(256)),
+	).pipe(Schema.maxItems(256)),
+});
+export type PermissionPolicy = typeof PermissionPolicy.Type;
+
+/** One permission request as the node reports it to the plane: the options the
+ * harness offered plus the RESOLVED argument values (not the template), so the
+ * deciding human sees what would actually run (D12; Factory v0.237 lesson). */
+export const PermissionRequestReport = Schema.Struct({
+	sessionId: Schema.String.pipe(Schema.maxLength(256)),
+	toolCallId: Schema.String.pipe(Schema.maxLength(256)),
+	/** Programmatic tool name when the harness reports one (e.g. `bash`,
+	 * `mcp:github.create_issue`); null when only a human title is known. */
+	toolName: Schema.NullOr(Schema.String.pipe(Schema.maxLength(256))),
+	title: Schema.NullOr(Schema.String.pipe(Schema.maxLength(512))),
+	options: Schema.Array(
+		Schema.Struct({
+			optionId: Schema.String.pipe(Schema.maxLength(256)),
+			name: Schema.String.pipe(Schema.maxLength(256)),
+			kind: Schema.String.pipe(Schema.maxLength(64)),
+		}),
+	).pipe(Schema.maxItems(32)),
+});
+export type PermissionRequestReport = typeof PermissionRequestReport.Type;
 
 // ── operator surface ────────────────────────────────────────────────────────
 export const BUDGET_WINDOWS = ["daily", "weekly", "monthly"] as const;
@@ -104,6 +136,7 @@ export const CreateAgent = Schema.Struct({
 	mcpServers: Schema.optionalWith(Schema.Array(McpServer), {
 		default: () => [],
 	}),
+	permissionPolicy: Schema.optional(PermissionPolicy),
 });
 export type CreateAgent = typeof CreateAgent.Type;
 export const CreateTask = Schema.Struct({
@@ -203,6 +236,23 @@ export const Finish = Schema.Struct({
 });
 export type Finish = typeof Finish.Type;
 
+/** Node → plane: a non-allowlisted permission request parked the task. The
+ * plane flips the task to needs_permission (no attempt burn, no failure_code,
+ * lease and native session preserved) and waits for an operator verdict. */
+export const PermissionPark = Schema.Struct({
+	attempt: Schema.Int.pipe(Schema.positive()),
+	request: PermissionRequestReport,
+});
+export type PermissionPark = typeof PermissionPark.Type;
+
+/** Operator → plane: the human verdict on a parked permission request. Grant
+ * resumes the held session on the same attempt; deny fails the task with
+ * agent_error.permission_denied and is never retried. */
+export const PermissionDecision = Schema.Struct({
+	decision: Schema.Literal("grant", "deny"),
+});
+export type PermissionDecision = typeof PermissionDecision.Type;
+
 /** What a node receives on claim: everything needed to drive the harness. */
 export interface TaskDescriptor {
 	readonly id: string;
@@ -218,6 +268,8 @@ export interface TaskDescriptor {
 		readonly model: string | null;
 		readonly instructions: string;
 		readonly mcpServers: ReadonlyArray<McpServer>;
+		/** Null preserves the legacy allow-once behaviour. */
+		readonly permissionPolicy: PermissionPolicy | null;
 	};
 }
 
@@ -232,5 +284,10 @@ export const TASK_STATUSES = [
 	 * failure_code; resumable on window reset (claim loop retries) or an admin
 	 * raise. A platform-shaped condition, never agent_error.*. */
 	"budget_exhausted",
+	/** Parked by a non-allowlisted permission request (NEVR-198): excluded
+	 * from claims, no attempt burn, no failure_code. The node keeps the lease
+	 * and holds the native session open; an operator grant resumes the same
+	 * attempt in place, a deny fails with agent_error.permission_denied. */
+	"needs_permission",
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
