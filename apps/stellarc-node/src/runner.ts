@@ -320,46 +320,67 @@ export async function runTask(
 						kind: o.kind,
 					})),
 				};
-				// Register the waiter BEFORE reporting the park: a verdict can
-				// arrive on the very next heartbeat, and a lost verdict would
-				// deadlock the held session. The mailbox is one-slot and
-				// consumed exactly once — a grant never auto-approves a later
-				// request (NEVR-201 defect 1), and "cancelled" releases the
-				// parked run when the operator cancels (defect 2).
-				const verdict = new Promise<"granted" | "denied" | "cancelled">(
-					(resolve) => {
-						parkedWaiter = resolve;
-					},
-				);
-				folder.approval({
-					request: {
-						...report,
-						arguments: p.toolCall.rawInput ?? null,
-					},
-					status: "pending",
+				// Concurrent permission requests serialize on parkGate
+				// (NEVR-212 defect 1): ACP harnesses may issue parallel tool
+				// calls, and two parks in flight would race the plane's
+				// one-verdict mailbox — the second overwriting the first's
+				// waiter and its POST hitting a row still in
+				// needs_permission (409 → requeue). Close the gate
+				// SYNCHRONOUSLY at entry (before any await) and queue on the
+				// PREVIOUS holder: a concurrent callback can never slip past
+				// an already-resolved gate. The queued request parks only
+				// after the previous verdict was DELIVERED — the same
+				// heartbeat transaction that flips the plane row back to
+				// running — so it parks against a resumable row, and each
+				// request consumes exactly one verdict.
+				const previousGate = parkGate;
+				let openGate!: () => void;
+				parkGate = new Promise<void>((o) => {
+					openGate = o;
 				});
-				await flush(true).catch((e) =>
-					hooks.log?.(`approval flush failed: ${e}`),
-				);
-				await hooks.onPermissionRequest(report);
-				const v = await verdict;
-				folder.approval({
-					request: {
-						...report,
-						arguments: p.toolCall.rawInput ?? null,
-					},
-					status: v,
-					decidedAt: new Date().toISOString(),
-				});
-				await flush(true).catch((e) =>
-					hooks.log?.(`approval flush failed: ${e}`),
-				);
-				// A cancelled run answers reject too: the harness gets a
-				// settled response and can wind down instead of blocking on a
-				// permission answer that will never come.
-				return v === "granted"
-					? pickPermission(p.options)
-					: denyPermission(p.options);
+				try {
+					await previousGate;
+					// The run is terminal (operator cancel or deny already
+					// delivered): answer reject locally instead of parking
+					// against a dead row (which would 409).
+					if (cancelled || deniedRun) return denyPermission(p.options);
+					const verdict = new Promise<"granted" | "denied" | "cancelled">(
+						(resolve) => {
+							parkedWaiter = resolve;
+						},
+					);
+					folder.approval({
+						request: {
+							...report,
+							arguments: p.toolCall.rawInput ?? null,
+						},
+						status: "pending",
+					});
+					await flush(true).catch((e) =>
+						hooks.log?.(`approval flush failed: ${e}`),
+					);
+					await hooks.onPermissionRequest(report);
+					const v = await verdict;
+					folder.approval({
+						request: {
+							...report,
+							arguments: p.toolCall.rawInput ?? null,
+						},
+						status: v,
+						decidedAt: new Date().toISOString(),
+					});
+					await flush(true).catch((e) =>
+						hooks.log?.(`approval flush failed: ${e}`),
+					);
+					// A cancelled run answers reject too: the harness gets a
+					// settled response and can wind down instead of blocking
+					// on a permission answer that will never come.
+					return v === "granted"
+						? pickPermission(p.options)
+						: denyPermission(p.options);
+				} finally {
+					openGate();
+				}
 			},
 		}),
 		stream,
@@ -373,15 +394,27 @@ export async function runTask(
 	};
 	let sessionId: string | undefined;
 	let cancelled = false;
+	// Set when a deny verdict was delivered: the task is terminal, so any
+	// request still queued on parkGuard answers reject locally instead of
+	// parking against a failed row (which would 409).
+	let deniedRun = false;
 	/** The pending parked permission request's settle function, if any. The
 	 * verdict mailbox is one-slot: a verdict delivered while no request is
 	 * parked is dropped (it answers nothing), and each parked request consumes
 	 * at most one verdict — a grant never sticks to approve later requests. */
 	let parkedWaiter: ((v: "granted" | "denied" | "cancelled") => void) | null =
 		null;
+	/** Serializes parking (NEVR-212 defect 1): while a request is parked, a
+	 * concurrent one awaits this gate. The gate opens only when the parked
+	 * request fully settled (verdict delivered, items flushed, response sent) —
+	 * by then the delivering heartbeat already moved the plane row out of
+	 * needs_permission, so the queued request parks against a resumable row
+	 * instead of wedging or requeueing. */
+	let parkGate: Promise<void> = Promise.resolve();
 	const settleParked = (v: "granted" | "denied" | "cancelled") => {
 		const w = parkedWaiter;
 		parkedWaiter = null;
+		if (v === "denied") deniedRun = true;
 		w?.(v);
 	};
 	const flushTimer = setInterval(() => void flush().catch(() => {}), 500);

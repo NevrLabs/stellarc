@@ -244,6 +244,18 @@ new acp.AgentSideConnection(
 					await say(`picked:${first},${second}`);
 					return { stopReason: "end_turn" };
 				}
+				if (rest[0] === "parallel") {
+					// Two CONCURRENT requests (NEVR-212 defect 1): the harness
+					// issues both without awaiting either — the node must
+					// serialize the parks, decide each individually, and
+					// never requeue or orphan either request.
+					const [a, b] = await Promise.all([
+						ask("call-par-1", "deploy"),
+						ask("call-par-2", "destroy"),
+					]);
+					await say(`picked:${a},${b}`);
+					return { stopReason: "end_turn" };
+				}
 				const picked = await ask("call-park", "deploy");
 				if (picked !== "yes" && picked !== "always") {
 					await say(`rejected:${picked}`);

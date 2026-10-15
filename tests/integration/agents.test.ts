@@ -1347,3 +1347,121 @@ test("P7 operator cancel while parked releases the run (NEVR-201 defect 2): no l
 		).status,
 	).toBe(409);
 });
+
+test("P8 two concurrent requests each park and are decided individually (NEVR-212 defect 1): no orphan, no requeue", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park parallel",
+	});
+	const taskId = t.body.id as string;
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	type Approval = {
+		body: { status: string; request: { toolName: string } };
+	};
+	const approvalsOf = (b: { items: unknown[] }) =>
+		b.items.filter(
+			(i): i is Approval =>
+				typeof i === "object" &&
+				i !== null &&
+				(i as { kind?: string }).kind === "approval",
+		);
+	// The first request (deploy) parks; the second (destroy) queues behind it.
+	// NOTE: the pending approval item flushes BEFORE the park POST, so wait
+	// for the row to actually reach needs_permission, not just the item.
+	const first = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${taskId}`);
+		const a = approvalsOf(r.body);
+		return r.body.task.status === "needs_permission" &&
+			a.length >= 1 &&
+			a[0].body.status === "pending"
+			? r.body
+			: undefined;
+	});
+	expect(first.task.status).toBe("needs_permission");
+	expect(approvalsOf(first)[0].body.request.toolName).toBe("deploy");
+	// Grant #1. The queued second request must then park for its OWN
+	// verdict — not be auto-approved, orphaned, or requeued onto a fresh
+	// attempt.
+	expect(
+		(
+			await p.op("POST", `tasks/${taskId}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const second = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${taskId}`);
+		const a = approvalsOf(r.body);
+		const s = a.map((x) => x.body.status);
+		// Append semantics: [pending(deploy), granted(deploy), pending(destroy)]
+		return r.body.task.status === "needs_permission" &&
+			s.length >= 3 &&
+			s[1] === "granted" &&
+			s[2] === "pending" &&
+			a[2].body.request.toolName === "destroy"
+			? r.body
+			: undefined;
+	});
+	expect(second.task.attempt).toBe(c.task.attempt); // never requeued
+	expect(approvalsOf(second)[2].body.request.toolName).toBe("destroy");
+	// Grant #2; the run completes with BOTH requests individually allowed.
+	expect(
+		(
+			await p.op("POST", `tasks/${taskId}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const f = await Promise.race([
+		running,
+		new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error("run did not settle within 15s — concurrent park wedged"),
+					),
+				15000,
+			),
+		),
+	]);
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${taskId}`);
+	expect(after.body.task.attempt).toBe(c.task.attempt);
+	const msg = after.body.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("picked:yes,yes");
+	// No requeue ever happened for this task, and every request got its own
+	// decision event — one grant never approved both.
+	const events = await p.db.sql<
+		{
+			plugin_type: string;
+			payload: unknown;
+		}[]
+	>`SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_%permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+	const requeues = await p.db.sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task_requeued'`;
+	expect(requeues[0].n).toBe(0);
+});

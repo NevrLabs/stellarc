@@ -1242,11 +1242,17 @@ export class AgentStore {
 				await appendEvents(tx, n.org, `node:${n.id}`, pushEvents);
 				return task(row);
 			}
-			if (row.status !== "running" && row.status !== "claimed")
-				if (row.status === "cancelled") return task(row);
 			// A deny already failed the task; the node's late finish report for
-			// the held session is a no-op (the decision is the outcome).
-			if (row.status === "failed") return task(row);
+			// the held session is a no-op (the decision is the outcome). Narrow
+			// to deny (NEVR-212 defect 2): any OTHER failed row — e.g. an
+			// attempt-exhausted platform.lease_expired — keeps its legacy 409.
+			// Match on failure_code, not permission_decision: the heartbeat that
+			// DELIVERED the deny already cleared permission_decision.
+			if (
+				row.status === "failed" &&
+				row.failure_code === "agent_error.permission_denied"
+			)
+				return task(row);
 			if (
 				row.status !== "running" &&
 				row.status !== "claimed" &&
