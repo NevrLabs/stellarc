@@ -51,6 +51,11 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | TypeScript 7 / tsgo (7.0.2 stable; 7.1-dev dailies; answer via `bun check`) | TRIAL | 2026-10-15 | libraries |
 | @sentry/node 11 (11.7.0; one major ahead of pin) | WATCH | 2026-10-15 | libraries |
 | shadcn chat primitives (PR #91 = NEVR-170; blocked by T02 freeze guard) | ADOPT | 2026-10-14 | design |
+| shadcn AI elements (22 patterns, 3 dialects; trace/code-block/message installable; port rule: strip icon-placeholder import) | ADOPT (post-freeze, proposal) | 2026-10-15 | design |
+| `ui-typecheck-budget` red on PRs + dev (continue-on-error; count 429 = budget 429; informational, not a blocker) | REJECT (as blocker) | 2026-10-15 | design |
+| Base UI npm name: `@base-ui/react` is live (1.9.0); `@base-ui-components/react` is stale pre-rename (1.0.0-rc.0) | ADOPT (correction recorded) | 2026-10-15 | design |
+| `@shadcn/react` 0.3.1 (superseded by registry-native AI elements for our use) | WATCH → REJECT-track | 2026-10-15 | design |
+| T02 decision aging (brief with Talos since 10-14; day 3; escalate at day 5 ≈ 10-18) | WATCH | 2026-10-15 | design |
 | shadcn Typeset (streaming-safe markdown css; rides PR #91) | TRIAL | 2026-10-14 | design |
 | @coss registry entry in components.json (AGPL, unused; removal rides PR #92) | REJECT | 2026-10-14 | design |
 | @shadcn/react (headless chat primitives; rides PR #91) | TRIAL | 2026-10-14 | design |
@@ -60,7 +65,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | lucide-react 1.x (1.57.0 out 10-14; PR #90's ^1.56 covers it) | ADOPT bump | 2026-10-14 | design |
 | react-day-picker 10 (rides PR #90) | TRIAL bump | 2026-10-14 | design |
 | mermaid 12.2.0 (major; PR #90 bumps ^12.2.0) | TRIAL bump | 2026-10-14 | design |
-| tweakcn (npm 13mo stale; one-shot token editor only) | WATCH (demoted) | 2026-10-14 | design |
+| tweakcn (npm 13mo stale; one-shot token editor only) | WATCH (demoted) | 2026-10-15 | design |
 | streamdown (streaming markdown) | WATCH | 2026-10-14 | design |
 | vercel/ai elements registry (folded into shadcn registry) | WATCH | 2026-10-14 | design |
 | prompt-kit (ibelick) | WATCH | 2026-10-14 | design |
@@ -73,12 +78,13 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | HeroUI | REJECT | 2026-10-13 | design |
 | cmdk (dormant 19mo, in use) | WATCH | 2026-10-14 | design |
 | shadcn DESIGN.md workflow skill (seed for post-freeze design-system merge) | TRIAL | 2026-10-14 | design |
-| Base UI (house primitive; 1.9.0; float ^1.9 rides PR #90) | ADOPT | 2026-10-14 | design |
-| shadcn named styles (8 styles × 3 dialects; `base-nova` = converged choice) | TRIAL | 2026-10-14 | design |
+| Base UI (`@base-ui/react` 1.9.0; toast/popover focus fixes 10-15; PR #90's ^1.9 stands) | ADOPT | 2026-10-15 | design |
+| shadcn named styles (8 styles × 3 dialects; `base-nova` = converged choice) | TRIAL | 2026-10-15 | design |
+| shadcn repo velocity 10-14/15: AI elements #12307, zod-4 #12298, Figma kit; CLI 4.21.5 unchanged | ADOPT (tooling hygiene) | 2026-10-15 | design |
 | vaul (superseded by Base UI Drawer; npm dormant since 2024-12) | REJECT | 2026-10-14 | design |
 | animate-ui (stale ~9.5 mo) | WATCH | 2026-10-14 | design |
 | @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-14 | design |
 | T02 frozen-UI guard vs UI PRs #90/#91/#92 (owner decision needed) | ADOPT decision | 2026-10-14 | design |
-| desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07) | WATCH (ops) | 2026-10-14 | design |
+| desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07) | WATCH (ops) | 2026-10-15 | design |
 | shadcn community registries (pmndrs added 10-11; directory growing) | WATCH | 2026-10-14 | design |
 | shadcn CLI 4.21.5 (undici + MCP SDK security bumps, 10-14) | ADOPT (tooling hygiene) | 2026-10-14 | design |
