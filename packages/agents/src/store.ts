@@ -877,6 +877,15 @@ export class AgentStore {
 			const [updated] =
 				await tx`UPDATE agent_task SET status='cancelled', lease_until=NULL,
 			stop_reason='cancelled', permission_decision=NULL, updated_at=now() WHERE id=${id} RETURNING *`;
+			// Settle any pending approval item in the same transaction: the node
+			// cannot flush after a cancel (appendItems 409s on a terminal row),
+			// so the plane records the cancellation itself — the operator sees
+			// the request was cancelled, not left dangling as pending.
+			await tx`UPDATE agent_task_item
+			SET body = jsonb_set(body, '{status}', '"cancelled"', true)
+			|| jsonb_build_object('decidedAt', to_jsonb(now()::text))
+			WHERE org=${org} AND task_id=${id}
+			AND kind='approval' AND body->>'status'='pending'`;
 			await appendEvents(tx, org, actor, [
 				{ type: "task-cancelled", payload: { id, attempt: row.attempt } },
 			]);

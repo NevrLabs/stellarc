@@ -863,9 +863,32 @@ test("P1 env isolation: harness child and MCP descendant see no STELLARC_* var",
 	process.env.STELLARC_OPERATOR_TOKEN = "op_secret";
 	try {
 		const p = await plane();
-		const { token, agentId } = await registerNodeAndPolicyAgent(p, undefined);
+		// The agent carries a REAL MCP server entry: the node injects it over
+		// session/new, the fake harness launches it as its own child (the
+		// exact path a leaked credential would take), and the probe prints
+		// what that child can see.
+		const n = await p.op("POST", "nodes", { name: "laptop" });
+		const client = new PlaneClient(p.url, n.body.token);
+		await client.call("hello", { version: "test", harnesses: ["fake"] });
+		const a = await p.op("POST", "agents", {
+			name: "scoped",
+			nodeId: n.body.node.id,
+			harness: "fake",
+			mcpServers: [
+				{
+					name: "env-probe",
+					command: process.execPath,
+					args: [
+						"-e",
+						"console.log(JSON.stringify(Object.keys(process.env).sort()))",
+					],
+				},
+			],
+		});
+		expect(a.status).toBe(201);
+		const agentId = a.body.id as string;
+		const token = n.body.token as string;
 		const t = await p.op("POST", "tasks", { agentId, prompt: "env probe" });
-		const client = new PlaneClient(p.url, token);
 		const c = await claim(client);
 		const done = await executeClaimed(
 			client,
@@ -896,8 +919,8 @@ test("P1 env isolation: harness child and MCP descendant see no STELLARC_* var",
 		expect(seen.env.STELLARC_NODE_TOKEN).toBeUndefined();
 		// …but the allowlist essentials survive.
 		expect(seen.env.PATH).toContain("/");
-		// MCP descendant: spawned with the harness's own env, inherits nothing
-		// extra either.
+		// MCP descendant: launched from the session's mcpServers config with
+		// the harness's own inherited env — still no STELLARC_* keys.
 		const t2 = await p.op("POST", "tasks", {
 			agentId,
 			prompt: "mcp-env probe",
@@ -922,7 +945,13 @@ test("P1 env isolation: harness child and MCP descendant see no STELLARC_* var",
 					i.body.content[0].text,
 			)
 			.join("");
-		const childKeys = JSON.parse(text2.slice(text2.indexOf("["))) as string[];
+		// The harness relays "<mcp-name>:<probe output>"; the probe output is
+		// itself a JSON array of env keys.
+		const relayed = text2.slice(text2.indexOf("env-probe:"));
+		const childKeys = JSON.parse(
+			relayed.slice(relayed.indexOf("["), relayed.lastIndexOf("]") + 1),
+		) as string[];
+		expect(childKeys).toContain("PATH"); // the harness env it inherited
 		expect(childKeys.filter((k) => k.startsWith("STELLARC"))).toEqual([]);
 	} finally {
 		delete process.env.STELLARC_NODE_TOKEN;
@@ -1137,4 +1166,170 @@ test("P5 negative control: no policy → legacy behaviour, everything auto-allow
 	const events = await p.db.sql<{ plugin_type: string }[]>`
     SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%'`;
 	expect(events).toHaveLength(0);
+});
+
+test("P6 one grant approves exactly one request (NEVR-201 defect 1): the second parks again", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park twice",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	// First request parks; grant it.
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status ===
+		"needs_permission"
+			? true
+			: undefined,
+	);
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	// The second request must park AGAIN — the grant must not leak. NOTE: a
+	// grant keeps status=needs_permission until the node's heartbeat delivers
+	// it, so status alone cannot distinguish park #1 from park #2 — the
+	// approval items are the source of truth. Wait for the first grant to be
+	// consumed and the SECOND request to park with its own pending item
+	// (tool "destroy").
+	const second = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		const approvals = r.body.items.filter(
+			(i: { kind: string }) => i.kind === "approval",
+		);
+		const statuses = approvals.map(
+			(a: { body: { status: string } }) => a.body.status,
+		);
+		return statuses.length >= 3 &&
+			statuses[1] === "granted" &&
+			statuses[2] === "pending"
+			? r.body
+			: undefined;
+	});
+	const approvals = second.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	// pending(deploy) + granted(deploy) + pending(destroy): the second
+	// request is awaiting its OWN verdict.
+	expect(
+		approvals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted", "pending"]);
+	expect(approvals[2].body.request.toolName).toBe("destroy");
+	// NEGATIVE-CONTROL WINDOW: with no second verdict delivered, the run must
+	// stay parked at the second request — a leaked/sticky grant would
+	// auto-approve it (NEVR-201 defect 1). Two-plus heartbeat periods.
+	await new Promise((r) => setTimeout(r, 2000));
+	const mid = await p.op("GET", `tasks/${t.body.id}`);
+	const midApprovals = mid.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(
+		midApprovals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted", "pending"]);
+	expect(mid.body.task.status).toBe("needs_permission");
+	// Grant the second too; the run completes with BOTH tools allowed.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	const msg = after.body.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("picked:yes,yes");
+	// Both requests got their own decision events.
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+});
+
+test("P7 operator cancel while parked releases the run (NEVR-201 defect 2): no leaked node run or child", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", { agentId, prompt: "perm-park hold" });
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const running = executeClaimed(client, cfg, c.task);
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status ===
+		"needs_permission"
+			? true
+			: undefined,
+	);
+	// Cancel while parked. The parked permission request must settle (reject)
+	// and the whole run must wind down to a cancelled outcome. Race a deadline
+	// so a leaked run fails the test with a clear message instead of hanging.
+	expect((await p.op("POST", `tasks/${t.body.id}/cancel`)).status).toBe(200);
+	const f = await Promise.race([
+		running,
+		new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error(
+							"run did not settle within 15s of cancel — parked request leaked",
+						),
+					),
+				15000,
+			),
+		),
+	]);
+	expect(f.outcome).toBe("cancelled");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("cancelled");
+	// The approval item records the cancellation, not a phantom decision:
+	// the plane settles the pending item atomically with the cancel (the
+	// node's post-cancel flush correctly 409s on a terminal row).
+	const approvals = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(
+		approvals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["cancelled"]);
+	expect(approvals[0].body.decidedAt).toBeTruthy();
+	// No stray grant can resurrect it.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(409);
 });

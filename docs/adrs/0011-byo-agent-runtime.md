@@ -48,7 +48,10 @@ and an agent is `(node, harness, model?, instructions, mcpServers)`.
   response. Harness children run with an explicit env allowlist
   (`PATH`, `HOME`, `TMPDIR`, `LANG`, plus the harness spec's own `env`) —
   the node's `STELLARC_*` credentials never reach the harness or its MCP
-  descendants.
+  descendants. Consequence for operators: a harness that needs credentials
+  (its own model API keys, MCP tokens) must now receive them through the
+  harness spec's `env` in the node config — they are no longer inherited
+  from the node's own environment.
 
 ### Task state machine (Multica-derived)
 

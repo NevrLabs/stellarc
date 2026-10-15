@@ -320,6 +320,17 @@ export async function runTask(
 						kind: o.kind,
 					})),
 				};
+				// Register the waiter BEFORE reporting the park: a verdict can
+				// arrive on the very next heartbeat, and a lost verdict would
+				// deadlock the held session. The mailbox is one-slot and
+				// consumed exactly once — a grant never auto-approves a later
+				// request (NEVR-201 defect 1), and "cancelled" releases the
+				// parked run when the operator cancels (defect 2).
+				const verdict = new Promise<"granted" | "denied" | "cancelled">(
+					(resolve) => {
+						parkedWaiter = resolve;
+					},
+				);
 				folder.approval({
 					request: {
 						...report,
@@ -329,20 +340,20 @@ export async function runTask(
 				});
 				await flush(true).catch(() => {});
 				await hooks.onPermissionRequest(report);
-				const verdict = await new Promise<"granted" | "denied">((resolve) => {
-					if (permissionVerdict) return resolve(permissionVerdict);
-					verdictWaiters.push(resolve);
-				});
+				const v = await verdict;
 				folder.approval({
 					request: {
 						...report,
 						arguments: p.toolCall.rawInput ?? null,
 					},
-					status: verdict === "granted" ? "granted" : "denied",
+					status: v,
 					decidedAt: new Date().toISOString(),
 				});
 				await flush(true).catch(() => {});
-				return verdict === "granted"
+				// A cancelled run answers reject too: the harness gets a
+				// settled response and can wind down instead of blocking on a
+				// permission answer that will never come.
+				return v === "granted"
 					? pickPermission(p.options)
 					: denyPermission(p.options);
 			},
@@ -358,22 +369,25 @@ export async function runTask(
 	};
 	let sessionId: string | undefined;
 	let cancelled = false;
-	/** The operator verdict on a parked permission request, delivered exactly
-	 * once by the heartbeat; consumed by the pending requestPermission call. */
-	let permissionVerdict: "granted" | "denied" | undefined;
-	const verdictWaiters: Array<(v: "granted" | "denied") => void> = [];
-	const deliverVerdict = (v: "granted" | "denied") => {
-		permissionVerdict = v;
-		while (verdictWaiters.length) verdictWaiters.shift()?.(v);
+	/** The pending parked permission request's settle function, if any. The
+	 * verdict mailbox is one-slot: a verdict delivered while no request is
+	 * parked is dropped (it answers nothing), and each parked request consumes
+	 * at most one verdict — a grant never sticks to approve later requests. */
+	let parkedWaiter: ((v: "granted" | "denied" | "cancelled") => void) | null =
+		null;
+	const settleParked = (v: "granted" | "denied" | "cancelled") => {
+		const w = parkedWaiter;
+		parkedWaiter = null;
+		w?.(v);
 	};
 	const flushTimer = setInterval(() => void flush().catch(() => {}), 500);
 	const beat = setInterval(async () => {
 		try {
 			const state = await hooks.heartbeat();
-			if (state.permission && !permissionVerdict)
-				deliverVerdict(state.permission);
+			if (state.permission) settleParked(state.permission);
 			if (state.cancelled && !cancelled) {
 				cancelled = true;
+				settleParked("cancelled");
 				if (sessionId) await conn.cancel({ sessionId });
 			}
 		} catch (error) {
