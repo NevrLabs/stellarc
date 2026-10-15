@@ -22,4 +22,7 @@ Known upstream defects (inherited, typecheck-visible, not fixed here):
   user deletion throws a ReferenceError.
 - `billing/**` and `user/controllers/delete-account-data.ts` reference tables
   that do not exist in `database/schema.ts` (dead cloud-billing code).
-- `mcp/oauth-store.ts` references `mcpOauthStateTable`, which does not exist.
+- `mcp/oauth-store.ts` references `mcpOauthStateTable`, which does not exist
+  (dead: the OAuth consent flow's only consumer, the SDK transport, is gone —
+  NEVR-185 moved the MCP transport to effect/ai; `mcp/index.ts` keeps only the
+  consent endpoints).
