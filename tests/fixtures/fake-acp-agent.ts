@@ -21,8 +21,10 @@ function sh(cwd: string, cmd: string, args: string[]) {
 
 // "push <bare-path>": clone the bare repo unless a checkout already exists
 // (retries reuse the workdir), commit as the agent, push — the fact the node
-// must attribute. "pushcrash" does the same and then exits nonzero.
-function pushVerb(bare: string, crash: boolean) {
+// must attribute. "pushcrash" does the same and then exits nonzero;
+// "pushsecret" rewrites the remote URL to embed credentials after pushing
+// (NEVR-199 P4: the secret must never leave the node).
+function pushVerb(bare: string, mode: "push" | "pushcrash" | "pushsecret") {
 	if (!existsSync("repo")) sh(".", "git", ["clone", "--quiet", bare, "repo"]);
 	sh("repo", "git", [
 		...GIT_ID,
@@ -33,7 +35,14 @@ function pushVerb(bare: string, crash: boolean) {
 		"agent work",
 	]);
 	sh("repo", "git", ["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
-	if (crash) process.exit(3);
+	if (mode === "pushcrash") process.exit(3);
+	if (mode === "pushsecret")
+		sh("repo", "git", [
+			"remote",
+			"set-url",
+			"origin",
+			"https://user:sekrit@github.com/org/repo.git",
+		]);
 }
 
 const stream = acp.ndJsonStream(
@@ -94,14 +103,30 @@ new acp.AgentSideConnection(
 					await new Promise((r) => setTimeout(r, 50));
 				return { stopReason: "cancelled" };
 			}
-			if (verb === "push" || verb === "pushcrash") {
+			if (verb === "push" || verb === "pushcrash" || verb === "pushsecret") {
 				// NEVR-199: clone the bare repo (reused across attempts), commit
 				// as the agent, push — the fact the node must attribute.
 				const bare = rest[0];
 				if (!bare) return { stopReason: "refusal" };
-				pushVerb(bare, verb === "pushcrash");
+				const mode =
+					verb === "push"
+						? "push"
+						: verb === "pushcrash"
+							? "pushcrash"
+							: "pushsecret";
+				pushVerb(bare, mode);
 				await say("pushed");
 				return { stopReason: "end_turn" };
+			}
+			if (verb === "pushhang") {
+				// Push, then hang until cancelled (NEVR-199 P5: pushes recorded
+				// even on a cancelled finish).
+				const bare = rest[0];
+				if (!bare) return { stopReason: "refusal" };
+				pushVerb(bare, "push");
+				while (!cancelled.has(p.sessionId))
+					await new Promise((r) => setTimeout(r, 50));
+				return { stopReason: "cancelled" };
 			}
 			if (verb === "spend") {
 				// Usage-reporting harness: emits an UNSTABLE usage_update mid-run and

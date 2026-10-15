@@ -326,6 +326,14 @@ const usageEvent = (taskId: string, attempt: number, r: Row | null) =>
 
 // ── push attribution (NEVR-199) ─────────────────────────────────────────────
 
+/** Strip userinfo from a remote URL at the plane boundary too (defense in
+ * depth — the node already strips it before reporting, D16). */
+export function redactRemoteUrl(url: string): string {
+	return url
+		.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^@/]+@/, "$1")
+		.replace(/^[^/@\s]+@(?=[^/]*:)/, "");
+}
+
 /** Next transcript seq for (task, attempt), continuing after any items the
  * node already streamed. */
 async function maxItemSeq(
@@ -338,22 +346,44 @@ async function maxItemSeq(
 	return Number(row?.max ?? -1);
 }
 
-/** Insert typed push rows (idempotent on re-delivery) and return one
- * `task_pushed` event per newly inserted push. */
-async function recordPushes(
+/** Record one attempt's pushes: typed transcript items (idempotent on seq),
+ * `agent_task_push` rows (idempotent on (task, attempt, sha, ref)), and one
+ * `task_pushed` event per newly inserted push. Remote URLs are re-redacted
+ * here (defense in depth — the node already strips userinfo, D16). Returns
+ * the events for the caller to append. */
+async function recordAttemptPushes(
 	tx: TransactionSql,
-	org: string,
+	n: NodeRow,
 	taskId: string,
 	attempt: number,
-	agentId: string,
-	onBehalfOf: string | null,
+	row: Row,
 	pushes: ReadonlyArray<Push>,
 ) {
+	// Typed push items: the transcript and the org log agree, and the read
+	// surface joins on commit_sha.
+	const seen = new Set<string>();
+	let seq = await maxItemSeq(tx, taskId, attempt);
+	for (const p of pushes) {
+		const dedupe = `${p.commitSha}\n${p.ref}`;
+		if (seen.has(dedupe)) continue;
+		seen.add(dedupe);
+		seq += 1;
+		await tx`INSERT INTO agent_task_item(org,task_id,attempt,seq,kind,body,occurred_at)
+      VALUES (${n.org},${taskId},${attempt},${seq},'push',${tx.json({
+				commitSha: p.commitSha,
+				ref: p.ref,
+				remote: redactRemoteUrl(p.remote),
+				pushedAt: p.pushedAt,
+			} as never)},${new Date(p.pushedAt)})
+      ON CONFLICT DO NOTHING`;
+	}
+	// Rows + events.
 	const events = [];
 	for (const p of pushes) {
+		const remote = redactRemoteUrl(p.remote);
 		const res =
 			await tx`INSERT INTO agent_task_push(org,task_id,attempt,commit_sha,ref,remote,pushed_at)
-      VALUES (${org},${taskId},${attempt},${p.commitSha},${p.ref},${p.remote},${new Date(p.pushedAt)})
+      VALUES (${n.org},${taskId},${attempt},${p.commitSha},${p.ref},${remote},${new Date(p.pushedAt)})
       ON CONFLICT (task_id, attempt, commit_sha, ref) DO NOTHING`;
 		if (res.count === 0) continue;
 		// D12 attribution chain: the agent principal acted, on behalf of the
@@ -361,16 +391,16 @@ async function recordPushes(
 		// linkage joins on commitSha.
 		events.push({
 			type: "task_pushed",
-			actor: `agent:${agentId}`,
+			actor: `agent:${row.agent_id}`,
 			payload: {
 				id: taskId,
 				attempt,
-				agentId,
+				agentId: row.agent_id,
 				commitSha: p.commitSha,
 				ref: p.ref,
-				remote: p.remote,
+				remote,
 				pushedAt: p.pushedAt,
-				onBehalfOf,
+				onBehalfOf: row.created_by,
 			},
 		});
 	}
@@ -1055,14 +1085,36 @@ export class AgentStore {
 	finish(n: NodeRow, id: string, input: Finish) {
 		return txn(this.sql, "finish", async (tx) => {
 			const row = await this.owned(tx, n, id, input.attempt);
-			if (row.status === "cancelled") return task(row);
+			// Pushes are recorded even on a cancelled task: a push the harness
+			// already made is a durable fact regardless of how the run ended
+			// (NEVR-199), and the finish that reports it may be the last one
+			// the plane accepts for this attempt.
+			const pushEvents =
+				input.pushes && input.pushes.length > 0
+					? await recordAttemptPushes(
+							tx,
+							n,
+							id,
+							input.attempt,
+							row,
+							input.pushes,
+						)
+					: [];
+			if (row.status === "cancelled") {
+				await appendEvents(tx, n.org, `node:${n.id}`, pushEvents);
+				return task(row);
+			}
 			if (row.status !== "running" && row.status !== "claimed")
 				throw new Conflict({ message: `Task is ${row.status}` });
 			if (input.outcome === "failed" && !input.failureCode)
 				throw new BadRequest({
 					message: "failed outcome requires failureCode",
 				});
-			const events = [];
+			const events: Array<{
+				type: string;
+				payload: Record<string, unknown>;
+				actor?: string;
+			}> = [...pushEvents];
 			if (input.usage) {
 				const merged = await upsertUsage(
 					tx,
@@ -1075,37 +1127,6 @@ export class AgentStore {
 				);
 				const event = usageEvent(id, input.attempt, merged);
 				if (event) events.push(event);
-			}
-			if (input.pushes && input.pushes.length > 0) {
-				// Typed push items alongside the usage-shaped capture: the transcript
-				// and the org log agree, and the read surface joins on commit_sha.
-				const seen = new Set<string>();
-				let seq = await maxItemSeq(tx, id, input.attempt);
-				for (const p of input.pushes) {
-					const key = `${p.commitSha}\n${p.ref}`;
-					if (seen.has(key)) continue;
-					seen.add(key);
-					seq += 1;
-					await tx`INSERT INTO agent_task_item(org,task_id,attempt,seq,kind,body,occurred_at)
-            VALUES (${n.org},${id},${input.attempt},${seq},'push',${tx.json({
-							commitSha: p.commitSha,
-							ref: p.ref,
-							remote: p.remote,
-							pushedAt: p.pushedAt,
-						} as never)},${new Date(p.pushedAt)})
-            ON CONFLICT DO NOTHING`;
-				}
-				events.push(
-					...(await recordPushes(
-						tx,
-						n.org,
-						id,
-						input.attempt,
-						row.agent_id,
-						row.created_by,
-						input.pushes,
-					)),
-				);
 			}
 			const retry =
 				input.outcome === "failed" &&

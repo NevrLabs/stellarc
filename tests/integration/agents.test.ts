@@ -735,3 +735,100 @@ test("P3 per-attempt attribution with a shared workdir: a crash-after-push retry
 		1, 2,
 	]);
 });
+
+test("P4 remote credentials never leave the node: userinfo stripped from finish, org log, and read surface", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const { bare } = await bareRepo();
+	// The harness pushes, then rewrites its remote URL to embed credentials —
+	// the node reads the reflog AFTER the harness ran, so the URL it sees
+	// carries the secret. The secret must be stripped everywhere downstream.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `pushsecret ${bare}`,
+	});
+	expect(t.status).toBe(201);
+	const finish = await runOne(p, token);
+	expect(finish.outcome).toBe("completed");
+	expect(finish.pushes).toHaveLength(1);
+	expect(finish.pushes?.[0].remote).toBe("https://github.com/org/repo.git");
+	// Nothing the plane stores or emits contains the secret.
+	const view = JSON.stringify((await p.op("GET", `tasks/${t.body.id}`)).body);
+	expect(view).not.toContain("sekrit");
+	const events = await p.db.sql<{ payload: unknown }[]>`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(1);
+	expect(JSON.stringify(events)).not.toContain("sekrit");
+	expect(events[0].payload).toMatchObject({
+		remote: "https://github.com/org/repo.git",
+	});
+});
+
+test("P5 a cancelled finish still records the pushes the harness already made", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const { bare } = await bareRepo();
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `pushhang ${bare}`,
+	});
+	expect(t.status).toBe(201);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status === "running"
+			? true
+			: undefined,
+	);
+	expect((await p.op("POST", `tasks/${t.body.id}/cancel`)).status).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("cancelled");
+	// The push that landed before the cancel is recorded anyway.
+	expect(f.pushes).toHaveLength(1);
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.task.status).toBe("cancelled");
+	expect(view.pushes).toHaveLength(1);
+	expect(view.pushes[0].attempt).toBe(1);
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(1);
+});
+
+test("P6 plane-side redaction: a node that reports a credential-bearing remote gets it stripped on ingest", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	expect(t.status).toBe(201);
+	const c = await claim(client);
+	// A misbehaving node reports the secret directly in Finish.pushes.
+	await client.call(`tasks/${c.task.id}/finish`, {
+		attempt: c.task.attempt,
+		outcome: "completed",
+		pushes: [
+			{
+				commitSha: "a".repeat(40),
+				ref: "refs/remotes/origin/main",
+				remote: "https://agent:tok3n@github.com/org/repo.git",
+				pushedAt: new Date().toISOString(),
+			},
+		],
+	});
+	const view = JSON.stringify((await p.op("GET", `tasks/${t.body.id}`)).body);
+	expect(view).not.toContain("tok3n");
+	const events = await p.db.sql<{ payload: unknown }[]>`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:task_pushed'`;
+	expect(events).toHaveLength(1);
+	expect(JSON.stringify(events)).not.toContain("tok3n");
+});

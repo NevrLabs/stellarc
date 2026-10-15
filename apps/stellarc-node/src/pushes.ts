@@ -101,7 +101,7 @@ export async function collectPushes(
 				out.push({
 					commitSha: parsed.newSha,
 					ref,
-					remote: url,
+					remote: redactRemote(url),
 					pushedAt: new Date(parsed.atSec * 1000).toISOString(),
 				});
 			}
@@ -112,6 +112,17 @@ export async function collectPushes(
 
 const countEntries = (log: string) =>
 	log.split("\n").filter((l) => l.length > 0).length;
+
+/** Strip userinfo (`user:pass@`, `token@`) from a remote URL before it leaves
+ * the node: credentials a harness embedded in its remote URL never reach the
+ * plane (D16 — the plane stores references, never values). Handles scheme
+ * URLs (`https://user:tok@host/...`, `ssh://git@host/...`) and scp-style
+ * (`user:pass@host:path`, `git@host:path`). */
+export function redactRemote(url: string): string {
+	return url
+		.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^@/]+@/, "$1")
+		.replace(/^[^/@\s]+@(?=[^/]*:)/, "");
+}
 
 /** Raw reflog line: `<old> <new> <who> <email> <unix-ts> <tz>` TAB `<message>`. */
 function parseReflogLine(line: string) {
