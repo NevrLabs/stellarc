@@ -1,18 +1,34 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 // NEVR-223: freeze the agent-transcript patterns rendered from recorded run
 // fixtures on the dev-only /agent-transcript-fixtures surface. No API stubs:
 // the route renders composed AI elements (trace/code-block/item) from
 // src/lib/agent-transcript/fixtures.ts and makes zero network calls.
 
+// The theme store (not the media query) drives <html>'s light/dark class
+// (providers/theme-provider), and its persisted default is dark. Pin the
+// persisted state so each test freezes the theme it claims to: the zustand
+// persist shape is { state, version } under the "user-preferences" key.
+const setTheme = (page: Page, theme: "light" | "dark") =>
+  page.addInitScript((value) => {
+    localStorage.setItem(
+      "user-preferences",
+      JSON.stringify({ state: { theme: value }, version: 0 }),
+    );
+  }, theme);
+
 test("agent transcript patterns render from recorded fixtures", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await setTheme(page, "light");
   await page.goto("/agent-transcript-fixtures");
   await expect(page.getByTestId("agent-transcript-fixtures")).toBeVisible();
+  // The store, not the media query, drives the class: assert we are really
+  // freezing the light palette.
+  await expect(page.locator("html")).toHaveClass(/light/);
 
   const toolCalls = page.getByTestId("fixture-tool-calls");
   // Tool: running line shimmers, completed calls collapse, failures error.
@@ -81,9 +97,10 @@ test("agent transcript patterns render from recorded fixtures", async ({
 test("agent transcript patterns render in dark theme", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.emulateMedia({ colorScheme: "dark" });
+  await setTheme(page, "dark");
   await page.goto("/agent-transcript-fixtures");
   await expect(page.getByTestId("agent-transcript-fixtures")).toBeVisible();
+  await expect(page.locator("html")).toHaveClass(/dark/);
   await expect(
     page
       .getByTestId("fixture-tool-calls")
