@@ -225,7 +225,8 @@ export function mcpHttpHandler(options: McpHttpOptions) {
 		// authenticated, and disallowed origins never reach the token gate.
 		const origin = request.headers.get("origin");
 		const allowed = isMcpOriginAllowed(origin, options.allowedOrigins);
-		if (request.method === "OPTIONS") return preflight(request, origin, allowed);
+		if (request.method === "OPTIONS")
+			return preflight(request, origin, allowed);
 		if (!allowed) return new Response(null, { status: 403 });
 		// Single principal resolution per request (REWORK defect 5): reused by
 		// the gate, the tools, and the session-owner bookkeeping below.

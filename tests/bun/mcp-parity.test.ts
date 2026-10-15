@@ -594,7 +594,9 @@ test("M18 cookie-only session: 401 + WWW-Authenticate, not an empty-Bearer sessi
 		body: initBody("2025-06-18"),
 	});
 	expect(r.status).toBe(401);
-	expect(r.headers.get("www-authenticate")).toMatch(/^Bearer resource_metadata/);
+	expect(r.headers.get("www-authenticate")).toMatch(
+		/^Bearer resource_metadata/,
+	);
 	const body = await r.json();
 	expect(body.error).toBe("invalid_token");
 });
