@@ -33,6 +33,8 @@ export class ShapeEngine {
 			boundary: string;
 			expires: number;
 			cursors: Map<string, string>;
+			/** Row ids known to exist at each issued tail cursor (internal form). */
+			known: Map<string, Set<string>>;
 		}
 	>();
 	constructor(
@@ -199,6 +201,7 @@ export class ShapeEngine {
 						boundary: counter?.seq ?? "0",
 						expires: Date.now() + 300000,
 						cursors: new Map<string, string>(),
+						known: new Map<string, Set<string>>(),
 					};
 				},
 			);
@@ -245,6 +248,21 @@ export class ShapeEngine {
 		} else {
 			if (!/^\d+_0$/.test(offset)) return new Response(null, { status: 400 });
 			const cursorSeq = offset.split("_")[0] ?? "0";
+			// Row ids a client resuming at this cursor already holds: the
+			// snapshot's rows for the boundary cursor, or the accumulated
+			// post-page state recorded under a cursor an earlier tail page
+			// issued. Cloned so a page is a pure function of its cursor —
+			// replays stay byte-identical.
+			// TODO(ADR 0007): this probe-fixture scheme stores one row-id
+			// Set per issued tail cursor — O(rows × cursors) per snapshot,
+			// bounded only by the 5-minute expiry. Fine for the fixture;
+			// the real engine needs a compact representation (e.g. one
+			// shared set plus per-cursor deltas, or deriving known-ness
+			// from the snapshot boundary instead of accumulating it).
+			const known = new Set(
+				snapshot.known.get(offset) ??
+					Array.from(snapshot.rows, (row) => row.id),
+			);
 			const events = await this
 				.sql`SELECT seq::text,txid::text,plugin_type,payload,schema_version FROM event WHERE org=${org} AND seq>${cursorSeq} ORDER BY seq LIMIT 101`;
 			caughtUp = events.length <= 100;
@@ -271,18 +289,31 @@ export class ShapeEngine {
 					);
 				}
 				const deleted = event.plugin_type === "foundation:probe-deleted";
+				// Electric-protocol clients (electric-db-collection >= 0.6)
+				// drop `update` messages for rows they hold no baseline for,
+				// so a first-appearance row must arrive as `insert`.
+				const firstAppearance = !deleted && !known.has(payload.id);
+				if (deleted) known.delete(payload.id);
+				else known.add(payload.id);
 				messages.push({
 					key: key(org, payload.id),
 					value: deleted
 						? { org, id: payload.id }
 						: { org, ...payload, last_seq: event.seq },
 					headers: {
-						operation: deleted ? "delete" : "update",
+						operation: deleted
+							? "delete"
+							: firstAppearance
+								? "insert"
+								: "update",
 						relation: ["public", "sync_probe"],
 						txids: [Number(event.txid)],
 					},
 				});
 			}
+			// The issued cursor for this page carries the row set a client
+			// holds after applying it, so the next tail page labels correctly.
+			snapshot.known.set(next, known);
 		}
 		if (!next.startsWith("s:") && caughtUp) {
 			messages.push({ headers: { control: "up-to-date" } });
