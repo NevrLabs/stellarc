@@ -28,25 +28,28 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Lynx 4.1 (web+iOS+Android, bindings pre-1.0) | WATCH | 2026-10-14 | cross-platform-ui |
 | Electrobun (beta, macOS-centric) | REJECT | 2026-10-14 | cross-platform-ui |
 | @axe-core/playwright (a11y floor; brief posted 10-13, not yet landed) | ADOPT | 2026-10-14 | cross-platform-ui |
-| effect 4.x (GA, 4.0.4; port merged to effect/v4 branch, pin 4.0.2) | ADOPT | 2026-10-14 | libraries |
+| effect 4.x (4.0.5 out 10-15 — npm skew: satellites live, core 404; v4 branch pin 4.0.2; bump gate = core resolves on npm) | ADOPT | 2026-10-15 | libraries |
+| effect `reactivity` + @effect/atom-react (core atoms, React hooks; unstable) | WATCH | 2026-10-15 | libraries |
+| @a2a-js/sdk 1.3 (A2A protocol; no Stellarc consumer today) | WATCH | 2026-10-15 | libraries |
+| @tanstack/trailbase-db-collection (TrailBase integration exists upstream; ADR 0007 rejection stands) | WATCH | 2026-10-15 | libraries |
 | @effect/sql-drizzle (removed upstream in v4) | REJECT | 2026-10-13 | libraries |
-| packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156) | ADOPT | 2026-10-14 | libraries |
-| effect `eventlog` module (SqlEventJournal; unstable; unchanged 4.0.0→4.0.4) | WATCH | 2026-10-14 | libraries |
-| Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked) | ADOPT | 2026-10-14 | libraries |
-| @tanstack/db 0.13 + electric collection 0.5.9 | TRIAL | 2026-10-13 | libraries |
-| @tanstack/tauri-db-sqlite-persistence (desktop offline) | WATCH | 2026-10-13 | libraries |
-| ACP v1.25 (session compaction, notices); v2 alpha | ADOPT bump | 2026-10-14 | libraries |
-| Zero 1.10 (strongest sync alternative) | WATCH | 2026-10-14 | libraries |
+| packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156) | ADOPT | 2026-10-15 | libraries |
+| effect `eventlog` module (SqlEventJournal; unstable; unchanged 4.0.0→4.0.5) | WATCH | 2026-10-15 | libraries |
+| Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked; unchanged) | ADOPT | 2026-10-15 | libraries |
+| @tanstack/db 0.14 + electric collection 0.6 (retry stays `loading`, unbound query descriptors; brief posted 10-15) | TRIAL | 2026-10-15 | libraries |
+| @tanstack/tauri-db-sqlite-persistence 0.2.34 (claim-loss recovery; desktop offline spike unclaimed) | WATCH | 2026-10-15 | libraries |
+| ACP v1.25 schema / SDK 1.8.0 (compaction, notices; rust 1.11.0); bump pending NEVR-129 | ADOPT bump | 2026-10-15 | libraries |
+| Zero 1.10 (strongest sync alternative; unchanged) | WATCH | 2026-10-15 | libraries |
 | effect v4 core layout (ai/sql/graphql/rpc in core; v3-only umbrellas dead) | ADOPT hygiene | 2026-10-14 | libraries |
-| effect/ai McpServer (drops @modelcontextprotocol/sdk at v4) | TRIAL | 2026-10-14 | libraries |
-| drizzle-orm 1.0 line (upstream effect* dist-tags live) | WATCH | 2026-10-14 | libraries |
+| effect/ai McpServer (port = NEVR-185 / PR #99 vs effect/v4; 4.0.5 adds compile-time service checks) | TRIAL | 2026-10-15 | libraries |
+| drizzle-orm 1.0 line (npm `rc` tag is rc.4; rc.5-* are suffixed builds, no installable rc.5; bridge stays) | WATCH | 2026-10-15 | libraries |
 | jazz-tools (correction: 0.20.19 + 2.0-alpha; not 1.2.0) | REJECT | 2026-10-14 | libraries |
 | pragmatic-drag-and-drop 4.0 (major velocity warning) | WATCH | 2026-10-14 | libraries |
 | virtua (dnd/list virtualization alternative) | WATCH | 2026-10-14 | libraries |
 | effect-lens (v4 community libs signal) | WATCH | 2026-10-14 | libraries |
-| hono 5.0.0-rc line opened | WATCH | 2026-10-14 | libraries |
-| TypeScript 7 / tsgo (answer via `bun check`) | TRIAL | 2026-10-13 | libraries |
-| @sentry/node 11 (one major ahead of pin) | WATCH | 2026-10-13 | libraries |
+| hono 5.0.0-rc line (rc.1 on `next`; calendar with vite/vitest majors) | WATCH | 2026-10-15 | libraries |
+| TypeScript 7 / tsgo (7.0.2 stable; 7.1-dev dailies; answer via `bun check`) | TRIAL | 2026-10-15 | libraries |
+| @sentry/node 11 (11.7.0; one major ahead of pin) | WATCH | 2026-10-15 | libraries |
 | shadcn chat primitives (PR #91 = NEVR-170; blocked by T02 freeze guard) | ADOPT | 2026-10-14 | design |
 | shadcn Typeset (streaming-safe markdown css; rides PR #91) | TRIAL | 2026-10-14 | design |
 | @coss registry entry in components.json (AGPL, unused; removal rides PR #92) | REJECT | 2026-10-14 | design |
