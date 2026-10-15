@@ -20,7 +20,15 @@ import { Effect } from "effect";
 import { Access, CurrentUser, Db, type Principal, schema } from "../kernel";
 import { ApiError, type McpGuards, McpRequestPrincipal } from "./tools";
 
-const DENIED = "Forbidden: missing required permission.";
+// Legacy assertMcpPermission spelled out WHAT was missing — agents read
+// this text to self-correct — so the denial lists the resource:action
+// pairs, exactly as kaneo-legacy built it (cycle-3 defect 2).
+const deniedMessage = (required: Record<string, string[]>) => {
+	const described = Object.entries(required)
+		.map(([resource, actions]) => `${resource}:${actions.join(",")}`)
+		.join(" ");
+	return `Forbidden: missing required permission (${described}).`;
+};
 const NO_ORG = "Resource not found or not accessible to this user.";
 
 /** task -> board -> organizationId (getOrganizationIdForTask). */
@@ -73,7 +81,7 @@ const guard = Effect.fn("mcp.guard")(function* (
 	yield* access.requirePermission(organizationId, required).pipe(
 		Effect.provideService(CurrentUser, principal),
 		Effect.catchTag("Forbidden", () =>
-			Effect.fail(new ApiError({ message: DENIED })),
+			Effect.fail(new ApiError({ message: deniedMessage(required) })),
 		),
 	);
 });

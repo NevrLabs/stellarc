@@ -2,7 +2,10 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { Access, Db } from "../../packages/kaneo/src/kernel";
 import { mcpGuardsLive } from "../../packages/kaneo/src/mcp/guards";
-import { mcpHttpHandler } from "../../packages/kaneo/src/mcp/http";
+import {
+	isMcpOriginAllowed,
+	mcpHttpHandler,
+} from "../../packages/kaneo/src/mcp/http";
 import {
 	type McpGuards,
 	type McpPrincipal,
@@ -37,7 +40,13 @@ import { disposablePostgres } from "../helpers/postgres";
  *       BEFORE auth (cycle-2 defect 2),
  *  M18  cookie-only session: 401 + WWW-Authenticate (cycle-2 defect 3),
  *  M19  origin policy parity with withCors: empty list reflects any origin
- *       outside production; configured list = membership (cycle-2 defect 4).
+ *       outside production; configured list = membership (cycle-2 defect 4),
+ *  M20  telemetry parity: mcp.tool.<name> spans reach the telemetry layer
+ *       passed to mcpHttpHandler, not the no-op tracer (cycle-3 defect 1),
+ *  M21  guard denial lists the missing resource:action pairs, exactly as
+ *       legacy assertMcpPermission did (cycle-3 defect 2),
+ *  M22  same-origin requests pass even in production with an EMPTY
+ *       allow-list (browser POSTs always send Origin; cycle-3 defect 3).
  */
 
 const resources: Array<() => Promise<void>> = [];
@@ -412,6 +421,11 @@ test("M14 principal resolved exactly once per request (defect 5)", async () => {
 
 test("M16 production wiring: kaneoNativeHandler's own MCP assembly proxies with the caller's token and carries userRole", async () => {
 	const { kaneoNativeHandler } = await import("../../packages/kaneo/src/http");
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	// Cycle-3 defect 1: the production assembly must pass its telemetry
+	// through to the MCP runtime — asserted HERE, through kaneoNativeHandler,
+	// so dropping the pass-through in kaneo/src/http.ts goes red.
+	const telemetry = TelemetryTest();
 	// Real PG for the guard path; the upstream is the shared stub.
 	const db = await disposablePostgres();
 	resources.push(db.close);
@@ -488,6 +502,7 @@ test("M16 production wiring: kaneoNativeHandler's own MCP assembly proxies with 
 				remove: async () => {},
 			},
 		},
+		telemetry: telemetry.layer,
 	});
 	resources.push(prod.dispose);
 	const prodSrv = Bun.serve({
@@ -537,6 +552,13 @@ test("M16 production wiring: kaneoNativeHandler's own MCP assembly proxies with 
 	expect(upstreamHits.length).toBe(hitsBefore2 + 1);
 	expect(upstreamHits.at(-1)?.path).toBe(`/api/task/${taskId}`);
 	expect(upstreamHits.at(-1)?.auth).toBe("Bearer prod-token");
+
+	// Cycle-3 defect 1, at the PRODUCTION call site: the spans reached the
+	// telemetry layer the host passed in — not the no-op tracer.
+	await telemetry.reader.forceFlush();
+	const spanNames = telemetry.spans.getFinishedSpans().map((s) => s.name);
+	expect(spanNames).toContain("mcp.tool.list_organizations");
+	expect(spanNames).toContain("mcp.tool.get_task");
 
 	// Restore env for the other tests sharing this process.
 	process.env.KANEO_API_URL = savedApiUrl;
@@ -712,6 +734,24 @@ test("M10 instance-admin non-member passes the board guard; plain non-member is 
 	});
 	// Plain non-member: denied with the guard's ApiError.
 	expect(plebExit._tag).toBe("Failure");
+	// Cycle-3 defect 2: the denial lists WHAT is missing, exactly as legacy
+	// assertMcpPermission did — agents read this text to self-correct.
+	const plebMessage = await mcpGuardsLive()
+		.guardBoard(boardId, { task: ["read"] })
+		.pipe(
+			Effect.provideService(McpRequestPrincipal, {
+				userId: plebId,
+				userRole: "user",
+				token: "t",
+			}),
+			Effect.provide(Access.layer),
+			Effect.provide(DbLayer),
+			Effect.catch((e) => Effect.succeed(e.message)),
+			Effect.runPromise,
+		);
+	expect(plebMessage).toBe(
+		"Forbidden: missing required permission (task:read).",
+	);
 }, 120_000);
 
 /* ── M11/M12: schema parity (defect 3) ── */
@@ -737,4 +777,97 @@ test("M12 zod .datetime({offset:true}) parity: date-only and zone-less values re
 		expect(() =>
 			Schema.decodeUnknownSync(ListTasks)(input(value)),
 		).not.toThrow();
+});
+
+/* ── M20: telemetry parity (cycle-3 defect 1) ── */
+
+test("M20 telemetry: mcp.tool.<name> spans land in the telemetry layer passed to mcpHttpHandler", async () => {
+	// Built like production: the telemetry layer rides the SAME options the
+	// host passes (kaneoNativeHandler → mcpHttpHandler.telemetry). If the
+	// pass-through is dropped, the spans go to the no-op tracer and this
+	// test sees nothing.
+	const { TelemetryTest } = await import("../../packages/telemetry/src/index");
+	const telemetry = TelemetryTest();
+	const mcp = mcpHttpHandler({
+		tools: mcpTools(guards, upstreamBase),
+		principalResolver: principalFor,
+		allowedOrigins: [],
+		apiBaseUrl: upstreamBase,
+		telemetry: telemetry.layer,
+	});
+	const srv = Bun.serve({
+		port: 0,
+		hostname: "127.0.0.1",
+		fetch: (r) => mcp.handler(r),
+	});
+	try {
+		const init = await fetch(`${srv.url.origin}/api/mcp`, {
+			method: "POST",
+			headers: { ...j, authorization: "Bearer token-a" },
+			body: initBody("2025-06-18"),
+		});
+		expect(init.status).toBe(200);
+		const sid = init.headers.get("mcp-session-id") ?? "";
+		const ver = (await readRpc(init))?.result?.protocolVersion ?? "";
+		const listOrgs = await call(
+			srv.url.origin,
+			sid,
+			ver,
+			"token-a",
+			"tools/call",
+			{ name: "list_organizations", arguments: {} },
+		);
+		expect(listOrgs.body?.result?.isError).toBeFalsy();
+		await telemetry.reader.forceFlush();
+		const spanNames = telemetry.spans.getFinishedSpans().map((s) => s.name);
+		// The tool span must reach the exporter — telemetry parity with the
+		// rest of the v4 tree is an acceptance criterion of the brief.
+		expect(spanNames).toContain("mcp.tool.list_organizations");
+		// The proxy fetch inside the tool is spanned too.
+		expect(spanNames).toContain("mcp.api.fetch");
+	} finally {
+		srv.stop(true);
+		await mcp.dispose();
+	}
+}, 60_000);
+
+/* ── M22: same-origin in production with an empty allow-list (cycle-3 defect 3) ── */
+
+test("M22 same-origin requests pass in production even with an EMPTY allow-list (defect 3)", async () => {
+	const savedEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = "production";
+	try {
+		// A same-origin browser POST (Origin matches Host) must NOT 403 when
+		// nobody configured CORS_ORIGINS/KANEO_CLIENT_URL — the bundled
+		// single-origin deployment legacy served fine.
+		const sameOrigin = new Request("https://stellarc.example/api/mcp", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				host: "stellarc.example",
+				origin: "https://stellarc.example",
+			},
+			body: initBody("2025-06-18"),
+		});
+		expect(isMcpOriginAllowed("https://stellarc.example", [], sameOrigin)).toBe(
+			true,
+		);
+		// A cross-origin request in that same deployment stays 403 (empty
+		// list in production = allow only same-origin).
+		const crossOrigin = new Request("https://stellarc.example/api/mcp", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				host: "stellarc.example",
+				origin: "https://evil.example",
+			},
+			body: initBody("2025-06-18"),
+		});
+		expect(isMcpOriginAllowed("https://evil.example", [], crossOrigin)).toBe(
+			false,
+		);
+	} finally {
+		if (savedEnv === undefined) delete process.env.NODE_ENV;
+		else process.env.NODE_ENV = savedEnv;
+	}
 });

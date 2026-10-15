@@ -49,9 +49,17 @@ export function kaneoNativeHandler(options: {
 		headers: Headers,
 	) => Promise<Principal | null | "malformed">;
 	ports: DomainPorts;
-	telemetry?: Layer.Layer<never>;
+	telemetry?: Layer.Layer<never> | undefined;
 	memoMap?: Layer.MemoMap;
 }) {
+	// One memo map across BOTH sub-runtimes (MCP transport + HttpApi router).
+	// Mounting the same telemetry layer in two independent web-handler
+	// runtimes WITHOUT a shared memo map builds it twice; the second build's
+	// scope shutdown disables the first provider and MCP spans silently go
+	// to the no-op tracer (found in cycle-3 debugging: 0 spans vs 43 with
+	// the map shared). main.ts already passes its memoMap; this default
+	// protects every other host the same way.
+	const sharedMemoMap = options.memoMap ?? Layer.makeMemoMapUnsafe();
 	const Base = Layer.mergeAll(
 		DbLive(options.databaseUrl),
 		Layer.succeed(PrincipalResolver, options.resolvePrincipal),
@@ -90,7 +98,11 @@ export function kaneoNativeHandler(options: {
 		// Guards resolve Db/Access per request; sharing the host memoMap keeps
 		// one PG pool across the API and MCP runtimes.
 		services: Access.layer.pipe(Layer.provideMerge(Base)),
-		memoMap: options.memoMap,
+		memoMap: sharedMemoMap,
+		// Telemetry parity (cycle-3 defect 1): the host telemetry layer, the
+		// same one kaneoNativeHandler gives the HttpApi router, so MCP
+		// spans/logs land in OTLP with the rest of the v4 tree.
+		telemetry: options.telemetry,
 		allowedOrigins: (
 			process.env.CORS_ORIGINS ??
 			process.env.KANEO_CLIENT_URL ??
@@ -123,7 +135,7 @@ export function kaneoNativeHandler(options: {
 			Layer.provideMerge(options.telemetry ?? Layer.empty),
 		),
 		{
-			memoMap: options.memoMap,
+			memoMap: sharedMemoMap,
 			disableLogger: true,
 			// Defects (incl. SqlError via sqlDie) become an opaque 500 on the
 			// wire and a full Cause in the log + span.
