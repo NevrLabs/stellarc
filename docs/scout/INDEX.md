@@ -5,17 +5,18 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 
 | Item | Ring | Last checked | Beat |
 |---|---|---|---|
-| Linear (stacked PRs, realtime diffs, spend caps; unchanged 10-14) | WATCH | 2026-10-14 | competitors |
-| Plane (Agents GA, Propel; self-host 3.3.3; unchanged 10-14) | TRIAL | 2026-10-14 | competitors |
-| Multica (v0.6.2 10-13: run-continuity fixes, wakeup drain, daemon autostart) | WATCH | 2026-10-14 | competitors |
-| Paseo (plugin registry; 30+ commits 10-13/14 on run continuity) | TRIAL | 2026-10-14 | competitors |
-| Cursor (Origin App Marketplace, iOS remote; unchanged 10-14) | WATCH | 2026-10-14 | competitors |
-| Copilot coding agent (sandboxing GA, stacked PRs, budgets; platform: push attribution + Actions lockfiles 10-12/14) | ADOPT (pattern) | 2026-10-14 | competitors |
-| OpenHands (ACP agents; hold-until-reachable + wake-from-resume on main) | WATCH | 2026-10-14 | competitors |
-| Devin (memory/dreaming, inbox, Outposts; unchanged 10-14) | WATCH | 2026-10-14 | competitors |
-| Factory Droids (Script approvals, injection hardening, doctor; v0.240.0) | WATCH (promoted from REJECT) | 2026-10-14 | competitors |
+| Linear (stacked PRs, realtime diffs, spend caps; unchanged 10-15) | WATCH | 2026-10-15 | competitors |
+| Plane (Agents GA, Propel; self-host 3.3.3; unchanged 10-15) | TRIAL | 2026-10-15 | competitors |
+| Multica (v0.6.2 10-13; main 10-15: WS revocation on member removal MUL-8014, batch-claim recovery MUL-7658) | WATCH | 2026-10-15 | competitors |
+| Paseo (v0.11.3/v0.11.4 10-15: Hoplite first sponsor + opt-in provider; question-card UX at ACP seam) | TRIAL | 2026-10-15 | competitors |
+| Cursor (Origin App Marketplace, iOS remote; unchanged 10-15) | WATCH | 2026-10-15 | competitors |
+| Copilot coding agent (agentic autofix GA + HydraFusion Max 10-15; platform: push attribution + Actions lockfiles 10-12/14) | ADOPT (pattern) | 2026-10-15 | competitors |
+| OpenHands (ACP agents; hold-until-reachable on main; no release since v1.27.1 10-12) | WATCH | 2026-10-15 | competitors |
+| Devin (Oct 14: interrupt keeps partial reply, session-link chips, Review-manager role, SARIF export) | WATCH | 2026-10-15 | competitors |
+| Factory Droids (v0.242.0 10-15: resume-by-id, spec continuation, self-kill refusal, timeout retries) | WATCH | 2026-10-15 | competitors |
 | GitHub push attribution (durable authenticated-pusher on commits) | WATCH (steal requirement) | 2026-10-14 | competitors |
-| Huly (authz-grant fix #11067; no agent story; next check Jan 2027) | REJECT | 2026-10-14 | competitors |
+| NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; row open until verified on a release) | ADOPT (landed) | 2026-10-15 | competitors |
+| Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-15 | competitors |
 | Tauri 2 (chosen shell; 2.12.4 out 10-14 — IPC/asset empty-path panic fix; Cargo.lock committed @2.12.3 + weekly dependabot via NEVR-191/PR #98; await dependabot 2.12.4 PR, review for #16197) | ADOPT | 2026-10-15 | cross-platform-ui |
 | Tauri 3.0-alpha (core alpha.5 10-14, dep-sync only; npm next: cli α.5, api α.3) | WATCH | 2026-10-15 | cross-platform-ui |
 | tauri-runtime-cef (α.6 10-14: OSR IME/input/composition app-provided #16225, session-restore fix, CEF 154.5; webkitgtk tail 77 open) | WATCH | 2026-10-15 | cross-platform-ui |
