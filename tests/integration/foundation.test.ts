@@ -618,6 +618,7 @@ test("T24 stream error behind a retrying onError keeps the collection loading an
 	await server.write("retrying", "one", "seeded");
 	let failedOnce = false;
 	const statuses: string[] = [];
+	let streamError: unknown;
 	const collection = createCollection(
 		electricCollectionOptions<{
 			org: string;
@@ -638,7 +639,7 @@ test("T24 stream error behind a retrying onError keeps the collection loading an
 				onError: (error) => {
 					if (failedOnce) return;
 					failedOnce = true;
-					expect(error).toBeInstanceOf(Error);
+					streamError = error;
 					return {};
 				},
 				fetchClient: Object.assign(
@@ -681,9 +682,102 @@ test("T24 stream error behind a retrying onError keeps the collection loading an
 		expect(collection.get(JSON.stringify(["retrying", "two"]))?.value).toBe(
 			"post-retry",
 		);
-	} finally {
 		expect(collection.status).not.toBe("error");
+		expect(streamError).toBeInstanceOf(Error);
+	} catch (error) {
+		// Surface both halves together: the failure and the status/error
+		// state the 0.6 contract is about.
+		console.error("T24 failure with statuses:", statuses, streamError);
+		throw error;
 	}
+});
+
+// The 0.6 insert/update/delete labelling has two independently saboteurable
+// halves: (1) a delete must remove the row from the cursor-known set, so a
+// re-created row is `insert` — a stale `known` entry labels it `update` and
+// 0.6 clients silently drop it (the T09 stall); (2) each tail page must
+// compute from a set cloned from its cursor's recorded state, so replaying
+// an issued cursor is byte-identical — sharing the set makes a replay see
+// rows an earlier fetch added and relabel `insert` as `update`.
+test("T25 tail labelling: re-created rows re-insert and cursor replays stay byte-identical", async () => {
+	const server = await startTestServer();
+	resources.push(server.close);
+	const org = "recycle";
+	const probe = (query: string) =>
+		fetch(`${server.url}/orgs/${org}/v1/shape?table=sync_probe&${query}`, {
+			headers: { authorization: `Bearer ${org}` },
+		});
+	const initial = await probe("offset=-1");
+	const handle = initial.headers.get("electric-handle") ?? "";
+	let cursor = initial.headers.get("electric-offset") ?? "";
+	expect(initial.status).toBe(200);
+	const opsAt = (body: string) =>
+		(
+			JSON.parse(body) as Array<{
+				headers?: { operation?: string };
+			}>
+		)
+			.filter((message) => message.headers?.operation)
+			.map((message) => message.headers?.operation);
+	const tail = async () => {
+		const response = await probe(`handle=${handle}&offset=${cursor}`);
+		expect(response.status).toBe(200);
+		const body = await response.text();
+		cursor = response.headers.get("electric-offset") ?? cursor;
+		return { body, ops: opsAt(body) };
+	};
+	// Upsert, delete and re-create row x, each on its own tail page.
+	await server.write(org, "x", "v1");
+	const upsert1 = await tail();
+	expect(upsert1.ops).toEqual(["insert"]);
+	await server.delete(org, "x");
+	const deletion = await tail();
+	expect(deletion.ops).toEqual(["delete"]);
+	await server.write(org, "x", "v2");
+	const preUpsert2Cursor = cursor;
+	const upsert2 = await tail();
+	// The re-created row must be `insert` again: a stale known-set entry
+	// would label it `update`, which 0.6 clients drop for missing baselines.
+	expect(upsert2.ops).toEqual(["insert"]);
+	// Defect-2 half: replay the cursor upsert2 consumed. Its recorded
+	// post-delete state ({} — x is gone) diverges from any set mutated
+	// since, so a page that shares state instead of cloning from the
+	// cursor relabels the replayed upsert `update`. The engine must return
+	// the replay byte-identical to the first fetch of the same cursor.
+	const replay1 = await probe(`handle=${handle}&offset=${preUpsert2Cursor}`);
+	const replayBody1 = await replay1.text();
+	expect(replay1.status).toBe(200);
+	expect(replayBody1).toBe(upsert2.body);
+	const replay2 = await probe(`handle=${handle}&offset=${preUpsert2Cursor}`);
+	expect(await replay2.text()).toBe(upsert2.body);
+	expect(opsAt(replayBody1)).toEqual(["insert"]);
+	// End-to-end through a stock collection: after delete + re-create, a
+	// fresh collection syncs the re-created row and a live tail write to it
+	// settles awaitTxId AND applies the row (not just the txid evidence).
+	const collection = createCollection(
+		electricCollectionOptions<{
+			org: string;
+			id: string;
+			value: string;
+			last_seq: string;
+		}>({
+			id: `recycle:${crypto.randomUUID()}`,
+			getKey: (row) => JSON.stringify([row.org, row.id]),
+			shapeOptions: {
+				url: `${server.url}/orgs/${org}/v1/shape`,
+				params: { table: "sync_probe" },
+				headers: { authorization: `Bearer ${org}` },
+			},
+		}),
+	);
+	resources.push(async () => {
+		await collection.cleanup();
+	});
+	await collection.preload();
+	expect(collection.get(JSON.stringify([org, "x"]))?.value).toBe("v2");
+	const { txid } = await server.write(org, "x", "v3");
+	await collection.utils.awaitTxId(txid, 5000);
+	expect(collection.get(JSON.stringify([org, "x"]))?.value).toBe("v3");
 });
 
 test("T18 fixture mutations reject unauthorized and invalid bodies without writes", async () => {

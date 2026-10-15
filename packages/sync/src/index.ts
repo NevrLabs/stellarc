@@ -253,6 +253,12 @@ export class ShapeEngine {
 			// post-page state recorded under a cursor an earlier tail page
 			// issued. Cloned so a page is a pure function of its cursor —
 			// replays stay byte-identical.
+			// TODO(ADR 0007): this probe-fixture scheme stores one row-id
+			// Set per issued tail cursor — O(rows × cursors) per snapshot,
+			// bounded only by the 5-minute expiry. Fine for the fixture;
+			// the real engine needs a compact representation (e.g. one
+			// shared set plus per-cursor deltas, or deriving known-ness
+			// from the snapshot boundary instead of accumulating it).
 			const known = new Set(
 				snapshot.known.get(offset) ??
 					Array.from(snapshot.rows, (row) => row.id),
