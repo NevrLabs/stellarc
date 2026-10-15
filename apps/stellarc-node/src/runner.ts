@@ -11,6 +11,7 @@ import type {
 	TaskDescriptor,
 	Usage,
 } from "../../../packages/agents/src/protocol";
+import { PlaneError } from "./plane-error";
 
 /** A locally installed harness the node is willing to launch. Credentials and
  * binaries stay on the node (D14/D16); the plane only learns the name. */
@@ -274,7 +275,52 @@ function words(command: string): string[] {
 	return tokens;
 }
 
-const isPid = (s: string) => /^\d+$/.test(s);
+function segments(line: string): string[] {
+	return line
+		.split(/[;|&()\n`]+/)
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+/** Machine/supervisor-class commands: signalling the machine or init kills
+ * the node's whole world regardless of pid targeting. `init`/`telinit` are
+ * NOT here — they are subcommands of everyday tools (`git init`, `npm init`,
+ * `terraform init`), so they are judged separately with a runlevel operand. */
+const SUPERVISOR_COMMANDS = new Set(["shutdown", "reboot", "halt", "poweroff"]);
+
+/** Service managers that own the node/harness process (NEVR-230 defect 2):
+ * `systemctl stop stellarc-node` kills the runtime as surely as `kill`. */
+const SERVICE_MANAGERS = new Set([
+	"systemctl",
+	"service",
+	"launchctl",
+	"supervisorctl",
+]);
+const SERVICE_STOP_VERBS = new Set([
+	"stop",
+	"restart",
+	"kill",
+	"terminate",
+	"unload",
+	"down",
+]);
+
+/** Kill operands that name the caller's own group whatever the pid: `0` is
+ * the caller's process group, `-1` every signalable process, and `$PPID`/`$$`
+ * resolve to the node or its harness launcher at exec time. */
+const SELF_GROUP_OPERANDS = new Set(["0", "-1", "$$", "$ppid"]);
+
+/** Does a `kill` operand (or `-<pgroup>` token) name the node, its harness,
+ * or the caller's own process group? pid literals widen to `^-?\d+$` so the
+ * process-group forms (`kill -9 -<harnessPid>`) match too (NEVR-230
+ * defect 2). */
+function operandTargetsSelf(token: string, pids: ReadonlySet<number>): boolean {
+	const t = token.toLowerCase();
+	if (SELF_GROUP_OPERANDS.has(t)) return true;
+	if (!/^-?\d+$/.test(t)) return false;
+	const n = Number.parseInt(t, 10);
+	return pids.has(n) || pids.has(-n);
+}
 
 /** The harness command's cmdline identities: the full spec word and its
  * basename (`/usr/bin/bun` → `bun`) — pkill/killall may target either. */
@@ -311,25 +357,107 @@ function patternTargetsSelf(pattern: string, ctx: SelfKillContext): boolean {
 	);
 }
 
-/** Machine/supervisor-class commands: signalling the machine or init kills
- * the node's whole world regardless of pid targeting. */
-const SUPERVISOR_COMMANDS = new Set([
-	"shutdown",
-	"reboot",
-	"halt",
-	"poweroff",
-	"init",
-	"telinit",
-]);
+/** Segment-level predicate: is this one shell segment (already split on
+ * `;`/`|`/`&&`/substitution) a self-kill? Supervisor, service-manager, and
+ * init verbs are judged ONLY at the segment's command word (first token,
+ * unwrapping `sudo`/`doas`) — `git init`, `echo reboot`, `npm run halt` are
+ * benign (NEVR-230 defect 1). Kill-family verbs scan the whole segment:
+ * split rawInput shapes join as `bash kill 4242`, and a kill verb can never
+ * false-positive without a self-referencing operand after it. */
+function segmentTargetsSelf(
+	segment: string,
+	ctx: SelfKillContext,
+	pids: ReadonlySet<number>,
+): boolean {
+	const tokens = words(segment);
+	if (tokens.length === 0) return false;
+	const lower = tokens.map((w) => w.toLowerCase());
+	// Command word: position 0, unwrapping sudo/doas (possibly stacked).
+	let head = 0;
+	while (lower[head] === "sudo" || lower[head] === "doas") head++;
+	const commandWord = lower[head];
 
-/** Pure self/supervisor-kill guard (NEVR-229): does this tool call name a
- * command that would signal the stellarc-node process itself, its current
- * harness child, or the node's supervisor relationship? Covers `kill <pid>`,
- * `kill -9 <pid>`, `pkill -f stellarc`, `pkill -f <harness command>`,
- * `killall stellarc-node`, `taskkill /PID <pid>` / `/IM stellarc-node`, and
- * bare supervisor commands. Deliberately over-matches — a false positive
- * costs one refused tool call the operator can see; a false negative kills
- * the runtime holding the session. */
+	// Supervisor-class (defect 1): only as the segment's command word.
+	if (SUPERVISOR_COMMANDS.has(commandWord)) return true;
+	// init/telinit only with a runlevel-shaped operand: without one it is
+	// the everyday subcommand (`git init` has none).
+	if (commandWord === "init" || commandWord === "telinit") {
+		if (lower.slice(head + 1).some((a) => /^[0-6sS]$/.test(a))) return true;
+	}
+	// Service managers stopping/restarting a stellarc-owned unit/agent
+	// (defect 2): `systemctl stop stellarc-node.service` (verb then unit)
+	// and SysV `service stellarc-node stop` (unit then verb). Unit aliases
+	// may carry `.service`/`.plist` suffixes.
+	if (SERVICE_MANAGERS.has(commandWord)) {
+		const args = lower.slice(head + 1);
+		const hasStopVerb = args.some((a) => SERVICE_STOP_VERBS.has(a));
+		if (
+			hasStopVerb &&
+			args.some((a) => {
+				const bare = a.replace(/\.(service|plist)$/, "");
+				return bare.includes("stellarc") || isSelfProcessName(bare, ctx);
+			})
+		)
+			return true;
+	}
+	// Kill-family verbs scan EVERY position — not just the command word.
+	// `{argv: ["kill", "4242"]}` joins to `bash kill 4242`; a verb found
+	// mid-line consumes the operands that follow it.
+	for (let at = head; at < tokens.length; at++) {
+		const verb = lower[at];
+		// kill <pid> | -<sig> <pid> | -- -<pgroup> | $$ | $PPID | 0 | -1.
+		if (verb === "kill") {
+			for (let i = at + 1; i < tokens.length; i++)
+				if (operandTargetsSelf(tokens[i], pids)) return true;
+			continue;
+		}
+		// pkill/killall/skill <name|pattern|pid>, -f for full-cmdline match.
+		if (verb === "pkill" || verb === "killall" || verb === "skill") {
+			let fullMatch = false;
+			for (let i = at + 1; i < tokens.length; i++) {
+				const a = lower[i];
+				if (a === "-f" || a === "--full") {
+					fullMatch = true;
+					continue;
+				}
+				if (a.startsWith("-") && a.length > 1) continue; // -9, -signal TERM
+				if (fullMatch) {
+					if (patternTargetsSelf(tokens[i], ctx)) return true;
+				} else if (operandTargetsSelf(a, pids) || isSelfProcessName(a, ctx)) {
+					return true;
+				}
+				fullMatch = false;
+			}
+			continue;
+		}
+		// taskkill /PID <n> | /IM <image> (Windows).
+		if (verb === "taskkill") {
+			for (let i = at + 1; i < tokens.length; i++) {
+				if (
+					lower[i] === "/pid" &&
+					tokens[i + 1] &&
+					operandTargetsSelf(tokens[i + 1], pids)
+				)
+					return true;
+				if (
+					lower[i] === "/im" &&
+					tokens[i + 1] &&
+					isSelfProcessName(tokens[i + 1], ctx)
+				)
+					return true;
+			}
+		}
+	}
+	return false;
+}
+
+/** Pure self/supervisor-kill guard (NEVR-229, reworked NEVR-230 defects 1+2):
+ * does this tool call name a command that would signal the stellarc-node
+ * process itself, its current harness child, or the node's supervisor
+ * relationship? Deliberately over-matches the true self-kill forms — a false
+ * positive costs one refused tool call the operator can see; a false negative
+ * kills the runtime holding the session. Benign everyday commands (`git
+ * init`, `npm init`, `echo reboot`) must pass (defect 1). */
 export function isSelfKillCommand(
 	toolName: string | null,
 	rawInput: unknown,
@@ -347,78 +475,24 @@ export function isSelfKillCommand(
 	const corpus = commandStrings(toolName, rawInput);
 	const inputs = [...corpus, corpus.join(" ")];
 	for (const s of inputs) {
-		const tokens = words(s);
-		if (tokens.length === 0) continue;
-		const lower = tokens.map((w) => w.toLowerCase());
-		// Kill verbs may appear anywhere in the line, not just position 0:
-		// `sudo kill 4242`, `bash kill 4242` (joined corpus), `kill; pkill`
-		// compound lines. Scan every occurrence; flags/args between verb and
-		// target are consumed by the per-verb loops below.
-		for (let at = 0; at < lower.length; at++) {
-			// Supervisor-class: any invocation as the command word, bare or
-			// under sudo/doas — a prefixed supervisor command is still supervisor.
-			const effective =
-				lower[at] === "sudo" || lower[at] === "doas"
-					? lower[at + 1]
-					: lower[at];
-			if (SUPERVISOR_COMMANDS.has(effective)) return true;
-			// taskkill /PID <n> | /IM <image>
-			if (effective === "taskkill") {
-				for (let i = at + 1; i < tokens.length; i++) {
-					if (
-						lower[i] === "/pid" &&
-						tokens[i + 1] &&
-						pids.has(Number(tokens[i + 1]))
-					)
-						return true;
-					if (
-						lower[i] === "/im" &&
-						tokens[i + 1] &&
-						isSelfProcessName(tokens[i + 1], ctx)
-					)
-						return true;
-				}
-				continue;
-			}
-			// kill <pid> [-<sig>] <pid>: any pid literal anywhere in the args.
-			if (effective === "kill") {
-				for (let i = at + 1; i < tokens.length; i++)
-					if (isPid(tokens[i]) && pids.has(Number(tokens[i]))) return true;
-				continue;
-			}
-			// pkill/killall/skill <name> | -f <pattern> | <pid>
-			if (
-				effective === "pkill" ||
-				effective === "killall" ||
-				effective === "skill"
-			) {
-				let fullMatch = false;
-				for (let i = at + 1; i < tokens.length; i++) {
-					const w = lower[i];
-					if (w === "-f" || w === "--full") {
-						fullMatch = true;
-						continue;
-					}
-					if (w.startsWith("-") && w.length > 1) continue; // -9, -signal TERM
-					// First non-flag token is the target (pattern, name, or pid).
-					if (fullMatch) {
-						if (patternTargetsSelf(tokens[i], ctx)) return true;
-					} else if (isPid(tokens[i])) {
-						if (pids.has(Number(tokens[i]))) return true;
-					} else if (isSelfProcessName(tokens[i], ctx)) {
-						return true;
-					}
-					fullMatch = false;
-				}
-			}
+		// Each candidate line splits into shell segments; supervisor and
+		// service-manager verbs are only judged at a segment head (defect 1).
+		for (const seg of segments(s)) {
+			if (segmentTargetsSelf(seg, ctx, pids)) return true;
 		}
-		// Shell-invocation forms: sh -c "kill 123", bash -c "pkill -f stellarc".
+		// Pipelines that resolve self pids and feed them to a kill verb
+		// (defect 2): `ps aux | grep stellarc | awk … | xargs kill`, and
+		// `kill $(pgrep -f stellarc)` / `kill -9 $(pidof stellarc-node)`
+		// whose substitution segment splits out — judge the WHOLE line.
+		const l = s.toLowerCase();
 		if (
-			(lower[0] === "sh" || lower[0] === "bash" || lower[0] === "zsh") &&
-			lower.includes("-c")
-		) {
-			if (isSelfKillCommand(null, tokens.slice(2).join(" "), ctx)) return true;
-		}
+			(l.includes("xargs") && l.includes("kill") && l.includes("stellarc")) ||
+			((l.includes("$(") || l.includes("`")) &&
+				l.includes("kill") &&
+				(l.includes("pgrep") || l.includes("pidof")) &&
+				l.includes("stellarc"))
+		)
+			return true;
 	}
 	return false;
 }
@@ -700,9 +774,11 @@ export async function runTask(
 			// A 409 from the heartbeat means this node no longer owns the
 			// attempt (NEVR-229): treat as lease-lost, settle any parked
 			// request so the harness can wind down, and stop ACP-cancel
-			// spamming a session the plane no longer tracks. Any other error
-			// (network blip) stays transient as before.
-			if (/409|conflict/i.test(String(error))) {
+			// spamming a session the plane no longer tracks. Detected
+			// structurally (NEVR-230 defect 5): string-matching "409" would
+			// read a port or an id inside unrelated error text as a lost
+			// lease. Any other error (network blip) stays transient.
+			if (error instanceof PlaneError && error.status === 409) {
 				leaseLost = true;
 				settleParked("cancelled");
 				if (sessionId) await conn.cancel({ sessionId }).catch(() => {});

@@ -7,6 +7,7 @@ import type {
 	Push,
 	TaskDescriptor,
 } from "../../../packages/agents/src/protocol";
+import { PlaneError } from "./plane-error";
 import { collectPushes, snapshotPushState } from "./pushes";
 import { type HarnessSpec, runTask } from "./runner";
 
@@ -102,14 +103,6 @@ export class PlaneClient {
 		const text = await res.text();
 		if (!res.ok) throw new PlaneError(res.status, text);
 		return JSON.parse(text) as T;
-	}
-}
-export class PlaneError extends Error {
-	constructor(
-		readonly status: number,
-		readonly body: string,
-	) {
-		super(`plane ${status}: ${body.slice(0, 300)}`);
 	}
 }
 
