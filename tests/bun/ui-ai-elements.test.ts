@@ -12,17 +12,6 @@ import { join } from "node:path";
 
 const UI_ROOT = join(import.meta.dir, "../../apps/stellarc-ui/src");
 
-const PORTED = new Set([
-	"trace.tsx",
-	"code-block.tsx",
-	"item.tsx",
-	"tool.tsx",
-	"subagent.tsx",
-	"test-results.tsx",
-	"confirmation.tsx",
-	"chain-of-thought.tsx",
-]);
-
 function* walk(dir: string): Generator<string> {
 	for (const entry of readdirSync(dir)) {
 		const full = join(dir, entry);
@@ -34,13 +23,12 @@ function* walk(dir: string): Generator<string> {
 	}
 }
 
-test("ported AI elements contain no docs-app or registry-internal imports", () => {
+test("src tree contains no docs-app or registry-internal imports", () => {
 	const offenders: string[] = [];
+	// Scan everything under src/, not a filename allowlist: the point of the
+	// gate is that ANY future file (a re-synced registry item included)
+	// reintroducing these imports fails the build.
 	for (const file of walk(UI_ROOT)) {
-		const base = file.split("/").pop() as string;
-		const isPorted = PORTED.has(base);
-		const isAdapter = file.includes("agent-transcript");
-		if (!isPorted && !isAdapter) continue;
 		const src = readFileSync(file, "utf8");
 		for (const line of src.split("\n")) {
 			if (
@@ -59,7 +47,16 @@ test("ported AI elements contain no docs-app or registry-internal imports", () =
 test("ported AI elements exist in the ui directory", () => {
 	const uiDir = join(UI_ROOT, "components/ui");
 	const present = new Set(readdirSync(uiDir));
-	for (const name of PORTED) {
+	for (const name of [
+		"trace.tsx",
+		"code-block.tsx",
+		"item.tsx",
+		"tool.tsx",
+		"subagent.tsx",
+		"test-results.tsx",
+		"confirmation.tsx",
+		"chain-of-thought.tsx",
+	]) {
 		expect(present.has(name), `${name} missing from components/ui`).toBe(true);
 	}
 });

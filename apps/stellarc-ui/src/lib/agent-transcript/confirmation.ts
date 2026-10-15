@@ -34,9 +34,7 @@ export function toConfirmationElementProps(
   const what = request.title ?? request.toolName ?? "this tool";
   return {
     title: `Run ${what}?`,
-    description: request.toolName
-      ? `The command runs as ${request.toolName} in this workspace.`
-      : null,
+    description: null,
     options: request.options.map((option) => ({
       optionId: option.optionId,
       label: option.name,

@@ -63,6 +63,13 @@ describe("toToolElementProps", () => {
     expect(props.failed).toBe(true);
   });
 
+  it("maps the ACP tool kind through for the tool icon", () => {
+    const props = toolProps({ kind: "read" });
+    expect(props.kind).toBe("read");
+    const withoutKind = toolProps({});
+    expect(withoutKind.kind).toBeNull();
+  });
+
   it("renders diff content blocks as file-annotated output", () => {
     const props = toolProps({
       content: [
@@ -83,6 +90,7 @@ describe("toConfirmationElementProps", () => {
   it("maps a permission request to the question and protocol options", () => {
     const props = confirmationProps();
     expect(props.title).toBe("Run rm -rf dist?");
+    expect(props.description).toBeNull();
     expect(props.options).toHaveLength(2);
     expect(props.options[0]).toMatchObject({
       label: "Allow once",
@@ -128,6 +136,56 @@ describe("Tool component", () => {
     expect(screen.queryByText("nothing to commit")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /ran git status/i }));
     expect(screen.getByText("nothing to commit")).toBeVisible();
+  });
+
+  it("renders failed output in a destructive code block", () => {
+    const props = toolProps({
+      title: "pnpm --version",
+      status: "failed",
+      content: [{ type: "content", text: "command not found: pnpm" }],
+    });
+    render(<Tool {...props} />);
+    expect(screen.getByText("Failed to run pnpm --version")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: /failed to run pnpm --version/i }),
+    );
+    expect(screen.getByText("command not found: pnpm")).toBeVisible();
+    // code-block.tsx exposes the variant as data-variant on the CodeBlock.
+    const block = screen
+      .getByText("command not found: pnpm")
+      .closest("[data-slot='code-block']");
+    expect(block).not.toBeNull();
+    expect(block?.getAttribute("data-variant")).toBe("destructive");
+  });
+
+  it("renders multiple locations with line breaks preserved", () => {
+    const props = toolProps({
+      title: "rg --files src",
+      locations: [
+        { path: "src/a.ts", line: 1 },
+        { path: "src/b.ts", line: 42 },
+      ],
+    });
+    render(<Tool {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /ran rg --files src/i }),
+    );
+    // jsdom does not apply CSS, so the newline contract is asserted on the
+    // whitespace-pre-line class the paragraph must carry (defect 5).
+    const p = screen.getByText(/src\/a\.ts:1/).closest("p");
+    expect(p).not.toBeNull();
+    expect(p?.className).toContain("whitespace-pre-line");
+    expect(p?.textContent).toContain("src/a.ts:1\nsrc/b.ts:42");
+  });
+
+  it("shows the file icon for read-kind calls instead of the terminal", () => {
+    const props = toolProps({ kind: "read" });
+    const { container } = render(<Tool {...props} />);
+    // lucide icons render as <svg class="lucide-file-text ...">.
+    const svg = container.querySelector(
+      "[data-slot='trace-icon'] svg",
+    ) as SVGSVGElement;
+    expect(svg?.getAttribute("class")).toContain("lucide-file-text");
   });
 });
 
@@ -184,6 +242,22 @@ describe("Subagent + ChainOfThought", () => {
       screen.getByRole("button", { name: /ran the research agent/i }),
     );
     expect(screen.getByText("Ran grep -rn cacheKey scripts")).toBeVisible();
+  });
+
+  it("a running subagent is open by default", () => {
+    const props = toSubagentElementProps({
+      sessionId: "child",
+      title: "the research agent",
+      state: { state: "running", activity: "reading logs" },
+    });
+    render(
+      <Subagent {...props}>
+        <span>Ran tail -f deploy.log</span>
+      </Subagent>,
+    );
+    // defaultOpen while running: the child work is visible without a click.
+    expect(screen.getByText("Ran tail -f deploy.log")).toBeVisible();
+    expect(screen.getByText("reading logs")).toBeVisible();
   });
 
   it("chain-of-thought renders its summary and steps", () => {

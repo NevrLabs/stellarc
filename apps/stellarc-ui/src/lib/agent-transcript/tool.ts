@@ -6,8 +6,10 @@ export interface ToolElementProps {
   status: "running" | "error" | "pending" | undefined;
   /** Prefix tense the docs recipes use: Running/Failed to run/Ran/Denied. */
   title: string;
-  /** Tool programmatic name for the icon + secondary label. */
+  /** Tool programmatic name (protocol label). */
   name: string | null;
+  /** ACP tool kind (read/edit/fetch/execute); drives the tool icon. */
+  kind: string | null;
   /** Collapsed once output exists; open line while running. */
   hasOutput: boolean;
   /** Rendered inside CodeBlockContent when hasOutput. */
@@ -58,6 +60,7 @@ export function toToolElementProps(call: RunToolCall): ToolElementProps {
     status: running ? "running" : failed ? "error" : undefined,
     title,
     name: call.name ?? null,
+    kind: call.kind ?? null,
     hasOutput: output !== null,
     output,
     failed,

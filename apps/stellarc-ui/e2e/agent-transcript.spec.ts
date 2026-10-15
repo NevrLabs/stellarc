@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 // NEVR-223: freeze the agent-transcript patterns rendered from recorded run
@@ -70,6 +71,9 @@ test("agent transcript patterns render from recorded fixtures", async ({
   ).toBeVisible();
 
   await page.evaluate(() => document.fonts.ready);
+  // Acceptance: the surface passes axe in the default (light) theme.
+  const light = await new AxeBuilder({ page }).analyze();
+  expect(light.violations).toEqual([]);
   await expect(page).toHaveScreenshot("agent-transcript.png");
   expect(errors).toEqual([]);
 });
@@ -98,6 +102,9 @@ test("agent transcript patterns render in dark theme", async ({ page }) => {
   );
   expect(bg).not.toBe("rgb(255, 255, 255)");
   await page.evaluate(() => document.fonts.ready);
+  // Acceptance: dark-theme defaults inherited from the registry pass axe.
+  const dark = await new AxeBuilder({ page }).analyze();
+  expect(dark.violations).toEqual([]);
   await expect(page).toHaveScreenshot("agent-transcript-dark.png");
   expect(errors).toEqual([]);
 });

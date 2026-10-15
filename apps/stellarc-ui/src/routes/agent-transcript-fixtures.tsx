@@ -11,13 +11,14 @@ export const Route = createFileRoute("/agent-transcript-fixtures")({
 
 function AgentTranscriptFixturesRoute() {
   return (
-    <div className="min-h-svh bg-background">
+    <main className="min-h-svh bg-background">
       <PageTitle
         title="Agent transcript fixtures"
         suffix={undefined}
         hideAppName
       />
+      <h1 className="sr-only">Agent transcript fixtures</h1>
       <AgentTranscriptFixtures />
-    </div>
+    </main>
   );
 }

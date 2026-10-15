@@ -31,7 +31,7 @@ function ToolKindIcon({ kind }: { kind?: string | null }) {
 export function Tool({
   status,
   title,
-  name,
+  kind,
   hasOutput,
   output,
   failed,
@@ -44,7 +44,7 @@ export function Tool({
 }) {
   const line = (
     <TraceLine status={status}>
-      <TraceIcon>{icon ?? <ToolKindIcon kind={name} />}</TraceIcon>
+      <TraceIcon>{icon ?? <ToolKindIcon kind={kind} />}</TraceIcon>
       <TraceTitle>{title}</TraceTitle>
       {description ? <TraceDescription>{description}</TraceDescription> : null}
     </TraceLine>
@@ -60,7 +60,7 @@ export function Tool({
         <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="flex flex-col gap-2">
           {locations.length > 0 ? (
-            <p className="font-mono text-xs text-muted-foreground">
+            <p className="font-mono text-xs whitespace-pre-line text-muted-foreground">
               {locations
                 .map((location) =>
                   location.line
