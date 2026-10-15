@@ -172,10 +172,32 @@ export async function executeClaimed(
 		} catch (error) {
 			log(`push collection failed: ${error}`);
 		}
-		finish =
-			pushes.length > 0
-				? { ...base, ...result, pushes }
-				: { ...base, ...result };
+		// The transcript tail the plane could not accept mid-run (NEVR-229):
+		// after a cancel or lost lease the row is terminal, so the partial
+		// assistant item rides the finish report instead of a 409-ing items
+		// POST. The plane records it on a cancelled row like pushes. The
+		// runner names it `finalItems`; the Finish schema field is `items`.
+		const finalItems = result.finalItems;
+		const tail =
+			finalItems !== undefined && finalItems.length > 0
+				? { items: finalItems }
+				: {};
+		finish = {
+			...base,
+			outcome: result.outcome,
+			...(result.stopReason !== undefined
+				? { stopReason: result.stopReason }
+				: {}),
+			...(result.failureCode !== undefined
+				? { failureCode: result.failureCode }
+				: {}),
+			...(result.failureMessage !== undefined
+				? { failureMessage: result.failureMessage }
+				: {}),
+			...(result.usage !== undefined ? { usage: result.usage } : {}),
+			...(pushes.length > 0 ? { pushes } : {}),
+			...tail,
+		};
 	}
 	await plane.call(`tasks/${task.id}/finish`, finish);
 	return finish;
