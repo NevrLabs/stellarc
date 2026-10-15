@@ -233,6 +233,12 @@ export const Finish = Schema.Struct({
 	/** Commits the run's workdir pushed to git remotes during this attempt.
 	 * Absent or empty when nothing was pushed (NEVR-199). */
 	pushes: Schema.optional(Schema.Array(Push).pipe(Schema.maxItems(200))),
+	/** Transcript tail that could not be streamed mid-run (NEVR-229): after
+	 * an operator cancel or a lost lease the task row is terminal, so the
+	 * items endpoint would 409 — the node sends the partial transcript
+	 * (typically the interrupted assistant message) with its finish report,
+	 * and the plane records it on the cancelled row like pushes. */
+	items: Schema.optional(Schema.Array(Item).pipe(Schema.maxItems(500))),
 });
 export type Finish = typeof Finish.Type;
 

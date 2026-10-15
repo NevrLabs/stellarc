@@ -1465,3 +1465,293 @@ test("P8 two concurrent requests each park and are decided individually (NEVR-21
     SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task_requeued'`;
 	expect(requeues[0].n).toBe(0);
 });
+
+// ── interrupt transcript preservation + self-kill refusal (NEVR-229) ───────
+
+/** The interrupted assistant item on a finished view, or null. */
+function interruptedItem(view: { items: unknown[] }) {
+	return (
+		view.items.find(
+			(i): i is { body: { interrupted?: boolean; interruptReason?: string } } =>
+				typeof i === "object" &&
+				i !== null &&
+				(i as { kind?: string }).kind === "message" &&
+				typeof (i as { body?: { interrupted?: unknown } }).body?.interrupted ===
+					"boolean",
+		) ?? null
+	);
+}
+
+test("P-interrupt-1 operator cancel mid-stream keeps the partial reply, marked interrupted (Devin lesson)", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "stream 30 120", // ~3.6s of chunks; cancel lands mid-stream
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	// Wait until chunks are flowing (at least one message item recorded).
+	await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.items.some((i: { kind: string }) => i.kind === "message")
+			? true
+			: undefined;
+	});
+	expect((await p.op("POST", `tasks/${t.body.id}/cancel`)).status).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("cancelled");
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.task.status).toBe("cancelled");
+	// THE assertion (NEVR-229): the partial assistant message survived to the
+	// plane — the row was terminal when the folder closed it, so it must have
+	// ridden the finish report — and it is marked with why it stopped.
+	const partial = interruptedItem(view);
+	expect(partial).not.toBeNull();
+	expect(partial?.body.interrupted).toBe(true);
+	expect(partial?.body.interruptReason).toBe("operator_cancel");
+	// Partial content actually present (chunks streamed before the cancel).
+	const msg = view.items.find(
+		(i: { kind: string; body?: { interrupted?: boolean } }) =>
+			i.kind === "message" && i.body?.interrupted === true,
+	);
+	expect(JSON.stringify(msg?.body)).toContain("chunk-");
+	// Finish on the cancelled row was accepted (no 409 rejection observable
+	// through the outcome), and the plane kept the transcript.
+	expect(
+		view.items.filter((i: { kind: string }) => i.kind === "message").length,
+	).toBeGreaterThanOrEqual(1);
+});
+
+test("P-interrupt-2 lease lost mid-stream still records the partial reply with lease_lost reason", async () => {
+	const p = await plane(300); // 300ms lease, heartbeat every 1000ms → expiry
+	const { token, agentId } = await registerNodeAndAgent(p);
+	// A second node (no agents bound → its claim can never steal this task)
+	// triggers reapExpired: its claim long-poll is the reaper's only cadence.
+	const n2 = await p.op("POST", "nodes", { name: "reaper" });
+	const reaper = new PlaneClient(p.url, n2.body.token);
+	await reaper.call("hello", { version: "test", harnesses: ["fake"] });
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "stream 40 100",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	// Wait for chunks, then let the lease expire (300ms) and poke the reaper:
+	// the task requeues and every node-1 heartbeat 409s from then on.
+	await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.items.some((i: { kind: string }) => i.kind === "message")
+			? true
+			: undefined;
+	});
+	const requeued = await waitFor(async () => {
+		await reaper.call("claim", { waitMs: 0 }).catch(() => null);
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "queued" ? true : undefined;
+	});
+	expect(requeued).toBe(true);
+	const f = await running;
+	// The run wound down via the cancel path (the plane requeued the attempt)
+	// and reports cancelled — a regression to "failed" must go red
+	// (NEVR-230 defect 4: the lease-lost return is outcome "cancelled").
+	expect(f.outcome).toBe("cancelled");
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	// THE assertion (NEVR-229): the interrupted partial of the dead attempt
+	// rode the finish report onto the requeued row.
+	const partial = interruptedItem(view);
+	expect(partial).not.toBeNull();
+	expect(partial?.body.interruptReason).toBe("lease_lost");
+});
+
+test("P-selfkill-1 a permission request naming the node pid is refused before parking, recorded, evented", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	// The integration node runs in THIS process tree; process.pid is the
+	// vitest worker — close enough? NO: the guard checks the node's own
+	// process.pid, which IS this test process (executeClaimed runs in it).
+	// So kill <this pid> is a true self-kill for the node under test.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `perm-cmd kill ${process.pid}`,
+	});
+	const done = await runOne(p, token);
+	expect(done.outcome).toBe("completed");
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	// Refusal recorded as a distinct approval artifact with the command verbatim.
+	const approvals = view.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(approvals).toHaveLength(1);
+	expect(approvals[0].body.status).toBe("rejected_self_kill");
+	expect(approvals[0].body.request.toolName).toBe("bash");
+	expect(approvals[0].body.request.arguments).toEqual({
+		command: `kill ${process.pid}`,
+	});
+	// The harness was answered reject and ran to its end (unblocked).
+	const msg = view.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("picked:no");
+	// The task never parked.
+	expect(view.task.status).toBe("completed");
+	// Org event: refusal-by-guard, distinct from operator deny.
+	const events = await p.db.sql<
+		{ plugin_type: string; actor: string; payload: { command: unknown } }[]
+	>`SELECT plugin_type, actor, payload FROM event WHERE org='acme' AND plugin_type='agents:task_permission_refused'`;
+	expect(events).toHaveLength(1);
+	expect(events[0].payload.command).toEqual({ command: `kill ${process.pid}` });
+	expect(events[0].actor).toMatch(/^node:node_/);
+	// And the node process is, of course, still alive (this test continues).
+	expect(process.kill(process.pid, 0)).toBe(true);
+});
+
+test("P-selfkill-2 a benign kill command parks normally (guard does not over-block)", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const other = process.pid + 1; // not this node, not the harness
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: `perm-cmd kill ${other}`,
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	// A benign kill command must PARK (needs_permission), not be refused.
+	const parked = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "needs_permission" ? r.body : undefined;
+	});
+	const approvals = parked.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(approvals).toHaveLength(1);
+	expect(approvals[0].body.status).toBe("pending");
+	// Deny it; the run completes through the normal deny path.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "deny",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type='agents:task_permission_refused'`;
+	expect(events).toHaveLength(0);
+});
+
+test("P-selfkill-3 routine supervisor-subcommand work is never refused (defect 1 integration)", async () => {
+	const p = await plane(3000);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	// `git init` is the reviewer's probe: the word `init` as a SUBCOMMAND
+	// must park (needs_permission), not be auto-rejected as a supervisor
+	// call. The old guard refused it outright — no approval card, no event.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-cmd git init",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	const parked = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "needs_permission" ? r.body : undefined;
+	});
+	const approvals = parked.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(approvals).toHaveLength(1);
+	expect(approvals[0].body.status).toBe("pending");
+	expect(approvals[0].body.request.arguments).toEqual({
+		command: "git init",
+	});
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "deny",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	// No guard refusal anywhere: the guard never fired.
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type='agents:task_permission_refused'`;
+	expect(events).toHaveLength(0);
+});
+
+test("P-interrupt-3 harness crash mid-stream marks the partial reply harness_exit (defect 6)", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "streamcrash",
+	});
+	const done = await runOne(p, token);
+	// The crash is a platform fault for THIS attempt (the plane may requeue
+	// for later attempts; the attempt's own finish is what we assert on).
+	expect(done.failureCode).toBe("platform.harness_exited");
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	// THE assertion (NEVR-230 defect 6): the interrupted partial carries the
+	// harness_exit reason — the third brief reason, previously untested.
+	const partial = interruptedItem(view);
+	expect(partial).not.toBeNull();
+	expect(partial?.body.interruptReason).toBe("harness_exit");
+	// And the partial content actually streamed before the crash is there.
+	const msg = view.items.find(
+		(i: { kind: string; body?: { interrupted?: boolean } }) =>
+			i.kind === "message" && i.body?.interrupted === true,
+	);
+	expect(JSON.stringify(msg?.body)).toContain("chunk-");
+});

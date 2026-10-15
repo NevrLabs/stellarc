@@ -359,6 +359,76 @@ async function maxItemSeq(
 	return Number(row?.max ?? -1);
 }
 
+/** Insert transcript items idempotently on (task, attempt, seq), collecting
+ * usage upserts and their events (shared by the streaming append path and
+ * the NEVR-229 finish-with-items path). Returns how many rows this call
+ * newly inserted plus events for the caller to append: usage recordings and
+ * node-side self-kill refusals (NEVR-229). */
+async function insertItems(
+	tx: TransactionSql,
+	n: NodeRow,
+	id: string,
+	attempt: number,
+	agentId: string,
+	items: ReadonlyArray<Item>,
+): Promise<{
+	inserted: number;
+	events: Array<{ type: string; payload: Record<string, unknown> }>;
+}> {
+	let inserted = 0;
+	const events: Array<{
+		type: string;
+		payload: Record<string, unknown>;
+	}> = [];
+	for (const item of items) {
+		const at = new Date(item.occurredAt);
+		if (Number.isNaN(at.getTime()))
+			throw new BadRequest({ message: "Invalid occurredAt" });
+		const res =
+			await tx`INSERT INTO agent_task_item(org,task_id,attempt,seq,kind,body,occurred_at)
+      VALUES (${n.org},${id},${attempt},${item.seq},${item.kind},${tx.json((item.body ?? null) as never)},${at})
+      ON CONFLICT DO NOTHING`;
+		inserted += res.count;
+		// A node-side self-kill refusal (NEVR-229) is a distinct approval
+		// artifact: the guard — not a human — decided. The org log carries
+		// the refusal with the refused command verbatim, separate from an
+		// operator deny (task_permission_denied) so audits can tell an
+		// automated guard refusal from a human decision.
+		if (
+			item.kind === "approval" &&
+			(item.body as { status?: unknown } | null)?.status ===
+				"rejected_self_kill"
+		) {
+			const request = (item.body as { request?: Record<string, unknown> })
+				?.request;
+			events.push({
+				type: "task_permission_refused",
+				payload: {
+					id,
+					attempt,
+					toolCallId: request?.toolCallId ?? null,
+					toolName: request?.toolName ?? null,
+					command: request?.arguments ?? null,
+				},
+			});
+		}
+		if (item.kind === "usage") {
+			const merged = await upsertUsage(
+				tx,
+				n.org,
+				id,
+				agentId,
+				attempt,
+				parseUsageBody(item.body),
+				at,
+			);
+			const event = usageEvent(id, attempt, merged);
+			if (event) events.push(event);
+		}
+	}
+	return { inserted, events };
+}
+
 /** Record one attempt's pushes: typed transcript items (idempotent on seq),
  * `agent_task_push` rows (idempotent on (task, attempt, sha, ref)), and one
  * `task_pushed` event per newly inserted push. Remote URLs are re-redacted
@@ -1190,32 +1260,15 @@ export class AgentStore {
 				row.status !== "needs_permission"
 			)
 				throw new Conflict({ message: `Task is ${row.status}` });
-			let inserted = 0;
-			const usageEvents = [];
-			for (const item of items) {
-				const at = new Date(item.occurredAt);
-				if (Number.isNaN(at.getTime()))
-					throw new BadRequest({ message: "Invalid occurredAt" });
-				const res =
-					await tx`INSERT INTO agent_task_item(org,task_id,attempt,seq,kind,body,occurred_at)
-          VALUES (${n.org},${id},${attempt},${item.seq},${item.kind},${tx.json((item.body ?? null) as never)},${at})
-          ON CONFLICT DO NOTHING`;
-				inserted += res.count;
-				if (item.kind === "usage") {
-					const merged = await upsertUsage(
-						tx,
-						n.org,
-						id,
-						row.agent_id,
-						attempt,
-						parseUsageBody(item.body),
-						at,
-					);
-					const event = usageEvent(id, attempt, merged);
-					if (event) usageEvents.push(event);
-				}
-			}
-			await appendEvents(tx, n.org, `node:${n.id}`, usageEvents);
+			const { inserted, events } = await insertItems(
+				tx,
+				n,
+				id,
+				attempt,
+				row.agent_id,
+				items,
+			);
+			await appendEvents(tx, n.org, `node:${n.id}`, events);
 			return { inserted };
 		});
 	}
@@ -1226,7 +1279,11 @@ export class AgentStore {
 			// Pushes are recorded even on a cancelled task: a push the harness
 			// already made is a durable fact regardless of how the run ended
 			// (NEVR-199), and the finish that reports it may be the last one
-			// the plane accepts for this attempt.
+			// the plane accepts for this attempt. The transcript tail rides
+			// the same precedent (NEVR-229): the node's mid-run items POST
+			// would 409 on the terminal row, so the interrupted partial
+			// assistant message — the transcript the operator already saw
+			// stream — arrives here instead and is recorded like any item.
 			const pushEvents =
 				input.pushes && input.pushes.length > 0
 					? await recordAttemptPushes(
@@ -1239,7 +1296,54 @@ export class AgentStore {
 						)
 					: [];
 			if (row.status === "cancelled") {
-				await appendEvents(tx, n.org, `node:${n.id}`, pushEvents);
+				const itemEvents =
+					input.items && input.items.length > 0
+						? (
+								await insertItems(
+									tx,
+									n,
+									id,
+									input.attempt,
+									row.agent_id,
+									input.items,
+								)
+							).events
+						: [];
+				await appendEvents(tx, n.org, `node:${n.id}`, [
+					...pushEvents,
+					...itemEvents,
+				]);
+				return task(row);
+			}
+			// A reaped-then-requeued attempt (NEVR-229 lease_lost): the node's
+			// heartbeat started 409ing after the plane took the attempt away,
+			// and its finish report carries the interrupted partial transcript
+			// of the OLD attempt. Recording is safe (items key on
+			// (task, attempt, seq); a re-claim bumps the attempt) and the row
+			// stays queued for its retry. Only a cancelled wind-down report
+			// qualifies — a stale `completed` keeps its legacy 409.
+			if (
+				row.status === "queued" &&
+				row.attempt === input.attempt &&
+				input.outcome === "cancelled"
+			) {
+				const itemEvents =
+					input.items && input.items.length > 0
+						? (
+								await insertItems(
+									tx,
+									n,
+									id,
+									input.attempt,
+									row.agent_id,
+									input.items,
+								)
+							).events
+						: [];
+				await appendEvents(tx, n.org, `node:${n.id}`, [
+					...pushEvents,
+					...itemEvents,
+				]);
 				return task(row);
 			}
 			// A deny already failed the task; the node's late finish report for
