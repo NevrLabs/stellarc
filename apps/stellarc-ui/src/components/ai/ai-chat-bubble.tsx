@@ -1,7 +1,17 @@
 import { Grip, Sparkles, X } from "lucide-react";
 import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
+import { Message, MessageContent, MessageGroup } from "@/components/ui/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { getApiUrl } from "@/fetchers/get-api-url";
 import useGetAiSettings from "@/hooks/queries/ai/use-get-ai-settings";
 import useActiveOrganization from "@/hooks/queries/organization/use-active-organization";
@@ -191,30 +201,70 @@ export function AiChatBubble() {
               <X className="size-4" />
             </Button>
           </header>
-          <div
-            className="flex-1 space-y-3 overflow-y-auto p-3"
-            data-testid="ai-chat-history"
-          >
-            {history.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Ask about this organization or tell me to assign a task or add a
-                label.
-              </p>
-            )}
-            {history.map((entry) => (
-              <div
-                className={`rounded-lg p-2 text-sm ${entry.role === "user" ? "ml-8 bg-primary text-primary-foreground" : "mr-8 bg-muted"}`}
-                key={entry.id}
-              >
-                {entry.text}
-              </div>
-            ))}
-            {pending && (
-              <div className="mr-8 rounded-lg bg-muted p-2 text-sm">
-                Thinking…
-              </div>
-            )}
-          </div>
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller
+              className="min-h-0 flex-1"
+              data-testid="ai-chat-history"
+            >
+              <MessageScrollerViewport className="p-3">
+                <MessageScrollerContent>
+                  {history.length === 0 && !pending && (
+                    <p className="text-sm text-muted-foreground">
+                      Ask about this organization or tell me to assign a task or
+                      add a label.
+                    </p>
+                  )}
+                  <MessageGroup>
+                    {history.map((entry) => (
+                      <MessageScrollerItem
+                        key={entry.id}
+                        messageId={entry.id}
+                        scrollAnchor
+                      >
+                        <Message
+                          align={entry.role === "user" ? "end" : "start"}
+                        >
+                          <MessageContent>
+                            <Bubble
+                              align={entry.role === "user" ? "end" : "start"}
+                              variant={
+                                entry.role === "user" ? "default" : "muted"
+                              }
+                            >
+                              <BubbleContent
+                                className={
+                                  entry.role === "assistant"
+                                    ? "typeset typeset-chat whitespace-pre-wrap"
+                                    : "whitespace-pre-wrap"
+                                }
+                              >
+                                {entry.text}
+                              </BubbleContent>
+                            </Bubble>
+                          </MessageContent>
+                        </Message>
+                      </MessageScrollerItem>
+                    ))}
+                  </MessageGroup>
+                  {pending && (
+                    <MessageScrollerItem messageId="pending" scrollAnchor>
+                      <Message align="start">
+                        <MessageContent>
+                          <Bubble variant="muted">
+                            <BubbleContent>Thinking…</BubbleContent>
+                          </Bubble>
+                        </MessageContent>
+                      </Message>
+                    </MessageScrollerItem>
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton
+                aria-label="Jump to latest message"
+                data-testid="ai-chat-jump-latest"
+              />
+            </MessageScroller>
+          </MessageScrollerProvider>
           <div className="border-t p-3">
             <textarea
               aria-label="Message organization AI assistant"
