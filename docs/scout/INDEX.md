@@ -5,18 +5,19 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 
 | Item | Ring | Last checked | Beat |
 |---|---|---|---|
-| Linear (stacked PRs, realtime diffs, spend caps; unchanged 10-15) | WATCH | 2026-10-15 | competitors |
-| Plane (Agents GA, Propel; self-host 3.3.3; unchanged 10-15) | TRIAL | 2026-10-15 | competitors |
-| Multica (v0.6.2 10-13; main 10-15: WS revocation on member removal MUL-8014, batch-claim recovery MUL-7658) | WATCH | 2026-10-15 | competitors |
-| Paseo (v0.11.3/v0.11.4 10-15: Hoplite first sponsor + opt-in provider; question-card UX at ACP seam) | TRIAL | 2026-10-15 | competitors |
-| Cursor (Origin App Marketplace, iOS remote; unchanged 10-15) | WATCH | 2026-10-15 | competitors |
-| Copilot coding agent (agentic autofix GA + HydraFusion Max 10-15; platform: push attribution + Actions lockfiles 10-12/14) | ADOPT (pattern) | 2026-10-15 | competitors |
-| OpenHands (ACP agents; hold-until-reachable on main; no release since v1.27.1 10-12) | WATCH | 2026-10-15 | competitors |
-| Devin (Oct 14: interrupt keeps partial reply, session-link chips, Review-manager role, SARIF export) | WATCH | 2026-10-15 | competitors |
-| Factory Droids (v0.242.0 10-15: resume-by-id, spec continuation, self-kill refusal, timeout retries) | WATCH | 2026-10-15 | competitors |
+| Linear (unchanged 10-16; top entry still Oct 8) | WATCH | 2026-10-16 | competitors |
+| Plane (no release; security cluster on main 10-16: URL-scoped endpoints SECUR-243/247 — membership audit checklist) | TRIAL | 2026-10-16 | competitors |
+| Multica (**v0.6.3 10-16**: per-run cost bars MUL-8046, model pricing normalization MUL-8018/8050, project workflows MUL-7420; WS revocation + batch-claim recovery shipped in release) | WATCH (steal P1 cost UI) | 2026-10-16 | competitors |
+| Paseo (0.12.0-beta.1 10-16: background workspaces, phone rework, ~100 fixes; license = Apache-2.0 + third-party carve-out, corrected) | TRIAL | 2026-10-16 | competitors |
+| Cursor (unchanged 10-16; Origin marketplace top) | WATCH | 2026-10-16 | competitors |
+| Copilot coding agent (quiet 10-16; Universe Oct 28–29 = next wave) | WATCH (pattern) | 2026-10-16 | competitors |
+| OpenHands (**org move All-Hands-AI → OpenHands**; no release; fix-links updated) | WATCH | 2026-10-16 | competitors |
+| Devin (unchanged 10-16; Oct 14 release stands) | WATCH | 2026-10-16 | competitors |
+| Factory Droids (v0.243.0 10-16: kill-guard calibration — pattern kills + `rm -f` un-refused; range-reads for huge files) | WATCH | 2026-10-16 | competitors |
 | GitHub push attribution (durable authenticated-pusher on commits) | WATCH (steal requirement) | 2026-10-14 | competitors |
-| NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; row open until verified on a release) | ADOPT (landed) | 2026-10-15 | competitors |
-| Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-15 | competitors |
+| NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; no Stellarc release/tag yet — row open until verified on a release) | ADOPT (landed) | 2026-10-16 | competitors |
+| Scout P1 cost/token UI (harness-reported only; runner.ts:128 + store.ts:296 already persist; UI shows none — brief filed this run) | ADOPT (briefed) | 2026-10-16 | competitors |
+| Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-16 | competitors |
 | Tauri 2 (chosen shell; 2.12.4 of 10-14 stands, no new release; lockfile @2.12.3; dependabot weekly tick expected ≈10-21 — review the PR for #16197) | ADOPT | 2026-10-16 | cross-platform-ui |
 | Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-16 | cross-platform-ui |
 | tauri-runtime-cef (α.6 10-14 stands; webkitgtk tail 77 open flat — IME 9, a11y 10) | WATCH | 2026-10-16 | cross-platform-ui |
