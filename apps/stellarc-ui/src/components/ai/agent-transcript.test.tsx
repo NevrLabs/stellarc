@@ -1,17 +1,30 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApprovalCard } from "@/components/ui/approval-card";
 import { ChainOfThought } from "@/components/ui/chain-of-thought";
 import { Confirmation } from "@/components/ui/confirmation";
+import { Sources } from "@/components/ui/sources";
 import { Subagent } from "@/components/ui/subagent";
 import { TestResults } from "@/components/ui/test-results";
 import { Tool } from "@/components/ui/tool";
+import { Usage } from "@/components/ui/usage";
+import type { RunUsageRow } from "@/lib/agent-transcript";
 import {
   type ConfirmationElementProps,
   type ToolElementProps,
+  toApprovalCardElementProps,
   toConfirmationElementProps,
+  toSourcesElementProps,
   toSubagentElementProps,
   toToolElementProps,
+  toUsageElementProps,
+  toUsageLineFromBody,
+  toUsageTotalsProps,
 } from "@/lib/agent-transcript";
+import {
+  fixtureUsageRowsTokensOnly,
+  fixtureUsageRowsWithCost,
+} from "@/lib/agent-transcript/fixtures";
 
 const toolProps = (
   overrides: Partial<Parameters<typeof toToolElementProps>[0]>,
@@ -35,6 +48,11 @@ const confirmationProps = (): ConfirmationElementProps =>
       { optionId: "reject_once", name: "Deny", kind: "reject_once" },
     ],
   });
+
+// The vitest config runs without globals, so testing-library's auto-cleanup
+// never registers: several tests render the same texts (the confirmation
+// question appears in both the Confirmation and ApprovalCard suites).
+afterEach(cleanup);
 
 describe("toToolElementProps", () => {
   it("maps a running tool call to a shimmering Running line", () => {
@@ -100,6 +118,111 @@ describe("toConfirmationElementProps", () => {
       label: "Deny",
       variant: "outline",
     });
+  });
+});
+
+describe("toSourcesElementProps", () => {
+  const searchCall = (
+    content: Parameters<typeof toToolElementProps>[0]["content"],
+  ) =>
+    toSourcesElementProps({
+      toolCallId: "call-web-search",
+      title: "web_search",
+      status: "completed",
+      content,
+    });
+
+  it("collects resource_link blocks deduped by URL, first-seen order", () => {
+    const props = searchCall([
+      {
+        type: "resource_link",
+        name: "nextjs.org — Image Optimization",
+        uri: "https://nextjs.org/docs/images",
+      },
+      {
+        type: "resource_link",
+        name: "Image Component — duplicate crawl",
+        uri: "https://nextjs.org/docs/images",
+      },
+      {
+        type: "resource_link",
+        name: "vercel.com",
+        uri: "https://vercel.com/docs/optimizing-images",
+      },
+    ]);
+    expect(props.count).toBe(2);
+    expect(props.sources).toEqual([
+      {
+        title: "nextjs.org — Image Optimization",
+        url: "https://nextjs.org/docs/images",
+      },
+      {
+        title: "vercel.com",
+        url: "https://vercel.com/docs/optimizing-images",
+      },
+    ]);
+  });
+
+  it("falls back to name then hostname for the label", () => {
+    const props = searchCall([
+      { type: "resource_link", name: "", uri: "https://github.com/v/next" },
+    ]);
+    expect(props.sources[0]?.title).toBe("github.com");
+    const titled = searchCall([
+      {
+        type: "resource_link",
+        name: "fallback-name",
+        title: "Preferred title",
+        uri: "https://example.com/a",
+      },
+    ]);
+    expect(titled.sources[0]?.title).toBe("Preferred title");
+  });
+
+  it("drops non-http(s) URIs and non-link content blocks", () => {
+    const props = searchCall([
+      { type: "content", text: "3 results" },
+      { type: "resource_link", name: "doc", uri: "file:///etc/hosts" },
+      { type: "resource_link", name: "mcp", uri: "mcp://server/resource" },
+      { type: "resource_link", name: "web", uri: "https://example.com/ok" },
+    ]);
+    expect(props.count).toBe(1);
+    expect(props.sources[0]?.url).toBe("https://example.com/ok");
+  });
+
+  it("returns an empty entry set for a call without links", () => {
+    const props = searchCall([{ type: "content", text: "no links" }]);
+    expect(props.count).toBe(0);
+    expect(props.sources).toEqual([]);
+  });
+});
+
+describe("toApprovalCardElementProps", () => {
+  it("maps a pending request to a ready card wrapping the confirmation", () => {
+    const props = toApprovalCardElementProps({
+      sessionId: "s1",
+      toolCallId: "call-42",
+      toolName: "bash",
+      title: "rm -rf dist",
+      options: [
+        { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+      ],
+    });
+    expect(props.status).toBe("ready");
+    expect(props.toolCallId).toBe("call-42");
+    expect(props.confirmation).toMatchObject({
+      title: "Run rm -rf dist?",
+      toolCallId: "call-42",
+    });
+    expect(props.confirmation?.options).toHaveLength(2);
+  });
+
+  it("maps a missing request to the preparing shimmer state", () => {
+    const props = toApprovalCardElementProps(null);
+    expect(props.status).toBe("preparing");
+    expect(props.confirmation).toBeNull();
+    expect(props.toolCallId).toBeNull();
   });
 });
 
@@ -199,6 +322,106 @@ describe("Confirmation component", () => {
   });
 });
 
+describe("Sources component", () => {
+  const sourcesProps = () =>
+    toSourcesElementProps({
+      toolCallId: "call-web-search",
+      title: "web_search",
+      status: "completed",
+      content: [
+        {
+          type: "resource_link",
+          name: "nextjs.org — Image Optimization",
+          uri: "https://nextjs.org/docs/images",
+        },
+        {
+          type: "resource_link",
+          name: "duplicate crawl",
+          uri: "https://nextjs.org/docs/images",
+        },
+        {
+          type: "resource_link",
+          name: "",
+          uri: "https://github.com/vercel/next.js/discussions/59073",
+        },
+      ],
+    });
+
+  it("renders the collapsed Used N sources line with the unique count", () => {
+    render(<Sources {...sourcesProps()} />);
+    // 3 links, one duplicate URL -> "Used 2 sources".
+    expect(screen.getByText("Used 2 sources")).toBeVisible();
+  });
+
+  it("collapses the citation list until the trigger opens it", () => {
+    render(<Sources {...sourcesProps()} />);
+    // Collapsed by default: no citation text in the document yet.
+    expect(screen.queryByText(/Image Optimization/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /used 2 sources/i }));
+    expect(screen.getByText(/nextjs\.org — Image Optimization/)).toBeVisible();
+  });
+
+  it("renders accessible external links with new-tab announcements", () => {
+    render(<Sources {...sourcesProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /used 2 sources/i }));
+    const github = screen.getByText(/github\.com/).closest("a");
+    expect(github?.getAttribute("href")).toBe(
+      "https://github.com/vercel/next.js/discussions/59073",
+    );
+    expect(github?.getAttribute("target")).toBe("_blank");
+    expect(github?.getAttribute("rel")).toBe("noreferrer");
+    // Every citation announces the new tab to screen readers.
+    const announcements = screen.getAllByText("(opens in a new tab)");
+    expect(announcements).toHaveLength(2);
+  });
+
+  it("renders nothing when the call produced no usable sources", () => {
+    const { container } = render(<Sources count={0} sources={[]} />);
+    expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("ApprovalCard component", () => {
+  const approvalProps = () =>
+    toApprovalCardElementProps({
+      sessionId: "sess-fixture",
+      toolCallId: "call-fixture-permission",
+      toolName: "bash",
+      title: "rm -rf dist",
+      options: [
+        { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+      ],
+    });
+
+  it("renders the pending request and answers through the toolCallId seam", () => {
+    const onAnswer = vi.fn();
+    render(<ApprovalCard {...approvalProps()} onAnswer={onAnswer} />);
+    expect(screen.getByText("Run rm -rf dist?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onAnswer).toHaveBeenCalledWith(
+      "call-fixture-permission",
+      "allow_once",
+    );
+  });
+
+  it("keeps the Deny choice reachable from the card", () => {
+    const onAnswer = vi.fn();
+    render(<ApprovalCard {...approvalProps()} onAnswer={onAnswer} />);
+    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    expect(onAnswer).toHaveBeenCalledWith(
+      "call-fixture-permission",
+      "reject_once",
+    );
+  });
+
+  it("renders the preparing shimmer while the request is unreported", () => {
+    render(<ApprovalCard {...toApprovalCardElementProps(null)} />);
+    expect(screen.getByText("Preparing a question…")).toBeVisible();
+    expect(screen.queryByTestId("confirmation")).toBeNull();
+  });
+});
+
 describe("TestResults component", () => {
   it("renders the summary line and opens failed suites", () => {
     render(
@@ -277,5 +500,130 @@ describe("Subagent + ChainOfThought", () => {
       screen.getByRole("button", { name: /researched in 3 steps/i }),
     );
     expect(screen.getByText("Read the build log")).toBeVisible();
+  });
+});
+
+// ── usage element (NEVR-243) ────────────────────────────────────────────────
+
+const nullRow = (attempt: number): RunUsageRow => ({
+  attempt,
+  tokensTotal: null,
+  tokensIn: null,
+  tokensOut: null,
+  thoughtTokens: null,
+  cachedReadTokens: null,
+  cachedWriteTokens: null,
+  contextTokens: null,
+  contextWindowSize: null,
+  costAmount: null,
+  costCurrency: null,
+});
+
+describe("toUsageElementProps", () => {
+  it("maps recorded rows to a totals line plus one line per attempt, in order", () => {
+    const props = toUsageElementProps(fixtureUsageRowsWithCost);
+    expect(props.lines.map((l) => l.attempt)).toEqual([1, 2]);
+    expect(props.totals?.attempts).toBe(2);
+  });
+
+  it("sums tokens across attempts and cost across attempts that report one", () => {
+    const totals = toUsageTotalsProps(fixtureUsageRowsWithCost);
+    expect(totals).not.toBeNull();
+    // 1500 + 900 across the two attempts; in/out likewise.
+    expect(totals?.tokensTotal).toBe(2400);
+    expect(totals?.tokensIn).toBe(1700);
+    expect(totals?.tokensOut).toBe(700);
+    // Only attempt 1 reported a cost: the sum is that cost alone.
+    expect(totals?.costAmount).toBeCloseTo(0.42);
+    expect(totals?.costCurrency).toBe("USD");
+  });
+
+  it("returns null totals for no-usage tasks (the roll-up renders only when usage exists)", () => {
+    expect(toUsageTotalsProps([])).toBeNull();
+    const props = toUsageElementProps([]);
+    expect(props.totals).toBeNull();
+    expect(props.lines).toEqual([]);
+  });
+
+  it("tokens-only tasks keep cost null through the whole mapping — never 0", () => {
+    const totals = toUsageTotalsProps(fixtureUsageRowsTokensOnly);
+    expect(totals?.costAmount).toBeNull();
+    expect(totals?.costCurrency).toBeNull();
+    // Pin the charter rule at the seam: absent costAmount never serializes
+    // as 0 in either direction of the mapping.
+    const serialized = JSON.stringify(
+      toUsageElementProps(fixtureUsageRowsTokensOnly),
+    );
+    expect(serialized).not.toContain('"costAmount":0');
+    expect(serialized).toContain('"costAmount":null');
+  });
+
+  it("never sums within an attempt: the recorded row passes through field-by-field", () => {
+    const [line] = toUsageElementProps(fixtureUsageRowsWithCost).lines;
+    // cumulative-within-attempt semantics live in the plane's merge; the
+    // adapter maps the final row as-is, last report wins.
+    expect(line.tokensTotal).toBe(1500);
+    expect(line.contextTokens).toBe(1200);
+    expect(line.costAmount).toBeCloseTo(0.42);
+    expect(line.costCurrency).toBe("USD");
+  });
+
+  it("maps a usage item body (ACP usage_update) with unreported fields absent", () => {
+    const line = toUsageLineFromBody(3, {
+      contextTokens: 800,
+      contextWindowSize: 200000,
+    });
+    expect(line.attempt).toBe(3);
+    expect(line.contextTokens).toBe(800);
+    expect(line.contextWindowSize).toBe(200000);
+    expect(line.tokensTotal).toBeNull();
+    expect(line.costAmount).toBeNull();
+    expect(line.costCurrency).toBeNull();
+  });
+});
+
+describe("Usage element rendering", () => {
+  it("renders the with-cost fixture: totals line, per-attempt lines, formatted cost", () => {
+    render(<Usage {...toUsageElementProps(fixtureUsageRowsWithCost)} />);
+    const totals = screen.getByTestId("usage-totals");
+    expect(totals).toHaveTextContent("2 runs");
+    expect(totals).toHaveTextContent("2,400 tokens");
+    expect(totals).toHaveTextContent("1,700 in / 700 out");
+    expect(totals).toHaveTextContent("0.42 USD");
+    const a1 = screen.getByTestId("usage-attempt-1");
+    expect(a1).toHaveTextContent("1,000 in / 500 out");
+    expect(a1).toHaveTextContent("1,500 total");
+    expect(a1).toHaveTextContent("1,200 / 200,000");
+    expect(a1).toHaveTextContent("0.42 USD");
+  });
+
+  it("renders the tokens-only fixture with an em-dash for cost, never $0.00", () => {
+    render(<Usage {...toUsageElementProps(fixtureUsageRowsTokensOnly)} />);
+    const totals = screen.getByTestId("usage-totals");
+    expect(totals).toHaveTextContent("900 tokens");
+    // The absent marker is an em-dash, not a fabricated zero.
+    expect(totals).toHaveTextContent("—");
+    expect(screen.getByTestId("usage-element").textContent).not.toContain(
+      "0.00",
+    );
+    expect(screen.getByTestId("usage-element").textContent).not.toContain("$0");
+  });
+
+  it("renders nothing for a no-usage task", () => {
+    const { container } = render(<Usage totals={null} lines={[]} />);
+    expect(container.textContent).toBe("");
+  });
+
+  it("renders a null-field attempt with em-dashes, not zeros", () => {
+    render(
+      <Usage
+        totals={toUsageTotalsProps([nullRow(1)])}
+        lines={toUsageElementProps([nullRow(1)]).lines}
+      />,
+    );
+    const line = screen.getByTestId("usage-attempt-1");
+    expect(line).toHaveTextContent("— in / — out");
+    expect(line).toHaveTextContent("— total");
+    expect(line.textContent).not.toContain("0 in");
   });
 });

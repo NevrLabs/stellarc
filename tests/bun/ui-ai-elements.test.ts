@@ -56,6 +56,9 @@ test("ported AI elements exist in the ui directory", () => {
 		"test-results.tsx",
 		"confirmation.tsx",
 		"chain-of-thought.tsx",
+		"sources.tsx",
+		"approval-card.tsx",
+		"usage.tsx",
 	]) {
 		expect(present.has(name), `${name} missing from components/ui`).toBe(true);
 	}
