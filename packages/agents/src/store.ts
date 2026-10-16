@@ -96,6 +96,23 @@ export interface PushRow {
 	readonly remote: string;
 	readonly pushedAt: string;
 }
+/** Harness-reported usage for one attempt, as the read path serves it
+ * (NEVR-243): the COALESCE-merged finals from agent_task_usage — cumulative
+ * within the attempt (last report wins, never summed), absent stays null
+ * (the plane records what the harness reported, never invents). */
+export interface UsageRow {
+	readonly attempt: number;
+	readonly tokensTotal: number | null;
+	readonly tokensIn: number | null;
+	readonly tokensOut: number | null;
+	readonly thoughtTokens: number | null;
+	readonly cachedReadTokens: number | null;
+	readonly cachedWriteTokens: number | null;
+	readonly contextTokens: number | null;
+	readonly contextWindowSize: number | null;
+	readonly costAmount: number | null;
+	readonly costCurrency: string | null;
+}
 export interface BudgetRow {
 	readonly id: string;
 	readonly org: string;
@@ -336,6 +353,37 @@ const usageEvent = (taskId: string, attempt: number, r: Row | null) =>
 				},
 			}
 		: null;
+
+/** Per-attempt usage rows for the operator read path (NEVR-243): one row per
+ * (task, attempt) from agent_task_usage, ordered by attempt, absent fields
+ * null. Unlike numOf (lenient harness-input parsing), this also coerces the
+ * string form postgres.js gives bigint/numeric columns ("1500", "0.4200") —
+ * null stays null, never 0. */
+const num = (v: unknown): number | null => {
+	if (v == null) return null;
+	const n = typeof v === "number" ? v : Number(v);
+	return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+async function usageRows(sql: Sql, taskId: string): Promise<UsageRow[]> {
+	const rows = await sql`
+    SELECT attempt,tokens_total,tokens_in,tokens_out,thought_tokens,cached_read_tokens,cached_write_tokens,
+      context_tokens,context_window_size,cost_amount,cost_currency
+    FROM agent_task_usage WHERE task_id=${taskId} ORDER BY attempt`;
+	return rows.map((r: Row) => ({
+		attempt: r.attempt,
+		tokensTotal: num(r.tokens_total),
+		tokensIn: num(r.tokens_in),
+		tokensOut: num(r.tokens_out),
+		thoughtTokens: num(r.thought_tokens),
+		cachedReadTokens: num(r.cached_read_tokens),
+		cachedWriteTokens: num(r.cached_write_tokens),
+		contextTokens: num(r.context_tokens),
+		contextWindowSize: num(r.context_window_size),
+		costAmount: num(r.cost_amount),
+		costCurrency: r.cost_currency ?? null,
+	}));
+}
 
 // ── push attribution (NEVR-199) ─────────────────────────────────────────────
 
@@ -815,6 +863,7 @@ export class AgentStore {
 				() =>
 					sql`SELECT attempt,commit_sha,ref,remote,pushed_at FROM agent_task_push WHERE task_id=${id} ORDER BY attempt,pushed_at`,
 			);
+			const usage = yield* Effect.tryPromise(() => usageRows(sql, id));
 			const out = {
 				task: t,
 				items: items.map(
@@ -835,6 +884,7 @@ export class AgentStore {
 						pushedAt: iso(r.pushed_at) as string,
 					}),
 				),
+				usage,
 			};
 			if (t.status === "budget_exhausted") {
 				const blocked = yield* Effect.tryPromise(() =>
