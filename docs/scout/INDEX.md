@@ -29,28 +29,32 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Lynx 4.1 (web+iOS+Android, bindings 0.127.0 pre-1.0) | WATCH | 2026-10-15 | cross-platform-ui |
 | Electrobun (beta .25, macOS-centric) | REJECT | 2026-10-15 | cross-platform-ui |
 | @axe-core/playwright (4.13.0; NEVR-150 filed+todo — row open until built) | ADOPT (pending) | 2026-10-15 | cross-platform-ui |
-| effect 4.x (4.0.5 out 10-15 — npm skew: satellites live, core 404; v4 branch pin 4.0.2; bump gate = core resolves on npm) | ADOPT | 2026-10-15 | libraries |
-| effect `reactivity` + @effect/atom-react (core atoms, React hooks; unstable) | WATCH | 2026-10-15 | libraries |
+| effect 4.x (4.0.5 fully on npm — core published 10-15 01:27 UTC, skew resolved, NEVR-156 gate GREEN; v4 branch pins 4.0.2; bump straight to 4.0.5) | ADOPT | 2026-10-16 | libraries |
+| effect `reactivity` + @effect/atom-react (still `@stability unstable` in shipped 4.0.5, verified in tarball; 280 react-query call sites on dev) | WATCH | 2026-10-16 | libraries |
 | @a2a-js/sdk 1.3 (A2A protocol; no Stellarc consumer today) | WATCH | 2026-10-15 | libraries |
 | @tanstack/trailbase-db-collection (TrailBase integration exists upstream; ADR 0007 rejection stands) | WATCH | 2026-10-15 | libraries |
 | @effect/sql-drizzle (removed upstream in v4) | REJECT | 2026-10-13 | libraries |
 | packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156) | ADOPT | 2026-10-15 | libraries |
 | effect `eventlog` module (SqlEventJournal; unstable; unchanged 4.0.0→4.0.5) | WATCH | 2026-10-15 | libraries |
-| Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked; unchanged) | ADOPT | 2026-10-15 | libraries |
-| @tanstack/db 0.14 + electric collection 0.6 (retry stays `loading`, unbound query descriptors; brief posted 10-15) | TRIAL | 2026-10-15 | libraries |
-| @tanstack/tauri-db-sqlite-persistence 0.2.34 (claim-loss recovery; desktop offline spike unclaimed) | WATCH | 2026-10-15 | libraries |
-| ACP v1.25 schema / SDK 1.8.0 (compaction, notices; rust 1.11.0); bump pending NEVR-129 | ADOPT bump | 2026-10-15 | libraries |
-| Zero 1.10 (strongest sync alternative; unchanged) | WATCH | 2026-10-15 | libraries |
+| Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked; unchanged; canary daily) | ADOPT | 2026-10-16 | libraries |
+| @tanstack/db 0.15 + electric collection 0.6.1 (0.15: windowed-include lazy load + BREAKING findOne/setWindow window rules — setWindow({limit}) on findOne throws; NEVR-211's 0.14 pin was already 3h stale at merge; 0 call sites affected today; brief 10-16) | TRIAL | 2026-10-16 | libraries |
+| @tanstack/tauri-db-sqlite-persistence 0.2.35 (claim-loss recovery; repointed to db 0.15.0) | WATCH | 2026-10-16 | libraries |
+| ACP v1.25 schema / SDK 1.8.0 (rust 1.11.0; repo pushed 10-16; bump pending NEVR-129) | ADOPT bump | 2026-10-16 | libraries |
+| Zero 1.10.0 (rocicorp/mono 3,411★ pushed 10-15; unchanged) | WATCH | 2026-10-16 | libraries |
 | effect v4 core layout (ai/sql/graphql/rpc in core; v3-only umbrellas dead) | ADOPT hygiene | 2026-10-14 | libraries |
-| effect/ai McpServer (port = NEVR-185 / PR #99 vs effect/v4; 4.0.5 adds compile-time service checks) | TRIAL | 2026-10-15 | libraries |
+| effect/ai McpServer (NEVR-185 / PR #99 MERGED to effect/v4 @bd997b7 — @modelcontextprotocol/sdk out of v4 tree) | TRIAL | 2026-10-16 | libraries |
 | drizzle-orm 1.0 line (npm `rc` tag is rc.4; rc.5-* are suffixed builds, no installable rc.5; bridge stays) | WATCH | 2026-10-15 | libraries |
 | jazz-tools (correction: 0.20.19 + 2.0-alpha; not 1.2.0) | REJECT | 2026-10-14 | libraries |
 | pragmatic-drag-and-drop 4.0 (major velocity warning) | WATCH | 2026-10-14 | libraries |
 | virtua (dnd/list virtualization alternative) | WATCH | 2026-10-14 | libraries |
-| effect-lens (v4 community libs signal) | WATCH | 2026-10-14 | libraries |
-| hono 5.0.0-rc line (rc.1 on `next`; calendar with vite/vitest majors) | WATCH | 2026-10-15 | libraries |
+| effect-lens (single-author 0★ repo, no release since 10-02 — not an ecosystem signal; demoted) | REJECT | 2026-10-16 | libraries |
+| effect v3 line (3.22.3 10-16: LayerMap idle-TTL preload, Reloadable.auto scope-close hang, finalizer-on-interrupt — dev pins 3.22.0; fold into next dev dep pass) | ADOPT (v3 patch) | 2026-10-16 | libraries |
+| LiveStore 0.5.0 stable (10-15; Effect-4 cohort aligned 4.0.3 — strongest Effect-native alternative sync runtime; ADR 0007 fallback, not parallel trial) | WATCH (elevated) | 2026-10-16 | libraries |
+| @effect/vitest 4.0.5 (peer vitest >=5 <6; dev+v4 pin vitest 4.1.10 — gated on Vitest 5 major; calendar with hono 5 batch) | WATCH (gated) | 2026-10-16 | libraries |
+| effect npm publish skew (RESOLVED: core 4.0.5 on npm 24 min after satellites; guard retired — verify core resolves before any effect bump) | ADOPT (resolved) | 2026-10-16 | libraries |
+| hono 5.0.0-rc line (rc.1 on `next`; calendar with vite/vitest majors + @effect/vitest vitest-5 gate) | WATCH | 2026-10-16 | libraries |
 | TypeScript 7 / tsgo (7.0.2 stable; 7.1-dev dailies; answer via `bun check`) | TRIAL | 2026-10-15 | libraries |
-| @sentry/node 11 (11.7.0; one major ahead of pin) | WATCH | 2026-10-15 | libraries |
+| @sentry/node 11 (11.8.0 10-15; rides NEVR-129) | WATCH | 2026-10-16 | libraries |
 | shadcn chat primitives (PR #91 = NEVR-170; blocked by T02 freeze guard) | ADOPT | 2026-10-14 | design |
 | shadcn AI elements (22 patterns, 3 dialects; trace/code-block/message installable; port rule: strip icon-placeholder import) | ADOPT (post-freeze, proposal) | 2026-10-15 | design |
 | `ui-typecheck-budget` red on PRs + dev (continue-on-error; count 429 = budget 429; informational, not a blocker) | REJECT (as blocker) | 2026-10-15 | design |
