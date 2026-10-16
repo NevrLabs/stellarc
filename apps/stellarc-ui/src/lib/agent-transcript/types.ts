@@ -14,7 +14,15 @@
  * (RequestPermissionRequest with PermissionOption[]).
  */
 
-/** Content blocks a tool call may produce (ACP ToolCallContent, subset). */
+/**
+ * Content blocks a tool call may produce (ACP ToolCallContent, subset).
+ *
+ * On the wire a resource link arrives as `{ type: "content", content:
+ * { type: "resource_link", name, uri, title? } }`; like the text block,
+ * this adapter layer models it flattened — one `resource_link` variant
+ * per citation (MCP ResourceLink under ACP Content, the shape web-search
+ * tools emit).
+ */
 export type RunToolContent =
   | { type: "content"; text?: string }
   | {
@@ -22,6 +30,12 @@ export type RunToolContent =
       path: string;
       oldText?: string | null;
       newText: string;
+    }
+  | {
+      type: "resource_link";
+      name: string;
+      uri: string;
+      title?: string | null;
     };
 
 export type RunToolStatus = "pending" | "in_progress" | "completed" | "failed";
