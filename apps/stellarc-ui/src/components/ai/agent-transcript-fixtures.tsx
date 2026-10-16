@@ -8,12 +8,14 @@ import { Sources } from "@/components/ui/sources";
 import { Subagent } from "@/components/ui/subagent";
 import { TestResults } from "@/components/ui/test-results";
 import { Tool } from "@/components/ui/tool";
+import { Usage } from "@/components/ui/usage";
 import {
   toApprovalCardElementProps,
   toConfirmationElementProps,
   toSourcesElementProps,
   toSubagentElementProps,
   toToolElementProps,
+  toUsageElementProps,
 } from "@/lib/agent-transcript";
 import {
   fixturePermissionRequest,
@@ -21,6 +23,8 @@ import {
   fixtureTestSuites,
   fixtureThoughtSteps,
   fixtureToolCalls,
+  fixtureUsageRowsTokensOnly,
+  fixtureUsageRowsWithCost,
   fixtureWebSearchCall,
 } from "@/lib/agent-transcript/fixtures";
 
@@ -76,6 +80,16 @@ export function AgentTranscriptFixtures() {
       <section data-testid="fixture-sources" className="flex flex-col gap-4">
         <h2 className="text-base font-semibold">Sources</h2>
         <Sources {...toSourcesElementProps(fixtureWebSearchCall)} />
+      </section>
+
+      <section data-testid="fixture-usage" className="flex flex-col gap-4">
+        <h2 className="text-base font-semibold">Usage</h2>
+        <Usage {...toUsageElementProps(fixtureUsageRowsWithCost)} />
+        <Usage {...toUsageElementProps(fixtureUsageRowsTokensOnly)} />
+        {/* No-usage case: the element renders nothing at all. */}
+        <div data-testid="fixture-usage-empty">
+          <Usage totals={null} lines={[]} />
+        </div>
       </section>
 
       <section

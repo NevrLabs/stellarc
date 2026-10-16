@@ -10,6 +10,7 @@ import type {
   RunPermissionRequest,
   RunSubagentSpawn,
   RunToolCall,
+  RunUsageRow,
 } from "@/lib/agent-transcript";
 
 /** Tool calls: running, completed-with-output, failed. */
@@ -158,4 +159,58 @@ export const fixtureThoughtSteps = [
   { title: "Read the build log for dpl_8Kx2", status: undefined },
   { title: "Searched the web for next.js image cache key", status: undefined },
   { title: "Searched the code for cacheKey", status: undefined },
+];
+
+/**
+ * Recorded usage telemetry (NEVR-243), as getTask serves it from
+ * agent_task_usage: with-cost (a full spend run — tokens at finish, context
+ * and cost from the mid-run usage_update, COALESCE-merged) and tokens-only
+ * (a harness that reports tokens but no cost — cost stays null, never 0).
+ * Values mirror the fake harness in tests/fixtures/fake-acp-agent.ts.
+ */
+export const fixtureUsageRowsWithCost: RunUsageRow[] = [
+  {
+    attempt: 1,
+    tokensTotal: 1500,
+    tokensIn: 1000,
+    tokensOut: 500,
+    thoughtTokens: 50,
+    cachedReadTokens: 200,
+    cachedWriteTokens: 0,
+    contextTokens: 1200,
+    contextWindowSize: 200000,
+    costAmount: 0.42,
+    costCurrency: "USD",
+  },
+  {
+    // A retry attempt the harness reported tokens for but no cost.
+    attempt: 2,
+    tokensTotal: 900,
+    tokensIn: 700,
+    tokensOut: 200,
+    thoughtTokens: null,
+    cachedReadTokens: null,
+    cachedWriteTokens: null,
+    contextTokens: 640,
+    contextWindowSize: 200000,
+    costAmount: null,
+    costCurrency: null,
+  },
+];
+
+/** Tokens-only rows: no attempt reported a cost anywhere. */
+export const fixtureUsageRowsTokensOnly: RunUsageRow[] = [
+  {
+    attempt: 1,
+    tokensTotal: 900,
+    tokensIn: 700,
+    tokensOut: 200,
+    thoughtTokens: null,
+    cachedReadTokens: null,
+    cachedWriteTokens: null,
+    contextTokens: 640,
+    contextWindowSize: 200000,
+    costAmount: null,
+    costCurrency: null,
+  },
 ];

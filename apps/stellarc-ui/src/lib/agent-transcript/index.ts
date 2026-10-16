@@ -17,3 +17,18 @@ export type {
   RunToolContent,
   RunToolStatus,
 } from "./types";
+export type {
+  UsageElementProps,
+  UsageLineProps,
+  UsageTotalsProps,
+} from "./usage";
+export {
+  contextOf,
+  fmtInt,
+  formatCost,
+  toUsageElementProps,
+  toUsageLineFromBody,
+  toUsageLineProps,
+  toUsageTotalsProps,
+} from "./usage";
+export type { RunUsageBody, RunUsageRow } from "./usage-types";

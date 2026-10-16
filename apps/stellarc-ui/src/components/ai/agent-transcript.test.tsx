@@ -7,6 +7,8 @@ import { Sources } from "@/components/ui/sources";
 import { Subagent } from "@/components/ui/subagent";
 import { TestResults } from "@/components/ui/test-results";
 import { Tool } from "@/components/ui/tool";
+import { Usage } from "@/components/ui/usage";
+import type { RunUsageRow } from "@/lib/agent-transcript";
 import {
   type ConfirmationElementProps,
   type ToolElementProps,
@@ -15,7 +17,14 @@ import {
   toSourcesElementProps,
   toSubagentElementProps,
   toToolElementProps,
+  toUsageElementProps,
+  toUsageLineFromBody,
+  toUsageTotalsProps,
 } from "@/lib/agent-transcript";
+import {
+  fixtureUsageRowsTokensOnly,
+  fixtureUsageRowsWithCost,
+} from "@/lib/agent-transcript/fixtures";
 
 const toolProps = (
   overrides: Partial<Parameters<typeof toToolElementProps>[0]>,
@@ -491,5 +500,130 @@ describe("Subagent + ChainOfThought", () => {
       screen.getByRole("button", { name: /researched in 3 steps/i }),
     );
     expect(screen.getByText("Read the build log")).toBeVisible();
+  });
+});
+
+// ── usage element (NEVR-243) ────────────────────────────────────────────────
+
+const nullRow = (attempt: number): RunUsageRow => ({
+  attempt,
+  tokensTotal: null,
+  tokensIn: null,
+  tokensOut: null,
+  thoughtTokens: null,
+  cachedReadTokens: null,
+  cachedWriteTokens: null,
+  contextTokens: null,
+  contextWindowSize: null,
+  costAmount: null,
+  costCurrency: null,
+});
+
+describe("toUsageElementProps", () => {
+  it("maps recorded rows to a totals line plus one line per attempt, in order", () => {
+    const props = toUsageElementProps(fixtureUsageRowsWithCost);
+    expect(props.lines.map((l) => l.attempt)).toEqual([1, 2]);
+    expect(props.totals?.attempts).toBe(2);
+  });
+
+  it("sums tokens across attempts and cost across attempts that report one", () => {
+    const totals = toUsageTotalsProps(fixtureUsageRowsWithCost);
+    expect(totals).not.toBeNull();
+    // 1500 + 900 across the two attempts; in/out likewise.
+    expect(totals?.tokensTotal).toBe(2400);
+    expect(totals?.tokensIn).toBe(1700);
+    expect(totals?.tokensOut).toBe(700);
+    // Only attempt 1 reported a cost: the sum is that cost alone.
+    expect(totals?.costAmount).toBeCloseTo(0.42);
+    expect(totals?.costCurrency).toBe("USD");
+  });
+
+  it("returns null totals for no-usage tasks (the roll-up renders only when usage exists)", () => {
+    expect(toUsageTotalsProps([])).toBeNull();
+    const props = toUsageElementProps([]);
+    expect(props.totals).toBeNull();
+    expect(props.lines).toEqual([]);
+  });
+
+  it("tokens-only tasks keep cost null through the whole mapping — never 0", () => {
+    const totals = toUsageTotalsProps(fixtureUsageRowsTokensOnly);
+    expect(totals?.costAmount).toBeNull();
+    expect(totals?.costCurrency).toBeNull();
+    // Pin the charter rule at the seam: absent costAmount never serializes
+    // as 0 in either direction of the mapping.
+    const serialized = JSON.stringify(
+      toUsageElementProps(fixtureUsageRowsTokensOnly),
+    );
+    expect(serialized).not.toContain('"costAmount":0');
+    expect(serialized).toContain('"costAmount":null');
+  });
+
+  it("never sums within an attempt: the recorded row passes through field-by-field", () => {
+    const [line] = toUsageElementProps(fixtureUsageRowsWithCost).lines;
+    // cumulative-within-attempt semantics live in the plane's merge; the
+    // adapter maps the final row as-is, last report wins.
+    expect(line.tokensTotal).toBe(1500);
+    expect(line.contextTokens).toBe(1200);
+    expect(line.costAmount).toBeCloseTo(0.42);
+    expect(line.costCurrency).toBe("USD");
+  });
+
+  it("maps a usage item body (ACP usage_update) with unreported fields absent", () => {
+    const line = toUsageLineFromBody(3, {
+      contextTokens: 800,
+      contextWindowSize: 200000,
+    });
+    expect(line.attempt).toBe(3);
+    expect(line.contextTokens).toBe(800);
+    expect(line.contextWindowSize).toBe(200000);
+    expect(line.tokensTotal).toBeNull();
+    expect(line.costAmount).toBeNull();
+    expect(line.costCurrency).toBeNull();
+  });
+});
+
+describe("Usage element rendering", () => {
+  it("renders the with-cost fixture: totals line, per-attempt lines, formatted cost", () => {
+    render(<Usage {...toUsageElementProps(fixtureUsageRowsWithCost)} />);
+    const totals = screen.getByTestId("usage-totals");
+    expect(totals).toHaveTextContent("2 runs");
+    expect(totals).toHaveTextContent("2,400 tokens");
+    expect(totals).toHaveTextContent("1,700 in / 700 out");
+    expect(totals).toHaveTextContent("0.42 USD");
+    const a1 = screen.getByTestId("usage-attempt-1");
+    expect(a1).toHaveTextContent("1,000 in / 500 out");
+    expect(a1).toHaveTextContent("1,500 total");
+    expect(a1).toHaveTextContent("1,200 / 200,000");
+    expect(a1).toHaveTextContent("0.42 USD");
+  });
+
+  it("renders the tokens-only fixture with an em-dash for cost, never $0.00", () => {
+    render(<Usage {...toUsageElementProps(fixtureUsageRowsTokensOnly)} />);
+    const totals = screen.getByTestId("usage-totals");
+    expect(totals).toHaveTextContent("900 tokens");
+    // The absent marker is an em-dash, not a fabricated zero.
+    expect(totals).toHaveTextContent("—");
+    expect(screen.getByTestId("usage-element").textContent).not.toContain(
+      "0.00",
+    );
+    expect(screen.getByTestId("usage-element").textContent).not.toContain("$0");
+  });
+
+  it("renders nothing for a no-usage task", () => {
+    const { container } = render(<Usage totals={null} lines={[]} />);
+    expect(container.textContent).toBe("");
+  });
+
+  it("renders a null-field attempt with em-dashes, not zeros", () => {
+    render(
+      <Usage
+        totals={toUsageTotalsProps([nullRow(1)])}
+        lines={toUsageElementProps([nullRow(1)]).lines}
+      />,
+    );
+    const line = screen.getByTestId("usage-attempt-1");
+    expect(line).toHaveTextContent("— in / — out");
+    expect(line).toHaveTextContent("— total");
+    expect(line.textContent).not.toContain("0 in");
   });
 });

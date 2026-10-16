@@ -107,6 +107,39 @@ test("agent transcript patterns render from recorded fixtures", async ({
   // Close again so the frozen screenshot shows the collapsed state.
   await sources.getByRole("button", { name: /used 3 sources/i }).click();
 
+  // Usage (NEVR-243): recorded telemetry from agent_task_usage. Two Usage
+  // elements share the section (with-cost and tokens-only), so scope every
+  // assertion to its element.
+  const usage = page.getByTestId("fixture-usage");
+  const usageElements = usage.locator('[data-testid="usage-element"]');
+  await expect(usageElements).toHaveCount(2);
+  const withCost = usageElements.nth(0);
+  const tokensOnly = usageElements.nth(1);
+  // With-cost: totals roll-up line above the attempts.
+  await expect(withCost.getByTestId("usage-totals")).toHaveText(
+    /2 runs · 2,400 tokens/,
+  );
+  await expect(withCost.getByTestId("usage-totals")).toHaveText(
+    /1,700 in \/ 700 out/,
+  );
+  await expect(withCost.getByTestId("usage-totals")).toHaveText(/0\.42 USD/);
+  // One line per attempt: attempt 1 with cost, attempt 2 tokens-only.
+  await expect(withCost.getByTestId("usage-attempt-1")).toHaveText(
+    /1,000 in \/ 500 out/,
+  );
+  await expect(withCost.getByTestId("usage-attempt-1")).toHaveText(
+    /1,200 \/ 200,000/,
+  );
+  await expect(withCost.getByTestId("usage-attempt-2")).toHaveText(/—/);
+  // The tokens-only element shows the absent marker for cost, never $0.00.
+  await expect(tokensOnly.getByTestId("usage-totals")).toHaveText(/—/);
+  expect(await tokensOnly.textContent()).not.toContain("0.00");
+  expect(await tokensOnly.textContent()).not.toContain("$0");
+  // The no-usage case renders nothing at all.
+  const empty = usage.getByTestId("fixture-usage-empty");
+  await expect(empty).toBeAttached();
+  expect(await empty.textContent()).toBe("");
+
   // Approval card (NEVR-239): sticky prompt for the pending request,
   // folded over the Confirmation question + protocol choices.
   const approval = page.getByTestId("fixture-approval");
@@ -150,6 +183,14 @@ test("agent transcript patterns render in dark theme", async ({ page }) => {
   await expect(
     page.getByTestId("fixture-approval").getByText("Run rm -rf dist?"),
   ).toBeVisible();
+  // Usage telemetry renders in dark too: totals + absent-cost em-dash.
+  await expect(
+    page
+      .getByTestId("fixture-usage")
+      .locator('[data-testid="usage-element"]')
+      .first()
+      .getByTestId("usage-totals"),
+  ).toHaveText(/2 runs · 2,400 tokens/);
   // The dark palette comes from the registry's CSS variables; the surface
   // must paint its background, not the default white.
   const bg = await page.evaluate(
