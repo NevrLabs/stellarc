@@ -37,7 +37,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156) | ADOPT | 2026-10-15 | libraries |
 | effect `eventlog` module (SqlEventJournal; unstable; unchanged 4.0.0→4.0.5) | WATCH | 2026-10-15 | libraries |
 | Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked; unchanged; canary daily) | ADOPT | 2026-10-16 | libraries |
-| @tanstack/db 0.15 + electric collection 0.6.1 (0.15: windowed-include lazy load + BREAKING findOne/setWindow window rules — setWindow({limit}) on findOne throws; NEVR-211's 0.14 pin stale 2h after merge; 0 call sites affected today; brief 10-16) | TRIAL | 2026-10-16 | libraries |
+| @tanstack/db 0.15 + electric collection 0.6.1 (0.15: windowed-include lazy load + BREAKING findOne/setWindow window rules — setWindow({limit}) on findOne throws; NEVR-211's 0.14 pin was already 3h stale at merge; 0 call sites affected today; brief 10-16) | TRIAL | 2026-10-16 | libraries |
 | @tanstack/tauri-db-sqlite-persistence 0.2.35 (claim-loss recovery; repointed to db 0.15.0) | WATCH | 2026-10-16 | libraries |
 | ACP v1.25 schema / SDK 1.8.0 (rust 1.11.0; repo pushed 10-16; bump pending NEVR-129) | ADOPT bump | 2026-10-16 | libraries |
 | Zero 1.10.0 (rocicorp/mono 3,411★ pushed 10-15; unchanged) | WATCH | 2026-10-16 | libraries |
