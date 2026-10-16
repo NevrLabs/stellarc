@@ -79,6 +79,43 @@ test("agent transcript patterns render from recorded fixtures", async ({
     confirmation.getByRole("button", { name: "Deny" }),
   ).toBeVisible();
 
+  // Sources (NEVR-239): 4 recorded links, one duplicate URL -> 3 unique.
+  const sources = page.getByTestId("fixture-sources");
+  await expect(sources.getByText("Used 3 sources")).toBeVisible();
+  // Collapsed by default; open to reveal the deduped citations.
+  await sources.getByRole("button", { name: /used 3 sources/i }).click();
+  await expect(
+    sources.getByRole("link", {
+      name: /nextjs\.org — Image Optimization \(opens in a new tab\)/,
+    }),
+  ).toBeVisible();
+  await expect(
+    sources.getByRole("link", { name: /vercel\.com \(opens in a new tab\)/ }),
+  ).toBeVisible();
+  const duplicate = await sources
+    .locator(
+      'a[href="https://nextjs.org/docs/app/building-your-application/optimizing/images"]',
+    )
+    .count();
+  expect(duplicate).toBe(1);
+  const github = sources.locator(
+    'a[href="https://github.com/vercel/next.js/discussions/59073"]',
+  );
+  await expect(github).toHaveAttribute("target", "_blank");
+  await expect(github).toHaveAttribute("rel", "noreferrer");
+  await expect(github.getByText("(opens in a new tab)")).toBeAttached();
+  // Close again so the frozen screenshot shows the collapsed state.
+  await sources.getByRole("button", { name: /used 3 sources/i }).click();
+
+  // Approval card (NEVR-239): sticky prompt for the pending request,
+  // folded over the Confirmation question + protocol choices.
+  const approval = page.getByTestId("fixture-approval");
+  await expect(approval.getByText("Run rm -rf dist?")).toBeVisible();
+  await expect(
+    approval.getByRole("button", { name: "Allow once" }),
+  ).toBeVisible();
+  await expect(approval.getByRole("button", { name: "Deny" })).toBeVisible();
+
   // Chain of thought: summary with steps and badges.
   await expect(
     page
@@ -104,13 +141,14 @@ test("agent transcript patterns render in dark theme", async ({ page }) => {
   await expect(
     page
       .getByTestId("fixture-tool-calls")
-      .getByText("Ran git status")
-      .or(
-        page
-          .getByTestId("fixture-tool-calls")
-          .getByText("Failed to run pnpm --version"),
-      )
-      .first(),
+      .getByText("Ran grep -rn cacheKey scripts"),
+  ).toBeVisible();
+  // The new part shapes render in dark too: sources summary + approval card.
+  await expect(
+    page.getByTestId("fixture-sources").getByText("Used 3 sources"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("fixture-approval").getByText("Run rm -rf dist?"),
   ).toBeVisible();
   // The dark palette comes from the registry's CSS variables; the surface
   // must paint its background, not the default white.
@@ -118,6 +156,10 @@ test("agent transcript patterns render in dark theme", async ({ page }) => {
     () => getComputedStyle(document.body).backgroundColor,
   );
   expect(bg).not.toBe("rgb(255, 255, 255)");
+  // Scroll the approval card into view before capturing: the sticky card
+  // pins to the viewport bottom, and the frozen dark baseline should cover
+  // the new surfaces, not only the top of the page.
+  await page.getByTestId("fixture-approval").scrollIntoViewIfNeeded();
   await page.evaluate(() => document.fonts.ready);
   // Acceptance: dark-theme defaults inherited from the registry pass axe.
   const dark = await new AxeBuilder({ page }).analyze();

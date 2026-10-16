@@ -72,6 +72,47 @@ export const fixturePermissionRequest: RunPermissionRequest = {
   ],
 };
 
+/**
+ * Pending web-search call whose resource_link blocks cite the results
+ * (NEVR-239): four links, one duplicate URL — the adapter must collapse
+ * them to three unique sources.
+ */
+export const fixtureWebSearchCall: RunToolCall = {
+  toolCallId: "call-web-search",
+  title: 'web_search "next.js image loader cache"',
+  name: "web_search",
+  kind: "fetch",
+  status: "completed",
+  content: [
+    {
+      type: "content",
+      text: "4 results for next.js image loader cache",
+    },
+    {
+      type: "resource_link",
+      name: "nextjs.org — Image Optimization",
+      uri: "https://nextjs.org/docs/app/building-your-application/optimizing/images",
+    },
+    {
+      type: "resource_link",
+      name: "Image Component — Next.js",
+      // Duplicate URL: the second crawl of the same doc must collapse.
+      uri: "https://nextjs.org/docs/app/building-your-application/optimizing/images",
+    },
+    {
+      type: "resource_link",
+      name: "vercel.com",
+      uri: "https://vercel.com/docs/next.js/optimizing-images",
+    },
+    {
+      // No title/name worth showing: hostname is the label.
+      type: "resource_link",
+      name: "",
+      uri: "https://github.com/vercel/next.js/discussions/59073",
+    },
+  ],
+};
+
 /** Sub-agent spawns: running and finished. */
 export const fixtureSubagentSpawns: RunSubagentSpawn[] = [
   {

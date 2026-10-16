@@ -1,14 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApprovalCard } from "@/components/ui/approval-card";
 import { ChainOfThought } from "@/components/ui/chain-of-thought";
 import { Confirmation } from "@/components/ui/confirmation";
+import { Sources } from "@/components/ui/sources";
 import { Subagent } from "@/components/ui/subagent";
 import { TestResults } from "@/components/ui/test-results";
 import { Tool } from "@/components/ui/tool";
 import {
   type ConfirmationElementProps,
   type ToolElementProps,
+  toApprovalCardElementProps,
   toConfirmationElementProps,
+  toSourcesElementProps,
   toSubagentElementProps,
   toToolElementProps,
 } from "@/lib/agent-transcript";
@@ -35,6 +39,11 @@ const confirmationProps = (): ConfirmationElementProps =>
       { optionId: "reject_once", name: "Deny", kind: "reject_once" },
     ],
   });
+
+// The vitest config runs without globals, so testing-library's auto-cleanup
+// never registers: several tests render the same texts (the confirmation
+// question appears in both the Confirmation and ApprovalCard suites).
+afterEach(cleanup);
 
 describe("toToolElementProps", () => {
   it("maps a running tool call to a shimmering Running line", () => {
@@ -100,6 +109,111 @@ describe("toConfirmationElementProps", () => {
       label: "Deny",
       variant: "outline",
     });
+  });
+});
+
+describe("toSourcesElementProps", () => {
+  const searchCall = (
+    content: Parameters<typeof toToolElementProps>[0]["content"],
+  ) =>
+    toSourcesElementProps({
+      toolCallId: "call-web-search",
+      title: "web_search",
+      status: "completed",
+      content,
+    });
+
+  it("collects resource_link blocks deduped by URL, first-seen order", () => {
+    const props = searchCall([
+      {
+        type: "resource_link",
+        name: "nextjs.org — Image Optimization",
+        uri: "https://nextjs.org/docs/images",
+      },
+      {
+        type: "resource_link",
+        name: "Image Component — duplicate crawl",
+        uri: "https://nextjs.org/docs/images",
+      },
+      {
+        type: "resource_link",
+        name: "vercel.com",
+        uri: "https://vercel.com/docs/optimizing-images",
+      },
+    ]);
+    expect(props.count).toBe(2);
+    expect(props.sources).toEqual([
+      {
+        title: "nextjs.org — Image Optimization",
+        url: "https://nextjs.org/docs/images",
+      },
+      {
+        title: "vercel.com",
+        url: "https://vercel.com/docs/optimizing-images",
+      },
+    ]);
+  });
+
+  it("falls back to name then hostname for the label", () => {
+    const props = searchCall([
+      { type: "resource_link", name: "", uri: "https://github.com/v/next" },
+    ]);
+    expect(props.sources[0]?.title).toBe("github.com");
+    const titled = searchCall([
+      {
+        type: "resource_link",
+        name: "fallback-name",
+        title: "Preferred title",
+        uri: "https://example.com/a",
+      },
+    ]);
+    expect(titled.sources[0]?.title).toBe("Preferred title");
+  });
+
+  it("drops non-http(s) URIs and non-link content blocks", () => {
+    const props = searchCall([
+      { type: "content", text: "3 results" },
+      { type: "resource_link", name: "doc", uri: "file:///etc/hosts" },
+      { type: "resource_link", name: "mcp", uri: "mcp://server/resource" },
+      { type: "resource_link", name: "web", uri: "https://example.com/ok" },
+    ]);
+    expect(props.count).toBe(1);
+    expect(props.sources[0]?.url).toBe("https://example.com/ok");
+  });
+
+  it("returns an empty entry set for a call without links", () => {
+    const props = searchCall([{ type: "content", text: "no links" }]);
+    expect(props.count).toBe(0);
+    expect(props.sources).toEqual([]);
+  });
+});
+
+describe("toApprovalCardElementProps", () => {
+  it("maps a pending request to a ready card wrapping the confirmation", () => {
+    const props = toApprovalCardElementProps({
+      sessionId: "s1",
+      toolCallId: "call-42",
+      toolName: "bash",
+      title: "rm -rf dist",
+      options: [
+        { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+      ],
+    });
+    expect(props.status).toBe("ready");
+    expect(props.toolCallId).toBe("call-42");
+    expect(props.confirmation).toMatchObject({
+      title: "Run rm -rf dist?",
+      toolCallId: "call-42",
+    });
+    expect(props.confirmation?.options).toHaveLength(2);
+  });
+
+  it("maps a missing request to the preparing shimmer state", () => {
+    const props = toApprovalCardElementProps(null);
+    expect(props.status).toBe("preparing");
+    expect(props.confirmation).toBeNull();
+    expect(props.toolCallId).toBeNull();
   });
 });
 
@@ -196,6 +310,106 @@ describe("Confirmation component", () => {
     render(<Confirmation {...props} onDecide={onDecide} />);
     fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
     expect(onDecide).toHaveBeenCalledWith("allow_once");
+  });
+});
+
+describe("Sources component", () => {
+  const sourcesProps = () =>
+    toSourcesElementProps({
+      toolCallId: "call-web-search",
+      title: "web_search",
+      status: "completed",
+      content: [
+        {
+          type: "resource_link",
+          name: "nextjs.org — Image Optimization",
+          uri: "https://nextjs.org/docs/images",
+        },
+        {
+          type: "resource_link",
+          name: "duplicate crawl",
+          uri: "https://nextjs.org/docs/images",
+        },
+        {
+          type: "resource_link",
+          name: "",
+          uri: "https://github.com/vercel/next.js/discussions/59073",
+        },
+      ],
+    });
+
+  it("renders the collapsed Used N sources line with the unique count", () => {
+    render(<Sources {...sourcesProps()} />);
+    // 3 links, one duplicate URL -> "Used 2 sources".
+    expect(screen.getByText("Used 2 sources")).toBeVisible();
+  });
+
+  it("collapses the citation list until the trigger opens it", () => {
+    render(<Sources {...sourcesProps()} />);
+    // Collapsed by default: no citation text in the document yet.
+    expect(screen.queryByText(/Image Optimization/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /used 2 sources/i }));
+    expect(screen.getByText(/nextjs\.org — Image Optimization/)).toBeVisible();
+  });
+
+  it("renders accessible external links with new-tab announcements", () => {
+    render(<Sources {...sourcesProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /used 2 sources/i }));
+    const github = screen.getByText(/github\.com/).closest("a");
+    expect(github?.getAttribute("href")).toBe(
+      "https://github.com/vercel/next.js/discussions/59073",
+    );
+    expect(github?.getAttribute("target")).toBe("_blank");
+    expect(github?.getAttribute("rel")).toBe("noreferrer");
+    // Every citation announces the new tab to screen readers.
+    const announcements = screen.getAllByText("(opens in a new tab)");
+    expect(announcements).toHaveLength(2);
+  });
+
+  it("renders nothing when the call produced no usable sources", () => {
+    const { container } = render(<Sources count={0} sources={[]} />);
+    expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("ApprovalCard component", () => {
+  const approvalProps = () =>
+    toApprovalCardElementProps({
+      sessionId: "sess-fixture",
+      toolCallId: "call-fixture-permission",
+      toolName: "bash",
+      title: "rm -rf dist",
+      options: [
+        { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+      ],
+    });
+
+  it("renders the pending request and answers through the toolCallId seam", () => {
+    const onAnswer = vi.fn();
+    render(<ApprovalCard {...approvalProps()} onAnswer={onAnswer} />);
+    expect(screen.getByText("Run rm -rf dist?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onAnswer).toHaveBeenCalledWith(
+      "call-fixture-permission",
+      "allow_once",
+    );
+  });
+
+  it("keeps the Deny choice reachable from the card", () => {
+    const onAnswer = vi.fn();
+    render(<ApprovalCard {...approvalProps()} onAnswer={onAnswer} />);
+    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    expect(onAnswer).toHaveBeenCalledWith(
+      "call-fixture-permission",
+      "reject_once",
+    );
+  });
+
+  it("renders the preparing shimmer while the request is unreported", () => {
+    render(<ApprovalCard {...toApprovalCardElementProps(null)} />);
+    expect(screen.getByText("Preparing a question…")).toBeVisible();
+    expect(screen.queryByTestId("confirmation")).toBeNull();
   });
 });
 
