@@ -93,21 +93,37 @@ test("T01b desktop:build pre-bakes the tauri config before the CLI parses -c (re
 });
 
 test("T02 desktop slice leaves the frozen UI tree untouched", () => {
-	// Diff merge-base(origin/dev, HEAD) vs the WORKING TREE: a clean CI
+	// Judge the frozen tree against the PR's BASE branch head, not the
+	// dev fork point (NEVR-247): GitHub sets GITHUB_BASE_REF on
+	// pull_request runs (the foundation CI job), push runs target dev,
+	// and local runs default to dev. On PRs stacked on effect/v4 the old
+	// merge-base(origin/dev, HEAD) baseline was the v4 fork point, so the
+	// guard charged every child PR with v4's own frozen-tree changes and
+	// the future v4→dev merge PR would fail by construction. Baseline
+	// = merge-base(origin/<base>, HEAD); for dev-based PRs that is
+	// today's semantics unchanged, for v4-based PRs it is v4's head.
+	const baseRef = process.env.GITHUB_BASE_REF?.trim() || "dev";
+	const baseRemote = `origin/${baseRef}`;
+	// Diff merge-base(origin/<base>, HEAD) vs the WORKING TREE: a clean CI
 	// checkout makes this exactly the PR-range diff (review-3 D4 — `git diff
 	// HEAD` is empty there), while an uncommitted local UI edit still turns
 	// the guard red (spec T02 sabotage).
 	// Rework defect 3: actions/checkout@v4's default depth-1 checkout (the
-	// foundation CI job) has no origin/dev ref - fetch it on demand before
-	// merge-base, keeping the hard fail when the fetch also fails.
-	let mb = spawnSync("git", ["merge-base", "origin/dev", "HEAD"], {
+	// foundation CI job) has no origin/<base> ref - fetch it on demand
+	// before merge-base, keeping the hard fail when the fetch also fails.
+	let mb = spawnSync("git", ["merge-base", baseRemote, "HEAD"], {
 		cwd: ROOT,
 		encoding: "utf8",
 	});
 	if (mb.status !== 0) {
 		const fetch = spawnSync(
 			"git",
-			["fetch", "--deepen=100", "origin", "dev:refs/remotes/origin/dev"],
+			[
+				"fetch",
+				"--deepen=100",
+				"origin",
+				`${baseRef}:refs/remotes/${baseRemote}`,
+			],
 			{
 				cwd: ROOT,
 				encoding: "utf8",
@@ -115,9 +131,9 @@ test("T02 desktop slice leaves the frozen UI tree untouched", () => {
 		);
 		expect(
 			fetch.status,
-			`origin/dev absent (depth-1 checkout) and git fetch origin dev failed: ${fetch.stderr}`,
+			`${baseRemote} absent (depth-1 checkout) and git fetch origin ${baseRef} failed: ${fetch.stderr}`,
 		).toBe(0);
-		mb = spawnSync("git", ["merge-base", "origin/dev", "HEAD"], {
+		mb = spawnSync("git", ["merge-base", baseRemote, "HEAD"], {
 			cwd: ROOT,
 			encoding: "utf8",
 		});
