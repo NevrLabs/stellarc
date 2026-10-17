@@ -29,7 +29,7 @@ Also verified, explicitly not a finding: today's `desktop.yml` red on dev (run 3
 | **Dioxus** | **0.8.0-alpha.3 (10-16)** — second alpha in two days; 0.8 release velocity is real. Stable 0.7.10; 39,422★, trunk daily | 0.8.0-alpha.3 2026-10-16 | Apache-2.0 / MIT | 3 | **REJECT** | Unchanged — Rust stack; doesn't touch the React single-codebase decision |
 | **Flutter** | 180,245★ (+12), pushed today — steady | active 2026-10-17 | BSD-3-Clause | 5 | **REJECT** | Unchanged |
 | **Electrobun** | **2.0.3-beta.27 (10-16)** — daily beta cadence; latest stable 2.0.2 (09-29); macOS-centric | 2.0.3-beta.27 2026-10-16 | MIT | 2 | **REJECT** | Unchanged |
-| **`@axe-core/playwright`** | 4.14.0 stable stands (10-15); `rc`/`next` channels rolling 4.14.1 snapshots. Still no `axe` in the repo; NEVR-150's brief pins 4.13.0 — build against **4.14.0** | 4.14.0 2026-10-15 | MPL-2.0 | 5 | **ADOPT** (pending) | Row open until NEVR-150 is built |
+| **`@axe-core/playwright`** | 4.14.0 stable stands (10-15); `rc`/`next` channels rolling 4.14.1 snapshots. Still no `axe` in the repo; NEVR-150's brief was already amended to 4.14.0 on 10-16 (NEVR-235 triage) — build against that | 4.14.0 2026-10-15 | MPL-2.0 | 5 | **ADOPT** (pending) | Row open until NEVR-150 is built |
 
 ## Proposals
 
