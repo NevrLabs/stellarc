@@ -29,7 +29,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Flutter (180,245★, steady) | REJECT | 2026-10-17 | cross-platform-ui |
 | Lynx 4.1 (web+iOS+Android, bindings 0.128.0 10-16 pre-1.0; no desktop story yet) | WATCH | 2026-10-17 | cross-platform-ui |
 | Electrobun (beta.27 10-16, daily cadence; macOS-centric) | REJECT | 2026-10-17 | cross-platform-ui |
-| @axe-core/playwright (4.14.0 10-15 stands; NEVR-150 brief pins 4.13.0 — build against 4.14.0; row open until built) | ADOPT (pending) | 2026-10-17 | cross-platform-ui |
+| @axe-core/playwright (4.14.0 10-15 stands; NEVR-150 brief already amended to 4.14.0 on 10-16 — build against that; row open until built) | ADOPT (pending) | 2026-10-17 | cross-platform-ui |
 | effect 4.x (npm quiet: 4.0.5 stands; main carries 8 post-release fixes incl. reactivity #9320 — 4.0.6 forming; repo 17,309★ pushed 10-17) | ADOPT | 2026-10-17 | libraries |
 | T02 guard × effect/v4 PRs (guard diffs apps/stellarc-ui vs merge-base(origin/dev) → v4's own 19 UI files fail `foundation` on EVERY v4-based PR; PR #112 red w/ zero UI changes, PR #110 green on dev; brief 10-17) | ADOPT (briefed) | 2026-10-17 | libraries |
 | effect `reactivity` + @effect/atom-react (still `@stability unstable` on main 10-16; first reactivity-layer fix #9320 = use-signal, not stability) | WATCH | 2026-10-17 | libraries |
