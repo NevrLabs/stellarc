@@ -18,18 +18,18 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; no Stellarc release/tag yet — row open until verified on a release) | ADOPT (landed) | 2026-10-16 | competitors |
 | Scout P1 cost/token UI (harness-reported only; runner.ts:128 + store.ts:296 already persist; UI shows none — brief filed 10-16) | ADOPT (briefed) | 2026-10-16 | competitors |
 | Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-16 | competitors |
-| Tauri 2 (chosen shell; 2.12.4 of 10-14 stands, no new release; lockfile @2.12.3; dependabot weekly tick expected ≈10-21 — review the PR for #16197) | ADOPT | 2026-10-16 | cross-platform-ui |
-| Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-16 | cross-platform-ui |
-| tauri-runtime-cef (α.6 10-14 stands; webkitgtk tail 77 open flat — IME 9, a11y 10) | WATCH | 2026-10-16 | cross-platform-ui |
-| GPUI Kit (v0.7.3; daily commits — WebView catalog, shell bg/shadow; 17,685★; code Apache-2.0, docs CC BY 4.0) | WATCH | 2026-10-16 | cross-platform-ui |
-| Expo / React Native (SDK 58.0.12, RN 0.88.0 — both majors moved, still second stack) | REJECT | 2026-10-16 | cross-platform-ui |
-| react-native-web (0.21.4 unchanged; signal only) | REJECT | 2026-10-16 | cross-platform-ui |
-| Capacitor (8.5.3; 9.0.0-alpha.8 on next — Tauri mobile covers) | REJECT | 2026-10-16 | cross-platform-ui |
-| Dioxus (0.8.0-alpha.2 10-14; trunk daily — 0.8 in flight; stable 0.7.10) | REJECT | 2026-10-16 | cross-platform-ui |
-| Flutter (180,233★, steady) | REJECT | 2026-10-16 | cross-platform-ui |
-| Lynx 4.1 (web+iOS+Android, bindings 0.127.0 pre-1.0; no desktop story yet) | WATCH | 2026-10-16 | cross-platform-ui |
-| Electrobun (beta.26 10-15; macOS-centric) | REJECT | 2026-10-16 | cross-platform-ui |
-| @axe-core/playwright (4.14.0 10-15; NEVR-150 brief pins 4.13.0 — build against 4.14.0; row open until built) | ADOPT (pending) | 2026-10-16 | cross-platform-ui |
+| Tauri 2 (chosen shell; 2.12.4 of 10-14 stands, ZERO trunk commits since 10-15; lockfile @2.12.3; dependabot weekly tick expected ≈10-21 — review the PR for #16197) | ADOPT | 2026-10-17 | cross-platform-ui |
+| Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-17 | cross-platform-ui |
+| tauri-runtime-cef (α.6 10-14 stands; webkitgtk tail 68 open — down from 77 but only 2 closures verifiable since Oct 1, mostly search-index churn; IME/a11y sub-counts same caveat) | WATCH | 2026-10-17 | cross-platform-ui |
+| GPUI Kit (v0.7.3; IME/a11y/mobile-input sprint on trunk #3557/#3554-3562/#3556 + Native Shell #3571; 17,845★; code Apache-2.0, docs CC BY 4.0 — pattern signal for our axe floor + Linux IME) | WATCH | 2026-10-17 | cross-platform-ui |
+| Expo / React Native (SDK 58.0.14, RN 0.88.0 — patches only, still second stack) | REJECT | 2026-10-17 | cross-platform-ui |
+| react-native-web (0.21.4 unchanged; signal only) | REJECT | 2026-10-17 | cross-platform-ui |
+| Capacitor (8.5.3; 9.0.0-alpha.8 on next — Tauri mobile covers) | REJECT | 2026-10-17 | cross-platform-ui |
+| Dioxus (0.8.0-alpha.3 10-16 — second alpha in 2 days; stable 0.7.10) | REJECT | 2026-10-17 | cross-platform-ui |
+| Flutter (180,245★, steady) | REJECT | 2026-10-17 | cross-platform-ui |
+| Lynx 4.1 (web+iOS+Android, bindings 0.128.0 10-16 pre-1.0; no desktop story yet) | WATCH | 2026-10-17 | cross-platform-ui |
+| Electrobun (beta.27 10-16, daily cadence; macOS-centric) | REJECT | 2026-10-17 | cross-platform-ui |
+| @axe-core/playwright (4.14.0 10-15 stands; NEVR-150 brief pins 4.13.0 — build against 4.14.0; row open until built) | ADOPT (pending) | 2026-10-17 | cross-platform-ui |
 | effect 4.x (npm quiet: 4.0.5 stands; main carries 8 post-release fixes incl. reactivity #9320 — 4.0.6 forming; repo 17,309★ pushed 10-17) | ADOPT | 2026-10-17 | libraries |
 | T02 guard × effect/v4 PRs (guard diffs apps/stellarc-ui vs merge-base(origin/dev) → v4's own 19 UI files fail `foundation` on EVERY v4-based PR; PR #112 red w/ zero UI changes, PR #110 green on dev; brief 10-17) | ADOPT (briefed) | 2026-10-17 | libraries |
 | effect `reactivity` + @effect/atom-react (still `@stability unstable` on main 10-16; first reactivity-layer fix #9320 = use-signal, not stability) | WATCH | 2026-10-17 | libraries |
@@ -91,7 +91,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | vaul (superseded by Base UI Drawer; npm dormant since 2024-12) | REJECT | 2026-10-14 | design |
 | animate-ui (stale ~9.5 mo) | WATCH | 2026-10-14 | design |
 | @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-14 | design |
-| T02 frozen-UI guard vs design PRs #90/#91/#92/#108 (owner decision needed; day 4; escalate 10-18; #108's guard failure lists 28 files — **libraries 10-17: guard also fails every effect/v4-based PR via 19 inherited UI files, see libraries row — merge-gate mechanic, not only UI scope**) | ADOPT decision | 2026-10-17 | design |
+| T02 frozen-UI guard vs design PRs #90/#91/#92/#108 (owner decision needed; day 4; escalate 10-18; #108's guard failure lists 28 files — **fix PR #120 = NEVR-247 verified `foundation` GREEN on 10-17** (head 0497ae7, zero UI files on branch) — merge to unblock the stack; libraries 10-17 detail stands) | ADOPT decision | 2026-10-17 | cross-platform-ui |
 | desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07) | WATCH (ops) | 2026-10-15 | design |
 | shadcn community registries (pmndrs added 10-11; directory growing) | WATCH | 2026-10-14 | design |
 | shadcn CLI 4.21.5 (undici + MCP SDK security bumps, 10-14) | ADOPT (tooling hygiene) | 2026-10-14 | design |
