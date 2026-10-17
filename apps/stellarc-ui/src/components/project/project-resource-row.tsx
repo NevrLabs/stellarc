@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { Database, Github, LayoutGrid, Pencil, Trash2 } from "lucide-react";
+import { Database, LayoutGrid, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Github } from "@/components/icons/github";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
