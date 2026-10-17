@@ -39,7 +39,7 @@ The frozen-UI guard compares `apps/stellarc-ui` against `merge-base(origin/dev, 
 0.15.1 is cut on main (changelog live, npm pending) with the ordered-live-query first-window fix (#2159) — the empty-initial-result case the sync engine's windowed feeds will hit on day one. When it appears on npm, bump #112's pins 0.15.0→0.15.1 / 0.6.1→(next electric patch) before merge. Patches only; no API movement; zero `findOne`/`setWindow` call sites exist yet.
 
 ### 3. WATCH — triggers for next libraries run
-(a) **db 0.15.1 publish** — fold trigger for proposal 2. (b) **effect 4.0.6** — main carries 8 fixes incl. reactivity #9320; when it ships, NEVR-156's bump target moves. (c) **v4→dev merge** — still the biggest pending event (19/127 split; v4 itself frozen since 10-15); the day it lands, re-run the T02-guard question and the npm skew guard on whatever it bumps. (d) **@effect/vitest + hono 5 + vitest 5** — one calendar batch, unchanged. (e) **ACP 2.0.0-alpha line** — schema 2.0 alpha.9 is accumulating; one diff read when NEVR-129 resumes.
+(a) **db 0.15.1 publish** — fold trigger for proposal 2. (b) **effect 4.0.6** — main carries 8 fixes incl. reactivity #9320; when it ships, NEVR-156's bump target moves. (c) **v4→dev merge** — still the biggest pending event (12 commits ahead / 43 behind dev, 19 of the v4-side diff's files under `apps/stellarc-ui`; v4 itself frozen since 10-15); the day it lands, re-run the T02-guard question and the npm skew guard on whatever it bumps. (d) **@effect/vitest + hono 5 + vitest 5** — one calendar batch, unchanged. (e) **ACP 2.0.0-alpha line** — schema 2.0 alpha.9 is accumulating; one diff read when NEVR-129 resumes.
 
 ## Notable non-findings
 
