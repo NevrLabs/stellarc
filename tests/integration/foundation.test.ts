@@ -3,7 +3,13 @@ import {
 	isControlMessage,
 	ShapeStream,
 } from "@electric-sql/client";
-import { createCollection } from "@tanstack/db";
+import {
+	createCollection,
+	createLiveQueryCollection,
+	eq,
+	SetWindowFindOneLimitError,
+	SetWindowRequiresOrderByError,
+} from "@tanstack/db";
 import { electricCollectionOptions } from "@tanstack/electric-db-collection";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { startTestServer } from "./test-server";
@@ -690,6 +696,59 @@ test("T24 stream error behind a retrying onError keeps the collection loading an
 		console.error("T24 failure with statuses:", statuses, streamError);
 		throw error;
 	}
+});
+
+// @tanstack/db 0.15 window contract (NEVR-233): a findOne() live query keeps
+// its compiled limit of 1 — setWindow({limit: 3}) throws
+// SetWindowFindOneLimitError, and without an ORDER BY a non-zero offset
+// throws SetWindowRequiresOrderByError (the old movable-window semantics
+// are gone). Sabotage control: asserting the calls do NOT throw (the 0.14
+// expectation) turns this test red.
+test("T26 db 0.15 window contract: findOne keeps limit 1 and unordered windows stay at offset 0", async () => {
+	type Row = { id: string; n: number };
+	const rows: Row[] = [
+		{ id: "a", n: 1 },
+		{ id: "b", n: 2 },
+		{ id: "c", n: 3 },
+	];
+	const source = createCollection<Row>({
+		id: `window-probe:${crypto.randomUUID()}`,
+		getKey: (row) => row.id,
+		// 0.15 requires a sync config on every collection; this one serves the
+		// fixed row set as its snapshot, keeping the source self-contained.
+		sync: {
+			sync: ({ begin, write, commit, markReady }) => {
+				begin();
+				for (const row of rows) write({ type: "insert", value: row });
+				commit();
+				markReady();
+			},
+		},
+	});
+	const one = createLiveQueryCollection((q) =>
+		q
+			.from({ s: source })
+			.where(({ s }) => eq(s.id, "b"))
+			.findOne(),
+	);
+	resources.push(async () => {
+		await one.cleanup();
+		await source.cleanup();
+	});
+	// The compiled limit of a findOne query is 1; widening it throws.
+	expect(() => one.utils.setWindow({ limit: 3 })).toThrow(
+		SetWindowFindOneLimitError,
+	);
+	// Unordered findOne accepts only offset 0; moving it throws.
+	expect(() => one.utils.setWindow({ offset: 1 })).toThrow(
+		SetWindowRequiresOrderByError,
+	);
+	// The same window is a no-op, not an error.
+	expect(one.utils.setWindow({ limit: 1 })).toBe(true);
+	await one.preload();
+	expect(source.size).toBe(3);
+	expect(one.size).toBe(1);
+	expect([...one.values()].map((row) => row.id)).toEqual(["b"]);
 });
 
 // The 0.6 insert/update/delete labelling has two independently saboteurable
