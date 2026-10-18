@@ -1,0 +1,25 @@
+appId: dev.stellarc.mobile
+name: Mobile board columns
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Email"
+    timeout: 15000
+# Sign in (labels resolve to the inputs via label correlation).
+- tapOn: "Email"
+- inputText:
+    text: ${STELLARC_E2E_EMAIL}
+- tapOn: "Password"
+- inputText:
+    text: ${STELLARC_E2E_PASSWORD}
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Foundation Board"
+    timeout: 20000
+- tapOn: "Foundation Board"
+- extendedWaitUntil:
+    visible: "To Do"
+    timeout: 15000
+- assertVisible: "First probe"
+- takeScreenshot:
+    path: screenshots/mobile-board
