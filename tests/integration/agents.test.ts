@@ -585,6 +585,164 @@ test("B3 negative control: no budget configured → claim/finish unchanged, and 
 	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
 });
 
+// ── usage read path (NEVR-243) ──────────────────────────────────────────────
+
+test("U1 getTask serves per-attempt usage rows from agent_task_usage: merged finals, absent stays null, tokens-only never invents cost", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const t = await p.op("POST", "tasks", { agentId, prompt: "spend" });
+	expect(t.status).toBe(201);
+	const c = await claim(client);
+	const done = await executeClaimed(client, cfg, c.task);
+	expect(done.outcome).toBe("completed");
+
+	// The read path serves what the write path recorded: one row for attempt 1,
+	// token totals from the finish report, context + cost from the mid-run
+	// usage_update, COALESCE-merged into one record.
+	const r = await p.op("GET", `tasks/${t.body.id}`);
+	expect(r.status).toBe(200);
+	expect(Array.isArray(r.body.usage)).toBe(true);
+	expect(r.body.usage).toHaveLength(1);
+	const [u1] = r.body.usage;
+	expect(u1.attempt).toBe(1);
+	// merged finals (write path proven in B2): tokens from PromptResponse.usage
+	expect(u1.tokensTotal).toBe(1500);
+	expect(u1.tokensIn).toBe(1000);
+	expect(u1.tokensOut).toBe(500);
+	expect(u1.thoughtTokens).toBe(50);
+	expect(u1.cachedReadTokens).toBe(200);
+	// context + cost from the usage_update session update
+	expect(u1.contextTokens).toBe(1200);
+	expect(u1.contextWindowSize).toBe(200000);
+	expect(u1.costAmount).toBe(0.42);
+	expect(u1.costCurrency).toBe("USD");
+	// the plane reports numbers, not strings, across the JSON seam
+	for (const field of [
+		"tokensTotal",
+		"tokensIn",
+		"tokensOut",
+		"thoughtTokens",
+		"cachedReadTokens",
+		"cachedWriteTokens",
+		"contextTokens",
+		"contextWindowSize",
+		"costAmount",
+	]) {
+		expect(typeof u1[field]).toBe("number");
+	}
+	// cachedWriteTokens: the harness reported 0 — recorded as 0, not null
+	expect(u1.cachedWriteTokens).toBe(0);
+
+	// A tokens-only task (plain "echo") reports no cost anywhere: the usage
+	// row must stay absent entirely (upsertUsage skips an all-null input), so
+	// cost never serializes as 0 anywhere in the response.
+	const t2 = await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	const c2 = await claim(client);
+	await executeClaimed(client, cfg, c2.task);
+	const r2 = await p.op("GET", `tasks/${t2.body.id}`);
+	expect(r2.body.usage).toEqual([]);
+	const raw = JSON.stringify(r2.body);
+	expect(raw).not.toContain('"costAmount":0');
+	expect(raw).not.toContain('"costAmount":0.00');
+
+	// A second task with spend proves rows are per task (no cross-task leak):
+	const t3 = await p.op("POST", "tasks", { agentId, prompt: "spend" });
+	const c3 = await claim(client);
+	await executeClaimed(client, cfg, c3.task);
+	const r3 = await p.op("GET", `tasks/${t3.body.id}`);
+	expect(r3.body.usage).toHaveLength(1);
+	expect(r3.body.usage[0].attempt).toBe(1);
+	expect(r3.body.usage[0].tokensTotal).toBe(1500);
+
+	// usage_recorded remains the only write path: each spend run emitted two
+	// events (the mid-run usage item + the finish report — one upsert each,
+	// merged into one row), the echo run none.
+	const events = await p.db.sql<{ c: number }[]>`
+    SELECT count(*)::int AS c FROM event WHERE org='acme' AND plugin_type='agents:usage_recorded'`;
+	expect(Number(events[0].c)).toBe(4);
+});
+
+test("U2 getTask returns one usage row per attempt, ordered by attempt (retry path)", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	// crash is a platform.* fault → the task requeues and a second attempt
+	// claims the same task; each attempt reports its own usage.
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "spend",
+		maxAttempts: 2,
+	});
+	// Attempt 1: simulate a node that reported usage mid-run, then died with
+	// a retryable platform fault before finishing (lease expiry path).
+	const c1 = await claim(client);
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: c1.task.attempt,
+		nativeSessionId: "sess-u2",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: c1.task.attempt,
+		items: [
+			{
+				seq: 0,
+				kind: "usage",
+				body: { contextTokens: 800, contextWindowSize: 200000 },
+				occurredAt: new Date().toISOString(),
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: c1.task.attempt,
+		outcome: "failed",
+		failureCode: "platform.lease_expired",
+		failureMessage: "node went dark",
+	});
+	const mid = await p.op("GET", `tasks/${t.body.id}`);
+	expect(mid.body.task.status).toBe("queued"); // requeued, not failed out
+
+	// Attempt 2: a full spend run to completion.
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	const done = await executeClaimed(client, cfg, c2.task);
+	expect(done.outcome).toBe("completed");
+
+	const r = await p.op("GET", `tasks/${t.body.id}`);
+	expect(r.body.usage).toHaveLength(2);
+	// ordered by attempt
+	expect(r.body.usage.map((u: { attempt: number }) => u.attempt)).toEqual([
+		1, 2,
+	]);
+	// attempt 1 kept only what it reported: context from the usage item,
+	// everything else absent — null, never 0, never invented.
+	const [a1, a2] = r.body.usage;
+	expect(a1.contextTokens).toBe(800);
+	expect(a1.contextWindowSize).toBe(200000);
+	expect(a1.tokensTotal).toBeNull();
+	expect(a1.tokensIn).toBeNull();
+	expect(a1.tokensOut).toBeNull();
+	expect(a1.costAmount).toBeNull();
+	expect(a1.costCurrency).toBeNull();
+	// attempt 2 merged both sources (usage_update + finish) as in U1.
+	expect(a2.tokensTotal).toBe(1500);
+	expect(a2.costAmount).toBe(0.42);
+	expect(a2.costCurrency).toBe("USD");
+});
+
 // ── push attribution (NEVR-199) ─────────────────────────────────────────────
 
 test("P1 a run that pushes records one agents:task_pushed event per push, typed and queryable", async () => {
