@@ -5,19 +5,20 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 
 | Item | Ring | Last checked | Beat |
 |---|---|---|---|
-| Linear (unchanged 10-16; top entry still Oct 8) | WATCH | 2026-10-16 | competitors |
-| Plane (no release; security cluster on main 10-16: URL-scoped endpoints SECUR-243/247 — membership audit checklist) | TRIAL | 2026-10-16 | competitors |
-| Multica (**v0.6.3 10-16**: per-run cost bars MUL-8046, model pricing normalization MUL-8018/8050, project workflows MUL-7420; WS revocation + batch-claim recovery shipped in release) | WATCH (steal P1 cost UI) | 2026-10-16 | competitors |
-| Paseo (0.12.0-beta.1 10-16: background workspaces, phone rework, ~100 fixes; license = Apache-2.0 + third-party carve-out, corrected) | TRIAL | 2026-10-16 | competitors |
-| Cursor (unchanged 10-16; Origin marketplace top) | WATCH | 2026-10-16 | competitors |
-| Copilot coding agent (quiet 10-16; Universe Oct 28–29 = next wave) | WATCH (pattern) | 2026-10-16 | competitors |
-| OpenHands (**org move All-Hands-AI → OpenHands**; no release; fix-links updated) | WATCH | 2026-10-16 | competitors |
-| Devin (unchanged 10-16; Oct 14 release stands) | WATCH | 2026-10-16 | competitors |
-| Factory Droids (v0.243.0 10-16: kill-guard calibration — pattern kills + `rm -f` un-refused; range-reads for huge files) | WATCH | 2026-10-16 | competitors |
+| Linear (**Oct 22: Loops get Slack + GitHub triggers, workspace-shareable loop templates, per-loop reasoning levels** — automation triple: external triggers + templates + reasoning budget) | WATCH | 2026-10-23 | competitors |
+| Plane (**v1.4.3-rc2 cut 10-23** packages SECUR-247 membership-to-publish; stable pending — membership-audit checklist keeps priority for our auth pass) | TRIAL | 2026-10-23 | competitors |
+| Multica (**v0.7.0 10-23** after v0.6.4 10-20 + v0.6.5 10-21: live-run steering ×2 — Cursor hooks MUL-8070, Kiro `_session/steer` MUL-8126; `--until-pr conflicts` wakeup MUL-8135; runtime sharing w/ members MUL-8185; security cluster MUL-8138/#9421; Kiro-panic fail-fast #9458) | WATCH (steal P1 steer seam + P2 usage honesty) | 2026-10-23 | competitors |
+| Paseo (**0.12.0 stable 10-19** (agent→agent steering #5164 stable) **+ 0.13.0-beta.2 10-23: connected hosts** — agents delegate to other machines over ssh/relay, remote agents in the Subagents track; daemon-restart hygiene fixes #7573/#7683) | TRIAL | 2026-10-23 | competitors |
+| Cursor (**Oct 16: Cloud Agent Canvases** — agent-built interactive artifacts shareable by link; **Environments API beta** — programmatic agent-env lifecycle; 300-repo envs) | WATCH | 2026-10-23 | competitors |
+| Copilot coding agent (**usage metrics API now covers custom skills, agents, MCP servers 10-22** — per-entity agent metering is platform-API norm; Universe Oct 28–29 = next wave) | WATCH (pattern) | 2026-10-23 | competitors |
+| OpenHands (**v1.29→v1.33, six releases 10-20→10-23**: Agent Canvas macOS app (kiosk-lockable to Cloud); **agent-profiles own their settings** — skills/router/condenser/verification per profile; DO deploy; secrets masked in forms #18870) | WATCH | 2026-10-23 | competitors |
+| Devin (**Oct 16/19/21**: **Oncall GA** — alert-triage agents over Slack/Teams/PagerDuty w/ self-updating incident report; work-log honesty — real step summaries, no housekeeping narration; queued messages editable while idle; Bitbucket Cloud review) | WATCH | 2026-10-23 | competitors |
+| Factory Droids (v0.247.0 10-22 after v0.244–v0.246: **usage totals count every billed attempt incl. retried/refused** — honesty law adopted into our P2; env session grouping; MCP union-input + reserved-name validation) | WATCH | 2026-10-23 | competitors |
 | GitHub push attribution (durable authenticated-pusher on commits) | WATCH (steal requirement) | 2026-10-14 | competitors |
-| NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; no Stellarc release/tag yet — row open until verified on a release) | ADOPT (landed) | 2026-10-16 | competitors |
-| Scout P1 cost/token UI (harness-reported only; runner.ts:128 + store.ts:296 already persist; UI shows none — brief filed 10-16) | ADOPT (briefed) | 2026-10-16 | competitors |
-| Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-16 | competitors |
+| NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; still no Stellarc release/tag as of 10-23 — row open until verified on a release) | ADOPT (landed) | 2026-10-23 | competitors |
+| Scout P1 cost/token UI (harness-reported only; **NEVR-243 slice 1 landed dev 10-23 @c51ee3a — getTask serves per-attempt usage rows**; UI still shows none; 10-16 brief amended 10-23 with usage-honesty laws: totals sum every attempt incl. failed/refused; absent cost renders absent) | ADOPT (briefed) | 2026-10-23 | competitors |
+| Follow-up message contract for running tasks (steer-or-queue; runner.ts:478 sends exactly one prompt today; no `steer` symbol in ACP SDK 1.9.0/2.0.1 types — v1 = queue + deliver-on-turn-end, steer adapter seam for later; brief filed 10-23) | ADOPT (briefed) | 2026-10-23 | competitors |
+| Huly (commits resumed 10-19→10-23 after silence — 7 small fixes, no agent story; REJECT stands) | REJECT | 2026-10-23 | competitors |
 | Tauri 2 (chosen shell; 2.12.4 of 10-14 stands, ZERO trunk commits since 10-15; lockfile @2.12.3; dependabot weekly tick expected ≈10-21 — review the PR for #16197) | ADOPT | 2026-10-17 | cross-platform-ui |
 | Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-17 | cross-platform-ui |
 | tauri-runtime-cef (α.6 10-14 stands; webkitgtk tail 68 open — down from 77 but only 2 closures verifiable since Oct 1, mostly search-index churn; IME/a11y sub-counts same caveat) | WATCH | 2026-10-17 | cross-platform-ui |
@@ -41,7 +42,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked; unchanged; canary daily) | ADOPT | 2026-10-17 | libraries |
 | @tanstack/db 0.15.1 (cut on main 10-16 20:23, npm pending — ordered live-query first-window sync publish #2159 + eager preload settle #2173; NEVR-233/PR #112 pins 0.15.0 — fold 0.15.1 before merge) | TRIAL | 2026-10-17 | libraries |
 | @tanstack/tauri-db-sqlite-persistence 0.2.35 (claim-loss recovery; repointed to db 0.15.0) | WATCH | 2026-10-16 | libraries |
-| ACP (schema v1.26.0 + rust 1.12.0 + npm SDK 1.9.0 all 10-16 — unstable-channel only: client system-prompt schema #2361, next-edit-suggestions removed #2266; bump rides NEVR-129; 2.0.0-alpha.9 accumulating) | ADOPT bump | 2026-10-17 | libraries |
+| ACP (schema v1.26.0 + rust 1.12.0 + npm SDK 1.9.0 all 10-16; **npm 2.0.0+2.0.1 stable observed 10-23** during competitors steer-probe — no `steer` symbol in 1.9.0/2.0.1 stable types; bump rides NEVR-129) | ADOPT bump | 2026-10-23 | libraries |
 | Zero 1.11.0 (10-16: 250 commits of zero-cache ops hardening + litestream v5 + checkpointer-default — evidence Electric spares us this burden; 1.12 canary open) | WATCH | 2026-10-17 | libraries |
 | effect v4 core layout (ai/sql/graphql/rpc in core; v3-only umbrellas dead) | ADOPT hygiene | 2026-10-14 | libraries |
 | effect/ai McpServer (NEVR-185 / PR #99 MERGED to effect/v4 @bd997b7 — @modelcontextprotocol/sdk out of v4 tree) | TRIAL | 2026-10-16 | libraries |
