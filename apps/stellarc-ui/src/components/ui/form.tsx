@@ -1,6 +1,6 @@
 "use client";
 
-import { Slot } from "@radix-ui/react-slot";
+import { useRender } from "@base-ui/react/use-render";
 import * as React from "react";
 import {
   Controller,
@@ -100,21 +100,26 @@ function FormLabel({
   );
 }
 
-function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
+// Merges the control props (id, aria-*) into the single form control child,
+// replacing the former Slot primitive: the child element is cloned with the
+// merged props (child props win, handlers chain child-first).
+function FormControl({ children, ...props }: React.ComponentProps<"div">) {
   const { error, formDescriptionId, formItemId, formMessageId } =
     useFormField();
 
-  return (
-    <Slot
-      aria-describedby={
-        error ? `${formDescriptionId} ${formMessageId}` : formDescriptionId
-      }
-      aria-invalid={!!error}
-      data-slot="form-control"
-      id={formItemId}
-      {...props}
-    />
-  );
+  return useRender({
+    enabled: React.isValidElement(children),
+    props: {
+      "aria-describedby": error
+        ? `${formDescriptionId} ${formMessageId}`
+        : formDescriptionId,
+      "aria-invalid": !!error,
+      "data-slot": "form-control",
+      id: formItemId,
+      ...props,
+    },
+    render: React.isValidElement(children) ? children : undefined,
+  });
 }
 
 function FormDescription({ className, ...props }: React.ComponentProps<"p">) {

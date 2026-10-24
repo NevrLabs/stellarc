@@ -1,6 +1,6 @@
 "use client";
 
-import { Slot } from "radix-ui";
+import { useRender } from "@base-ui/react/use-render";
 import * as React from "react";
 
 import { cn } from "@/lib/cn";
@@ -93,20 +93,22 @@ interface TimelineDateProps extends React.HTMLAttributes<HTMLTimeElement> {
 function TimelineDate({
   asChild = false,
   className,
+  children,
   ...props
 }: TimelineDateProps) {
-  const Comp = asChild ? Slot.Root : "time";
-
-  return (
-    <Comp
-      className={cn(
+  return useRender({
+    defaultTagName: "time",
+    props: {
+      className: cn(
         "mb-1 block font-medium text-muted-foreground text-xs group-data-[orientation=vertical]/timeline:max-sm:h-4",
         className,
-      )}
-      data-slot="timeline-date"
-      {...props}
-    />
-  );
+      ),
+      "data-slot": "timeline-date",
+      ...props,
+      children: asChild ? undefined : children,
+    },
+    render: asChild && React.isValidElement(children) ? children : undefined,
+  });
 }
 
 // TimelineHeader
