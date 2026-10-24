@@ -81,3 +81,63 @@ jobs:
         with:
           name: ui-typecheck-diagnostics
           path: ui-typecheck.log
+
+  # NEVR-315 — @shadcn/lint design-contract trial on apps/stellarc-ui (T02
+  # relief path). Informational, does not gate: same posture as
+  # ui-typecheck-budget above. The pass itself is `bun run --cwd
+  # apps/stellarc-ui lint:design`; the existing tree carries recorded debt
+  # (design-contract-budget.json), so this step compares per-rule counts
+  # against that baseline and is green while the debt does not grow. Any
+  # net-new violation makes the step red with the rule's remediation
+  # message in the log. Lower the budget as debt is paid down; never raise it.
+  ui-design-contracts:
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Design-contract pass vs recorded budget
+        shell: bash
+        run: |
+          set +e
+          bun run --cwd apps/stellarc-ui lint:design > ui-design-contracts.log 2>&1
+          status=$?
+          set -e
+          python3 - "$status" <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          log = Path('ui-design-contracts.log').read_text()
+          status = int(sys.argv[1])
+          rules = (
+              'no-restyle', 'no-raw-colors', 'no-arbitrary-values',
+              'no-inline-styles', 'no-unknown-classes', 'require-static-classes',
+          )
+          counts = {r: len(re.findall(rf'error shadcn\({r}\)', log)) for r in rules}
+          budget_path = Path('apps/stellarc-ui/design-contract-budget.json')
+          if not budget_path.exists():
+              sys.exit('design-contract budget file missing')
+          budget = json.loads(budget_path.read_text())['by_rule']
+          # A crashed runner or a config error must not read as "clean".
+          if status not in (0, 1) or 'configuration error' in log or 'Config file' in log:
+              sys.exit(f'design-contract runner failed (oxlint exit {status})')
+          total = sum(counts.values())
+          budget_total = sum(budget.get(r, 0) for r in rules)
+          summary = 'UI design-contract findings: '
+          summary += ', '.join(f'{r} {counts[r]}/{budget.get(r, 0)}' for r in rules if counts[r] or budget.get(r))
+          summary += f'; total {total}/{budget_total} (budget in apps/stellarc-ui/design-contract-budget.json)\n'
+          print(summary)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
+              target.write(summary)
+          over = [f'{r}: {counts[r]} > budget {budget.get(r, 0)}' for r in rules if counts[r] > budget.get(r, 0)]
+          if over:
+              sys.exit('UI design-contract budget increased — ' + '; '.join(over))
+          sys.exit(0)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-design-contracts-log
+          path: ui-design-contracts.log

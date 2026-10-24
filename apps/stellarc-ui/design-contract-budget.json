@@ -1,0 +1,8 @@
+{
+	"total": 1994,
+	"by_rule": {
+		"no-restyle": 1958,
+		"no-raw-colors": 3,
+		"no-arbitrary-values": 33
+	}
+}
