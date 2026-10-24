@@ -18,18 +18,19 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; no Stellarc release/tag yet — row open until verified on a release) | ADOPT (landed) | 2026-10-16 | competitors |
 | Scout P1 cost/token UI (harness-reported only; runner.ts:128 + store.ts:296 already persist; UI shows none — brief filed 10-16) | ADOPT (briefed) | 2026-10-16 | competitors |
 | Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-16 | competitors |
-| Tauri 2 (chosen shell; 2.12.4 of 10-14 stands, ZERO trunk commits since 10-15; lockfile @2.12.3; dependabot weekly tick expected ≈10-21 — review the PR for #16197) | ADOPT | 2026-10-17 | cross-platform-ui |
-| Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-17 | cross-platform-ui |
-| tauri-runtime-cef (α.6 10-14 stands; webkitgtk tail 68 open — down from 77 but only 2 closures verifiable since Oct 1, mostly search-index churn; IME/a11y sub-counts same caveat) | WATCH | 2026-10-17 | cross-platform-ui |
-| GPUI Kit (v0.7.3; IME/a11y/mobile-input sprint on trunk #3557/#3554-3562/#3556 + Native Shell #3571; 17,845★; code Apache-2.0, docs CC BY 4.0 — pattern signal for our axe floor + Linux IME) | WATCH | 2026-10-17 | cross-platform-ui |
-| Expo / React Native (SDK 58.0.14, RN 0.88.0 — patches only, still second stack) | REJECT | 2026-10-17 | cross-platform-ui |
-| react-native-web (0.21.4 unchanged; signal only) | REJECT | 2026-10-17 | cross-platform-ui |
-| Capacitor (8.5.3; 9.0.0-alpha.8 on next — Tauri mobile covers) | REJECT | 2026-10-17 | cross-platform-ui |
-| Dioxus (0.8.0-alpha.3 10-16 — second alpha in 2 days; stable 0.7.10) | REJECT | 2026-10-17 | cross-platform-ui |
-| Flutter (180,245★, steady) | REJECT | 2026-10-17 | cross-platform-ui |
-| Lynx 4.1 (web+iOS+Android, bindings 0.128.0 10-16 pre-1.0; no desktop story yet) | WATCH | 2026-10-17 | cross-platform-ui |
-| Electrobun (beta.27 10-16, daily cadence; macOS-centric) | REJECT | 2026-10-17 | cross-platform-ui |
-| @axe-core/playwright (4.14.0 10-15 stands; NEVR-150 brief already amended to 4.14.0 on 10-16 — build against that; row open until built) | ADOPT (pending) | 2026-10-17 | cross-platform-ui |
+| Tauri 2 (chosen shell; **2.12.5 10-21** — 2.12.4 carries the #16197 IPC empty-path panic fix; trunk 41 commits since 10-15; lockfile @2.12.3 = 2 behind, missing the fix; bump rides the dependabot repair below) | ADOPT | 2026-10-24 | cross-platform-ui |
+| Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-24 | cross-platform-ui |
+| tauri-runtime-cef (α.6 10-14 stands; webkitgtk tail 78 open — churn band, wobbles 68↔78 week to week; IME 2 / a11y 0 sub-counts unchanged) | WATCH | 2026-10-24 | cross-platform-ui |
+| GPUI Kit (**v0.8.0 10-19**: gpui-shell JS runtime, gpui-webview mac/Win/Linux, `editor_host` external-editor boundary, software-keyboard config, DataTable a11y; 18,568★ +723 — design-reference stream for transcript editor + NEVR-150, not an adoption candidate) | WATCH (elevated) | 2026-10-24 | cross-platform-ui |
+| Expo / React Native (SDK 58.0.19 10-23, RN 0.88.0, 0.89 nightlies — patches only, still second stack) | REJECT | 2026-10-24 | cross-platform-ui |
+| react-native-web (0.21.4 unchanged; signal only) | REJECT | 2026-10-24 | cross-platform-ui |
+| Capacitor (8.5.3; 9.0.0-alpha.8 on next; 8.5.4 nightlies — Tauri mobile covers) | REJECT | 2026-10-24 | cross-platform-ui |
+| Dioxus (0.8.0-alpha.3 10-16 stands, no α.4; stable 0.7.10) | REJECT | 2026-10-24 | cross-platform-ui |
+| Flutter (180,353★, steady) | REJECT | 2026-10-24 | cross-platform-ui |
+| Lynx 4.1 (web+iOS+Android, bindings 0.129.0 10-23 pre-1.0; no desktop story yet) | WATCH | 2026-10-24 | cross-platform-ui |
+| Electrobun (**2.0.4 stable 10-18** — stable line restarted; 2.0.5-beta.5 10-23; macOS-centric) | REJECT | 2026-10-24 | cross-platform-ui |
+| @axe-core/playwright (4.14.0 10-15 stands; rc/next carry 4.14.1 snapshots — pin latest only; NEVR-150 still todo, build against 4.14.0; row open until built) | ADOPT (pending) | 2026-10-24 | cross-platform-ui |
+| Dependabot cargo updates (NEVR-191/PR #98 — **BROKEN**: default branch is stale `main` @2026-08-03, `.github/dependabot.yml` exists only on `dev`, dependabot reads default branch only → zero dependabot PRs ever; flip to `dev` = owner settings action; first PR should carry tauri 2.12.5/#16197; brief filed 10-24) | ADOPT (briefed) | 2026-10-24 | cross-platform-ui |
 | effect 4.x (**4.0.6 shipped 10-22**: 4 atom/reactivity fixes #9607/#9313/#9190 + `skipInitialRun` #9522, EventLog replay perf #9470, internal-import blocking #9326; main hot — #9855 HttpClientError redaction + #9829 browser OtlpProxy queued for 4.0.7; 17,367★; v4 pins 4.0.2 → fold before v4→dev merge) | ADOPT | 2026-10-24 | libraries |
 | @effect/opentelemetry 4.0.6 (v4 pins 4.0.2; folds with the effect 4.0.6 pass — ADR 0010 substrate) | ADOPT (fold) | 2026-10-24 | libraries |
 | T02 guard × effect/v4 PRs (RESOLVED: fix PR #120 merged to dev 734a548 and v4 95bb553 — guard measures PRs against their base-branch head; v4-based PRs get honest CI; row retires) | ADOPT (landed) | 2026-10-24 | libraries |
@@ -93,7 +94,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | vaul (superseded by Base UI Drawer; npm dormant since 2024-12) | REJECT | 2026-10-14 | design |
 | animate-ui (stale ~9.5 mo) | WATCH | 2026-10-14 | design |
 | @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-14 | design |
-| T02 frozen-UI guard vs design PRs #90/#91/#92/#108 (owner decision needed; day 4; escalate 10-18; #108's guard failure lists 28 files — **fix PR #120 = NEVR-247 verified `foundation` GREEN on 10-17** (head 0497ae7, zero UI files on branch) — merge to unblock the stack; libraries 10-17 detail stands) | ADOPT decision | 2026-10-17 | cross-platform-ui |
-| desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07) | WATCH (ops) | 2026-10-15 | design |
+| T02 frozen-UI guard (**PR #120 MERGED to dev 10-17 07:26** — guard fixed; design stack #90/#91/#92/#108 visible failures are stale pre-merge runs 10-13..10-15, re-run/rebase to re-evaluate; row retires once the stack is re-evaluated) | ADOPT (landed) | 2026-10-24 | cross-platform-ui |
+| desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07; run 40050240268 of 10-24 shows the same fail-closed shape) | WATCH (ops) | 2026-10-24 | cross-platform-ui |
 | shadcn community registries (pmndrs added 10-11; directory growing) | WATCH | 2026-10-14 | design |
 | shadcn CLI 4.21.5 (undici + MCP SDK security bumps, 10-14) | ADOPT (tooling hygiene) | 2026-10-14 | design |
