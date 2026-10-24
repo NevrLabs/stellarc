@@ -16,7 +16,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Factory Droids (v0.243.0 10-16: kill-guard calibration — pattern kills + `rm -f` un-refused; range-reads for huge files) | WATCH | 2026-10-16 | competitors |
 | GitHub push attribution (durable authenticated-pusher on commits) | WATCH (steal requirement) | 2026-10-14 | competitors |
 | NEVR-198 scoped permission pipeline (landed dev 10-15 @681e418; no Stellarc release/tag yet — row open until verified on a release) | ADOPT (landed) | 2026-10-16 | competitors |
-| Scout P1 cost/token UI (harness-reported only; runner.ts:128 + store.ts:296 already persist; UI shows none — brief filed 10-16) | ADOPT (briefed) | 2026-10-16 | competitors |
+| Scout P1 cost/token UI (**delivered as PR #118** NEVR-243, opened 10-16, open/mergeable — green on cargo/bundle-linux/linux-smoke, red only on the T02 policy gates + O2 signing; rides the T02 decision) | ADOPT (delivered, gated) | 2026-10-24 | competitors |
 | Huly (no commits in window; no agent story; next check Jan 2027) | REJECT | 2026-10-16 | competitors |
 | Tauri 2 (chosen shell; **2.12.5 10-21** — 2.12.4 carries the #16197 IPC empty-path panic fix; trunk 41 commits since 10-15; lockfile @2.12.3 = 2 behind, missing the fix; bump rides the dependabot repair below) | ADOPT | 2026-10-24 | cross-platform-ui |
 | Tauri 3.0-alpha (no new alpha; core α.5 10-14, npm next unchanged; no selectable-runtime PR upstream) | WATCH | 2026-10-24 | cross-platform-ui |
@@ -60,41 +60,49 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | TypeScript 7 / tsgo (7.0.2 stable; **7.1.0-beta on npm 10-20**; answer via `bun check` when NEVR-157 unblocks) | TRIAL | 2026-10-24 | libraries |
 | @sentry/node 11 (11.9.0 10-23; rides NEVR-129) | WATCH | 2026-10-24 | libraries |
 | better-auth 1.8 beta line (1.7.12 latest; 1.8.0-beta.2 10-22 — watch for the NEVR-129 batch decision) | WATCH | 2026-10-24 | libraries |
-| shadcn chat primitives (PR #91 = NEVR-170; blocked by T02 freeze guard; unchanged 10-16) | ADOPT | 2026-10-16 | design |
-| shadcn AI elements (22 patterns, 3 dialects; **delivered in-tree as PR #108 = NEVR-223**, opened 10-15; row open until merged) | ADOPT (delivered, T02-gated) | 2026-10-16 | design |
-| shadcn-ui/chatbot-template (official, MIT, 1,148★; parts-based composition = validates our `to*ElementProps` seam; steal sources-part + question-card shapes at live-data wiring) | WATCH (reference) | 2026-10-16 | design |
+| shadcn chat primitives (PR #91 = NEVR-170; open; red = T02 policy gate only — re-verified in job logs 10-24) | ADOPT | 2026-10-24 | design |
+| shadcn AI elements (22 patterns, 3 dialects; **delivered in-tree as PR #108 = NEVR-223**, opened 10-15; open — red = T02 policy gate only, re-verified 10-24) | ADOPT (delivered, T02-gated) | 2026-10-24 | design |
+| shadcn-ui/chatbot-template (official, MIT, 1,180★, pushed 10-15; parts-based composition = validates our `to*ElementProps` seam; steal sources-part + question-card shapes at live-data wiring — in flight as PR #115) | WATCH (reference) | 2026-10-24 | design |
 | `@shadcn/typeset` (NOT on npm — registry-only install; never `bun add`) | TRIAL (clarified) | 2026-10-16 | design |
 | `@shadcn/react` 0.3.1 (registry-native elements delivered in #108; remaining showcase is the chatbot template) | REJECT | 2026-10-16 | design |
 | `ui-typecheck-budget` red on PRs + dev (continue-on-error; count 429 = budget 429; informational, not a blocker) | REJECT (as blocker) | 2026-10-15 | design |
-| Base UI (`@base-ui/react` 1.9.0; IME/portal/popups PRs active; **Listbox PR #5115 = cmdk-successor trigger**, re-evaluate command palette when merged+released) | ADOPT | 2026-10-16 | design |
+| Base UI (`@base-ui/react` **1.9.0 (10-09) unchanged**; master 10-19..23 = hardening batch: IME composition dismissal #5978, popups Positioner/hover-intent #5961, portal timing #5963, dialog outside-press crash #6057, drawer iOS-27 keyboard #5897 — monthly cadence → 1.10 ≈ early Nov; **Listbox PR #5115 still open** (updated 10-16) = cmdk-successor trigger) | ADOPT | 2026-10-24 | design |
 | shadcn Typeset (streaming-safe markdown css; rides PR #91; registry-only, not on npm) | TRIAL | 2026-10-16 | design |
 | @coss registry entry in components.json (AGPL, unused; removal rides PR #92) | REJECT | 2026-10-14 | design |
 | skills/migrate-radix-to-base (shadcn method skill; used by PR #92) | ADOPT | 2026-10-14 | design |
-| Radix dep tail + components.json dialect (PR #92 = NEVR-171; blocked by T02) | ADOPT cleanup | 2026-10-14 | design |
-| motion 14 (14.3.0 10-15: stagger grid/edges/random, scaleZ; PR #90's ^14.2 covers; blocked by T02) | ADOPT bump | 2026-10-16 | design |
+| Radix dep tail + components.json dialect (PR #92 = NEVR-171; open — red = T02 policy gate only, re-verified 10-24) | ADOPT cleanup | 2026-10-24 | design |
+| motion 14 (**14.6.0 10-22** — 14.4/14.5/14.6 inside a week; PR #90's ^14.2 covers; floor now 4 minors behind) | ADOPT bump | 2026-10-24 | design |
 | lucide-react 1.x (1.61.0 10-21 — fifth release in 8 days; PR #90's ^1.56 covers) | ADOPT bump | 2026-10-24 | libraries |
 | electric-sql repo maintenance (ZERO commits since 10-06 — longest quiet since tracking began; client 1.5.28 dates 09-09; if next run agrees, raise as ADR 0007 substrate risk) | WATCH (flag) | 2026-10-24 | libraries |
 | react-day-picker 10 (rides PR #90) | TRIAL bump | 2026-10-14 | design |
 | mermaid 12.2.0 (major; PR #90 bumps ^12.2.0) | TRIAL bump | 2026-10-14 | design |
-| tweakcn (npm 13mo stale; one-shot token editor only) | WATCH (demoted) | 2026-10-15 | design |
-| streamdown (streaming markdown) | WATCH | 2026-10-14 | design |
+| tweakcn (**repo = jnsahaj/tweakcn**, 10,473★, pushed 09-03 — alive; npm 1.0.0 hit 1yr stale 2026-10-23; use the web app, not the CLI) | WATCH (demoted) | 2026-10-24 | design |
+| streamdown (streaming markdown; 2.7.1 10-19 = first release in 7 weeks; dormant-adjacent but alive) | WATCH | 2026-10-24 | design |
 | vercel/ai elements registry (folded into shadcn registry) | WATCH | 2026-10-14 | design |
-| prompt-kit (ibelick) | WATCH | 2026-10-14 | design |
+| prompt-kit (ibelick; 3,133★, pushed 09-28 — alive but slow; superseded by AI elements #108) | WATCH | 2026-10-24 | design |
 | @assistant-ui/react | REJECT | 2026-10-14 | design |
 | CopilotKit | REJECT | 2026-10-13 | design |
 | @llm-ui/react (dormant) | REJECT | 2026-10-14 | design |
 | recharts 3 via shadcn charts | WATCH | 2026-10-14 | design |
 | pragmatic-drag-and-drop (design-lane view; dnd-kit stays) | WATCH | 2026-10-14 | design |
-| shadcn-admin (satnaing, reference) | WATCH | 2026-10-14 | design |
+| shadcn-admin (satnaing, reference; 15,885★, pushed 09-10) | WATCH | 2026-10-24 | design |
 | HeroUI | REJECT | 2026-10-13 | design |
-| cmdk (dormant since 03-25; in use; successor trigger = Base UI Listbox #5115, active) | WATCH | 2026-10-17 | design |
+| cmdk (dormant 19mo — 1.1.1 dates 2025-03; in use; successor trigger = Base UI Listbox #5115, still open 10-16) | WATCH | 2026-10-24 | design |
 | shadcn DESIGN.md workflow skill (seed for post-freeze design-system merge) | TRIAL | 2026-10-14 | design |
 | shadcn named styles (8 styles × 3 dialects; `base-nova` = converged choice) | TRIAL | 2026-10-15 | design |
-| shadcn repo velocity 10-14/15: AI elements #12307, zod-4 #12298, Figma kit; CLI 4.21.5 unchanged | ADOPT (tooling hygiene) | 2026-10-15 | design |
+| shadcn repo velocity 10-18/24: CLI **4.22.1 (10-18, `add --all` style-availability fix #12360)**; week = 5 community-registry additions + Next.js Oct security fix #12433; 126,422★ | ADOPT (tooling hygiene) | 2026-10-24 | design |
 | vaul (superseded by Base UI Drawer; npm dormant since 2024-12) | REJECT | 2026-10-14 | design |
 | animate-ui (stale ~9.5 mo) | WATCH | 2026-10-14 | design |
 | @dnd-kit (no release since 2024-12; repo alive) | WATCH | 2026-10-14 | design |
-| T02 frozen-UI guard (**PR #120 MERGED to dev 10-17 07:26** — guard fixed; design stack #90/#91/#92/#108 visible failures are stale pre-merge runs 10-13..10-15, re-run/rebase to re-evaluate; row retires once the stack is re-evaluated) | ADOPT (landed) | 2026-10-24 | cross-platform-ui |
+| T02 frozen-UI guard vs design lane (**CORRECTED 10-24: it is a whole-tree policy freeze** — desktop.yml:24 `ui-purity` + desktop.test.ts:95 fail ANY PR touching `apps/stellarc-ui`; SIX PRs gated: #90/#91/#92/#108 + #115/#118 (opened 10-16, ran 21:37 pre-fix, no design PR has run against the fixed guard); re-runs stay red BY DESIGN until the owner lifts/budgets the freeze — this is Talos's decision, not a rebase; @shadcn/lint trial = the contract-governed middle path) | WATCH (policy, escalated) | 2026-10-24 | design |
 | desktop bundle-signed red on dev (APPLE_CERTIFICATE secrets missing, T07; run 40050240268 of 10-24 shows the same fail-closed shape) | WATCH (ops) | 2026-10-24 | cross-platform-ui |
-| shadcn community registries (pmndrs added 10-11; directory growing) | WATCH | 2026-10-14 | design |
-| shadcn CLI 4.21.5 (undici + MCP SDK security bumps, 10-14) | ADOPT (tooling hygiene) | 2026-10-14 | design |
+| shadcn community registries (pmndrs added 10-11; +5 additions 10-19..23; directory growing) | WATCH | 2026-10-24 | design |
+| shadcn CLI 4.21.5 (undici + MCP SDK security bumps, 10-14) — superseded by 4.22.1 row above | ADOPT (tooling hygiene) | 2026-10-14 | design |
+| **@shadcn/lint** (official agent-first design-system linter; 6 rules with agent-readable remediation: no-restyle / no-raw-colors / no-arbitrary-values / no-inline-styles / no-unknown-classes / require-static-classes; ESLint + Oxlint, Tailwind v4, React/Vue/Svelte; **0.2.3 10-19**, repo 09-02, MIT, 3,263★; constraint: we lint with Biome → dedicated Oxlint/ESLint pass scoped to apps/stellarc-ui, devDependency + 1 CI step, no runtime deps; TRIAL brief filed 10-24 = T02 relief path) | ADOPT (TRIAL briefed) | 2026-10-24 | design |
+| solid-glass (deeplethe; "design system for AI applications — material, physical, tactile"; 2,194★, pushed 10-22; aesthetic reference for agent-UI surfaces, not a dependency) | WATCH (reference) | 2026-10-24 | design |
+| hextaui (preetsuthar17; shadcn/ui components + AI blocks **built on Base UI**, with loading/error/empty states; 143★, pushed 10-23; convergent validation of PR #92's Radix→Base direction) | WATCH | 2026-10-24 | design |
+| keyline-icons (1,568 MIT icons × 8 variants on one 24×24 grid, "built for shadcn/ui"; 178★, pushed 10-20; only if lucide gaps agent/tool glyphs) | WATCH | 2026-10-24 | design |
+| affectui (flohoeller; handcrafted components + illustrations + motion for AI products, one-file copy-paste; 229★, pushed 10-24) | WATCH | 2026-10-24 | design |
+| shadscan (TheOrcDev; deterministic UI audits for shadcn apps in terminal/CI — owned-components vs registry drift; 557★, pushed 10-14; TRIAL candidate after the @shadcn/lint trial — same "what may agents change" question at file level) | WATCH | 2026-10-24 | design |
+| loora (lassejlv; canvas design tool your agent can edit; AGPL-3.0 — license-disqualified, concept-only) | REJECT (license) | 2026-10-24 | design |
+| @radix-ui/colors (3.0.0 dates 2023-10-02 — three years stale; dark-palette path = Tailwind v4 tokens + tweakcn, not a palette package) | REJECT | 2026-10-24 | design |
