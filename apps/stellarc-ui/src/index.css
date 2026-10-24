@@ -1,4 +1,20 @@
 @import "tailwindcss";
+@import "./typeset.css";
+
+/*
+ * Typeset presets (NEVR-170). The typeset.css file is owned stock from
+ * https://ui.shadcn.com/typeset; presets below are ours. typeset-chat is the
+ * tighter rhythm the docs recommend for chat bubbles.
+ */
+@layer components {
+  .typeset-chat {
+    --typeset-font-body: var(--font-sans);
+    --typeset-font-heading: var(--font-heading);
+    --typeset-font-mono: var(--font-mono);
+    --typeset-flow: 1em;
+    --typeset-leading: 1.6;
+  }
+}
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
