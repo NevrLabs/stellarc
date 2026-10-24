@@ -115,7 +115,12 @@ jobs:
               'no-restyle', 'no-raw-colors', 'no-arbitrary-values',
               'no-inline-styles', 'no-unknown-classes', 'require-static-classes',
           )
-          counts = {r: len(re.findall(rf'error shadcn\({r}\)', log)) for r in rules}
+          # Oxlint emits `path: error shadcn(rule):` locally and
+          # `::error ... title=shadcn(rule)::` under GITHUB_ACTIONS; count both.
+          counts = {
+              r: len(re.findall(rf'(?:error |title=)shadcn\({r}\)', log))
+              for r in rules
+          }
           budget_path = Path('apps/stellarc-ui/design-contract-budget.json')
           if not budget_path.exists():
               sys.exit('design-contract budget file missing')
@@ -124,6 +129,10 @@ jobs:
           if status not in (0, 1) or 'configuration error' in log or 'Config file' in log:
               sys.exit(f'design-contract runner failed (oxlint exit {status})')
           total = sum(counts.values())
+          # Fail closed: exit 1 with zero parsed findings means the run failed
+          # in a way the counters did not see (format drift, missing config).
+          if status == 1 and total == 0:
+              sys.exit('design-contract runner exited 1 but no findings were parsed')
           budget_total = sum(budget.get(r, 0) for r in rules)
           summary = 'UI design-contract findings: '
           summary += ', '.join(f'{r} {counts[r]}/{budget.get(r, 0)}' for r in rules if counts[r] or budget.get(r))

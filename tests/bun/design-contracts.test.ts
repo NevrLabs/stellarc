@@ -77,7 +77,7 @@ test("NEVR-315 CI: informational non-gating job mirrors the ui-typecheck-budget 
 		"utf8",
 	);
 	const job =
-		workflow.split("ui-design-contracts:", 2)[1]?.slice(0, 1000) ?? "";
+		workflow.split("ui-design-contracts:", 2)[1]?.slice(0, 3000) ?? "";
 	expect(job, "ui-design-contracts job exists").toContain(
 		"continue-on-error: true",
 	);
@@ -106,6 +106,10 @@ test("NEVR-315 catch behaviour: a seeded violation is reported with agent-readab
 		].join("\n"),
 	);
 	try {
+		// Strip GITHUB_ACTIONS so oxlint uses its default output format here
+		// even when the test itself runs inside a CI runner.
+		const env = { ...process.env };
+		delete env.GITHUB_ACTIONS;
 		const result = spawnSync(
 			process.execPath,
 			[
@@ -115,20 +119,20 @@ test("NEVR-315 catch behaviour: a seeded violation is reported with agent-readab
 				"--quiet",
 				"src/design-contract-probe.test-fixture.tsx",
 			],
-			{ cwd: APP, encoding: "utf8" },
+			{ cwd: APP, encoding: "utf8", env },
 		);
 		const output = `${result.stdout}\n${result.stderr}`;
 		expect(
 			result.status,
 			`oxlint must fail on the seeded file:\n${output}`,
 		).not.toBe(0);
-		expect(output).toContain("error shadcn(no-restyle)");
+		expect(output).toContain("shadcn(no-restyle)");
 		expect(output).toContain('"p-4" is not allowed on <Button>');
 		expect(output).toContain("Use a size (");
-		expect(output).toContain("error shadcn(no-raw-colors)");
+		expect(output).toContain("shadcn(no-raw-colors)");
 		expect(output).toContain("bg-pink-500");
 		expect(output).toContain("src/index.css");
-		expect(output).toContain("error shadcn(no-arbitrary-values)");
+		expect(output).toContain("shadcn(no-arbitrary-values)");
 		expect(output).toContain('"p-3.25" instead');
 	} finally {
 		rmSync(probe, { force: true });
