@@ -30,34 +30,35 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | Lynx 4.1 (web+iOS+Android, bindings 0.128.0 10-16 pre-1.0; no desktop story yet) | WATCH | 2026-10-17 | cross-platform-ui |
 | Electrobun (beta.27 10-16, daily cadence; macOS-centric) | REJECT | 2026-10-17 | cross-platform-ui |
 | @axe-core/playwright (4.14.0 10-15 stands; NEVR-150 brief already amended to 4.14.0 on 10-16 — build against that; row open until built) | ADOPT (pending) | 2026-10-17 | cross-platform-ui |
-| effect 4.x (npm quiet: 4.0.5 stands; main carries 8 post-release fixes incl. reactivity #9320 — 4.0.6 forming; repo 17,309★ pushed 10-17) | ADOPT | 2026-10-17 | libraries |
-| T02 guard × effect/v4 PRs (guard diffs apps/stellarc-ui vs merge-base(origin/dev) → v4's own 19 UI files fail `foundation` on EVERY v4-based PR; PR #112 red w/ zero UI changes, PR #110 green on dev; brief 10-17) | ADOPT (briefed) | 2026-10-17 | libraries |
-| effect `reactivity` + @effect/atom-react (still `@stability unstable` on main 10-16; first reactivity-layer fix #9320 = use-signal, not stability) | WATCH | 2026-10-17 | libraries |
-| @a2a-js/sdk 1.3 (A2A protocol; no Stellarc consumer today) | WATCH | 2026-10-15 | libraries |
-| @tanstack/trailbase-db-collection (TrailBase integration exists upstream; ADR 0007 rejection stands) | WATCH | 2026-10-15 | libraries |
+| effect 4.x (**4.0.6 shipped 10-22**: 4 atom/reactivity fixes #9607/#9313/#9190 + `skipInitialRun` #9522, EventLog replay perf #9470, internal-import blocking #9326; main hot — #9855 HttpClientError redaction + #9829 browser OtlpProxy queued for 4.0.7; 17,367★; v4 pins 4.0.2 → fold before v4→dev merge) | ADOPT | 2026-10-24 | libraries |
+| @effect/opentelemetry 4.0.6 (v4 pins 4.0.2; folds with the effect 4.0.6 pass — ADR 0010 substrate) | ADOPT (fold) | 2026-10-24 | libraries |
+| T02 guard × effect/v4 PRs (RESOLVED: fix PR #120 merged to dev 734a548 and v4 95bb553 — guard measures PRs against their base-branch head; v4-based PRs get honest CI; row retires) | ADOPT (landed) | 2026-10-24 | libraries |
+| effect `reactivity` + @effect/atom-react (still `@stability unstable` on main 10-23 `Atom.ts:11`; 4.0.6 carried 4 atom fixes + `skipInitialRun` — active use upstream, not graduated; zero atom-react consumers in v4 tree) | WATCH | 2026-10-24 | libraries |
+| @a2a-js/sdk 1.3.0 (A2A protocol; unchanged, no Stellarc consumer today) | WATCH | 2026-10-24 | libraries |
+| @tanstack/trailbase-db-collection 0.1.123 (TrailBase integration exists upstream; ADR 0007 rejection stands) | WATCH | 2026-10-24 | libraries |
 | @effect/sql-drizzle (removed upstream in v4) | REJECT | 2026-10-13 | libraries |
-| packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156) | ADOPT | 2026-10-15 | libraries |
-| effect `eventlog` module (SqlEventJournal; unstable; unchanged 4.0.0→4.0.5) | WATCH | 2026-10-15 | libraries |
-| Bun 1.4.3 (`bun check`, FetchSession, idle CPU; brief = NEVR-157 blocked; unchanged; canary daily) | ADOPT | 2026-10-17 | libraries |
-| @tanstack/db 0.15.1 (cut on main 10-16 20:23, npm pending — ordered live-query first-window sync publish #2159 + eager preload settle #2173; NEVR-233/PR #112 pins 0.15.0 — fold 0.15.1 before merge) | TRIAL | 2026-10-17 | libraries |
-| @tanstack/tauri-db-sqlite-persistence 0.2.35 (claim-loss recovery; repointed to db 0.15.0) | WATCH | 2026-10-16 | libraries |
-| ACP (schema v1.26.0 + rust 1.12.0 + npm SDK 1.9.0 all 10-16 — unstable-channel only: client system-prompt schema #2361, next-edit-suggestions removed #2266; bump rides NEVR-129; 2.0.0-alpha.9 accumulating) | ADOPT bump | 2026-10-17 | libraries |
-| Zero 1.11.0 (10-16: 250 commits of zero-cache ops hardening + litestream v5 + checkpointer-default — evidence Electric spares us this burden; 1.12 canary open) | WATCH | 2026-10-17 | libraries |
+| packages/drizzle-effect (owned v4 bridge; on effect/v4; tests = NEVR-156; upstream drizzle now carries `effect`/`drizzle-effect` dist-tag channels — check bridge overlap after 1.0 GA) | ADOPT | 2026-10-24 | libraries |
+| effect `eventlog` module (#9470 in 4.0.6 reuses decoded conflict payloads in remote replay — first perf pass; still `@stability unstable`) | WATCH | 2026-10-24 | libraries |
+| Bun 1.4.4 (10-22: `bun fmt` Prettier-compatible built-in formatter — Biome here, so not a swap; pnpm-like peers, ~3× warm Linux installs, security fixes; brief = NEVR-157 still blocked, content refreshed 10-24) | ADOPT | 2026-10-24 | libraries |
+| @tanstack/db 0.15.2 + electric-db-collection 0.6.3 (0.15.1 10-18 = ordered-window correctness set #2159/#2154/#2173; 0.15.2 10-21 = persisted-write visibility #2208 + SerializationError #2207; PR #112 merged into effect/v4 pinning 0.15.0/0.6.1 — fold pass before v4→dev merge) | TRIAL | 2026-10-24 | libraries |
+| @tanstack/tauri-db-sqlite-persistence 0.2.37 (claim-loss recovery cohort; tracks db 0.15.x) | WATCH | 2026-10-24 | libraries |
+| ACP (SDK **2.0.0 GA 10-19, 2.0.2 current — BREAKING**: legacy connection classes removed → agent()/client() apps; our 2 call sites = runner.ts:297 ClientSideConnection + fake-acp-agent.ts:63 AgentSideConnection; protocol default stays v1, unstable behind /unstable; 1.x frozen at 1.9.0; SDK repo = agentclientprotocol/typescript-sdk; schema v1.26.0 + 2.0.0-alpha.9 unchanged; migration brief filed 10-24 as NEVR-309 — NEVR-129 cancelled, folds into NEVR-258 if that unblocks first) | ADOPT (briefed) | 2026-10-24 | libraries |
+| Zero 1.11.3 (stable patches continue; 1.12 canary.7 — ops hardening evidence for ADR 0007's Electric choice) | WATCH | 2026-10-24 | libraries |
 | effect v4 core layout (ai/sql/graphql/rpc in core; v3-only umbrellas dead) | ADOPT hygiene | 2026-10-14 | libraries |
 | effect/ai McpServer (NEVR-185 / PR #99 MERGED to effect/v4 @bd997b7 — @modelcontextprotocol/sdk out of v4 tree) | TRIAL | 2026-10-16 | libraries |
-| drizzle-orm 1.0 line (npm `rc` tag is rc.4; rc.5-* are suffixed builds, no installable rc.5; bridge stays) | WATCH | 2026-10-17 | libraries |
-| jazz-tools (correction: 0.20.19 + 2.0-alpha; not 1.2.0) | REJECT | 2026-10-17 | libraries |
+| drizzle-orm 1.0 line (**rc.5 installable 10-21**, `rc` tag moved off rc.4; latest still 0.45.4 — GA watch live; on GA: bridge-rebase decision + upstream `effect` channel check) | WATCH | 2026-10-24 | libraries |
+| jazz-tools (0.20.19 + 2.0-alpha; unchanged, no consumer) | REJECT | 2026-10-24 | libraries |
 | pragmatic-drag-and-drop 4.0 (major velocity warning) | WATCH | 2026-10-14 | libraries |
-| virtua (dnd/list virtualization alternative) | WATCH | 2026-10-17 | libraries |
+| virtua 0.53.6 (dnd/list virtualization alternative; routine) | WATCH | 2026-10-24 | libraries |
 | effect-lens (single-author 0★ repo, no release since 10-02 — not an ecosystem signal; demoted) | REJECT | 2026-10-16 | libraries |
-| effect v3 line (3.22.3 10-16 stands; dev pins 3.22.0; fold into next dev dep pass) | ADOPT (v3 patch) | 2026-10-17 | libraries |
-| LiveStore 0.5.0 stable (10-15; one post-release merge #1679; Effect-4 cohort 4.0.3 — ADR 0007 fallback, not parallel trial) | WATCH (elevated) | 2026-10-17 | libraries |
-| @effect/vitest 4.0.5 (peer vitest >=5 <6; dev+v4 pin vitest 4.1.10 — gated on Vitest 5 major; calendar with hono 5 batch) | WATCH (gated) | 2026-10-17 | libraries |
+| effect v3 line (**3.22.4 10-22**: `Cause.Fail` serializes under `error` not `failure` — grep serialized-cause consumers before folding; dev pins 3.22.0) | ADOPT (v3 patch) | 2026-10-24 | libraries |
+| LiveStore 0.5.0 stable (0.5.0-dev.1 tag open; repo pushed 10-19; snapshots daily — ADR 0007 fallback, not parallel trial) | WATCH (elevated) | 2026-10-24 | libraries |
+| @effect/vitest 4.0.6 (peer vitest >=5 <6; vitest 5.0.5 stable + 5.1.0-beta.1 opened 10-19 — batch with hono 5 / TS 7.1) | WATCH (gated) | 2026-10-24 | libraries |
 | effect npm publish skew (RESOLVED 10-15; guard retired — verify core resolves before any effect bump) | ADOPT (resolved) | 2026-10-16 | libraries |
-| hono 5.0.0-rc line (rc.1 on `next`; calendar with vite/vitest majors + @effect/vitest vitest-5 gate) | WATCH | 2026-10-17 | libraries |
-| TypeScript 7 / tsgo (7.0.2 stable; 7.1-dev dailies; answer via `bun check`) | TRIAL | 2026-10-17 | libraries |
-| @sentry/node 11 (11.8.0 10-15; rides NEVR-129) | WATCH | 2026-10-17 | libraries |
-| better-auth 1.8 beta line (1.8.0-beta.1 opened 10-16; 1.7.10 latest — watch for the NEVR-129 batch decision) | WATCH | 2026-10-17 | libraries |
+| hono 5.0.0-rc line (rc.1 on `next` unchanged; 4.13.13 latest; calendar with vite/vitest majors + TS 7.1) | WATCH | 2026-10-24 | libraries |
+| TypeScript 7 / tsgo (7.0.2 stable; **7.1.0-beta on npm 10-20**; answer via `bun check` when NEVR-157 unblocks) | TRIAL | 2026-10-24 | libraries |
+| @sentry/node 11 (11.9.0 10-23; rides NEVR-129) | WATCH | 2026-10-24 | libraries |
+| better-auth 1.8 beta line (1.7.12 latest; 1.8.0-beta.2 10-22 — watch for the NEVR-129 batch decision) | WATCH | 2026-10-24 | libraries |
 | shadcn chat primitives (PR #91 = NEVR-170; blocked by T02 freeze guard; unchanged 10-16) | ADOPT | 2026-10-16 | design |
 | shadcn AI elements (22 patterns, 3 dialects; **delivered in-tree as PR #108 = NEVR-223**, opened 10-15; row open until merged) | ADOPT (delivered, T02-gated) | 2026-10-16 | design |
 | shadcn-ui/chatbot-template (official, MIT, 1,148★; parts-based composition = validates our `to*ElementProps` seam; steal sources-part + question-card shapes at live-data wiring) | WATCH (reference) | 2026-10-16 | design |
@@ -70,7 +71,8 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | skills/migrate-radix-to-base (shadcn method skill; used by PR #92) | ADOPT | 2026-10-14 | design |
 | Radix dep tail + components.json dialect (PR #92 = NEVR-171; blocked by T02) | ADOPT cleanup | 2026-10-14 | design |
 | motion 14 (14.3.0 10-15: stagger grid/edges/random, scaleZ; PR #90's ^14.2 covers; blocked by T02) | ADOPT bump | 2026-10-16 | design |
-| lucide-react 1.x (1.58.0 10-16 — fourth release in five days; PR #90's ^1.56 covers) | ADOPT bump | 2026-10-17 | libraries |
+| lucide-react 1.x (1.61.0 10-21 — fifth release in 8 days; PR #90's ^1.56 covers) | ADOPT bump | 2026-10-24 | libraries |
+| electric-sql repo maintenance (ZERO commits since 10-06 — longest quiet since tracking began; client 1.5.28 dates 09-09; if next run agrees, raise as ADR 0007 substrate risk) | WATCH (flag) | 2026-10-24 | libraries |
 | react-day-picker 10 (rides PR #90) | TRIAL bump | 2026-10-14 | design |
 | mermaid 12.2.0 (major; PR #90 bumps ^12.2.0) | TRIAL bump | 2026-10-14 | design |
 | tweakcn (npm 13mo stale; one-shot token editor only) | WATCH (demoted) | 2026-10-15 | design |
