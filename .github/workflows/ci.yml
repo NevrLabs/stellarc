@@ -150,3 +150,26 @@ jobs:
         with:
           name: ui-design-contracts-log
           path: ui-design-contracts.log
+
+  # NEVR-332 — onsystem diff-scoped design-system trial. Informational, does
+  # not gate: same posture as ui-typecheck-budget and ui-design-contracts
+  # above. Where those check the whole tree, dgesteves/onsystem checks ONLY
+  # the lines a pull request changes (its only-changed-lines default) for raw
+  # palette colors, native elements the design system replaces, and
+  # design-system APIs the app lacks — zero-config for a shadcn/ui app, so
+  # working-directory is the only input it needs. No bun install: the action
+  # runs its pinned CLI through npx. Green, red, or no-findings are all trial
+  # evidence; verdict recorded on NEVR-332.
+  onsystem-diff:
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The action diffs the PR against event.pull_request.base.sha
+          # itself; a full checkout keeps that reliable.
+          fetch-depth: 0
+      - name: onsystem — diff-scoped design-system check
+        uses: dgesteves/onsystem@v0
+        with:
+          working-directory: apps/stellarc-ui
