@@ -173,3 +173,7 @@ jobs:
         uses: dgesteves/onsystem@v0
         with:
           working-directory: apps/stellarc-ui
+          # NEVR-332 seed probe (scratch branch only): the raw-color seed
+          # lands as warnings, so fail-on: error stays green. Probe whether
+          # fail-on: warning makes the step red on the seeded diff.
+          fail-on: warning
