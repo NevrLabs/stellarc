@@ -9,6 +9,18 @@
 # passes. So the app process is located directly (pgrep, mount-aware: an
 # AppImage payload runs from /tmp/.mount_<…>/<bin>) and all signal/clean-exit
 # asserts target THAT pid; the wrapper is only reaped afterwards.
+#
+# NEVR-328: the launch + startup-assert sequence gets exactly one bounded
+# retry. The 2026-10-25 red (run 40173716961) was a one-off startup race —
+# the app died before emitting a byte, so the existing `cat "$log"` printed
+# nothing and a single flake red the job. Now: an attempt-1 failure prints
+# WARN + the reason + the log's byte count + the full log, reaps that
+# attempt's app/wrapper/Xvfb processes (D4 holds between attempts), backs
+# off 10 s and retries once; a second failure keeps the pre-existing FAIL
+# semantics (job red). Every failure-path log dump is preceded by its byte
+# count, so an empty log reads unambiguously as "app died pre-output".
+# A green first attempt is byte-identical to the pre-retry script: same
+# PASS line, no WARN, no retry artifacts.
 set -euo pipefail
 
 binary="${1:-}"
@@ -21,9 +33,10 @@ fi
 binary_abs="$(readlink -f "$binary")"
 # Payload process name inside an AppImage mount (cargo bin name by default).
 app_bin_name="${APP_BIN_NAME:-stellarc-desktop}"
-log="$(mktemp)"
+log=""
 wrapper_pid=""
 app_pid=""
+FAIL_REASON=""
 
 # pids of the real app: cmdline is the binary path itself, or the mounted
 # AppImage payload (…/.mount_*/<app_bin_name>).
@@ -34,85 +47,157 @@ find_app_pids() {
 	} | sort -u | grep -v -x -F "$wrapper_pid" || true
 }
 
-cleanup() {
+log_bytes() {
+	wc -c <"$log" | tr -d '[:space:]'
+}
+
+# NEVR-328: failure-path log dump, self-describing about emptiness — the byte
+# count distinguishes "app died pre-output" (0 bytes) from a missing or
+# unreadable log without re-pulling the workflow log.
+dump_log() {
+	echo "app log ($(log_bytes) bytes) follows:" >&2
+	cat "$log" >&2
+}
+
+# Reap one attempt's processes so nothing survives into the next attempt or
+# past script exit (D4): the app first — the wrapper exits once its client is
+# gone and takes its Xvfb with it — then a TERM/KILL fallback on the wrapper
+# itself, then any child a killed wrapper could no longer clean up after
+# (tracked by ppid snapshot, so some sibling's Xvfb is never touched), then
+# the last-resort pattern sweeps.
+kill_attempt() {
+	local pid wrapper_children
 	if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
 		kill -9 "$app_pid" 2>/dev/null || true
 	fi
 	if [[ -n "$wrapper_pid" ]] && kill -0 "$wrapper_pid" 2>/dev/null; then
-		kill -9 "$wrapper_pid" 2>/dev/null || true
+		wrapper_children="$(pgrep -P "$wrapper_pid" 2>/dev/null || true)"
+		kill -TERM "$wrapper_pid" 2>/dev/null || true
+		for _ in $(seq 1 10); do
+			kill -0 "$wrapper_pid" 2>/dev/null || break
+			sleep 1
+		done
+		if kill -0 "$wrapper_pid" 2>/dev/null; then
+			kill -9 "$wrapper_pid" 2>/dev/null || true
+		fi
+		for pid in $wrapper_children; do
+			if kill -0 "$pid" 2>/dev/null; then
+				kill -9 "$pid" 2>/dev/null || true
+			fi
+		done
 	fi
 	# Last-resort orphan sweep on any exit path.
 	pkill -9 -f -- "$binary_abs" 2>/dev/null || true
 	pkill -9 -f -- ".mount_.*${app_bin_name}" 2>/dev/null || true
-	rm -f "$log"
+}
+
+cleanup() {
+	kill_attempt
+	[[ -n "$log" ]] && rm -f "$log" || true
 }
 trap cleanup EXIT
 
-# xvfb-run supplies the X display the GTK/WebKitGTK shell needs headless.
-xvfb-run -a "$binary_abs" >"$log" 2>&1 &
-wrapper_pid=$!
+# NEVR-328: one launch attempt = spawn the wrapper, locate the real app pid,
+# assert the two structured startup lines. State lives in the globals
+# (log/wrapper_pid/app_pid) so the caller can reap a failed attempt; on
+# failure returns 1 with FAIL_REASON holding the pre-existing FAIL text.
+launch_attempt() {
+	wrapper_pid=""
+	app_pid=""
+	log="$(mktemp)"
 
-# Wait for the actual app process to exist (mount + exec can take a moment).
-deadline=$((SECONDS + 30))
-while :; do
-	app_pids="$(find_app_pids)"
-	if [[ -n "$app_pids" ]]; then
-		app_pid="$(printf '%s\n' "$app_pids" | head -1)"
-		break
+	# xvfb-run supplies the X display the GTK/WebKitGTK shell needs headless.
+	xvfb-run -a "$binary_abs" >"$log" 2>&1 &
+	wrapper_pid=$!
+
+	# Wait for the actual app process to exist (mount + exec can take a moment).
+	local deadline=$((SECONDS + 30))
+	while :; do
+		local app_pids
+		app_pids="$(find_app_pids)"
+		if [[ -n "$app_pids" ]]; then
+			app_pid="$(printf '%s\n' "$app_pids" | head -1)"
+			break
+		fi
+		if ((SECONDS >= deadline)); then
+			FAIL_REASON="app process never appeared under xvfb (looked for ${binary_abs} or .mount_*/${app_bin_name})"
+			return 1
+		fi
+		sleep 1
+	done
+
+	# WebKitGTK first init under xvfb (software GL) can be slow; 60s is ample.
+	deadline=$((SECONDS + 60))
+	local created=0
+	while ((SECONDS < deadline)); do
+		if grep -q "event=window-created" "$log"; then
+			created=1
+			break
+		fi
+		if ! kill -0 "$app_pid" 2>/dev/null; then
+			FAIL_REASON="app pid $app_pid died before creating a window"
+			return 1
+		fi
+		sleep 1
+	done
+
+	if [[ "$created" != 1 ]]; then
+		FAIL_REASON="window-created line never appeared"
+		return 1
 	fi
-	if ((SECONDS >= deadline)); then
-		echo "FAIL: app process never appeared under xvfb (looked for ${binary_abs} or .mount_*/${app_bin_name})" >&2
-		tail -8 "$log" >&2 || true
+
+	# Rework defect 4: the probe runs off-thread with a 2 s timeout, so a
+	# slow-but-alive origin can log AFTER window-created - poll with the same
+	# deadline pattern as window-created instead of grepping once.
+	deadline=$((SECONDS + 15))
+	local probed=0
+	while ((SECONDS < deadline)); do
+		if grep -q "event=health-probe" "$log"; then
+			probed=1
+			break
+		fi
+		if ! kill -0 "$app_pid" 2>/dev/null; then
+			FAIL_REASON="app pid $app_pid died before the health-probe line"
+			return 1
+		fi
+		sleep 1
+	done
+
+	if [[ "$probed" != 1 ]]; then
+		FAIL_REASON="health-probe line never appeared"
+		return 1
+	fi
+}
+
+# NEVR-328: run the launch sequence at most twice — one bounded retry for a
+# one-off startup race, then the pre-existing FAIL semantics (job red).
+attempts=2
+attempt=1
+until launch_attempt; do
+	if ((attempt >= attempts)); then
+		echo "FAIL: $FAIL_REASON" >&2
+		dump_log
 		exit 1
 	fi
-	sleep 1
-done
-
-# WebKitGTK first init under xvfb (software GL) can be slow; 60s is ample.
-deadline=$((SECONDS + 60))
-created=0
-while ((SECONDS < deadline)); do
-	if grep -q "event=window-created" "$log"; then
-		created=1
-		break
-	fi
-	if ! kill -0 "$app_pid" 2>/dev/null; then
-		echo "FAIL: app pid $app_pid died before creating a window" >&2
-		cat "$log" >&2
-		exit 1
-	fi
-	sleep 1
-done
-
-if [[ "$created" != 1 ]]; then
-	echo "FAIL: window-created line never appeared" >&2
+	echo "WARN: launch attempt $attempt failed ($FAIL_REASON); app log ($(log_bytes) bytes) follows:" >&2
 	cat "$log" >&2
-	exit 1
-fi
-
-# Rework defect 4: the probe runs off-thread with a 2 s timeout, so a
-# slow-but-alive origin can log AFTER window-created - poll with the same
-# deadline pattern as window-created instead of grepping once.
-deadline=$((SECONDS + 15))
-probed=0
-while ((SECONDS < deadline)); do
-	if grep -q "event=health-probe" "$log"; then
-		probed=1
-		break
-	fi
-	if ! kill -0 "$app_pid" 2>/dev/null; then
-		echo "FAIL: app pid $app_pid died before the health-probe line" >&2
-		cat "$log" >&2
+	kill_attempt
+	# D4 between attempts: nothing from the failed attempt may survive into
+	# the retry — the sweep above must have reaped the app and the wrapper.
+	orphans="$(find_app_pids)"
+	if [[ -n "$orphans" ]]; then
+		echo "FAIL: orphaned app process survived failed attempt $attempt:" >&2
+		printf '%s\n' "$orphans" >&2
 		exit 1
 	fi
-	sleep 1
+	wrapper_pid=""
+	app_pid=""
+	[[ -n "$log" ]] && rm -f "$log" || true
+	log=""
+	echo "WARN: retrying launch in 10s (attempt $((attempt + 1)) of $attempts)" >&2
+	sleep 10
+	attempt=$((attempt + 1))
 done
-
-if [[ "$probed" != 1 ]]; then
-	echo "FAIL: health-probe line never appeared" >&2
-	cat "$log" >&2
-	exit 1
-fi
 
 # SIGTERM must terminate the app cleanly (no SIGKILL fallback needed). This is
 # the APP pid — not the xvfb-run wrapper (that is the D4 defect).
