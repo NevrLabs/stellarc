@@ -21,6 +21,17 @@
 # count, so an empty log reads unambiguously as "app died pre-output".
 # A green first attempt is byte-identical to the pre-retry script: same
 # PASS line, no WARN, no retry artifacts.
+#
+# NEVR-378: xvfb-run is itself a shell script, and the subshell it forks to
+# exec Xvfb — `(trap '' USR1; exec Xvfb …) &` — keeps the WRAPPER's argv
+# ("…xvfb-run -a $binary") until the exec. A bare pgrep -f match could hand
+# back that staging pid instead of the app's; when Xvfb died mid-attempt the
+# script saw a phantom launch failure (WARN leaked into a green retry,
+# run 40745334942), and when it died between the health-probe assert and the
+# SIGTERM the bare `kill -TERM` crashed under set -e with no FAIL line
+# (run 40834488557). find_app_pids now refuses wrapper-shaped pids, and an
+# app that dies in that gap FAILs with the standard reason + byte-counted
+# dump instead of crashing.
 set -euo pipefail
 
 binary="${1:-}"
@@ -39,12 +50,25 @@ app_pid=""
 FAIL_REASON=""
 
 # pids of the real app: cmdline is the binary path itself, or the mounted
-# AppImage payload (…/.mount_*/<app_bin_name>).
+# AppImage payload (…/.mount_*/<app_bin_name>). NEVR-378: any pid whose argv
+# still mentions the xvfb-run wrapper is the wrapper shell or its transient
+# Xvfb-staging fork (both carry "…xvfb-run -a $binary"), never the app.
+is_xvfb_wrapper_pid() {
+	local cmdline
+	cmdline="$(tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null)" || return 0
+	[[ "$cmdline" == *xvfb-run* ]]
+}
+
 find_app_pids() {
+	local pid
 	{
 		pgrep -f -- "$binary_abs" 2>/dev/null || true
 		pgrep -f -- ".mount_.*${app_bin_name}" 2>/dev/null || true
-	} | sort -u | grep -v -x -F "$wrapper_pid" || true
+	} | sort -u | while IFS= read -r pid; do
+		if [[ "$pid" == "$wrapper_pid" ]]; then continue; fi
+		if is_xvfb_wrapper_pid "$pid"; then continue; fi
+		printf '%s\n' "$pid"
+	done || true
 }
 
 log_bytes() {
@@ -201,8 +225,17 @@ done
 
 # SIGTERM must terminate the app cleanly (no SIGKILL fallback needed). This is
 # the APP pid — not the xvfb-run wrapper (that is the D4 defect).
+#
+# NEVR-378: an app that dies in the gap between the health-probe assert and
+# this TERM is not a clean launch — fail with the standard semantics (reason
+# + byte-counted dump) instead of the bare `kill: No such process` crash
+# set -e produced (run 40834488557).
 clean_exit=0
-kill -TERM "$app_pid"
+if ! kill -TERM "$app_pid" 2>/dev/null; then
+	echo "FAIL: app pid $app_pid died before SIGTERM (after health-probe)" >&2
+	dump_log
+	exit 1
+fi
 for _ in $(seq 1 10); do
 	if ! kill -0 "$app_pid" 2>/dev/null; then
 		clean_exit=1

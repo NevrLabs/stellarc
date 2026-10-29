@@ -17,6 +17,16 @@ import { join } from "node:path";
  * and invoked with a RELATIVE app path from a scratch cwd, mirroring how the
  * workflow invokes it (`bash desktop/scripts/launch-smoke.sh "$bin"`) so the
  * script's own argv never matches its pgrep pattern.
+ *
+ * NEVR-378 — two more tests for the Foundation flake (2 of 4 dev-adjacent
+ * runs red on the green-launch case). Root cause: xvfb-run is a shell script
+ * and starts Xvfb via `(trap '' USR1; exec Xvfb …) &`; until the exec that
+ * subshell carries the WRAPPER's argv (`…xvfb-run -a <app>`), so pgrep -f
+ * "<app>" can hand the launcher the staging pid instead of the app's. When
+ * Xvfb dies mid-attempt the script sees a phantom launch failure (WARN leak
+ * into a green retry, run 40745334942); when it dies between the health-probe
+ * assert and the SIGTERM, the bare `kill -TERM` crashes the script under
+ * `set -e` with no FAIL line at all (run 40834488557).
  */
 
 const repoRoot = join(import.meta.dir, "..", "..");
@@ -26,11 +36,12 @@ const hasDeps =
 	spawnSync("bash", ["-c", "command -v xvfb-run pgrep >/dev/null"]).status ===
 	0;
 
-function runSmoke(dir: string, app: string) {
+function runSmoke(dir: string, app: string, env?: NodeJS.ProcessEnv) {
 	const res = spawnSync("bash", [script, `./${app}`], {
 		cwd: dir,
 		encoding: "utf8",
 		timeout: 150_000,
+		env: env ?? process.env,
 	});
 	return { code: res.status ?? -1, out: `${res.stdout}\n${res.stderr}` };
 }
@@ -62,10 +73,52 @@ function standIns() {
 			"",
 		].join("\n"),
 	);
-	for (const app of ["good-app", "race-death-app"]) {
+	// Gap-death stand-in (NEVR-378): both startup lines appear, then the app
+	// dies BEFORE the launcher's SIGTERM can arrive — health-probe lands 1.5s
+	// after window-created so the poll loops are past their liveness checks
+	// when the death occurs, and the exit (~1ms after the probe echo) always
+	// beats the TERM (which follows one more grep fork+exec, ≥5ms later).
+	writeFileSync(
+		join(dir, "gap-death-app"),
+		[
+			"#!/usr/bin/env bash",
+			'echo "event=window-created"',
+			"sleep 1.5",
+			'echo "event=health-probe"',
+			"exit 0",
+			"",
+		].join("\n"),
+	);
+	for (const app of ["good-app", "race-death-app", "gap-death-app"]) {
 		chmodSync(join(dir, app), 0o755);
 	}
 	return dir;
+}
+
+// NEVR-378: PATH-shim stand-in for xvfb-run. The real one is a /bin/sh script
+// whose Xvfb-staging subshell `(trap '' USR1; exec Xvfb …) &` keeps the
+// wrapper argv — `…xvfb-run -a <app>` — until the exec, so pgrep -f "<app>"
+// matches it. This shim forks one such transient wrapper-shaped pid (living
+// ~2s, like an Xvfb that dies mid-run) and then runs the client as a child,
+// exactly like the real script's `"$@"` foreground client.
+function xvfbRunShim(dir: string) {
+	writeFileSync(
+		join(dir, "xvfb-run"),
+		[
+			"#!/usr/bin/env bash",
+			"# NEVR-378 stand-in wrapper: transient wrapper-shaped pid + real client.",
+			'if [[ "$1" == "-a" ]]; then shift; fi',
+			"( sleep 2; : ) &",
+			"staging_pid=$!",
+			'"$@"',
+			"status=$?",
+			'kill "$staging_pid" 2>/dev/null || true',
+			'wait "$staging_pid" 2>/dev/null || true',
+			'exit "$status"',
+			"",
+		].join("\n"),
+	);
+	chmodSync(join(dir, "xvfb-run"), 0o755);
 }
 
 const it = test.skipIf(!hasDeps);
@@ -116,4 +169,61 @@ it(
 		}
 	},
 	{ timeout: 150_000 },
+);
+
+it(
+	"wrapper-fork race (NEVR-378): a transient xvfb-run staging pid is never taken for the app",
+	() => {
+		const dir = standIns();
+		xvfbRunShim(dir);
+		try {
+			// The shim's staging subshell carries the wrapper argv (so pgrep
+			// matches it like the real Xvfb-staging fork) and outlives the
+			// launch asserts before dying — the 10-28/10-29 CI red shape.
+			const { code, out } = runSmoke(dir, "good-app", {
+				...process.env,
+				PATH: `${dir}:${process.env.PATH ?? ""}`,
+			});
+
+			// The staging pid must be invisible to the whole run: still a
+			// clean PASS with no retry artifacts.
+			expect(code, out).toBe(0);
+			expect(out).toMatch(
+				/^PASS: window-created \+ health-probe logged; app pid \d+ exited cleanly on SIGTERM; no orphaned app process$/m,
+			);
+			expect(out).not.toContain("WARN");
+			expect(out).not.toContain("attempt 2");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	},
+	{ timeout: 90_000 },
+);
+
+it(
+	"gap death after health-probe (NEVR-378): FAIL with reason and byte-counted dump, not a bare crash",
+	() => {
+		const dir = standIns();
+		try {
+			const { code, out } = runSmoke(dir, "gap-death-app");
+
+			// The app died before the SIGTERM step: a failing launch, but it
+			// must FAIL loudly — never the bare `kill: No such process`
+			// set -e crash the 10-29 red showed (run 40834488557).
+			expect(code, out).toBe(1);
+			expect(out).toMatch(
+				/^FAIL: app pid \d+ died before SIGTERM \(after health-probe\)$/m,
+			);
+			expect(out).toMatch(/app log \(\d+ bytes\) follows:/);
+			expect(out).toContain("event=window-created");
+			expect(out).toContain("event=health-probe");
+
+			// The death is past launch_attempt, so no retry may fire.
+			expect(out).not.toContain("WARN");
+			expect(out).not.toContain("attempt 2");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	},
+	{ timeout: 90_000 },
 );
