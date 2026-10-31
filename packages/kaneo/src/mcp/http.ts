@@ -166,9 +166,16 @@ const withAcao = (response: Response, origin: string): Response => {
 
 /* ---------- tool registration ---------- */
 
+// effect 4.1 (#8829): handler services are request-level. addTool's
+// `services` option is the designated channel for construction-time
+// services: it captures the ambient registration context (Db/Access/
+// telemetry in production wiring) which is merged UNDER the request
+// context at call time, and local MCP middleware is read from it — the
+// same capture McpServer.registerToolkit performs internally.
 const registerTools = (tools: ReadonlyArray<McpToolSpec>) =>
 	Layer.effectDiscard(
 		Effect.gen(function* () {
+			const services = yield* Effect.context<never>();
 			const server = yield* EMcp.McpServer;
 			for (const spec of tools) {
 				yield* server.addTool({
@@ -178,6 +185,7 @@ const registerTools = (tools: ReadonlyArray<McpToolSpec>) =>
 						inputSchema: spec.jsonSchema,
 					}),
 					annotations: Context.empty(),
+					services,
 					handle: (payload: unknown) =>
 						spec
 							.handler(payload)
@@ -186,6 +194,10 @@ const registerTools = (tools: ReadonlyArray<McpToolSpec>) =>
 			}
 		}),
 	);
+
+/** Escape hatch for tests: the production registration layer, exercised
+ * directly through McpTest.makeClient (no transport) — see M23. */
+export const __testRegisterTools = registerTools;
 
 export interface McpHttpOptions {
 	readonly tools: ReadonlyArray<McpToolSpec>;
@@ -222,27 +234,37 @@ export function mcpHttpHandler(options: McpHttpOptions) {
 		throw new Error(
 			"mcpHttpHandler: apiBaseUrl is empty — MCP tools cannot proxy to the API",
 		);
-	const Base = registerTools(options.tools).pipe(
-		Layer.provideMerge(
-			EMcp.layerHttp({
-				name: NAME,
-				version: VERSION,
-				path: "/api/mcp",
-				// Same revision set the reference SDK 1.29.0 advertises
-				// (SUPPORTED_PROTOCOL_VERSIONS minus the legacy 2024-10-07).
-				protocols: [
-					McpProtocol.v2025_11_25,
-					McpProtocol.v2025_06_18,
-					McpProtocol.v2025_03_26,
-					McpProtocol.v2024_11_05,
-				],
-				// Origin enforcement lives in this wrapper (withCors parity,
-				// including the dev reflect-all rule); requests reach the
-				// transport Origin-less so its own check always passes.
-				allowedOrigins: [],
-				allowSessionTermination: true,
-			}).pipe(Layer.provideMerge(HttpRouter.layer)),
-		),
+	// effect 4.1 rework (#8829): registration layers must travel through the
+	// transport's `registrations` option — they build inside the transport,
+	// before the routes are added, never racing the first request. Handler
+	// services became request-level: the release-note recipe "capture
+	// construction-time services in `Layer.unwrap`" applies to registration
+	// layers that READ services at construction (typed tags, closed over);
+	// ours read them lazily per request — the principal from the gate
+	// middleware, Db/Access/telemetry from the request context — so the
+	// merges below (the same wiring effect's own McpServerLayer harness
+	// uses) are the correct construction, and a context-capturing unwrap
+	// would only poison toWebHandler's requirement inference.
+	const Base = EMcp.layerHttp({
+		name: NAME,
+		version: VERSION,
+		path: "/api/mcp",
+		// Same revision set the reference SDK 1.29.0 advertises
+		// (SUPPORTED_PROTOCOL_VERSIONS minus the legacy 2024-10-07).
+		protocols: [
+			McpProtocol.v2025_11_25,
+			McpProtocol.v2025_06_18,
+			McpProtocol.v2025_03_26,
+			McpProtocol.v2024_11_05,
+		],
+		// Origin enforcement lives in this wrapper (withCors parity,
+		// including the dev reflect-all rule); requests reach the
+		// transport Origin-less so its own check always passes.
+		allowedOrigins: [],
+		allowSessionTermination: true,
+		registrations: registerTools(options.tools),
+	}).pipe(
+		Layer.provideMerge(HttpRouter.layer),
 		Layer.provideMerge(options.services ?? Layer.empty),
 		// Telemetry parity (cycle-3 defect 1): the same layer the host
 		// mounts for its own runtime, so mcp.tool.* / mcp.api.fetch spans
