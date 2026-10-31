@@ -1,0 +1,57 @@
+{
+	"jsPlugins": ["@shadcn/lint"],
+	"settings": {
+		"shadcn": {
+			"note": "NEVR-315 design-contract trial (informational, non-gating). Exceptions live here: tune allowlists and contracts, never delete rules. Existing-tree debt is budgeted in design-contract-budget.json — ratchet it down, never raise it. Owned components in src/components/ui style themselves; the override below exempts only that directory."
+		}
+	},
+	"rules": {
+		"shadcn/no-restyle": [
+			"error",
+			{
+				"allow": ["layout"],
+				"contracts": [
+					{
+						"pattern": "^Button$",
+						"allow": ["layout"]
+					}
+				]
+			}
+		],
+		"shadcn/no-raw-colors": [
+			"error",
+			{
+				"allow": [
+					"*-green-*",
+					"*-emerald-*",
+					"*-indigo-*",
+					"*-violet-*",
+					"*-neutral-950"
+				]
+			}
+		],
+		"shadcn/no-arbitrary-values": [
+			"error",
+			{
+				"allow": [
+					"layout",
+					"text-[7px]",
+					"text-[8px]",
+					"text-[9px]",
+					"text-[10px]",
+					"text-[11px]",
+					"text-[0.625rem]"
+				]
+			}
+		]
+	},
+	"overrides": [
+		{
+			"files": ["src/components/ui/**"],
+			"rules": {
+				"shadcn/no-restyle": "off",
+				"shadcn/no-arbitrary-values": "off"
+			}
+		}
+	]
+}
