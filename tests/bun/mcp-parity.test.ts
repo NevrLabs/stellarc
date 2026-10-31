@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
+import { McpProtocol, McpServer, McpTest } from "effect/ai";
 import { Access, Db } from "../../packages/kaneo/src/kernel";
 import { mcpGuardsLive } from "../../packages/kaneo/src/mcp/guards";
 import {
+	__testRegisterTools,
 	isMcpOriginAllowed,
 	mcpHttpHandler,
 } from "../../packages/kaneo/src/mcp/http";
@@ -46,7 +48,10 @@ import { disposablePostgres } from "../helpers/postgres";
  *  M21  guard denial lists the missing resource:action pairs, exactly as
  *       legacy assertMcpPermission did (cycle-3 defect 2),
  *  M22  same-origin requests pass even in production with an EMPTY
- *       allow-list (browser POSTs always send Origin; cycle-3 defect 3).
+ *       allow-list (browser POSTs always send Origin; cycle-3 defect 3),
+ *  M23  McpTest.makeClient smoke (effect 4.1): the PRODUCTION registration
+ *       layer lists the full tool registry over the in-memory transport and
+ *       one call round-trips the handler wrapper (NEVR-396).
  */
 
 const resources: Array<() => Promise<void>> = [];
@@ -870,4 +875,45 @@ test("M22 same-origin requests pass in production even with an EMPTY allow-list 
 		if (savedEnv === undefined) delete process.env.NODE_ENV;
 		else process.env.NODE_ENV = savedEnv;
 	}
+});
+
+test("M23 McpTest.makeClient smoke: production registrations list the full registry and one call round-trips the handler wrapper", async () => {
+	// effect 4.1 (#8829) ships McpTest.makeClient: an in-memory client that
+	// exercises the same JSON-RPC encoding/routing/middleware as the wire
+	// transports. Point it at the PRODUCTION registration layer so the
+	// `registrations` wiring (NEVR-396) is covered at the layer level too.
+	// On the wire the gate middleware provides McpRequestPrincipal per
+	// request; here the same job is done by an MCP middleware — the 4.1
+	// request-level dependency mechanism — which is also the regression
+	// proof that handler services no longer ride the layer context.
+	const registry = mcpTools(guards, upstreamBase);
+	const principal: McpPrincipal = {
+		userId: "user-a",
+		userRole: null,
+		token: "token-a",
+	};
+	const ProvidePrincipal = McpServer.middleware<{
+		provides: McpRequestPrincipal;
+	}>()((effect) =>
+		Effect.provideService(effect, McpRequestPrincipal, principal),
+	);
+	const program = Effect.gen(function* () {
+		const client = yield* McpTest.makeClient(
+			__testRegisterTools(registry).pipe(Layer.provide(ProvidePrincipal.layer)),
+			{ protocols: [McpProtocol.v2025_06_18] },
+		);
+		const listed = yield* client.listTools();
+		const called = yield* client.callTool({ name: "whoami", arguments: {} });
+		return { names: listed.tools.map((t) => t.name), called };
+	}).pipe(Effect.scoped);
+	const { names, called } = await Effect.runPromise(program);
+	expect(names).toEqual(registry.map((s) => s.name));
+	// whoami proxies to the stub upstream with the CALLER's token and maps
+	// the JSON body into a text result — the full handler-wrapper round
+	// trip (decode → guard → proxy → result), not a protocol error.
+	expect(called.isError).toBeUndefined();
+	expect(JSON.stringify(called.content)).toContain("user-a");
+	const hit = upstreamHits[upstreamHits.length - 1];
+	expect(hit?.path).toBe("/api/auth/get-session");
+	expect(hit?.auth).toBe("Bearer token-a");
 });
