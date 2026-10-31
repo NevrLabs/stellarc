@@ -1,5 +1,5 @@
-import { Github } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Github } from "@/components/icons/github";
 import useGetGithubIntegration from "@/hooks/queries/github-integration/use-get-github-integration";
 
 /**
