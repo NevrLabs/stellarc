@@ -8,9 +8,15 @@ import type {
 	ItemKind,
 	PermissionPolicy,
 	PermissionRequestReport,
+	ResumeItem,
 	TaskDescriptor,
+	TaskResume,
 	Usage,
 } from "../../../packages/agents/src/protocol";
+import { RESUME_ITEM_RENDER_CAP } from "../../../packages/agents/src/protocol";
+// Re-exported for the unit tests: the canonical constant lives in the agents
+// package so the plane's replay budget and this renderer cannot drift apart.
+export { RESUME_ITEM_RENDER_CAP };
 
 /** A locally installed harness the node is willing to launch. Credentials and
  * binaries stay on the node (D14/D16); the plane only learns the name. */
@@ -108,6 +114,14 @@ export class TranscriptFolder {
 
 	userPrompt(text: string) {
 		this.push("message", { role: "user", content: [{ type: "text", text }] });
+	}
+
+	/** Attempt-continuity seam (NEVR-415): this run resumed a prior
+	 * attempt's transcript — the first item of the new attempt, so operators
+	 * see where the cold start ended and the replay began. */
+	resumedFrom(body: Record<string, unknown>) {
+		this.close();
+		this.push("resumed_from", body);
 	}
 
 	/** A permission decision artifact (NEVR-198): the request with resolved
@@ -227,6 +241,84 @@ function denyPermission(
 	return reject
 		? { outcome: { outcome: "selected", optionId: reject.optionId } }
 		: { outcome: { outcome: "cancelled" } };
+}
+
+// ── attempt continuity (NEVR-415) ───────────────────────────────────────────
+
+// RESUME_ITEM_RENDER_CAP lives in packages/agents/src/protocol (re-exported
+// above): the plane's replay budget counts each item at this clip plus line
+// overhead, so the canonical number must be shared, not duplicated here.
+
+const clip = (text: string) =>
+	text.length > RESUME_ITEM_RENDER_CAP
+		? `${text.slice(0, RESUME_ITEM_RENDER_CAP)}…[truncated ${text.length - RESUME_ITEM_RENDER_CAP} chars]`
+		: text;
+
+const compactJson = (body: unknown) => clip(JSON.stringify(body ?? null));
+
+/** One prior-attempt transcript item as one digest line. Targets the body
+ * shapes TranscriptFolder writes (the plane stores them verbatim); tolerates
+ * anything else via compact JSON. Null = nothing to show (bookkeeping kinds
+ * never reach the renderer, but be lenient anyway). */
+function renderResumeItem(item: ResumeItem): string | null {
+	const b = (item.body ?? {}) as Record<string, unknown>;
+	const id = typeof b.call_id === "string" ? ` (${b.call_id})` : "";
+	switch (item.kind) {
+		case "message": {
+			const role = typeof b.role === "string" ? b.role : "unknown";
+			const text = Array.isArray(b.content)
+				? b.content
+						.map((c) =>
+							c && typeof c === "object" && "text" in c
+								? String((c as { text: unknown }).text ?? "")
+								: "",
+						)
+						.join("")
+				: String(b.content ?? "");
+			return `[${role}] ${clip(text)}`;
+		}
+		case "thinking":
+			return `[thought] ${clip(String(b.text ?? ""))}`;
+		case "tool_call": {
+			const title = typeof b.title === "string" ? b.title : "tool";
+			return `[tool_call ${title}${id}] ${compactJson(b.input)}`;
+		}
+		case "tool_result": {
+			const status = typeof b.status === "string" ? b.status : "?";
+			return `[tool_result ${status}${id}] ${compactJson(b.output ?? b.content)}`;
+		}
+		case "approval": {
+			const req = (b.request ?? {}) as Record<string, unknown>;
+			const tool = typeof req.toolName === "string" ? req.toolName : "?";
+			return `[permission ${String(b.status ?? "?")} ${tool}] ${compactJson(req.arguments)}`;
+		}
+		case "push": {
+			const sha =
+				typeof b.commitSha === "string" ? b.commitSha.slice(0, 10) : "?";
+			return `[pushed ${sha} → ${String(b.ref ?? "?")}]`;
+		}
+		case "resumed_from":
+			return `[resumed from attempt ${String(b.resumedFromAttempt ?? "?")}]`;
+		case "file_change":
+		case "checkpoint":
+			return `[${item.kind}] ${compactJson(b)}`;
+		default:
+			return null;
+	}
+}
+
+/** Render the resume payload as the prompt block that seeds the new session
+ * (NEVR-415). Composed BEFORE the original prompt — the imperative lands
+ * last, and the model reads the digest as context, not instruction. Pure —
+ * unit-tested directly. */
+export function renderResumeDigest(resume: TaskResume): string {
+	const header = `## Prior attempt context (attempt ${resume.fromAttempt})
+
+Your previous attempt (attempt ${resume.fromAttempt}) was interrupted by a platform fault (${resume.failureCode}) — the runtime died under you; nothing you did failed. Its transcript follows, oldest first${resume.omitted > 0 ? ` (${resume.omitted} older item(s) omitted for length)` : ""}. Continue the task from where the transcript ends; work that already succeeded (including pushes) does not need to be redone.`;
+	const lines = resume.items
+		.map(renderResumeItem)
+		.filter((line): line is string => line !== null);
+	return `${header}\n${lines.join("\n")}`;
 }
 
 /** Environment a harness child is born with: an explicit allowlist, never the
@@ -470,10 +562,35 @@ export async function runTask(
 				}
 				folder.config({ model: task.agent.model, applied });
 			}
-			const text = task.agent.instructions
-				? `${task.agent.instructions}\n\n---\n\n${task.prompt}`
-				: task.prompt;
-			folder.userPrompt(text);
+			// Attempt continuity (NEVR-415): a resumed attempt seeds the new
+			// session with the resume chain's transcript — digest BEFORE the
+			// original prompt (the imperative lands last), and a resumed_from
+			// marker as the attempt's first transcript item so operators see
+			// the seam.
+			if (task.resume) {
+				folder.resumedFrom({
+					resumedFromAttempt: task.resume.fromAttempt,
+					failureCode: task.resume.failureCode,
+					items: task.resume.items.length,
+					omitted: task.resume.omitted,
+				});
+			}
+			const seed: string[] = [];
+			if (task.agent.instructions) seed.push(task.agent.instructions);
+			if (task.resume) seed.push(renderResumeDigest(task.resume));
+			seed.push(task.prompt);
+			// The WIRE prompt carries the digest; the STORED user message does
+			// not (rework defect 1). The digest is derived from prior
+			// attempts' items — persisting it here would nest it into the next
+			// resume's replay, where the renderer's per-item clip collapses it
+			// and a second consecutive lease expiry would lose the chain's
+			// real context. The transcript records only what a fresh attempt
+			// would re-receive: instructions plus the original prompt.
+			const recorded: string[] = [];
+			if (task.agent.instructions) recorded.push(task.agent.instructions);
+			recorded.push(task.prompt);
+			folder.userPrompt(recorded.join("\n\n---\n\n"));
+			const text = seed.join("\n\n---\n\n");
 			if (cancelled) await conn.cancel({ sessionId: session.sessionId });
 			const res = await conn.prompt({
 				sessionId: session.sessionId,

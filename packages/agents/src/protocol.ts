@@ -39,6 +39,9 @@ export const ITEM_KINDS = [
 	"harness_meta",
 	"usage",
 	"push",
+	/** Attempt-continuity seam (NEVR-415): the node emits it as the FIRST
+	 * item of an attempt that resumed a prior one's transcript. */
+	"resumed_from",
 ] as const;
 export const ItemKind = Schema.Literal(...ITEM_KINDS);
 export type ItemKind = typeof ItemKind.Type;
@@ -261,6 +264,11 @@ export interface TaskDescriptor {
 	readonly prompt: string;
 	readonly subjectRef: string | null;
 	readonly leaseMs: number;
+	/** Present when this attempt continues a prior one (NEVR-415): the prior
+	 * attempt's transcript, replay-capped, to seed the new session. Absent on
+	 * fresh attempts, on agent_error.* retries (the transcript may be the
+	 * poison), and on platform.* codes not yet admitted per-code. */
+	readonly resume?: TaskResume;
 	readonly agent: {
 		readonly id: string;
 		readonly name: string;
@@ -271,6 +279,37 @@ export interface TaskDescriptor {
 		/** Null preserves the legacy allow-once behaviour. */
 		readonly permissionPolicy: PermissionPolicy | null;
 	};
+}
+
+/** Per-item rendered-digest cap (NEVR-415): the node's resume renderer clips
+ * every digest line's payload to this many chars, and the plane's replay
+ * budget counts each item at its RENDERED size (clip + line overhead), so the
+ * wire never ships budget for bytes the prompt will discard. Shared here so
+ * the renderer and the budget cannot drift apart. */
+export const RESUME_ITEM_RENDER_CAP = 1500;
+
+/** One prior-attempt transcript item carried in a TaskDescriptor.resume. */
+export interface ResumeItem {
+	readonly seq: number;
+	readonly kind: ItemKind;
+	readonly body: unknown;
+	readonly occurredAt: string;
+}
+
+/** Attempt-continuity payload (NEVR-415): what the plane knows about the
+ * attempt a platform.lease_expired retry continues. `items` is the resume
+ * CHAIN's transcript — the dead attempt plus every earlier attempt its
+ * `resumed_from` markers link, back to the chain's fresh root — oldest-first,
+ * already capped to the replay token budget (tail kept — the freshest context
+ * is where the interrupted work stopped); `omitted` counts replayable items
+ * dropped from the head to fit. `fromAttempt` names only the immediately
+ * prior attempt; the chain's seams show up as `resumed_from` items inside
+ * `items`. */
+export interface TaskResume {
+	readonly fromAttempt: number;
+	readonly failureCode: FailureCode;
+	readonly items: ReadonlyArray<ResumeItem>;
+	readonly omitted: number;
 }
 
 export const TASK_STATUSES = [

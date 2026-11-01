@@ -24,7 +24,10 @@ import {
 	type PermissionPark,
 	type PermissionPolicy,
 	type Push,
+	RESUME_ITEM_RENDER_CAP,
+	type ResumeItem,
 	type TaskDescriptor,
+	type TaskResume,
 	type TaskStatus,
 	type UpdateBudget,
 	type Usage,
@@ -73,6 +76,8 @@ export interface TaskRow {
 	readonly failureCode: FailureCode | null;
 	readonly failureMessage: string | null;
 	readonly nativeSessionId: string | null;
+	/** Which prior attempt this attempt resumed (NEVR-415); null = fresh. */
+	readonly resumedFromAttempt: number | null;
 	/** Operator verdict on a permission park: 'granted' until the heartbeat
 	 * delivers it (then cleared), 'denied' terminal. Null otherwise. */
 	readonly permissionDecision: "granted" | "denied" | null;
@@ -181,6 +186,7 @@ const task = (r: Row): TaskRow => ({
 	failureCode: r.failure_code ?? null,
 	failureMessage: r.failure_message ?? null,
 	nativeSessionId: r.native_session_id ?? null,
+	resumedFromAttempt: r.resumed_from_attempt ?? null,
 	permissionDecision: r.permission_decision ?? null,
 	createdAt: iso(r.created_at) as string,
 	updatedAt: iso(r.updated_at) as string,
@@ -466,6 +472,80 @@ async function recordAttemptPushes(
 		});
 	}
 	return events;
+}
+
+// ── attempt continuity (NEVR-415) ────────────────────────────────────────────
+
+/** Failure codes whose retry replays the prior attempt's transcript
+ * (NEVR-415). Deliberately only lease_expired:
+ * - platform.lease_expired — the node went dark under a healthy run; the
+ *   transcript is good work truncated mid-flight. Replay is exactly right.
+ * - platform.harness_unavailable — the harness never started; the prior
+ *   transcript is empty. Replay adds nothing.
+ * - platform.harness_exited / platform.protocol_error — the harness itself
+ *   died or the ACP conversation broke, possibly mid-item; the tail may be
+ *   garbage and the transcript may be what triggered the crash. Adjacent to
+ *   the agent_error.* "transcript may be the poison" law — excluded until
+ *   per-case evidence says otherwise.
+ * - agent_error.* never replays (NEVR-415 scope). */
+export const RESUMABLE_FAILURE_CODES: ReadonlySet<string> = new Set([
+	"platform.lease_expired",
+]);
+
+/** Kinds the resume payload can carry. usage/config are plane bookkeeping and
+ * harness_meta is a raw transport dump whose signal also lands as typed
+ * items — none carry context a retry needs, so they never burn budget. */
+export const REPLAYABLE_KINDS: ReadonlySet<string> = new Set([
+	"message",
+	"thinking",
+	"tool_call",
+	"tool_result",
+	"file_change",
+	"approval",
+	"checkpoint",
+	"push",
+	"resumed_from",
+]);
+
+/** Replay budget in ~tokens (chars/4 estimate). Each item counts at its
+ * RENDERED size — the renderer clips every line's payload to
+ * RESUME_ITEM_RENDER_CAP — so the budget buys prompt context, not raw-JSON
+ * bytes the renderer would discard (rework defect 3). The wire still carries
+ * the kept items' raw bodies; the item COUNT is what the budget bounds. */
+export const RESUME_TOKEN_BUDGET = 24_000;
+
+/** Line overhead the renderer adds around an item's clipped payload (the
+ * `[kind …]` prefix plus the `…[truncated N chars]` suffix); budgeted per
+ * item alongside the clip so the estimate never undershoots the digest. */
+const RESUME_ITEM_LINE_OVERHEAD = 100;
+
+/** One item's cost against the replay budget: its rendered digest line's
+ * length, approximated from above by the clip plus line overhead. */
+const resumeItemCost = (item: ResumeItem): number =>
+	Math.min(
+		JSON.stringify(item.body ?? null)?.length ?? 0,
+		RESUME_ITEM_RENDER_CAP + RESUME_ITEM_LINE_OVERHEAD,
+	);
+
+/** Cap prior-attempt items to the replay budget, keeping the TAIL: the
+ * freshest context is where the interrupted work stopped. The newest item is
+ * always kept (the renderer truncates oversized items); `omitted` counts the
+ * replayable items dropped from the head. Pure — unit-tested directly. */
+export function capReplayItems(items: ReadonlyArray<ResumeItem>): {
+	items: ResumeItem[];
+	omitted: number;
+} {
+	const replayable = items.filter((i) => REPLAYABLE_KINDS.has(i.kind));
+	const charBudget = RESUME_TOKEN_BUDGET * 4;
+	const kept: ResumeItem[] = [];
+	let used = 0;
+	for (let i = replayable.length - 1; i >= 0; i--) {
+		const size = resumeItemCost(replayable[i]);
+		if (used + size > charBudget && kept.length > 0) break;
+		kept.unshift(replayable[i]);
+		used += size;
+	}
+	return { items: kept, omitted: replayable.length - kept.length };
 }
 
 // ── budget evaluation ───────────────────────────────────────────────────────
@@ -1034,17 +1114,101 @@ export class AgentStore {
 					]);
 					continue;
 				}
+				// Resume gate (NEVR-415): only a retry whose QUEUED row still
+				// carries a resumable failure code — attempt > 1 by construction.
+				const resumingFrom =
+					row.attempt >= 1 &&
+					row.failure_code != null &&
+					RESUMABLE_FAILURE_CODES.has(row.failure_code)
+						? row.attempt
+						: null;
 				const [claimed] =
 					await tx`UPDATE agent_task SET status='claimed', attempt=attempt+1, node_id=${n.id},
-				lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
-				permission_decision=NULL,
-				updated_at=now() WHERE id=${row.id} RETURNING *`;
+					lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
+					permission_decision=NULL, resumed_from_attempt=${resumingFrom}, updated_at=now() WHERE id=${row.id} RETURNING *`;
+				// Attempt continuity (NEVR-415): a retry of platform.lease_expired
+				// carries the resume CHAIN's transcript — the dead attempt plus
+				// every earlier attempt its resumed_from markers link — so the
+				// new session continues instead of cold-starting, and a
+				// consecutive expiry does not lose the chain's first attempts
+				// (rework defect 1). The gate reads the queued row's
+				// failure_code — the claim UPDATE above just cleared it.
+				let resume: TaskResume | undefined;
+				if (resumingFrom !== null) {
+					const rows =
+						await tx`SELECT attempt,seq,kind,body,occurred_at FROM agent_task_item
+							WHERE task_id=${row.id} AND attempt<=${row.attempt} ORDER BY attempt,seq`;
+					const byAttempt = new Map<number, ResumeItem[]>();
+					for (const r of rows as Row[]) {
+						const list = byAttempt.get(r.attempt) ?? [];
+						list.push({
+							seq: r.seq,
+							kind: r.kind,
+							body: r.body,
+							occurredAt: iso(r.occurred_at) as string,
+						});
+						byAttempt.set(r.attempt, list);
+					}
+					// Walk the chain backwards from the dead attempt through
+					// each attempt's resumed_from marker, stopping at the
+					// chain's fresh root — an attempt that never resumed.
+					// Attempts outside the chain (an agent_error retry, a
+					// fresh start after a completion) have no marker, so their
+					// stale context never rides a replay.
+					const chain: ResumeItem[] = [];
+					const linked = new Set<number>();
+					for (
+						let cursor: number | undefined = row.attempt;
+						cursor !== undefined && !linked.has(cursor);
+					) {
+						const attemptItems = byAttempt.get(cursor);
+						if (!attemptItems) break;
+						linked.add(cursor);
+						chain.unshift(...attemptItems);
+						const marker = attemptItems.find((i) => i.kind === "resumed_from");
+						const prior = marker
+							? Number(
+									(
+										(marker.body ?? {}) as {
+											resumedFromAttempt?: unknown;
+										}
+									).resumedFromAttempt,
+								)
+							: Number.NaN;
+						cursor =
+							Number.isInteger(prior) && prior >= 1 && prior < cursor
+								? prior
+								: undefined;
+					}
+					const capped = capReplayItems(chain);
+					resume = {
+						fromAttempt: row.attempt,
+						failureCode: row.failure_code as FailureCode,
+						items: capped.items,
+						omitted: capped.omitted,
+					};
+				}
 				const [a] = await tx`SELECT * FROM agent WHERE id=${claimed.agent_id}`;
 				await appendEvents(tx, n.org, `node:${n.id}`, [
 					{
 						type: "task-claimed",
 						payload: { id: claimed.id, attempt: claimed.attempt, nodeId: n.id },
 					},
+					...(resume
+						? [
+								{
+									type: "task-resumed",
+									payload: {
+										id: claimed.id,
+										attempt: claimed.attempt,
+										resumedFromAttempt: resume.fromAttempt,
+										failureCode: resume.failureCode,
+										items: resume.items.length,
+										omitted: resume.omitted,
+									},
+								},
+							]
+						: []),
 				]);
 				const ag = agent(a);
 				const descriptor: TaskDescriptor = {
@@ -1054,6 +1218,7 @@ export class AgentStore {
 					prompt: claimed.prompt,
 					subjectRef: claimed.subject_ref ?? null,
 					leaseMs,
+					...(resume ? { resume } : {}),
 					agent: {
 						id: ag.id,
 						name: ag.name,
