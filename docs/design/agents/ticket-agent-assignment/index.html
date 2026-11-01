@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEVR-14 · Stellarc</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230a0a0b'/%3E%3Cpath d='M7 17V7l10 10V7' stroke='%23c9c9c9' stroke-width='2' fill='none'/%3E%3C/svg%3E" />
+<style>
+/* ── Stellarc tokens (from apps/stellarc-ui/src/index.css, .dark) ────────── */
+@font-face {
+  font-family: "Cal Sans UI";
+  src: url("./assets/fonts/CalSansUI[wght,GEOM]-s.p.c2e3469d.woff2") format("woff2");
+  font-display: swap; font-style: normal; font-weight: 300 700;
+}
+@font-face {
+  font-family: "Cal Sans Heading";
+  src: url("./assets/fonts/CalSans-SemiBold.woff2") format("woff2");
+  font-display: swap; font-style: normal; font-weight: 600;
+}
+@font-face {
+  font-family: "Paper Mono";
+  src: url("./assets/fonts/PaperMono-Regular.woff2") format("woff2");
+  font-display: swap; font-style: normal; font-weight: 400;
+}
+:root {
+  --background: #0a0a0b;
+  --foreground: #e6e6e6;
+  --card: #131315;
+  --card-foreground: #e6e6e6;
+  --popover: #131315;
+  --popover-foreground: #e6e6e6;
+  --primary: #c9c9c9;
+  --primary-foreground: #0a0a0b;
+  --secondary: rgba(255,255,255,.04);
+  --secondary-foreground: #e6e6e6;
+  --muted: rgba(255,255,255,.04);
+  --muted-foreground: #999a9c;
+  --accent: rgba(255,255,255,.06);
+  --accent-foreground: #e6e6e6;
+  --destructive: #fca5a5;
+  --destructive-foreground: #fca5a5;
+  --warning: #fcd34d;
+  --warning-foreground: #fcd34d;
+  --success: #86efac;
+  --success-foreground: #86efac;
+  --info: #3b82f6;
+  --info-foreground: #60a5fa;
+  --border: #262629;
+  --input: rgba(255,255,255,.08);
+  --ring: #737373;
+  --code-bg: color-mix(in srgb, var(--background) 98%, #fff);
+  --radius: 0.625rem;
+  --font-sans: "Cal Sans UI", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Cal Sans Heading", "Cal Sans UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Paper Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+* { box-sizing: border-box; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--background); color: var(--foreground);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+button { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.mono { font-family: var(--font-mono); }
+svg.ic { width: 15px; height: 15px; flex: none; stroke: currentColor; stroke-width: 1.75; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+svg.ic.s12 { width: 12px; height: 12px; }
+svg.ic.s16 { width: 16px; height: 16px; }
+
+/* ── shell ───────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 232px 1fr; height: 100vh; overflow: hidden; }
+
+/* sidebar */
+.sidebar {
+  background: var(--background); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; min-height: 0; z-index: 40;
+}
+.sb-header { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px; }
+.team {
+  display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 4px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; min-width: 0; flex: 1;
+}
+.team:hover { background: var(--accent); }
+.team .orgavatar {
+  width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg,#3a3a3e,#1b1b1d);
+  color: var(--foreground); display: grid; place-items: center; font-size: 9px; font-weight: 600; letter-spacing: .02em;
+}
+.team .tname { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-trigger { color: var(--muted-foreground); padding: 4px; border-radius: 6px; }
+.sb-trigger:hover { background: var(--accent); color: var(--foreground); }
+.sb-search {
+  margin: 2px 10px 6px; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted-foreground);
+  font-size: 12.5px; background: var(--muted);
+}
+.sb-search:hover { background: var(--accent); }
+.sb-search .kbd { margin-left: auto; }
+.sb-body { flex: 1; overflow-y: auto; padding: 2px 6px 8px; min-height: 0; }
+.sb-section { margin-top: 10px; }
+.sb-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted-foreground); padding: 2px 8px; display: flex; align-items: center; gap: 6px;
+}
+.sb-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border-radius: 6px;
+  font-size: 13px; color: var(--muted-foreground); text-align: left;
+}
+.sb-item:hover { background: var(--accent); color: var(--foreground); }
+.sb-item.active { background: var(--accent); color: var(--foreground); font-weight: 500; }
+.sb-item .cnt { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); background: var(--secondary); border-radius: 999px; padding: 1px 6px; }
+.sb-item svg { opacity: .85; }
+.sb-footer { border-top: 1px solid var(--border); padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
+.sb-footer .who { flex: 1; min-width: 0; }
+.sb-footer .who .n { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-footer .who .v { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); }
+.avatar {
+  width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center;
+  font-size: 10.5px; font-weight: 600; color: #0a0a0b; flex: none; letter-spacing: .01em;
+}
+.avatar.a-sm { width: 20px; height: 20px; border-radius: 5px; font-size: 9px; }
+.avatar.a-lg { width: 30px; height: 30px; border-radius: 7px; font-size: 12px; }
+.av-human { background: linear-gradient(135deg, #c9c9c9, #8f8f93); }
+.av-atlas  { background: linear-gradient(135deg, #9be7c4, #3f9e6f); }
+.av-curator{ background: linear-gradient(135deg, #f3c96e, #b8862f); }
+.av-scribe { background: linear-gradient(135deg, #8ec5f7, #3c6fb0); }
+.av-wren   { background: linear-gradient(135deg, #d3a7e8, #8455a3); }
+.av-vesper { background: linear-gradient(135deg, #f0a9a0, #b35648); }
+
+/* main / topbar */
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--background); }
+.topbar {
+  height: 44px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.crumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted-foreground); min-width: 0; overflow: hidden; }
+.crumb b { color: var(--foreground); font-weight: 500; white-space: nowrap; }
+.crumb .sep { opacity: .5; }
+.hamburger { display: none; color: var(--muted-foreground); padding: 4px; border-radius: 6px; margin-left: -6px; }
+.hamburger:hover { background: var(--accent); color: var(--foreground); }
+.top-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.iconbtn { color: var(--muted-foreground); padding: 5px; border-radius: 6px; display: grid; place-items: center; }
+.iconbtn:hover { background: var(--accent); color: var(--foreground); }
+
+/* content grid */
+.content { flex: 1; display: grid; grid-template-columns: minmax(0,1fr) 440px; min-height: 0; overflow: hidden; }
+.ticketcol { overflow-y: auto; min-width: 0; padding: 20px 28px 90px; }
+.ticket-inner { max-width: 720px; }
+
+/* ticket */
+.t-id { font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); letter-spacing: .02em; }
+.t-titlerow { display: flex; align-items: flex-start; gap: 10px; margin-top: 6px; }
+.t-title { font-family: var(--font-heading); font-size: 21px; font-weight: 600; line-height: 1.3; letter-spacing: -0.015em; flex: 1; margin: 0; }
+.t-star { color: var(--muted-foreground); padding: 4px; border-radius: 6px; margin-top: 3px; }
+.t-star:hover { background: var(--accent); color: var(--foreground); }
+.props { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; align-items: center; }
+.prop {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px;
+  border-radius: 6px; border: 1px solid var(--border); background: var(--card);
+  font-size: 12px; color: var(--foreground); max-width: 260px;
+}
+.prop:hover { background: var(--accent); }
+.prop .plabel { color: var(--muted-foreground); }
+.prop .pval { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prop.status.prop-inprog { color: var(--warning-foreground); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+.chip-harness {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .04em; padding: 1.5px 5px; border-radius: 4px;
+  background: var(--secondary); color: var(--muted-foreground); border: 1px solid var(--border); white-space: nowrap;
+}
+.avail-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; display: inline-block; }
+.avail-dot.online { background: var(--success); }
+.avail-dot.busy { background: var(--warning); }
+.avail-dot.offline { background: var(--destructive); }
+.kbd {
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--muted-foreground);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; line-height: 14px;
+  background: var(--secondary);
+}
+.t-desc { margin-top: 18px; font-size: 14px; line-height: 1.65; color: var(--foreground); }
+.t-desc p { margin: 0 0 10px; }
+.t-desc ul { margin: 4px 0 10px; padding-left: 20px; }
+.t-desc li { margin: 3px 0; }
+.t-desc code { font-family: var(--font-mono); font-size: 12px; background: var(--secondary); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+/* activity */
+.tabs { display: flex; gap: 2px; margin-top: 26px; border-bottom: 1px solid var(--border); }
+.tab {
+  padding: 7px 10px; font-size: 12.5px; color: var(--muted-foreground); border-bottom: 2px solid transparent;
+  margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center;
+}
+.tab:hover { color: var(--foreground); }
+.tab.on { color: var(--foreground); border-bottom-color: var(--primary); font-weight: 500; }
+.tab .n { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); background: var(--secondary); padding: 0 5px; border-radius: 999px; }
+.comment { display: flex; gap: 10px; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.comment .cbody { flex: 1; min-width: 0; }
+.comment .chead { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; flex-wrap: wrap; }
+.comment .chead .cn { font-weight: 500; display: inline-flex; align-items: center; gap: 7px; }
+.comment .chead .ct { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-foreground); }
+.comment .ctext { margin-top: 3px; font-size: 13.5px; line-height: 1.6; color: var(--foreground); }
+.composer-mini { margin-top: 16px; display: flex; gap: 10px; }
+.composer-mini .box {
+  flex: 1; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+  padding: 9px 12px; font-size: 13px; color: var(--muted-foreground); min-height: 38px;
+}
+.composer-mini .box:focus { outline: none; color: var(--foreground); border-color: color-mix(in srgb, var(--ring) 60%, var(--border)); }
+
+/* ── run panel ───────────────────────────────────────────────────────────── */
+.runpanel {
+  border-left: 1px solid var(--border); background: var(--card);
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+}
+.rp-head {
+  flex: none; display: flex; align-items: center; gap: 9px; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); min-height: 53px;
+}
+.rp-head .rp-title { flex: 1; min-width: 0; }
+.rp-head .rp-title .rn { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; min-width: 0; }
+.rp-head .rp-title .rs { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-foreground); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runpill {
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--border); white-space: nowrap; flex: none;
+}
+.runpill .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.runpill.queued    { color: var(--muted-foreground); background: var(--secondary); }
+.runpill.claimed   { color: var(--info-foreground); border-color: color-mix(in srgb, var(--info) 35%, transparent); background: color-mix(in srgb, var(--info) 10%, transparent); }
+.runpill.running   { color: var(--success-foreground); border-color: color-mix(in srgb, var(--success) 30%, transparent); background: color-mix(in srgb, var(--success) 8%, transparent); }
+.runpill.retrying  { color: var(--warning-foreground); border-color: color-mix(in srgb, var(--warning) 30%, transparent); background: color-mix(in srgb, var(--warning) 8%, transparent); }
+.runpill.completed { color: var(--success-foreground); border-color: color-mix(in srgb, var(--success) 22%, transparent); }
+.runpill.failed    { color: var(--destructive-foreground); border-color: color-mix(in srgb, var(--destructive) 32%, transparent); background: color-mix(in srgb, var(--destructive) 8%, transparent); }
+.runpill.cancelled { color: var(--muted-foreground); background: var(--secondary); }
+.runpill .d.pulse { animation: pulse 1.6s ease-in-out infinite; }
+.runpill .d.spin { animation: rot .8s linear infinite; border-radius: 2px; background: transparent; border: 1.5px solid currentColor; border-top-color: transparent; width: 8px; height: 8px; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+.rp-meta {
+  flex: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.kv { background: var(--card); padding: 7px 14px 6px; min-width: 0; }
+.kv .k { font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.kv .v { font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv .v.mono { font-size: 11px; }
+.kv .v .sub { color: var(--muted-foreground); font-size: 10.5px; }
+
+.rp-body { flex: 1; overflow-y: auto; min-height: 0; }
+.rp-foot { flex: none; border-top: 1px solid var(--border); padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--card); }
+
+/* failure banners */
+.banner { display: flex; gap: 10px; padding: 11px 14px; font-size: 12.5px; line-height: 1.5; }
+.banner .b-ic { flex: none; margin-top: 1px; }
+.banner .b-title { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.banner .b-msg { color: var(--muted-foreground); margin-top: 3px; font-size: 12px; }
+.banner.warn { background: color-mix(in srgb, var(--warning) 7%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--warning) 22%, transparent); color: var(--warning-foreground); }
+.banner.err  { background: color-mix(in srgb, var(--destructive) 7%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--destructive) 22%, transparent); color: var(--destructive-foreground); }
+.banner.quiet { background: var(--secondary); border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.banner.quiet .b-title { color: var(--foreground); }
+.banner .b-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 6px;
+  font-size: 12.5px; font-weight: 500; border: 1px solid transparent; white-space: nowrap; text-decoration: none;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.btn.primary { background: var(--primary); color: var(--primary-foreground); }
+.btn.primary:hover { background: #d8d8d8; }
+.btn.outline { border-color: var(--border); background: var(--card); color: var(--foreground); }
+.btn.outline:hover { background: var(--accent); }
+.btn.ghost { color: var(--muted-foreground); }
+.btn.ghost:hover { background: var(--accent); color: var(--foreground); }
+.btn.danger-o { border-color: color-mix(in srgb, var(--destructive) 35%, transparent); color: var(--destructive-foreground); background: transparent; }
+.btn.danger-o:hover { background: color-mix(in srgb, var(--destructive) 10%, transparent); }
+.btn.sm { height: 24px; padding: 0 8px; font-size: 11.5px; }
+
+/* transcript */
+.transcript { padding: 6px 0 18px; }
+.turn-sep {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px 4px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground);
+}
+.turn-sep::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--border) 60%, transparent); }
+.titem { padding: 4px 14px; }
+.ti-head { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+.ti-head .who { font-weight: 500; }
+.ti-head .metam { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ti-msg { font-size: 13.5px; line-height: 1.65; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+.ti-msg.user { background: var(--secondary); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; }
+.cursor { display: inline-block; width: 7px; height: 14px; background: var(--success); vertical-align: -2px; margin-left: 2px; animation: pulse 1s steps(2) infinite; border-radius: 1px; }
+.streamtag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 9.5px; color: var(--success-foreground); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.streamtag .d { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
+
+/* thinking */
+.think { border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--background) 55%, var(--card)); }
+.think > .ti-head { padding: 6px 10px; cursor: pointer; user-select: none; color: var(--muted-foreground); }
+.think > .ti-head:hover { color: var(--foreground); }
+.think .chev { margin-left: auto; transition: transform .12s ease; color: var(--muted-foreground); }
+.think.open .chev { transform: rotate(90deg); }
+.think-body {
+  display: none; font-family: var(--font-mono); font-size: 11px; line-height: 1.7;
+  color: var(--muted-foreground); white-space: pre-wrap; word-break: break-word;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+  margin: 0 10px 9px; padding: 8px 0 0;
+}
+.think.open .think-body { display: block; }
+
+/* tool cards */
+.tool { border: 1px solid var(--border); border-radius: 8px; background: var(--background); overflow: hidden; margin-top: 5px; }
+.tool > .ti-head { padding: 6px 10px; cursor: pointer; user-select: none; gap: 7px; }
+.tool > .ti-head:hover { background: var(--accent); }
+.tool .tname { font-family: var(--font-mono); font-size: 11px; display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.tool .tname .args { color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool .chev { margin-left: auto; transition: transform .12s ease; color: var(--muted-foreground); flex: none; }
+.tool.open .chev { transform: rotate(90deg); }
+.tool-status { flex: none; font-family: var(--font-mono); font-size: 9.5px; padding: 1.5px 6px; border-radius: 4px; letter-spacing: .03em; white-space: nowrap; }
+.tool-status.ok { color: var(--success-foreground); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.tool-status.err { color: var(--destructive-foreground); background: color-mix(in srgb, var(--destructive) 10%, transparent); }
+.tool-status.run { color: var(--info-foreground); background: color-mix(in srgb, var(--info) 12%, transparent); display: inline-flex; align-items: center; gap: 5px; }
+.tool-status.run::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: rot .8s linear infinite; }
+.tool-out {
+  display: none; border-top: 1px solid var(--border); background: var(--code-bg);
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.6; color: var(--foreground);
+  max-height: 220px; overflow: auto; padding: 8px 12px; white-space: pre;
+}
+.tool.open .tool-out { display: block; }
+.tool-out .ln { color: var(--muted-foreground); }
+.tool-out .tx-err { color: var(--destructive-foreground); }
+.tool-out .tx-ok { color: var(--success-foreground); }
+.tool-out .tx-dim { color: var(--muted-foreground); }
+
+/* file change */
+.fdiff { border: 1px solid var(--border); border-radius: 8px; background: var(--background); overflow: hidden; margin-top: 5px; }
+.fdiff > .ti-head { padding: 6px 10px; cursor: pointer; user-select: none; gap: 8px; }
+.fdiff > .ti-head:hover { background: var(--accent); }
+.fdiff .fpath { font-family: var(--font-mono); font-size: 11px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fdiff .fpath .dir { color: var(--muted-foreground); }
+.adds { color: var(--success-foreground); font-family: var(--font-mono); font-size: 10px; flex: none; }
+.dels { color: var(--destructive-foreground); font-family: var(--font-mono); font-size: 10px; flex: none; }
+.fdiff .chev { margin-left: auto; transition: transform .12s ease; color: var(--muted-foreground); flex: none; }
+.fdiff.open .chev { transform: rotate(90deg); }
+.diff-body { display: none; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 10.5px; line-height: 1.65; max-height: 240px; overflow: auto; }
+.fdiff.open .diff-body { display: block; }
+.dl { padding: 0 12px; white-space: pre; }
+.dl.add { background: color-mix(in srgb, var(--success) 9%, transparent); color: #b9f0cf; }
+.dl.del { background: color-mix(in srgb, var(--destructive) 9%, transparent); color: #fccfcf; }
+.dl.hunk { color: var(--muted-foreground); padding-top: 5px; padding-bottom: 5px; }
+
+/* meta chips (config / harness_meta) */
+.metarow { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); flex-wrap: wrap; }
+.metarow .tag { border: 1px dashed var(--border); border-radius: 5px; padding: 1.5px 7px; letter-spacing: .04em; }
+
+/* PR card */
+.prCard {
+  margin: 8px 14px 4px; border: 1px solid color-mix(in srgb, var(--success) 28%, transparent);
+  background: color-mix(in srgb, var(--success) 6%, transparent); border-radius: 10px; padding: 11px 13px;
+  display: flex; gap: 11px; align-items: flex-start;
+}
+.prCard .pric { color: var(--success-foreground); margin-top: 2px; }
+.prCard .prt { font-size: 13px; font-weight: 500; }
+.prCard .prm { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-foreground); margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; }
+.prCard .checks { color: var(--success-foreground); display: inline-flex; align-items: center; gap: 4px; }
+
+/* summary strip (completed) */
+.sumrow { display: flex; gap: 6px; padding: 8px 14px 14px; flex-wrap: wrap; }
+.sumtag { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); border: 1px solid var(--border); background: var(--secondary); border-radius: 5px; padding: 2px 7px; display: inline-flex; gap: 6px; align-items: center; }
+.sumtag b { color: var(--foreground); font-weight: 400; }
+
+/* empty / loading / error states */
+.center-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 44px 30px; gap: 0; }
+.cs-ic { color: var(--muted-foreground); opacity: .7; margin-bottom: 14px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px dashed var(--border); }
+.cs-t { font-size: 13.5px; font-weight: 500; }
+.cs-m { font-size: 12px; color: var(--muted-foreground); margin-top: 4px; max-width: 300px; line-height: 1.6; }
+.cs-a { margin-top: 14px; display: flex; gap: 8px; }
+.skel-line { height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--secondary) 25%, var(--accent) 50%, var(--secondary) 75%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.rp-skel { padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+.rp-skel .row { display: flex; gap: 10px; align-items: center; }
+.rp-skel .row .ava { width: 22px; height: 22px; border-radius: 6px; flex: none; }
+
+/* follow-up composer */
+.fu { border: 1px solid var(--border); border-radius: 9px; background: var(--background); overflow: hidden; transition: border-color .12s ease; }
+.fu:focus-within { border-color: color-mix(in srgb, var(--ring) 55%, var(--border)); }
+.fu textarea {
+  width: 100%; border: none; background: transparent; color: var(--foreground); resize: none;
+  font-family: var(--font-sans); font-size: 13px; line-height: 1.6; padding: 9px 12px 4px; min-height: 38px; outline: none;
+}
+.fu textarea::placeholder { color: var(--muted-foreground); }
+.fu-bar { display: flex; align-items: center; gap: 8px; padding: 5px 8px 7px 12px; }
+.fu-bar .hint { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted-foreground); display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; }
+.fu-note { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted-foreground); display: flex; gap: 6px; align-items: flex-start; line-height: 1.5; }
+.fu-note svg { margin-top: 1px; flex: none; }
+
+/* assignee picker */
+.picker-wrap { position: relative; display: inline-flex; }
+.picker-pop {
+  position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; width: 342px; background: var(--popover);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, #fff 5%); border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(0,0,0,.55); overflow: hidden;
+  display: flex; flex-direction: column; max-height: 430px;
+}
+.picker-search { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.picker-search input {
+  flex: 1; background: transparent; border: none; outline: none; color: var(--foreground);
+  font-family: var(--font-sans); font-size: 13px; min-width: 0;
+}
+.picker-search input::placeholder { color: var(--muted-foreground); }
+.picker-list { overflow-y: auto; padding: 5px; flex: 1; min-height: 120px; }
+.picker-sect { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); padding: 8px 8px 4px; }
+.pick {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 8px; border-radius: 7px; text-align: left;
+}
+.pick:hover, .pick.hl { background: var(--accent); }
+.pick .p-main { flex: 1; min-width: 0; }
+.pick .p-name { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.pick .p-name > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick .p-sub { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); margin-top: 1.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick .p-side { flex: none; display: flex; align-items: center; gap: 6px; }
+.pick .p-side .runmini { font-family: var(--font-mono); font-size: 9.5px; color: var(--warning-foreground); white-space: nowrap; }
+.pick.off { opacity: .5; }
+.pick .check { visibility: hidden; color: var(--foreground); flex: none; }
+.pick.sel .check { visibility: visible; }
+.picker-empty { padding: 22px 16px; text-align: center; font-size: 12px; color: var(--muted-foreground); }
+.picker-foot { border-top: 1px solid var(--border); padding: 7px 12px; display: flex; justify-content: space-between; gap: 8px; }
+.picker-foot a { font-size: 11.5px; color: var(--muted-foreground); text-decoration: none; display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+.picker-foot a:hover { color: var(--foreground); }
+
+/* toasts (stacked above the state switcher, both bottom-left so the run
+   panel's footer controls are never covered) */
+.toasts { position: fixed; left: 244px; bottom: 64px; display: flex; flex-direction: column; gap: 8px; z-index: 90; pointer-events: none; }
+.toast {
+  display: flex; align-items: center; gap: 9px; background: var(--popover); border: 1px solid var(--border);
+  border-radius: 9px; padding: 9px 13px; font-size: 12.5px; box-shadow: 0 12px 34px rgba(0,0,0,.55);
+  animation: toastin .15s ease-out; max-width: 420px;
+}
+@keyframes toastin { from { opacity: 0; transform: translateY(6px); } }
+.toast svg { color: var(--muted-foreground); flex: none; }
+.toast.ok svg { color: var(--success-foreground); }
+.toast.warn svg { color: var(--warning-foreground); }
+
+/* state switcher (design review affordance) — bottom-LEFT over the ticket
+   column; bottom-right would sit on the run panel's footer controls */
+.switcher {
+  position: fixed; left: 244px; bottom: 14px; z-index: 80; background: var(--popover);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.55);
+  width: 224px; overflow: hidden;
+}
+.sw-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; user-select: none;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; color: var(--muted-foreground); text-transform: uppercase;
+}
+.sw-head .dotp { width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.6s infinite; flex: none; }
+.sw-head .cur { margin-left: auto; color: var(--foreground); letter-spacing: 0; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw-body { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 10px; }
+.switcher.collapsed .sw-body, .switcher.collapsed .sw-note { display: none; }
+.swbtn {
+  font-family: var(--font-mono); font-size: 9.5px; padding: 4px 7px; border-radius: 5px;
+  border: 1px solid var(--border); color: var(--muted-foreground); letter-spacing: .02em;
+}
+.swbtn:hover { color: var(--foreground); background: var(--accent); }
+.swbtn.on { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+.sw-note { padding: 0 10px 9px; font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); line-height: 1.5; }
+
+/* scrim for mobile sidebar */
+.scrim { display: none; }
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .content { grid-template-columns: minmax(0,1fr) 380px; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; inset: 0 30% 0 0; transform: translateX(-102%); transition: transform .15s ease; box-shadow: 0 0 60px rgba(0,0,0,.5); }
+  .sidebar.open { transform: none; }
+  .scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 35; }
+  .scrim.show { display: block; }
+  .hamburger { display: grid; }
+  .content { grid-template-columns: 1fr; overflow-y: auto; display: flex; flex-direction: column; }
+  .ticketcol { padding: 16px 16px 40px; overflow: visible; }
+  .runpanel { border-left: none; border-top: 1px solid var(--border); max-height: none; flex: none; }
+  .rp-body { overflow: visible; }
+  .rp-meta { grid-template-columns: repeat(2, 1fr); }
+  .toasts { left: 14px; right: auto; }
+  .switcher { width: 178px; left: 14px; }
+  .t-title { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="sb-header">
+      <button class="team">
+        <span class="orgavatar">NL</span>
+        <span class="tname">Nevr Labs</span>
+        <svg class="ic s12" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+      </button>
+      <button class="sb-trigger" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg class="ic s16" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+      </button>
+    </div>
+    <div class="sb-search">
+      <svg class="ic s12" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      Search
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="sb-body">
+      <div class="sb-section" style="margin-top:2px">
+        <button class="sb-item"><svg class="ic s16" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Inbox <span class="cnt">3</span></button>
+        <button class="sb-item"><svg class="ic s16" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg> My Tickets <span class="cnt">12</span></button>
+        <button class="sb-item"><svg class="ic s16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Members</button>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Projects</div>
+        <button class="sb-item active">
+          <svg class="ic s16" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+          Stellarc v2
+        </button>
+        <button class="sb-item">
+          <svg class="ic s16" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+          Arclet Preview
+        </button>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Boards</div>
+        <button class="sb-item">
+          <svg class="ic s16" viewBox="0 0 24 24"><path d="M3 3h5v5H3zM16 3h5v5h-5zM3 16h5v5H3zM16 16h5v5h-5z"/></svg>
+          Product Engineering
+        </button>
+        <button class="sb-item">
+          <svg class="ic s16" viewBox="0 0 24 24"><path d="M3 3h5v5H3zM16 3h5v5h-5zM3 16h5v5H3zM16 16h5v5h-5z"/></svg>
+          Design Review
+        </button>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Agents</div>
+        <button class="sb-item">
+          <svg class="ic s16" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+          Runtimes &amp; Agents
+        </button>
+      </div>
+    </div>
+    <div class="sb-footer">
+      <span class="avatar av-human">RP</span>
+      <span class="who">
+        <span class="n">Raisal P. Wardana</span>
+        <span class="v">stellarc v2.4.1</span>
+      </span>
+      <button class="iconbtn" aria-label="Settings">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ══ MAIN ══ -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger" aria-label="Open navigation">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <nav class="crumb" aria-label="Breadcrumb">
+        <span>Projects</span><span class="sep">/</span>
+        <span>Stellarc v2</span><span class="sep">/</span>
+        <b>NEVR-14</b>
+      </nav>
+      <div class="top-actions">
+        <button class="iconbtn" title="Copy link" aria-label="Copy link">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </button>
+        <button class="iconbtn" title="More" aria-label="More actions">
+          <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- ticket column -->
+      <div class="ticketcol">
+        <div class="ticket-inner">
+          <span class="t-id">NEVR-14</span>
+          <div class="t-titlerow">
+            <h1 class="t-title">Fix flaky sync test: entries double-apply on reconnect</h1>
+            <button class="t-star" title="Favorite" aria-label="Favorite">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M11.5 3.7 9.3 8.3l-5 .7 3.6 3.5-.9 5 4.5-2.4 4.5 2.4-.9-5 3.6-3.5-5-.7-2.2-4.6a.7.7 0 0 1 1-1z"/></svg>
+            </button>
+          </div>
+          <div class="props">
+            <span class="picker-wrap" id="assigneeWrap">
+              <button class="prop" id="assigneeTrigger" aria-haspopup="listbox" aria-expanded="false" title="Assign (A)">
+                <span class="plabel">Assignee</span>
+                <span class="pval" id="assigneeVal"></span>
+                <svg class="ic s12" viewBox="0 0 24 24" style="color:var(--muted-foreground)"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+              </button>
+            </span>
+            <button class="prop status prop-inprog">
+              <span class="plabel">Status</span>
+              <span class="pval">
+                <svg class="ic s12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m14 10-4 4"/><path d="m10 10 4 4"/></svg>
+                In Progress
+              </span>
+              <svg class="ic s12" viewBox="0 0 24 24" style="color:var(--muted-foreground)"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+            </button>
+            <button class="prop">
+              <span class="plabel">Priority</span>
+              <span class="pval"><svg class="ic s12" viewBox="0 0 24 24" style="color:var(--warning-foreground)"><path d="m7 9 5-5 5 5"/><path d="m7 15 5 5 5-5"/></svg> Medium</span>
+            </button>
+            <span class="prop" style="cursor:default">
+              <span class="plabel">Project</span>
+              <span class="pval">
+                <svg class="ic s12" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                Stellarc v2
+              </span>
+            </span>
+            <span class="prop" style="cursor:default" title="Created">
+              <span class="plabel">Created</span>
+              <span class="pval mono" style="font-size:11px">Oct 3</span>
+            </span>
+          </div>
+
+          <div class="t-desc">
+            <p><code>sync.reconnect.test.ts</code> fails ~1 in 8 CI runs: when the node reconnects mid-burst, the journal replay re-applies entries that the live path already committed. The lease holder flips between the two apply paths.</p>
+            <ul>
+              <li>Reproduce by killing the node socket between <code>append_entries</code> 40–60.</li>
+              <li>Suspect the dedupe key drops the attempt id after a claim.</li>
+              <li>Fix + regression test with a deterministic reconnect schedule.</li>
+            </ul>
+          </div>
+
+          <div class="tabs" role="tablist">
+            <button class="tab on" role="tab" aria-selected="true">All <span class="n">5</span></button>
+            <button class="tab" role="tab" aria-selected="false">Comments <span class="n">3</span></button>
+            <button class="tab" role="tab" aria-selected="false">Agent runs <span class="n">2</span></button>
+          </div>
+          <div id="activity">
+            <div class="comment">
+              <span class="avatar av-human">TK</span>
+              <div class="cbody">
+                <div class="chead"><span class="cn">Talos Kazimir</span><span class="ct">Oct 3 · 14:12</span></div>
+                <div class="ctext">Seen twice on <span class="mono" style="font-size:11.5px">nevr-ci-01</span> today. Not a CI infra flake — the journal genuinely double-commits.</div>
+              </div>
+            </div>
+            <div class="comment">
+              <span class="avatar av-scribe">SC</span>
+              <div class="cbody">
+                <div class="chead"><span class="cn">Scribe <span class="chip-harness">codex</span></span><span class="ct">Oct 6 · 09:41</span></div>
+                <div class="ctext">Run 1 reproduced it locally (4/32 iterations). Root cause confirmed: dedupe key uses <span class="mono" style="font-size:11.5px">(task, seq)</span> but skips the attempt after a re-claim. Attempted a fix — see run transcript, attempt 1.</div>
+              </div>
+            </div>
+            <div class="comment">
+              <span class="avatar av-human">RP</span>
+              <div class="cbody">
+                <div class="chead"><span class="cn">Raisal P. Wardana</span><span class="ct">Oct 8 · 10:02</span></div>
+                <div class="ctext">Nice. Assign the follow-up to Atlas and let it drive to a PR — keep the dedupe key change behind the existing feature flag.</div>
+              </div>
+            </div>
+            <div class="composer-mini">
+              <span class="avatar av-human">RP</span>
+              <div class="box" contenteditable="true" data-ph="Leave a comment…">Leave a comment…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- run panel -->
+      <section class="runpanel" id="runpanel" aria-label="Agent run"></section>
+    </div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<!-- state switcher -->
+<div class="switcher" id="switcher">
+  <div class="sw-head" id="swHead">
+    <span class="dotp"></span> states
+    <span class="cur" id="swCur">running</span>
+    <svg class="ic s12" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+  </div>
+  <div class="sw-body" id="swBody"></div>
+  <div class="sw-note">design review · every run-panel state, one click · press A to open the assignee picker</div>
+</div>
+
+<script>
+"use strict";
+/* ═══ icons ═══════════════════════════════════════════════════════════════ */
+const I = {
+  bot: '<svg class="ic" viewBox="0 0 24 24"><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M12 8V4H8"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
+  chevR: '<svg class="ic s12 chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
+  check: '<svg class="ic s12 check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+  file: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>',
+  term: '<svg class="ic s12" viewBox="0 0 24 24"><path d="m7 12 2 2 4-4"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>',
+  diff: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M12 3v7"/><path d="M9 6 3 6"/><path d="M12 21v-7"/><path d="M15 18h6"/></svg>',
+  pr: '<svg class="ic" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></svg>',
+  ext: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+  stop: '<svg class="ic s12" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+  retry: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+  alert: '<svg class="ic" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+  alertO: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
+  refresh: '<svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+  wifi: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>',
+  plugOff: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/><path d="m2 2 20 20"/></svg>',
+  send: '<svg class="ic s12" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
+  dots: '<svg class="ic s16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>',
+  spark: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/></svg>',
+  brain: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/></svg>',
+  plus: '<svg class="ic s12" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+  info: '<svg class="ic s12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  inbox0: '<svg class="ic" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+};
+
+/* ═══ data ═════════════════════════════════════════════════════════════════ */
+const HUMANS = [
+  { id: "u_rp", kind: "human", name: "Raisal P. Wardana", detail: "raisal@nevrlabs.dev", cls: "av-human", ini: "RP" },
+  { id: "u_tk", kind: "human", name: "Talos Kazimir", detail: "talos@nevrlabs.dev", cls: "av-human", ini: "TK" },
+  { id: "u_mj", kind: "human", name: "Mirna Jaya", detail: "mirna@nevrlabs.dev", cls: "av-human", ini: "MJ" },
+];
+const AGENTS = [
+  { id: "ag_atlas",   kind: "agent", name: "Atlas",   harness: "hermes",      model: "glm-4.7",           node: "pumpkin-house", nodeOS: "macOS 15 · arm64", avail: "online", runs: 0, cls: "av-atlas",   ini: "AT" },
+  { id: "ag_curator", kind: "agent", name: "Curator", harness: "claude-code", model: "claude-sonnet-4.5", node: "pumpkin-house", nodeOS: "macOS 15 · arm64", avail: "busy",   runs: 2, cls: "av-curator", ini: "CU" },
+  { id: "ag_scribe",  kind: "agent", name: "Scribe",  harness: "codex",       model: "gpt-5-codex",       node: "nevr-ci-01",   nodeOS: "Linux 6.6 · x64", avail: "online", runs: 0, cls: "av-scribe",  ini: "SC" },
+  { id: "ag_wren",    kind: "agent", name: "Wren",    harness: "goose",       model: "llama-3.3-70b",     node: "pumpkin-house", nodeOS: "macOS 15 · arm64", avail: "offline", runs: 0, cls: "av-wren", ini: "WR" },
+  { id: "ag_vesper",  kind: "agent", name: "Vesper",  harness: "opencode",    model: "kimi-k2",           node: "nevr-ci-01",   nodeOS: "Linux 6.6 · x64", avail: "online", runs: 0, cls: "av-vesper", ini: "VS" },
+];
+const AG = (id) => AGENTS.find(a => a.id === id);
+const TASK = { id: "tsk_01JC0N8Q4M2T7W", subjectRef: "stellarc:NEVR-14", lease: 60 };
+
+/* ═══ transcript builders ══════════════════════════════════════════════════ */
+const OUT_TEST_FAIL = [
+  "<span class='ln'> 1</span> $ bun test packages/sync/sync.reconnect.test.ts",
+  "<span class='ln'> 2</span> <span class='tx-dim'>bun test v1.1.30</span>",
+  "<span class='ln'> 3</span>",
+  "<span class='ln'> 4</span> packages/sync/sync.reconnect.test.ts:",
+  "<span class='ln'> 5</span> <span class='tx-ok'>✓</span> replays journal in order [12.41ms]",
+  "<span class='ln'> 6</span> <span class='tx-ok'>✓</span> drops entries past commit index [3.02ms]",
+  "<span class='ln'> 7</span> <span class='tx-err'>✗</span> does not double-apply on reconnect [1188.22ms]",
+  "<span class='ln'> 8</span>",
+  "<span class='ln'> 9</span> <span class='tx-err'>  68 |</span>   for (let i = 40; i &lt; 60; i++) {",
+  "<span class='ln'>10</span> <span class='tx-err'>  69 |</span>     if (i === 47) node.killSocket();",
+  "<span class='ln'>11</span> <span class='tx-err'>  70 |</span>     await appendEntries(i);",
+  "<span class='ln'>12</span> <span class='tx-err'>  71 |</span>   }",
+  "<span class='ln'>13</span> <span class='tx-err'>  72 |</span>   expect(appliedCount()).toBe(20);",
+  "<span class='ln'>14</span> <span class='tx-dim'>       |</span>",
+  "<span class='ln'>15</span> <span class='tx-dim'>       └─</span> <span class='tx-err'>expected 34, got 20 (7 of 14 dedupe misses)</span>",
+  "<span class='ln'>16</span>",
+  "<span class='ln'>17</span> 1/221 skipped, 1 failed [3.42s]",
+].join("\n");
+
+const OUT_TEST_PASS = [
+  "<span class='ln'> 1</span> $ bun test packages/sync/sync.reconnect.test.ts --seed 47",
+  "<span class='ln'> 2</span> <span class='tx-dim'>bun test v1.1.30 · 200 iterations</span>",
+  "<span class='ln'> 3</span>",
+  "<span class='ln'> 4</span> <span class='tx-ok'>✓</span> does not double-apply on reconnect [2211.84ms]",
+  "<span class='ln'> 5</span> <span class='tx-ok'>✓</span> dedupe key survives re-claim [0.84ms]",
+  "<span class='ln'> 6</span>",
+  "<span class='ln'> 7</span> <span class='tx-ok'>221 passed</span>, 1 skipped [4.02s]",
+].join("\n");
+
+const OUT_READ = [
+  "<span class='ln'> 86</span> <span class='tx-dim'>// re-claim branch: replay journal tail</span>",
+  "<span class='ln'> 87</span> applyEntries(tail) {",
+  "<span class='ln'> 88</span>   const key = (e) =&gt; `${e.task}:${e.seq}`",
+  "<span class='ln'> 89</span>   if (this.seen.has(key)) return",
+  "<span class='ln'> 90</span>   this.seen.add(key)",
+  "<span class='ln'> 91</span>   this.commit(e)",
+  "<span class='ln'> 92</span> }",
+].join("\n");
+
+const THINK_1 = "The test kills the socket at entry 47. On reconnect the node re-claims the task — attempt bumps 1→2 — but applyEntries() dedupes on (task, seq) only. Entries 41–47 were already committed by the live path before the reconnect, so the journal replay path re-applies them.\n\nThe ADR says reports are keyed (task, attempt, node) and items dedupe on (task, attempt, seq). The apply path should use the same key, not the item key. Check reconcile.ts around the re-claim branch.";
+
+const DIFF_1 = [
+  "<span class='dl hunk'>@@ reconcile.ts · applyEntries()</span>",
+  "<span class='dl'>  const key = (e: Entry) =&gt; `${e.task}:${e.seq}`;</span>",
+  "<span class='dl del'>-  if (this.seen.has(key)) return;</span>",
+  "<span class='dl del'>-  this.seen.add(key);</span>",
+  "<span class='dl add'>+  // ADR-0011: reports are keyed (task, attempt, node); the apply path</span>",
+  "<span class='dl add'>+  // must dedupe on the same triple or a re-claim re-applies committed entries.</span>",
+  "<span class='dl add'>+  const dedupe = `${e.task}:${this.attempt}:${e.seq}`;</span>",
+  "<span class='dl add'>+  if (this.seen.has(dedupe)) return;</span>",
+  "<span class='dl add'>+  this.seen.add(dedupe);</span>",
+].join("\n");
+
+const DIFF_2 = [
+  "<span class='dl hunk'>@@ __tests__/reconnect.schedule.ts · new file</span>",
+  "<span class='dl add'>+import { schedule } from \"./helpers/kill-schedule\"</span>",
+  "<span class='dl add'>+</span>",
+  "<span class='dl add'>+test(\"deterministic reconnect schedule\", () =&gt; {</span>",
+  "<span class='dl add'>+  const s = schedule({ killAt: 47, entries: 60, seed: 47n })</span>",
+  "<span class='dl add'>+  expect(s.reconnects).toBe(1)</span>",
+  "<span class='dl add'>+  expect(s.doubleApplies).toBe(0)</span>",
+  "<span class='dl add'>+})</span>",
+].join("\n");
+
+const MSG_1 = "Reproduced on the first pass — the journal replay path re-applies entries 41–47 after the socket kill because the dedupe key drops the attempt id. Patching `reconcile.ts` to key on `(task, attempt, seq)`, matching the report key from ADR-0011. Running the deterministic reconnect schedule next.";
+
+const MSG_FINAL = "Fixed. The dedupe key now includes the attempt, so a re-claim can't re-apply entries the live path already committed. Regression test uses a fixed kill-at-47 schedule — 200 iterations green locally, flake gone.\n\nOpening the PR now. Flag `sync.attempt_dedupe` guards the new key; default on.";
+
+function items_running(streamingTail) {
+  const its = [
+    { kind: "config", model: "glm-4.7", applied: true, branch: "fix/sync-double-apply", attempt: 2 },
+    { kind: "message", who: "You", role: "user", text: "Atlas — take NEVR-14 from Scribe's finding. Land the dedupe fix behind `sync.attempt_dedupe` with a deterministic reconnect test.", t: "11:38" },
+    { kind: "thinking", dur: "4s", text: THINK_1 },
+    { kind: "tool_call", tool: "read_file", args: "packages/sync/src/reconcile.ts", status: "ok", statusLabel: "214 lines", icon: "file", out: OUT_READ },
+    { kind: "tool_call", tool: "terminal", args: "bun test sync.reconnect.test.ts", status: "err", statusLabel: "exit 1", icon: "term", out: OUT_TEST_FAIL },
+    { kind: "file_change", path: "packages/sync/src/reconcile.ts", adds: 6, dels: 2, diff: DIFF_1 },
+    { kind: "tool_call", tool: "terminal", args: "bun test sync.reconnect.test.ts --seed 47", status: "run", statusLabel: "running", icon: "term", out: "<span class='tx-dim'>streaming…</span>" },
+  ];
+  if (streamingTail) its.push({ kind: "message", who: "Atlas", role: "assistant", agent: "ag_atlas", streaming: true, text: MSG_1, t: "11:42" });
+  return its;
+}
+
+function items_completed() {
+  return [
+    { kind: "config", model: "glm-4.7", applied: true, branch: "fix/sync-double-apply", attempt: 2 },
+    { kind: "message", who: "You", role: "user", text: "Atlas — take NEVR-14 from Scribe's finding. Land the dedupe fix behind `sync.attempt_dedupe` with a deterministic reconnect test.", t: "11:38" },
+    { kind: "thinking", dur: "4s", text: THINK_1 },
+    { kind: "tool_call", tool: "read_file", args: "packages/sync/src/reconcile.ts", status: "ok", statusLabel: "214 lines", icon: "file", out: OUT_READ },
+    { kind: "tool_call", tool: "terminal", args: "bun test sync.reconnect.test.ts", status: "err", statusLabel: "exit 1", icon: "term", out: OUT_TEST_FAIL },
+    { kind: "file_change", path: "packages/sync/src/reconcile.ts", adds: 6, dels: 2, diff: DIFF_1, open: true },
+    { kind: "tool_call", tool: "terminal", args: "bun test sync.reconnect.test.ts --seed 47", status: "ok", statusLabel: "221 passed · 4.0s", icon: "term", out: OUT_TEST_PASS },
+    { kind: "file_change", path: "packages/sync/src/__tests__/reconnect.schedule.ts", adds: 7, dels: 0, diff: DIFF_2 },
+    { kind: "message", who: "Atlas", role: "assistant", agent: "ag_atlas", text: MSG_FINAL, t: "11:51" },
+  ];
+}
+
+function items_long() {
+  const longThink = Array.from({length: 26}, (_, i) => `Pass ${i + 1}: consider the invariant — a re-claimed attempt must never re-apply what the live path committed; the key must carry the attempt.`).join("\n");
+  const longMsg = "This transcript row exercises long content: the message body runs well past the panel width so wrapping can be checked against the 440px rail, the tool output below scrolls instead of reflowing, and the diff body keeps its gutter intact. ".repeat(4);
+  const wideOut = Array.from({length: 24}, (_, i) => `<span class='ln'>${String(i+101).padStart(3)}</span> <span class='tx-dim'>trace[${i}]</span> append_entries term=3 idx=${40+i} commit=${39+i} dedupe=tsk_01JC0N8Q4M2T7W:2:${String(i).padStart(4,"0")} latency_ms=${(2.2+i*0.37).toFixed(2)}`).join("\n");
+  const bigDiff = DIFF_1 + "\n" + Array.from({length: 28}, (_, i) => `<span class='dl ${i%3===0?"add":i%3===1?"del":""}'>  context line ${i} — scroll the diff body to verify the gutter</span>`).join("\n");
+  return [
+    { kind: "config", model: "glm-4.7", applied: true, branch: "fix/sync-double-apply", attempt: 2 },
+    { kind: "thinking", dur: "38s", text: longThink },
+    { kind: "message", who: "Atlas", role: "assistant", agent: "ag_atlas", text: longMsg, t: "11:44" },
+    { kind: "tool_call", tool: "terminal", args: "bun run trace:replay --entries 64 --format wide", status: "ok", statusLabel: "24 lines", icon: "term", out: wideOut, open: true },
+    { kind: "file_change", path: "packages/sync/src/reconcile.ts", adds: 96, dels: 41, diff: bigDiff, open: true },
+  ];
+}
+
+/* ═══ scenarios ═══════════════════════════════════════════════════════════ */
+const SCENARIOS = {
+  loading:        { agent: "ag_atlas", status: "loading" },
+  empty:          { agent: null, status: "empty" },
+  queued:         { agent: "ag_atlas", status: "queued", attempt: 1, max: 3, items: [] },
+  claimed:        { agent: "ag_atlas", status: "claimed", attempt: 2, max: 3, items: [] },
+  running:        { agent: "ag_atlas", status: "running", attempt: 2, max: 3, items: items_running(true), elapsed: 214 },
+  long:           { agent: "ag_atlas", status: "running", attempt: 2, max: 3, items: items_long(), elapsed: 611 },
+  completed:      { agent: "ag_atlas", status: "completed", attempt: 2, max: 3, items: items_completed(), elapsed: 782, pr: { n: 72, title: "fix(sync): dedupe replay on (task, attempt, seq)", meta: "3 files · +141 −43", checks: "passing" } },
+  retrying:       { agent: "ag_atlas", status: "queued", attempt: 2, max: 3, retry: { code: "platform.harness_exited", msg: "Attempt 1 exited before reporting (exit 137, OOM on pumpkin-house). The task was re-queued automatically — a node will claim it within ~20s." }, items: items_running().slice(0, 2) },
+  failed_platform:{ agent: "ag_atlas", status: "failed", attempt: 3, max: 3, failure: { code: "platform.harness_exited", tier: "platform", msg: "Attempt 3 exited before reporting (exit 137). Retries exhausted — max_attempts (3) reached." }, items: items_running().slice(0, 3) },
+  failed_agent:   { agent: "ag_curator", status: "failed", attempt: 1, max: 3, failure: { code: "agent_error.refusal", tier: "agent", msg: "The agent declined: “instructions forbid touching packages/sync without a paired reviewer — assign with a reviewer or edit my instructions.”" }, items: items_running().slice(0, 2) },
+  cancelled:      { agent: "ag_atlas", status: "cancelled", attempt: 2, max: 3, cancelledBy: "Raisal", items: items_running().slice(0, 5) },
+  offline:        { agent: "ag_wren", status: "offline", attempt: 1, max: 3, items: [] },
+  error:          { agent: "ag_atlas", status: "error", attempt: 2, max: 3, items: [] },
+};
+
+const STATE = {
+  scenario: "running",
+  assignee: "ag_atlas",
+  streamTimer: null,
+  clockTimer: null,
+  elapsed: 0,
+  autoRun: null,
+};
+
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const cur = () => SCENARIOS[STATE.scenario];
+
+/* ═══ run panel render ════════════════════════════════════════════════════ */
+function statusPill(sc) {
+  if (sc.status === "queued" && sc.retry) return `<span class="runpill retrying"><span class="d pulse"></span>retrying · ${sc.attempt}/${sc.max}</span>`;
+  const map = {
+    queued:    ["queued", "queued", ""],
+    claimed:   ["claimed", "claimed · spawning", "spin"],
+    running:   ["running", "running", "pulse"],
+    completed: ["completed", "completed", ""],
+    failed:    ["failed", "failed", ""],
+    cancelled: ["cancelled", "cancelled", ""],
+    offline:   ["failed", "runtime offline", ""],
+    error:     ["failed", "load error", ""],
+  };
+  const m = map[sc.status];
+  return m ? `<span class="runpill ${m[0]}"><span class="d ${m[2]}"></span>${m[1]}</span>` : "";
+}
+
+function agentHead(sc) {
+  if (!sc.agent) return "";
+  const a = AG(sc.agent);
+  return `
+    <span class="avatar a-lg ${a.cls}">${a.ini}</span>
+    <div class="rp-title">
+      <div class="rn"><span>${a.name}</span> <span class="chip-harness">${a.harness}</span> ${statusPill(sc)}</div>
+      <div class="rs">${a.model} · ${TASK.id} · ${TASK.subjectRef}</div>
+    </div>
+    <button class="iconbtn" title="Run actions" aria-label="Run actions">${I.dots}</button>`;
+}
+
+function fmtDur(s) { return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${String(s%60).padStart(2,"0")}s`; }
+
+function metaStrip(sc) {
+  if (!sc.agent) return "";
+  const a = AG(sc.agent);
+  const online = sc.status !== "offline";
+  const dotCls = online ? (a.avail === "busy" ? "busy" : "online") : "offline";
+  const dur = fmtDur(STATE.elapsed || sc.elapsed || 0);
+  return `<div class="rp-meta">
+    <div class="kv"><div class="k">Node</div><div class="v"><span class="avail-dot ${dotCls}" style="margin-right:6px"></span>${a.node} <span class="sub">· ${a.nodeOS}</span></div></div>
+    <div class="kv"><div class="k">Attempt</div><div class="v">${sc.attempt} <span class="sub">of ${sc.max}</span></div></div>
+    <div class="kv"><div class="k">Elapsed</div><div class="v mono" id="elapsedV">${dur}</div></div>
+  </div>`;
+}
+
+function bannerHTML(sc) {
+  if (sc.failure) {
+    const platform = sc.failure.tier === "platform";
+    return `<div class="banner ${platform ? "warn" : "err"}">
+      <span class="b-ic">${platform ? I.refresh : I.alertO}</span>
+      <div>
+        <div class="b-title">${esc(sc.failure.code)} <span class="chip-harness">${platform ? "platform.* · retried on the runtime" : "agent_error.* · needs a human"}</span></div>
+        <div class="b-msg">${esc(sc.failure.msg)}</div>
+        <div class="b-actions">
+          ${platform
+            ? `<button class="btn sm outline" data-act="retry">${I.retry} New attempt</button>
+               <button class="btn sm ghost" data-act="reassign">${I.bot} Reassign</button>`
+            : `<button class="btn sm primary" data-act="reassign">${I.bot} Reassign agent</button>
+               <button class="btn sm outline" data-act="editinstr">${I.file} Edit instructions</button>
+               <button class="btn sm ghost" data-act="forceretry" title="agent_error.* is never retried automatically — retrying refusals burns money">Force attempt</button>`}
+        </div>
+      </div>
+    </div>`;
+  }
+  if (sc.retry) {
+    return `<div class="banner warn">
+      <span class="b-ic">${I.refresh}</span>
+      <div>
+        <div class="b-title">${esc(sc.retry.code)} <span class="chip-harness">platform.* · retrying automatically</span></div>
+        <div class="b-msg">${esc(sc.retry.msg)}</div>
+      </div>
+    </div>`;
+  }
+  if (sc.status === "cancelled") {
+    return `<div class="banner quiet">
+      <span class="b-ic">${I.stop}</span>
+      <div>
+        <div class="b-title">cancelled by ${esc(sc.cancelledBy)}</div>
+        <div class="b-msg">The node was told to stop on its next heartbeat; in-flight items are kept. A new attempt resumes on the same native session.</div>
+      </div>
+    </div>`;
+  }
+  if (sc.status === "offline") {
+    const a = AG(sc.agent);
+    return `<div class="banner err">
+      <span class="b-ic">${I.plugOff}</span>
+      <div>
+        <div class="b-title">runtime offline <span class="chip-harness">${a.node} · last seen 14m ago</span></div>
+        <div class="b-msg">The node hosting ${esc(a.name)} went dark. Claimed tasks are reaped after lease expiry (<span class="mono">platform.lease_expired</span>) and re-queued.</div>
+        <div class="b-actions">
+          <button class="btn sm outline" data-act="wake">${I.wifi} Wake node</button>
+          <button class="btn sm ghost" data-act="reassign">${I.bot} Move to another node</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return "";
+}
+
+function itemHTML(it) {
+  switch (it.kind) {
+    case "config":
+      return `<div class="metarow"><span class="tag">config</span>
+        <span>model <b style="color:var(--foreground);font-weight:400">${it.model}</b>${it.applied ? " · applied via configOptions" : " · harness default"}</span>
+        <span>branch ${it.branch}</span><span>attempt ${it.attempt}</span></div>`;
+    case "harness_meta":
+      return `<div class="metarow"><span class="tag">harness_meta</span><span>${esc(it.text)}</span></div>`;
+    case "message": {
+      const a = it.agent ? AG(it.agent) : null;
+      const who = it.role === "user"
+        ? `<span class="who">You</span>`
+        : `<span class="avatar a-sm ${a.cls}" style="display:inline-grid;vertical-align:-6px">${a.ini}</span> <span class="who">${esc(it.who)}</span> <span class="chip-harness">${a.harness}</span>`;
+      const stream = it.streaming ? ` <span class="streamtag"><span class="d"></span>streaming</span>` : "";
+      return `<div class="titem">
+        <div class="ti-head">${who} <span class="metam">${it.t}</span>${stream}</div>
+        <div class="ti-msg ${it.role === "user" ? "user" : ""}">${esc(it.text)}${it.streaming ? '<span class="cursor"></span>' : ""}</div>
+      </div>`;
+    }
+    case "thinking":
+      return `<div class="titem"><div class="think ${it.open ? "open" : ""}" data-toggle>
+        <div class="ti-head">${I.brain} <span class="who" style="font-weight:400">thought for ${it.dur}</span> <span class="metam">thinking · collapsed</span> ${I.chevR}</div>
+        <div class="think-body">${esc(it.text)}</div>
+      </div></div>`;
+    case "tool_call": {
+      const st = it.status === "run"
+        ? `<span class="tool-status run">${it.statusLabel}</span>`
+        : `<span class="tool-status ${it.status}">${it.statusLabel}</span>`;
+      return `<div class="titem"><div class="tool ${it.open ? "open" : ""}" data-toggle>
+        <div class="ti-head">${I[it.icon] || I.term} <span class="tname">${esc(it.tool)} <span class="args">${esc(it.args)}</span></span> ${st} ${I.chevR}</div>
+        <div class="tool-out">${it.out}</div>
+      </div></div>`;
+    }
+    case "file_change": {
+      const dir = it.path.includes("/") ? it.path.slice(0, it.path.lastIndexOf("/") + 1) : "";
+      const base = it.path.slice(dir.length);
+      return `<div class="titem"><div class="fdiff ${it.open ? "open" : ""}" data-toggle>
+        <div class="ti-head">${I.diff} <span class="fpath"><span class="dir">${dir}</span>${base}</span> <span class="adds">+${it.adds}</span> <span class="dels">−${it.dels}</span> ${I.chevR}</div>
+        <div class="diff-body">${it.diff}</div>
+      </div></div>`;
+    }
+  }
+  return "";
+}
+
+function transcriptHTML(sc) {
+  return `<div class="transcript">
+    <div class="turn-sep">attempt ${sc.attempt || 1} · session/new</div>
+    ${(sc.items || []).map(itemHTML).join("")}
+  </div>`;
+}
+
+function centerState(icon, title, msg, actions) {
+  return `<div class="center-state">
+    <div class="cs-ic">${icon}</div>
+    <div class="cs-t">${title}</div>
+    <div class="cs-m">${msg}</div>
+    ${actions ? `<div class="cs-a">${actions}</div>` : ""}
+  </div>`;
+}
+
+function prCardHTML(sc) {
+  return `<div class="prCard">
+    <span class="pric">${I.pr}</span>
+    <div style="flex:1;min-width:0">
+      <div class="prt">PR #${sc.pr.n} · ${esc(sc.pr.title)}</div>
+      <div class="prm"><span>${sc.pr.meta}</span><span class="checks">${I.check} checks ${sc.pr.checks}</span><span>opened by ${esc(AG(sc.agent).name)}</span></div>
+    </div>
+    <a href="#" class="iconbtn" data-act="openpr" title="Open PR" aria-label="Open PR" style="color:var(--muted-foreground)">${I.ext}</a>
+  </div>`;
+}
+
+function footHTML(sc) {
+  const canCancel = ["queued", "claimed", "running"].includes(sc.status);
+  const canRetry = ["failed", "cancelled"].includes(sc.status);
+  const canFollowUp = ["completed", "cancelled"].includes(sc.status);
+  const running = sc.status === "running";
+  const parts = [];
+  if (canCancel) parts.push(`<button class="btn danger-o sm" data-act="cancel">${I.stop} Cancel run</button>`);
+  if (canRetry) parts.push(`<button class="btn outline sm" data-act="retry">${I.retry} Retry</button>`);
+  if (sc.status === "completed" && sc.pr) parts.push(`<a class="btn primary sm" href="#" data-act="openpr">${I.ext} Open PR #${sc.pr.n}</a>`);
+  const lease = running ? `<div class="fu-note">${I.info}<span>lease 60s · heartbeat every 20s · renews in <span class="mono" id="leaseV">20s</span></span></div>` : "";
+  const fu = canFollowUp ? `
+    <div class="fu">
+      <textarea id="fuText" rows="2" placeholder="Follow-up prompt — continues the same native session…"></textarea>
+      <div class="fu-bar">
+        <span class="hint">${I.spark}<span>same native session · ⏎ send</span></span>
+        <button class="btn primary sm" data-act="sendfu" style="margin-left:auto">${I.send} Send</button>
+      </div>
+    </div>` : "";
+  if (!parts.length && !fu && !lease) return "";
+  return `<div class="rp-foot">
+    ${lease}
+    ${parts.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${parts.join("")}</div>` : ""}
+    ${fu}
+  </div>`;
+}
+
+function renderRunPanel() {
+  const sc = cur();
+  const rp = $("#runpanel");
+  clearInterval(STATE.clockTimer);
+  clearTimeout(STATE.autoRun);
+
+  if (sc.status === "loading") {
+    rp.innerHTML = `
+      <div class="rp-head">
+        <span class="avatar a-lg" style="background:var(--secondary)"></span>
+        <div class="rp-title">
+          <div class="rn"><span class="skel-line" style="width:90px;display:inline-block"></span></div>
+          <div class="rs"><span class="skel-line" style="width:180px;display:inline-block"></span></div>
+        </div>
+      </div>
+      <div class="rp-skel">
+        ${[58, 76, 91, 40, 66, 83].map(w => `<div class="row"><span class="ava skel-line"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><span class="skel-line" style="width:${w}%"></span><span class="skel-line" style="width:${Math.max(20, w-35)}%"></span></div></div>`).join("")}
+        <div class="skel-line" style="height:64px;border-radius:8px"></div>
+        <div class="skel-line" style="height:64px;border-radius:8px;width:85%"></div>
+      </div>`;
+    return;
+  }
+
+  if (sc.status === "empty") {
+    rp.innerHTML = centerState(I.inbox0,
+      "No agent run on this ticket",
+      "Assign an agent and Stellarc queues a task — the run streams here live: transcript, tool calls, file changes, PR.",
+      `<button class="btn primary sm" data-act="assign">${I.bot} Assign an agent</button>
+       <span class="btn ghost sm" style="border:1px solid var(--border)">${I.spark} Agents are teammates</span>`);
+    return;
+  }
+
+  STATE.assignee = sc.agent;
+
+  if (sc.status === "error") {
+    rp.innerHTML = `
+      ${agentHead(sc)}
+      ${metaStrip(sc)}
+      <div class="rp-body">${centerState(I.alert,
+        "Couldn't load the run transcript",
+        "502 from the plane — the task is still running on the node; only this view failed.",
+        `<button class="btn outline sm" data-act="reload">${I.retry} Retry</button>`)}</div>
+      ${footHTML(sc)}`;
+    return;
+  }
+
+  const body =
+    (sc.status === "queued" && !(sc.items || []).length)
+      ? centerState(I.bot, "Waiting for a node to claim", `Queued · ${esc(AG(sc.agent).name)} will claim from <span class="mono">${AG(sc.agent).node}</span> — long-poll ≤ 30s.`)
+      : transcriptHTML(sc);
+
+  rp.innerHTML = `
+    ${agentHead(sc)}
+    ${metaStrip(sc)}
+    ${bannerHTML(sc)}
+    <div class="rp-body" id="rpBody">
+      ${sc.pr ? prCardHTML(sc) : ""}
+      ${body}
+      ${sc.status === "completed" ? `<div class="sumrow">
+        <span class="sumtag">tokens <b>41.2k</b></span>
+        <span class="sumtag">tool calls <b>9</b></span>
+        <span class="sumtag">file changes <b>2</b></span>
+        <span class="sumtag">native session <b>sesh_9f2…</b></span>
+      </div>` : ""}
+    </div>
+    ${footHTML(sc)}`;
+
+  renderAssigneeChip();
+
+  if (sc.status === "running") {
+    STATE.elapsed = sc.elapsed || 0;
+    const body0 = $("#rpBody");
+    if (body0) body0.scrollTop = body0.scrollHeight;
+    STATE.clockTimer = setInterval(() => {
+      STATE.elapsed++;
+      const el = $("#elapsedV"); if (el) el.textContent = fmtDur(STATE.elapsed);
+      const lv = $("#leaseV"); if (lv) lv.textContent = `${20 - (STATE.elapsed % 20)}s`;
+    }, 1000);
+  }
+}
+
+/* ═══ assignee picker ═════════════════════════════════════════════════════ */
+let pickerHL = 0;
+
+function renderAssigneeChip() {
+  const a = STATE.assignee ? (AG(STATE.assignee) || HUMANS.find(h => h.id === STATE.assignee)) : null;
+  $("#assigneeVal").innerHTML = a
+    ? `<span class="avatar a-sm ${a.cls}">${a.ini}</span> ${a.kind === "agent" ? `<span class="chip-harness">${a.harness}</span>` : ""} <span>${esc(a.name)}</span>`
+    : `<span style="color:var(--muted-foreground)">Unassigned</span>`;
+}
+
+function listHTML(filter) {
+  const f = (filter || "").trim().toLowerCase();
+  const match = (...xs) => !f || xs.some(x => x && x.toLowerCase().includes(f));
+  const agents = AGENTS.filter(a => match(a.name, a.harness, a.model, a.node));
+  const humans = HUMANS.filter(h => match(h.name, h.detail));
+  const row = (p) => {
+    const sel = STATE.assignee === p.id;
+    const off = p.kind === "agent" && p.avail === "offline";
+    const side = p.kind === "agent"
+      ? `<span class="p-side">${p.runs ? `<span class="runmini">${p.runs} running</span>` : ""}<span class="avail-dot ${p.avail}" title="${p.avail}"></span></span>`
+      : "";
+    const sub = p.kind === "agent" ? `${p.harness} · ${p.model} · ${p.node}` : p.detail;
+    return `<button class="pick ${sel ? "sel" : ""} ${off ? "off" : ""}" data-pick="${p.id}" role="option" aria-selected="${sel}" ${off ? 'title="Runtime offline — cannot claim tasks"' : ""}>
+      <span class="avatar ${p.cls}">${p.ini}</span>
+      <span class="p-main">
+        <span class="p-name"><span>${esc(p.name)}</span> ${p.kind === "agent" ? `<span class="chip-harness">${p.harness}</span>` : ""}</span>
+        <span class="p-sub">${esc(sub)}</span>
+      </span>
+      ${side} ${I.check}
+    </button>`;
+  };
+  let html = "";
+  if (agents.length) html += `<div class="picker-sect">Agents</div>` + agents.map(row).join("");
+  if (humans.length) html += `<div class="picker-sect">Members</div>` + humans.map(row).join("");
+  if (!html) html = `<div class="picker-empty">No matches — try a harness name: hermes, codex, goose…</div>`;
+  return html;
+}
+
+function openPicker() {
+  if ($("#pickerPop")) { closePicker(); return; }
+  const wrap = $("#assigneeWrap");
+  wrap.insertAdjacentHTML("beforeend", `<div class="picker-pop" id="pickerPop" role="listbox" aria-label="Assignee">
+    <div class="picker-search">
+      <svg class="ic s12" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="pickerInput" type="text" placeholder="Search people and agents…" autocomplete="off" />
+    </div>
+    <div class="picker-list" id="pickerList">${listHTML("")}</div>
+    <div class="picker-foot">
+      <a href="#" onclick="return false">${I.plus} Connect a runtime</a>
+      <a href="#" onclick="return false">Manage agents</a>
+    </div>
+  </div>`);
+  $("#assigneeTrigger").setAttribute("aria-expanded", "true");
+  const input = $("#pickerInput");
+  requestAnimationFrame(() => input.focus());
+  pickerHL = Math.max(0, AGENTS.findIndex(a => a.id === STATE.assignee));
+
+  const onInput = () => { $("#pickerList").innerHTML = listHTML(input.value); pickerHL = 0; hl(); };
+  const onKey = (e) => {
+    const opts = $$(".pick", $("#pickerList"));
+    if (e.key === "ArrowDown") { e.preventDefault(); pickerHL = Math.min(pickerHL + 1, opts.length - 1); hl(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); pickerHL = Math.max(pickerHL - 1, 0); hl(); }
+    else if (e.key === "Enter") { e.preventDefault(); const el = opts[pickerHL]; if (el) pickAssignee(el.dataset.pick); }
+    else if (e.key === "Escape") { closePicker(); $("#assigneeTrigger").focus(); }
+  };
+  const onOutside = (e) => { if (!$("#pickerPop")?.contains(e.target)) closePicker(); };
+  input.addEventListener("input", onInput);
+  input.addEventListener("keydown", onKey);
+  setTimeout(() => document.addEventListener("mousedown", onOutside), 0);
+  $("#pickerPop")._cleanup = () => {
+    input.removeEventListener("input", onInput);
+    input.removeEventListener("keydown", onKey);
+    document.removeEventListener("mousedown", onOutside);
+  };
+  hl();
+
+  function hl() {
+    const opts = $$(".pick", $("#pickerList"));
+    opts.forEach((o, i) => o.classList.toggle("hl", i === pickerHL));
+    if (opts[pickerHL]) opts[pickerHighlightScroll(opts[pickerHL]), pickerHL];
+  }
+  function pickerHighlightScroll(el) { el.scrollIntoView({ block: "nearest" }); return pickerHL; }
+}
+
+function closePicker() {
+  const pop = $("#pickerPop");
+  if (!pop) return;
+  if (pop._cleanup) pop._cleanup();
+  pop.remove();
+  $("#assigneeTrigger").setAttribute("aria-expanded", "false");
+}
+
+function pickAssignee(id) {
+  const p = [...AGENTS, ...HUMANS].find(x => x.id === id);
+  closePicker();
+  if (!p) return;
+  if (p.kind === "agent" && p.avail === "offline") {
+    toast(`Wren's runtime is offline — wake pumpkin-house first.`, "warn");
+    return;
+  }
+  STATE.assignee = id;
+  renderAssigneeChip();
+  if (p.kind === "human") {
+    go("empty");
+    toast(`Assigned to ${p.name} — no agent run.`);
+    return;
+  }
+  toast(`${p.name} assigned · task queued (${TASK.id})`, "ok");
+  go("queued");
+  clearTimeout(STATE.autoRun);
+  STATE.autoRun = setTimeout(() => {
+    if (STATE.scenario === "queued") { go("claimed"); toast(`${p.node} claimed the task — spawning ${p.harness}.`); }
+  }, 1400);
+}
+
+/* ═══ actions ═════════════════════════════════════════════════════════════ */
+function act(a) {
+  switch (a) {
+    case "cancel":
+      go("cancelled");
+      toast("Cancel sent — the node stops on its next heartbeat.", "warn");
+      break;
+    case "retry":
+      go("retrying");
+      toast("Re-queued · next attempt starting.", "ok");
+      clearTimeout(STATE.autoRun);
+      STATE.autoRun = setTimeout(() => { if (STATE.scenario === "retrying") go("claimed"); }, 1600);
+      break;
+    case "forceretry":
+      toast("Forced attempt queued — agent_error.* is never retried automatically.", "warn");
+      go("retrying");
+      break;
+    case "reassign":
+    case "assign":
+      openPicker();
+      break;
+    case "editinstr":
+      toast("Opening agent instructions (mock)…");
+      break;
+    case "wake":
+      toast("Wake-on-LAN sent to pumpkin-house…", "ok");
+      break;
+    case "openpr":
+      toast("Opening PR #72 in a new tab (mock)…", "ok");
+      break;
+    case "reload":
+      go("loading");
+      clearTimeout(STATE.autoRun);
+      STATE.autoRun = setTimeout(() => go("running"), 900);
+      break;
+    case "sendfu": {
+      const fu = $("#fuText");
+      const text = (fu ? fu.value : "").trim();
+      if (!text) { fu && fu.focus(); return; }
+      const sc = cur();
+      const its = (sc.items || []).slice();
+      its.push({ kind: "message", who: "You", role: "user", text, t: "now" });
+      its.push({ kind: "message", who: AG(sc.agent).name, role: "assistant", agent: sc.agent, streaming: true, text: "On it — continuing on the same native session (sesh_9f2…). Re-checking the flag default first.", t: "now" });
+      sc.items = its;
+      go(STATE.scenario, true);
+      toast("Follow-up sent · continuing session sesh_9f2…", "ok");
+      const body = $("#rpBody");
+      if (body) body.scrollTop = body.scrollHeight;
+      break;
+    }
+  }
+}
+
+/* ═══ toasts ══════════════════════════════════════════════════════════════ */
+function toast(msg, kind) {
+  const t = document.createElement("div");
+  t.className = "toast " + (kind || "");
+  t.innerHTML = (kind === "ok" ? I.check : kind === "warn" ? I.alert : I.info) + `<span>${esc(msg)}</span>`;
+  $("#toasts").appendChild(t);
+  setTimeout(() => { t.style.opacity = "0"; t.style.transition = "opacity .2s"; setTimeout(() => t.remove(), 220); }, 3400);
+}
+
+/* ═══ scenario switching ══════════════════════════════════════════════════ */
+function go(name, keepScroll) {
+  if (!SCENARIOS[name]) return;
+  STATE.scenario = name;
+  $("#swCur").textContent = name;
+  $$(".swbtn").forEach(b => b.classList.toggle("on", b.dataset.go === name));
+  closePicker();
+  renderRunPanel();
+  if (location.hash !== `#state=${name}`) history.replaceState(null, "", `#state=${name}`);
+  if (!keepScroll && name !== "running") { const b = $("#rpBody"); if (b) b.scrollTop = 0; }
+}
+
+const SW_BUTTONS = [
+  ["loading","loading"],["empty","empty"],["queued","queued"],["claimed","claimed"],["running","running"],
+  ["long","long content"],["completed","completed"],["retrying","retrying · platform.*"],
+  ["failed_platform","failed · platform.*"],["failed_agent","failed · agent_error.*"],
+  ["cancelled","cancelled"],["offline","offline runtime"],["error","load error"],
+];
+
+/* ═══ boot ════════════════════════════════════════════════════════════════ */
+function boot() {
+  $("#swBody").innerHTML = SW_BUTTONS.map(([id, label]) => `<button class="swbtn" data-go="${id}">${label}</button>`).join("");
+  $("#swHead").addEventListener("click", () => $("#switcher").classList.toggle("collapsed"));
+
+  /* delegated events */
+  document.addEventListener("click", (e) => {
+    const sw = e.target.closest(".swbtn");
+    if (sw) { go(sw.dataset.go); return; }
+    const pick = e.target.closest("[data-pick]");
+    if (pick) { pickAssignee(pick.dataset.pick); return; }
+    const actBtn = e.target.closest("[data-act]");
+    if (actBtn) { e.preventDefault(); act(actBtn.dataset.act); return; }
+    const tog = e.target.closest("[data-toggle]");
+    if (tog) { tog.classList.toggle("open"); return; }
+    if (e.target.closest("#assigneeTrigger")) { openPicker(); return; }
+    if (e.target.closest("#hamburger")) { $("#sidebar").classList.add("open"); $("#scrim").classList.add("show"); return; }
+    if (e.target.closest("#scrim") || e.target.closest(".sb-item")) { $("#sidebar").classList.remove("open"); $("#scrim").classList.remove("show"); return; }
+    if (e.target.closest(".tab")) {
+      $$(".tab").forEach(x => { x.classList.toggle("on", x === e.target.closest(".tab")); x.setAttribute("aria-selected", x === e.target.closest(".tab")); });
+      return;
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    const typing = ["input", "textarea"].includes((e.target.tagName || "").toLowerCase()) || e.target.isContentEditable;
+    if (e.key === "Escape") { closePicker(); return; }
+    if (e.key === "a" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); openPicker(); }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.id === "fuText" && !e.shiftKey) { e.preventDefault(); act("sendfu"); }
+  });
+
+  /* comment composer placeholder */
+  const ph = $(".box[data-ph]");
+  if (ph) {
+    const reset = () => { if (!ph.textContent.trim()) { ph.textContent = ph.dataset.ph; ph.style.color = "var(--muted-foreground)"; } };
+    ph.addEventListener("focus", () => { if (ph.textContent === ph.dataset.ph) ph.textContent = ""; ph.style.color = "var(--foreground)"; });
+    ph.addEventListener("blur", reset);
+    reset();
+  }
+
+  const m = location.hash.match(/state=([a-z_]+)/);
+  go(m && SCENARIOS[m[1]] ? m[1] : "running");
+  /* the switcher is a review affordance, not part of the design — collapse it
+     on narrow viewports so it never covers the layout being reviewed */
+  if (window.innerWidth < 860) $("#switcher").classList.add("collapsed");
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>
