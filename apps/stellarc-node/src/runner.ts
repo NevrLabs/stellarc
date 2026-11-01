@@ -11,6 +11,7 @@ import type {
 	TaskDescriptor,
 	Usage,
 } from "../../../packages/agents/src/protocol";
+import { PlaneError } from "./plane-error";
 
 /** A locally installed harness the node is willing to launch. Credentials and
  * binaries stay on the node (D14/D16); the plane only learns the name. */
@@ -47,7 +48,16 @@ export interface RunOutcome {
 	/** Harness-reported token/cost totals for this run (ACP
 	 * `PromptResponse.usage`, UNSTABLE); the plane records, never invents. */
 	readonly usage?: Usage;
+	/** Transcript tail the plane could not accept mid-run (NEVR-229): after an
+	 * operator cancel or a lost lease the row is terminal, so appendItems
+	 * would 409 — the items travel with the finish report instead, which the
+	 * plane records on a cancelled row exactly like pushes (NEVR-199). */
+	readonly finalItems?: ReadonlyArray<Item>;
 }
+
+/** Why a run ended mid-stream (NEVR-229): the partial assistant item stays
+ * in the transcript, marked with one of these in its body. */
+export type InterruptReason = "operator_cancel" | "lease_lost" | "harness_exit";
 
 const STOP: Record<string, RunOutcome> = {
 	end_turn: { outcome: "completed", stopReason: "end_turn" },
@@ -78,6 +88,9 @@ export class TranscriptFolder {
 		kind: "message" | "thinking";
 		text: string;
 		at: string;
+		/** Set when the run ends before the stream closes (NEVR-229): the
+		 * partial item is still recorded, marked with why it stopped. */
+		interrupted?: InterruptReason;
 	} | null = null;
 	private ready: Item[] = [];
 	private cost: { amount: number; currency: string } | null = null;
@@ -87,13 +100,17 @@ export class TranscriptFolder {
 	}
 	private close() {
 		if (!this.open) return;
-		const { kind, text, at } = this.open;
+		const { kind, text, at, interrupted } = this.open;
 		this.open = null;
-		this.push(
-			kind,
+		const marker =
 			kind === "message"
 				? { role: "assistant", content: [{ type: "text", text }] }
-				: { text, redacted: false, provider_opaque: false },
+				: { text, redacted: false, provider_opaque: false };
+		this.push(
+			kind,
+			interrupted === undefined
+				? marker
+				: { ...marker, interrupted: true, interruptReason: interrupted },
 			at,
 		);
 	}
@@ -108,6 +125,13 @@ export class TranscriptFolder {
 
 	userPrompt(text: string) {
 		this.push("message", { role: "user", content: [{ type: "text", text }] });
+	}
+
+	/** The run ended with the stream still open (NEVR-229): the partial
+	 * item keeps its accumulated text and is closed with the marker the
+	 * next time the folder drains — Devin's keep-the-partial-reply lesson. */
+	markInterrupted(reason: InterruptReason) {
+		if (this.open) this.open.interrupted = reason;
 	}
 
 	/** A permission decision artifact (NEVR-198): the request with resolved
@@ -182,6 +206,12 @@ export class TranscriptFolder {
 	sessionCost() {
 		return this.cost;
 	}
+
+	/** Is a chunk stream still open? (NEVR-229 teardown check — an open
+	 * stream when the run ends means it was interrupted mid-stream.) */
+	hasOpen(): boolean {
+		return this.open !== null;
+	}
 }
 
 /** Glob-style tool-pattern match for permission policies. `*` spans within a
@@ -203,6 +233,268 @@ export function policyAllows(
 	if (!policy) return true;
 	if (!toolName) return false;
 	return policy.autoAllow.some((p) => toolMatches(p, toolName));
+}
+
+/** The processes a harness tool call must never be allowed to signal
+ * (NEVR-229, Factory v0.242's refuse-self-kill translated to Stellarc's
+ * shape: the exec surface is the harness itself, so the guard lives at the
+ * node's permission seam). `harnessCommand` is the spawned spec's command
+ * word (e.g. `bun`, `npx`, `hermes`) — the harness child's cmdline identity. */
+export interface SelfKillContext {
+	readonly nodePid: number;
+	readonly harnessPid: number | null;
+	readonly harnessCommand: string | null;
+}
+
+/** Extract every string value from a raw tool input, plus the tool name —
+ * the guard never assumes a shape: ACP rawInput is harness-defined JSON.
+ * Finite numbers are stringified too: pids ride as numbers (`{pid: 4242}`). */
+function commandStrings(toolName: string | null, rawInput: unknown): string[] {
+	const out: string[] = [];
+	if (toolName) out.push(toolName);
+	const walk = (v: unknown) => {
+		if (typeof v === "string") out.push(v);
+		else if (typeof v === "number" && Number.isFinite(v)) out.push(String(v));
+		else if (Array.isArray(v)) for (const e of v) walk(e);
+		else if (v != null && typeof v === "object")
+			for (const e of Object.values(v)) walk(e);
+	};
+	walk(rawInput);
+	return out;
+}
+
+/** Split a command string into shell-ish words: whitespace-separated, with
+ * surrounding quotes dropped and `\<space>` unescaped — a guard must
+ * over-match, never under-match. */
+function words(command: string): string[] {
+	const tokens: string[] = [];
+	for (const raw of command.replace(/\\ /g, " ").split(/\s+/)) {
+		const t = raw.replace(/^['"]+|['"]+$/g, "");
+		if (t) tokens.push(t);
+	}
+	return tokens;
+}
+
+function segments(line: string): string[] {
+	return line
+		.split(/[;|&()\n`]+/)
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+/** Machine/supervisor-class commands: signalling the machine or init kills
+ * the node's whole world regardless of pid targeting. `init`/`telinit` are
+ * NOT here — they are subcommands of everyday tools (`git init`, `npm init`,
+ * `terraform init`), so they are judged separately with a runlevel operand. */
+const SUPERVISOR_COMMANDS = new Set(["shutdown", "reboot", "halt", "poweroff"]);
+
+/** Service managers that own the node/harness process (NEVR-230 defect 2):
+ * `systemctl stop stellarc-node` kills the runtime as surely as `kill`. */
+const SERVICE_MANAGERS = new Set([
+	"systemctl",
+	"service",
+	"launchctl",
+	"supervisorctl",
+]);
+const SERVICE_STOP_VERBS = new Set([
+	"stop",
+	"restart",
+	"kill",
+	"terminate",
+	"unload",
+	"down",
+]);
+
+/** Kill operands that name the caller's own group whatever the pid: `0` is
+ * the caller's process group, `-1` every signalable process, and `$PPID`/`$$`
+ * resolve to the node or its harness launcher at exec time. */
+const SELF_GROUP_OPERANDS = new Set(["0", "-1", "$$", "$ppid"]);
+
+/** Does a `kill` operand (or `-<pgroup>` token) name the node, its harness,
+ * or the caller's own process group? pid literals widen to `^-?\d+$` so the
+ * process-group forms (`kill -9 -<harnessPid>`) match too (NEVR-230
+ * defect 2). */
+function operandTargetsSelf(token: string, pids: ReadonlySet<number>): boolean {
+	const t = token.toLowerCase();
+	if (SELF_GROUP_OPERANDS.has(t)) return true;
+	if (!/^-?\d+$/.test(t)) return false;
+	const n = Number.parseInt(t, 10);
+	return pids.has(n) || pids.has(-n);
+}
+
+/** The harness command's cmdline identities: the full spec word and its
+ * basename (`/usr/bin/bun` → `bun`) — pkill/killall may target either. */
+function harnessNames(ctx: SelfKillContext): string[] {
+	if (!ctx.harnessCommand) return [];
+	const full = ctx.harnessCommand.toLowerCase();
+	const base = full.split("/").pop() ?? full;
+	return base && base !== full ? [full, base] : [full];
+}
+
+/** Does a process-NAME target (`killall node`, `pkill bun`, `taskkill /IM`)
+ * name the node or its harness? Only unambiguous identities match: anything
+ * containing `stellarc`, or the harness's own command word. `killall node`
+ * alone is deliberately NOT matched on a shared host (other node processes
+ * exist; the node's runtime identity is `stellarc-node`, not `node`) — the
+ * pid-literal and `-f` pattern forms cover the actual self-targets. */
+function isSelfProcessName(name: string, ctx: SelfKillContext): boolean {
+	const n = name.toLowerCase().replace(/\.exe$/, "");
+	if (n.includes("stellarc")) return true;
+	return harnessNames(ctx).some((h) => n === h);
+}
+
+/** Does a `pkill -f` (full command-line) pattern match the node or harness
+ * command line? Over-match by design: the node's cmdline always contains
+ * `stellarc`; the harness matches on word boundaries (`bun` must not match
+ * inside `bundle`). */
+function patternTargetsSelf(pattern: string, ctx: SelfKillContext): boolean {
+	const p = pattern.toLowerCase();
+	if (p.includes("stellarc")) return true;
+	return harnessNames(ctx).some((h) =>
+		new RegExp(`\\b${h.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`).test(
+			p,
+		),
+	);
+}
+
+/** Segment-level predicate: is this one shell segment (already split on
+ * `;`/`|`/`&&`/substitution) a self-kill? Supervisor, service-manager, and
+ * init verbs are judged ONLY at the segment's command word (first token,
+ * unwrapping `sudo`/`doas`) — `git init`, `echo reboot`, `npm run halt` are
+ * benign (NEVR-230 defect 1). Kill-family verbs scan the whole segment:
+ * split rawInput shapes join as `bash kill 4242`, and a kill verb can never
+ * false-positive without a self-referencing operand after it. */
+function segmentTargetsSelf(
+	segment: string,
+	ctx: SelfKillContext,
+	pids: ReadonlySet<number>,
+): boolean {
+	const tokens = words(segment);
+	if (tokens.length === 0) return false;
+	const lower = tokens.map((w) => w.toLowerCase());
+	// Command word: position 0, unwrapping sudo/doas (possibly stacked).
+	let head = 0;
+	while (lower[head] === "sudo" || lower[head] === "doas") head++;
+	const commandWord = lower[head];
+
+	// Supervisor-class (defect 1): only as the segment's command word.
+	if (SUPERVISOR_COMMANDS.has(commandWord)) return true;
+	// init/telinit only with a runlevel-shaped operand: without one it is
+	// the everyday subcommand (`git init` has none).
+	if (commandWord === "init" || commandWord === "telinit") {
+		if (lower.slice(head + 1).some((a) => /^[0-6sS]$/.test(a))) return true;
+	}
+	// Service managers stopping/restarting a stellarc-owned unit/agent
+	// (defect 2): `systemctl stop stellarc-node.service` (verb then unit)
+	// and SysV `service stellarc-node stop` (unit then verb). Unit aliases
+	// may carry `.service`/`.plist` suffixes.
+	if (SERVICE_MANAGERS.has(commandWord)) {
+		const args = lower.slice(head + 1);
+		const hasStopVerb = args.some((a) => SERVICE_STOP_VERBS.has(a));
+		if (
+			hasStopVerb &&
+			args.some((a) => {
+				const bare = a.replace(/\.(service|plist)$/, "");
+				return bare.includes("stellarc") || isSelfProcessName(bare, ctx);
+			})
+		)
+			return true;
+	}
+	// Kill-family verbs scan EVERY position — not just the command word.
+	// `{argv: ["kill", "4242"]}` joins to `bash kill 4242`; a verb found
+	// mid-line consumes the operands that follow it.
+	for (let at = head; at < tokens.length; at++) {
+		const verb = lower[at];
+		// kill <pid> | -<sig> <pid> | -- -<pgroup> | $$ | $PPID | 0 | -1.
+		if (verb === "kill") {
+			for (let i = at + 1; i < tokens.length; i++)
+				if (operandTargetsSelf(tokens[i], pids)) return true;
+			continue;
+		}
+		// pkill/killall/skill <name|pattern|pid>, -f for full-cmdline match.
+		if (verb === "pkill" || verb === "killall" || verb === "skill") {
+			let fullMatch = false;
+			for (let i = at + 1; i < tokens.length; i++) {
+				const a = lower[i];
+				if (a === "-f" || a === "--full") {
+					fullMatch = true;
+					continue;
+				}
+				if (a.startsWith("-") && a.length > 1) continue; // -9, -signal TERM
+				if (fullMatch) {
+					if (patternTargetsSelf(tokens[i], ctx)) return true;
+				} else if (operandTargetsSelf(a, pids) || isSelfProcessName(a, ctx)) {
+					return true;
+				}
+				fullMatch = false;
+			}
+			continue;
+		}
+		// taskkill /PID <n> | /IM <image> (Windows).
+		if (verb === "taskkill") {
+			for (let i = at + 1; i < tokens.length; i++) {
+				if (
+					lower[i] === "/pid" &&
+					tokens[i + 1] &&
+					operandTargetsSelf(tokens[i + 1], pids)
+				)
+					return true;
+				if (
+					lower[i] === "/im" &&
+					tokens[i + 1] &&
+					isSelfProcessName(tokens[i + 1], ctx)
+				)
+					return true;
+			}
+		}
+	}
+	return false;
+}
+
+/** Pure self/supervisor-kill guard (NEVR-229, reworked NEVR-230 defects 1+2):
+ * does this tool call name a command that would signal the stellarc-node
+ * process itself, its current harness child, or the node's supervisor
+ * relationship? Deliberately over-matches the true self-kill forms — a false
+ * positive costs one refused tool call the operator can see; a false negative
+ * kills the runtime holding the session. Benign everyday commands (`git
+ * init`, `npm init`, `echo reboot`) must pass (defect 1). */
+export function isSelfKillCommand(
+	toolName: string | null,
+	rawInput: unknown,
+	ctx: SelfKillContext,
+): boolean {
+	const pids = new Set(
+		[ctx.nodePid, ctx.harnessPid].filter(
+			(p): p is number => p != null && p > 0,
+		),
+	);
+	// Corpus analysis: rawInput often splits the invocation across sibling
+	// strings (`{argv: ["kill", "4242"]}`) or numbers; the joined text still
+	// names the command, so every string is analyzed alone AND the whole
+	// corpus joined is analyzed as one command line.
+	const corpus = commandStrings(toolName, rawInput);
+	const inputs = [...corpus, corpus.join(" ")];
+	for (const s of inputs) {
+		// Each candidate line splits into shell segments; supervisor and
+		// service-manager verbs are only judged at a segment head (defect 1).
+		for (const seg of segments(s)) {
+			if (segmentTargetsSelf(seg, ctx, pids)) return true;
+		}
+		// Pipelines that resolve self pids and feed them to a kill verb
+		// (defect 2): `ps aux | grep stellarc | awk … | xargs kill`, and
+		// `kill $(pgrep -f stellarc)` / `kill -9 $(pidof stellarc-node)`
+		// whose substitution segment splits out — judge the WHOLE line.
+		const l = s.toLowerCase();
+		if (
+			(l.includes("xargs") && l.includes("kill") && l.includes("stellarc")) ||
+			((l.includes("$(") || l.includes("`")) &&
+				l.includes("kill") &&
+				(l.includes("pgrep") || l.includes("pidof")) &&
+				l.includes("stellarc"))
+		)
+			return true;
+	}
+	return false;
 }
 
 /** Legacy answer for policy-less agents (and allowlisted requests): prefer
@@ -303,6 +595,45 @@ export async function runTask(
 					toolCallId: p.toolCall.toolCallId,
 				} as acp.SessionUpdate);
 				const toolName = p.toolCall.name ?? null;
+				// Self-kill guard FIRST (NEVR-229), before policy: a command
+				// that would signal this node, its harness child, or the
+				// supervisor is never parked, never asked — an approval card
+				// whose grant would kill the runtime holding the session is
+				// not a decision a human should be offered. Refuse it here,
+				// record the refusal as an approval item, and let the
+				// harness proceed past it.
+				if (
+					isSelfKillCommand(toolName, p.toolCall.rawInput, {
+						nodePid: process.pid,
+						harnessPid: child.pid ?? null,
+						harnessCommand: harness.command,
+					})
+				) {
+					folder.approval({
+						request: {
+							sessionId: p.sessionId,
+							toolCallId: p.toolCall.toolCallId,
+							toolName,
+							title: p.toolCall.title ?? null,
+							options: p.options.map((o) => ({
+								optionId: o.optionId,
+								name: o.name,
+								kind: o.kind,
+							})),
+							arguments: p.toolCall.rawInput ?? null,
+						},
+						status: "rejected_self_kill",
+						decidedAt: new Date().toISOString(),
+						decidedBy: "node:refuse-self-kill",
+					});
+					await flush(true).catch((e) =>
+						hooks.log?.(`self-kill refusal flush failed: ${e}`),
+					);
+					hooks.log?.(
+						`refused self-kill permission request: tool=${toolName ?? "?"} toolCallId=${p.toolCall.toolCallId}`,
+					);
+					return denyPermission(p.options);
+				}
 				if (policyAllows(task.agent.permissionPolicy, toolName))
 					return pickPermission(p.options);
 				// Not allowlisted: park. Write the approval transcript item
@@ -394,6 +725,11 @@ export async function runTask(
 	};
 	let sessionId: string | undefined;
 	let cancelled = false;
+	// Set when a heartbeat 409d (NEVR-229): the plane took the attempt away
+	// — lease expired and was reaped into a requeue, or the row went terminal
+	// by another path. The run must wind down and its partial transcript ride
+	// the finish report; nothing this node POSTs mid-run can land anymore.
+	let leaseLost = false;
 	// Set when a deny verdict was delivered: the task is terminal, so any
 	// request still queued on parkGuard answers reject locally instead of
 	// parking against a failed row (which would 409).
@@ -417,7 +753,14 @@ export async function runTask(
 		if (v === "denied") deniedRun = true;
 		w?.(v);
 	};
-	const flushTimer = setInterval(() => void flush().catch(() => {}), 500);
+	// Once the run is known-terminal (cancel observed, lease lost) the timer
+	// stops draining: everything still in the folder must wait for the
+	// teardown take, or a timer flush would POST against the terminal row,
+	// 409, and drop the very items this run is trying to preserve (NEVR-229).
+	const flushTimer = setInterval(() => {
+		if (cancelled || leaseLost) return;
+		void flush().catch(() => {});
+	}, 500);
 	const beat = setInterval(async () => {
 		try {
 			const state = await hooks.heartbeat();
@@ -428,7 +771,20 @@ export async function runTask(
 				if (sessionId) await conn.cancel({ sessionId });
 			}
 		} catch (error) {
-			hooks.log?.(`heartbeat failed: ${error}`);
+			// A 409 from the heartbeat means this node no longer owns the
+			// attempt (NEVR-229): treat as lease-lost, settle any parked
+			// request so the harness can wind down, and stop ACP-cancel
+			// spamming a session the plane no longer tracks. Detected
+			// structurally (NEVR-230 defect 5): string-matching "409" would
+			// read a port or an id inside unrelated error text as a lost
+			// lease. Any other error (network blip) stays transient.
+			if (error instanceof PlaneError && error.status === 409) {
+				leaseLost = true;
+				settleParked("cancelled");
+				if (sessionId) await conn.cancel({ sessionId }).catch(() => {});
+			} else {
+				hooks.log?.(`heartbeat failed: ${error}`);
+			}
 		}
 	}, hooks.heartbeatMs);
 
@@ -528,14 +884,47 @@ export async function runTask(
 	}
 	clearInterval(flushTimer);
 	clearInterval(beat);
-	await flush(true).catch((error) =>
-		hooks.log?.(`final flush failed: ${error}`),
-	);
+	// Interrupt marking (NEVR-229): if a chunk stream is still open the run
+	// ended mid-stream — the partial item stays, marked with WHY. Ordering
+	// matters: `drive` resolving its prompt normally means the harness closed
+	// its own streams; only an open item at this point was interrupted.
+	const openAtTeardown = folder.hasOpen();
+	const reason: InterruptReason | null = leaseLost
+		? "lease_lost"
+		: cancelled
+			? "operator_cancel"
+			: outcome.outcome === "failed" && openAtTeardown
+				? "harness_exit"
+				: null;
+	if (reason !== null) folder.markInterrupted(reason);
+	if (leaseLost || cancelled) {
+		// Terminal row (operator cancel or lost lease): appendItems would
+		// 409, so the tail travels with the finish report — the plane
+		// records it on a cancelled row exactly like pushes (NEVR-199
+		// precedent, the closer fit than relaxing appendItems).
+		const items = folder.take(true);
+		if (items.length) outcome = { ...outcome, finalItems: items };
+	} else {
+		// Row still resumable: the final flush lands as before (this also
+		// delivers a harness_exit-marked partial — a failed run's row is
+		// still running until its own finish report lands).
+		await flush(true).catch((error) =>
+			hooks.log?.(`final flush failed: ${error}`),
+		);
+	}
 	child.kill("SIGTERM");
 	const killer = setTimeout(() => child.kill("SIGKILL"), 3000);
 	await Promise.race([exited, new Promise((r) => setTimeout(r, 3500))]);
 	clearTimeout(killer);
+	// A lease-lost run reports cancelled: its finish must land on whatever row
+	// state the plane now holds (requeued or terminal) and carry the tail.
+	if (leaseLost)
+		return {
+			outcome: "cancelled",
+			stopReason: "cancelled",
+			...(outcome.finalItems ? { finalItems: outcome.finalItems } : {}),
+		};
 	return cancelled && outcome.outcome !== "completed"
-		? { outcome: "cancelled", stopReason: "cancelled" }
+		? { ...outcome, outcome: "cancelled", stopReason: "cancelled" }
 		: outcome;
 }

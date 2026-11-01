@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 // Minimal ACP agent for tests. Behaviour is chosen by the first word of the
 // prompt's last line: "echo <text>" | "tool" | "refuse" | "crash" | "hang" |
-// "spend" | "push <bare-repo-path>". Git identity comes from the harness
-// environment: the agent is the committer (attribution target, NEVR-199).
+// "stream <n> <ms>" | "perm-cmd <command>" | "spend" | "push <bare-repo-path>".
+// Git identity comes from the harness environment: the agent is the committer
+// (attribution target, NEVR-199).
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
@@ -51,6 +52,8 @@ const stream = acp.ndJsonStream(
 );
 const cancelled = new Set<string>();
 let counter = 0;
+// Distinct tool-call ids across perm-cmd prompts in one fixture process.
+let cmdCounter = 0;
 // MCP servers the plane configured for the current session (captured at
 // session/new; a harness launches these as its own children).
 let sessionMcpServers: Array<{
@@ -262,6 +265,78 @@ new acp.AgentSideConnection(
 					return { stopReason: "end_turn" };
 				}
 				await say("granted-and-ran");
+				return { stopReason: "end_turn" };
+			}
+			if (verb === "stream") {
+				// Streaming harness (NEVR-229): emit chunks then hang until
+				// cancelled, so an operator interrupt always lands mid-stream
+				// (deterministic). rest = [totalChunks, msBetweenChunks].
+				const total = Number(rest[0] ?? 10);
+				const gap = Number(rest[1] ?? 120);
+				for (let i = 0; i < total; i++) {
+					await say(`chunk-${i} `);
+					await new Promise((r) => setTimeout(r, gap));
+					if (cancelled.has(p.sessionId)) break;
+				}
+				while (!cancelled.has(p.sessionId))
+					await new Promise((r) => setTimeout(r, 50));
+				return { stopReason: "cancelled" };
+			}
+			if (verb === "streamcrash") {
+				// Crash-after-chunks harness (NEVR-230 defect 6): stream a few
+				// chunks, then die mid-stream — the run ends with an open item
+				// and no cancel, the harness_exit interrupt path.
+				for (let i = 0; i < 3; i++) {
+					await say(`chunk-${i} `);
+					await new Promise((r) => setTimeout(r, 40));
+				}
+				process.exit(3);
+			}
+			if (verb === "perm-cmd") {
+				// Self-kill guard harness (NEVR-229): request permission for
+				// an arbitrary command (rest joined, e.g. "kill 12345"),
+				// relay which option the client picked, then finish. The
+				// command is NEVER executed — the node's guard must refuse
+				// before it could.
+				const command = rest.join(" ") || "echo hi";
+				const toolCallId = `call-cmd-${++cmdCounter}`;
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "tool_call",
+						toolCallId,
+						title: `Run ${command}`,
+						kind: "execute",
+						status: "pending",
+						name: "bash",
+						rawInput: { command },
+					},
+				});
+				const perm = await conn.requestPermission({
+					sessionId: p.sessionId,
+					toolCall: {
+						toolCallId,
+						title: `Run ${command}`,
+						name: "bash",
+						rawInput: { command },
+					},
+					options: [
+						{ optionId: "yes", name: "Allow", kind: "allow_once" },
+						{ optionId: "no", name: "Reject", kind: "reject_once" },
+					],
+				});
+				const picked =
+					perm.outcome.outcome === "selected" ? perm.outcome.optionId : "none";
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "tool_call_update",
+						toolCallId,
+						status: "completed",
+						rawOutput: { picked, executed: false },
+					},
+				});
+				await say(`picked:${picked}`);
 				return { stopReason: "end_turn" };
 			}
 			if (verb === "spend") {
