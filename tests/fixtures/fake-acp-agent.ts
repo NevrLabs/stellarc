@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 // Minimal ACP agent for tests. Behaviour is chosen by the first word of the
 // prompt's last line: "echo <text>" | "tool" | "refuse" | "crash" | "hang" |
-// "spend" | "push <bare-repo-path>". Git identity comes from the harness
-// environment: the agent is the committer (attribution target, NEVR-199).
+// "spend" | "chain" | "push <bare-repo-path>". Git identity comes from the
+// harness environment: the agent is the committer (attribution target, NEVR-199).
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
@@ -262,6 +262,49 @@ new acp.AgentSideConnection(
 					return { stopReason: "end_turn" };
 				}
 				await say("granted-and-ran");
+				return { stopReason: "end_turn" };
+			}
+			if (verb === "chain") {
+				// Chained-resume probe (NEVR-415 R4): emits a tool_call — the
+				// side-effect seam a later retry must see in its replay —
+				// then reports what the SEEDED prompt actually carried:
+				// digest-present flag and the imperative last line, so the
+				// test can prove the digest rode the wire while the stored
+				// transcript stayed digest-free.
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "tool_call",
+						toolCallId: "call-chain",
+						title: "Prepare",
+						kind: "execute",
+						status: "pending",
+						rawInput: { command: "prepare" },
+					},
+				});
+				await conn.requestPermission({
+					sessionId: p.sessionId,
+					toolCall: { toolCallId: "call-chain", title: "Prepare" },
+					options: [
+						{ optionId: "yes", name: "Allow", kind: "allow_once" },
+						{ optionId: "no", name: "Reject", kind: "reject_once" },
+					],
+				});
+				await conn.sessionUpdate({
+					sessionId: p.sessionId,
+					update: {
+						sessionUpdate: "tool_call_update",
+						toolCallId: "call-chain",
+						status: "completed",
+						rawOutput: { ok: true },
+					},
+				});
+				const full = p.prompt
+					.map((b) => (b.type === "text" ? b.text : ""))
+					.join("");
+				await say(
+					`seed:${full.includes("## Prior attempt context") ? 1 : 0}:${full.split("\n").pop()?.trim()}`,
+				);
 				return { stopReason: "end_turn" };
 			}
 			if (verb === "spend") {

@@ -281,6 +281,13 @@ export interface TaskDescriptor {
 	};
 }
 
+/** Per-item rendered-digest cap (NEVR-415): the node's resume renderer clips
+ * every digest line's payload to this many chars, and the plane's replay
+ * budget counts each item at its RENDERED size (clip + line overhead), so the
+ * wire never ships budget for bytes the prompt will discard. Shared here so
+ * the renderer and the budget cannot drift apart. */
+export const RESUME_ITEM_RENDER_CAP = 1500;
+
 /** One prior-attempt transcript item carried in a TaskDescriptor.resume. */
 export interface ResumeItem {
 	readonly seq: number;
@@ -290,10 +297,14 @@ export interface ResumeItem {
 }
 
 /** Attempt-continuity payload (NEVR-415): what the plane knows about the
- * attempt a platform.lease_expired retry continues. Items are oldest-first,
+ * attempt a platform.lease_expired retry continues. `items` is the resume
+ * CHAIN's transcript — the dead attempt plus every earlier attempt its
+ * `resumed_from` markers link, back to the chain's fresh root — oldest-first,
  * already capped to the replay token budget (tail kept — the freshest context
  * is where the interrupted work stopped); `omitted` counts replayable items
- * dropped from the head to fit. */
+ * dropped from the head to fit. `fromAttempt` names only the immediately
+ * prior attempt; the chain's seams show up as `resumed_from` items inside
+ * `items`. */
 export interface TaskResume {
 	readonly fromAttempt: number;
 	readonly failureCode: FailureCode;

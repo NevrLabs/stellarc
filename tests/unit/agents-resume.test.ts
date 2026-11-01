@@ -24,19 +24,38 @@ const item = (
 // ── capReplayItems (NEVR-415): tail-kept token budget on the replay payload ──
 
 test("resume cap keeps the tail within the budget and counts the omitted head", () => {
-	// Five replayable items, ~40k chars each: budget (24k tokens ≈ 96k chars)
-	// fits only the newest two.
-	const fat = (seq: number) =>
-		item(seq, "message", { text: "x".repeat(40_000) });
-	const { items, omitted } = capReplayItems([
-		fat(1),
-		fat(2),
-		fat(3),
-		fat(4),
-		fat(5),
-	]);
-	expect(items.map((i) => i.seq)).toEqual([4, 5]);
-	expect(omitted).toBe(3);
+	// 100 items whose raw JSON (~1k chars each) is below the render clip, so
+	// each costs its full size: the budget (24k tokens ≈ 96k chars) fits only
+	// the newest ~90 — the tail, contiguously, with the head counted omitted.
+	const mid = (seq: number) =>
+		item(seq, "message", {
+			role: "assistant",
+			content: [{ type: "text", text: "x".repeat(1_000) }],
+		});
+	const { items, omitted } = capReplayItems(
+		Array.from({ length: 100 }, (_, i) => mid(i + 1)),
+	);
+	expect(omitted).toBeGreaterThan(0);
+	expect(items.length + omitted).toBe(100);
+	// The kept items are exactly the newest `items.length` seqs, in order.
+	expect(items[0].seq).toBe(omitted + 1);
+	expect(items.at(-1)?.seq).toBe(100);
+});
+
+test("resume cap counts each item at its rendered size, not raw JSON — mid-size items that render small all ride the payload (rework defect 3)", () => {
+	// 40 items × ~3k raw chars: raw-size accounting would keep only ~31 even
+	// though each renders to one ~1.5k digest line (the renderer clips every
+	// line) — budget spent on wire bytes the prompt discards.
+	const mid = (seq: number) =>
+		item(seq, "message", {
+			role: "assistant",
+			content: [{ type: "text", text: "y".repeat(3_000) }],
+		});
+	const { items, omitted } = capReplayItems(
+		Array.from({ length: 40 }, (_, i) => mid(i + 1)),
+	);
+	expect(items).toHaveLength(40);
+	expect(omitted).toBe(0);
 });
 
 test("resume cap filters bookkeeping kinds before budgeting — they neither ride the payload nor count as omitted", () => {

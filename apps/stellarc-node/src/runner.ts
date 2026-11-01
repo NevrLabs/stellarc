@@ -13,6 +13,10 @@ import type {
 	TaskResume,
 	Usage,
 } from "../../../packages/agents/src/protocol";
+import { RESUME_ITEM_RENDER_CAP } from "../../../packages/agents/src/protocol";
+// Re-exported for the unit tests: the canonical constant lives in the agents
+// package so the plane's replay budget and this renderer cannot drift apart.
+export { RESUME_ITEM_RENDER_CAP };
 
 /** A locally installed harness the node is willing to launch. Credentials and
  * binaries stay on the node (D14/D16); the plane only learns the name. */
@@ -241,9 +245,9 @@ function denyPermission(
 
 // ── attempt continuity (NEVR-415) ───────────────────────────────────────────
 
-/** Per-item rendering cap for the resume digest: enough for a real tool
- * result, small enough that a pathological dump cannot eat the prompt. */
-export const RESUME_ITEM_RENDER_CAP = 1500;
+// RESUME_ITEM_RENDER_CAP lives in packages/agents/src/protocol (re-exported
+// above): the plane's replay budget counts each item at this clip plus line
+// overhead, so the canonical number must be shared, not duplicated here.
 
 const clip = (text: string) =>
 	text.length > RESUME_ITEM_RENDER_CAP
@@ -559,7 +563,7 @@ export async function runTask(
 				folder.config({ model: task.agent.model, applied });
 			}
 			// Attempt continuity (NEVR-415): a resumed attempt seeds the new
-			// session with the prior attempt's transcript — digest BEFORE the
+			// session with the resume chain's transcript — digest BEFORE the
 			// original prompt (the imperative lands last), and a resumed_from
 			// marker as the attempt's first transcript item so operators see
 			// the seam.
@@ -571,12 +575,22 @@ export async function runTask(
 					omitted: task.resume.omitted,
 				});
 			}
-			const parts: string[] = [];
-			if (task.agent.instructions) parts.push(task.agent.instructions);
-			if (task.resume) parts.push(renderResumeDigest(task.resume));
-			parts.push(task.prompt);
-			const text = parts.join("\n\n---\n\n");
-			folder.userPrompt(text);
+			const seed: string[] = [];
+			if (task.agent.instructions) seed.push(task.agent.instructions);
+			if (task.resume) seed.push(renderResumeDigest(task.resume));
+			seed.push(task.prompt);
+			// The WIRE prompt carries the digest; the STORED user message does
+			// not (rework defect 1). The digest is derived from prior
+			// attempts' items — persisting it here would nest it into the next
+			// resume's replay, where the renderer's per-item clip collapses it
+			// and a second consecutive lease expiry would lose the chain's
+			// real context. The transcript records only what a fresh attempt
+			// would re-receive: instructions plus the original prompt.
+			const recorded: string[] = [];
+			if (task.agent.instructions) recorded.push(task.agent.instructions);
+			recorded.push(task.prompt);
+			folder.userPrompt(recorded.join("\n\n---\n\n"));
+			const text = seed.join("\n\n---\n\n");
 			if (cancelled) await conn.cancel({ sessionId: session.sessionId });
 			const res = await conn.prompt({
 				sessionId: session.sessionId,

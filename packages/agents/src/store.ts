@@ -24,6 +24,7 @@ import {
 	type PermissionPark,
 	type PermissionPolicy,
 	type Push,
+	RESUME_ITEM_RENDER_CAP,
 	type ResumeItem,
 	type TaskDescriptor,
 	type TaskResume,
@@ -506,9 +507,25 @@ export const REPLAYABLE_KINDS: ReadonlySet<string> = new Set([
 	"resumed_from",
 ]);
 
-/** Replay budget in ~tokens (chars/4 estimate). The node renders the digest
- * from the payload, so one cap bounds both the wire and the prompt. */
+/** Replay budget in ~tokens (chars/4 estimate). Each item counts at its
+ * RENDERED size — the renderer clips every line's payload to
+ * RESUME_ITEM_RENDER_CAP — so the budget buys prompt context, not raw-JSON
+ * bytes the renderer would discard (rework defect 3). The wire still carries
+ * the kept items' raw bodies; the item COUNT is what the budget bounds. */
 export const RESUME_TOKEN_BUDGET = 24_000;
+
+/** Line overhead the renderer adds around an item's clipped payload (the
+ * `[kind …]` prefix plus the `…[truncated N chars]` suffix); budgeted per
+ * item alongside the clip so the estimate never undershoots the digest. */
+const RESUME_ITEM_LINE_OVERHEAD = 100;
+
+/** One item's cost against the replay budget: its rendered digest line's
+ * length, approximated from above by the clip plus line overhead. */
+const resumeItemCost = (item: ResumeItem): number =>
+	Math.min(
+		JSON.stringify(item.body ?? null)?.length ?? 0,
+		RESUME_ITEM_RENDER_CAP + RESUME_ITEM_LINE_OVERHEAD,
+	);
 
 /** Cap prior-attempt items to the replay budget, keeping the TAIL: the
  * freshest context is where the interrupted work stopped. The newest item is
@@ -523,7 +540,7 @@ export function capReplayItems(items: ReadonlyArray<ResumeItem>): {
 	const kept: ResumeItem[] = [];
 	let used = 0;
 	for (let i = replayable.length - 1; i >= 0; i--) {
-		const size = JSON.stringify(replayable[i].body ?? null)?.length ?? 0;
+		const size = resumeItemCost(replayable[i]);
 		if (used + size > charBudget && kept.length > 0) break;
 		kept.unshift(replayable[i]);
 		used += size;
@@ -1110,24 +1127,60 @@ export class AgentStore {
 					lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
 					permission_decision=NULL, resumed_from_attempt=${resumingFrom}, updated_at=now() WHERE id=${row.id} RETURNING *`;
 				// Attempt continuity (NEVR-415): a retry of platform.lease_expired
-				// carries the dead attempt's transcript so the new session
-				// continues instead of cold-starting. The gate reads the queued
-				// row's failure_code — the claim UPDATE above just cleared it.
+				// carries the resume CHAIN's transcript — the dead attempt plus
+				// every earlier attempt its resumed_from markers link — so the
+				// new session continues instead of cold-starting, and a
+				// consecutive expiry does not lose the chain's first attempts
+				// (rework defect 1). The gate reads the queued row's
+				// failure_code — the claim UPDATE above just cleared it.
 				let resume: TaskResume | undefined;
 				if (resumingFrom !== null) {
-					const prior =
-						await tx`SELECT seq,kind,body,occurred_at FROM agent_task_item
-						WHERE task_id=${row.id} AND attempt=${row.attempt} ORDER BY seq`;
-					const capped = capReplayItems(
-						prior.map(
-							(r: Row): ResumeItem => ({
-								seq: r.seq,
-								kind: r.kind,
-								body: r.body,
-								occurredAt: iso(r.occurred_at) as string,
-							}),
-						),
-					);
+					const rows =
+						await tx`SELECT attempt,seq,kind,body,occurred_at FROM agent_task_item
+							WHERE task_id=${row.id} AND attempt<=${row.attempt} ORDER BY attempt,seq`;
+					const byAttempt = new Map<number, ResumeItem[]>();
+					for (const r of rows as Row[]) {
+						const list = byAttempt.get(r.attempt) ?? [];
+						list.push({
+							seq: r.seq,
+							kind: r.kind,
+							body: r.body,
+							occurredAt: iso(r.occurred_at) as string,
+						});
+						byAttempt.set(r.attempt, list);
+					}
+					// Walk the chain backwards from the dead attempt through
+					// each attempt's resumed_from marker, stopping at the
+					// chain's fresh root — an attempt that never resumed.
+					// Attempts outside the chain (an agent_error retry, a
+					// fresh start after a completion) have no marker, so their
+					// stale context never rides a replay.
+					const chain: ResumeItem[] = [];
+					const linked = new Set<number>();
+					for (
+						let cursor: number | undefined = row.attempt;
+						cursor !== undefined && !linked.has(cursor);
+					) {
+						const attemptItems = byAttempt.get(cursor);
+						if (!attemptItems) break;
+						linked.add(cursor);
+						chain.unshift(...attemptItems);
+						const marker = attemptItems.find((i) => i.kind === "resumed_from");
+						const prior = marker
+							? Number(
+									(
+										(marker.body ?? {}) as {
+											resumedFromAttempt?: unknown;
+										}
+									).resumedFromAttempt,
+								)
+							: Number.NaN;
+						cursor =
+							Number.isInteger(prior) && prior >= 1 && prior < cursor
+								? prior
+								: undefined;
+					}
+					const capped = capReplayItems(chain);
 					resume = {
 						fromAttempt: row.attempt,
 						failureCode: row.failure_code as FailureCode,
