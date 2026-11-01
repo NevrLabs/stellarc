@@ -1496,6 +1496,9 @@ test("P7 operator cancel while parked releases the run (NEVR-201 defect 2): no l
 		approvals.map((a: { body: { status: string } }) => a.body.status),
 	).toEqual(["cancelled"]);
 	expect(approvals[0].body.decidedAt).toBeTruthy();
+	// Operator attribution (NEVR-415 pins Paseo #8453 P2): cancelTask settles
+	// the pending approval in the operator's name, never the plane's.
+	expect(approvals[0].body.decidedBy).toBe("operator");
 	// No stray grant can resurrect it.
 	expect(
 		(
@@ -1622,4 +1625,289 @@ test("P8 two concurrent requests each park and are decided individually (NEVR-21
 	const requeues = await p.db.sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task_requeued'`;
 	expect(requeues[0].n).toBe(0);
+});
+
+// ── attempt continuity (NEVR-415) ───────────────────────────────────────────
+
+test("R1 a lease-expiry retry replays the prior attempt's transcript into the new session — resume marker, not a cold re-run", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const cfg = {
+		server: p.url,
+		token,
+		workRoot: await workRoot(),
+		concurrency: 1,
+		harnesses: { fake: FAKE },
+	};
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "spend",
+		maxAttempts: 3,
+	});
+	// Attempt 1: the node claims, starts, streams a real-ish transcript plus
+	// a usage report, then dies without heartbeating — the same retryable
+	// platform fault reapExpired also writes.
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	expect(c1.task.resume).toBeUndefined(); // fresh attempt never resumes
+	const at = new Date().toISOString();
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-r1",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "message",
+				body: {
+					role: "user",
+					content: [{ type: "text", text: "spend" }],
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 1,
+				kind: "message",
+				body: {
+					role: "assistant",
+					content: [{ type: "text", text: "I will report usage now." }],
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 2,
+				kind: "tool_call",
+				body: {
+					call_id: "call-9",
+					title: "Report usage",
+					kind: "execute",
+					status: "pending",
+					input: { verb: "spend" },
+					locations: [],
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 3,
+				kind: "tool_result",
+				body: {
+					call_id: "call-9",
+					status: "completed",
+					is_error: false,
+					title: "Report usage",
+					content: [],
+					output: { ok: true },
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 4,
+				kind: "usage",
+				body: { contextTokens: 800, contextWindowSize: 200000 },
+				occurredAt: at,
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.lease_expired",
+		failureMessage: "node went dark",
+	});
+
+	// Requeue → claim: the descriptor carries the replay payload.
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	const resume = c2.task.resume;
+	expect(resume).toBeDefined();
+	expect(resume?.fromAttempt).toBe(1);
+	expect(resume?.failureCode).toBe("platform.lease_expired");
+	expect(resume?.omitted).toBe(0);
+	// usage is plane bookkeeping — everything else replays, in order.
+	expect(resume?.items.map((i) => i.kind)).toEqual([
+		"message",
+		"message",
+		"tool_call",
+		"tool_result",
+	]);
+	expect(resume?.items[1].body).toMatchObject({
+		content: [{ text: expect.stringContaining("report usage") }],
+	});
+
+	// Task row + org log record the seam.
+	expect(
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.resumedFromAttempt,
+	).toBe(1);
+	const [ev] = await p.db.sql<
+		{ actor: string; payload: { resumedFromAttempt: number } }[]
+	>`SELECT actor, payload FROM event WHERE org='acme' AND plugin_type='agents:task-resumed'`;
+	expect(ev.payload).toMatchObject({
+		id: t.body.id,
+		attempt: 2,
+		resumedFromAttempt: 1,
+		failureCode: "platform.lease_expired",
+	});
+	expect(ev.actor).toMatch(/^node:node_/);
+
+	// Attempt 2 runs the seeded session: the marker is its first item, the
+	// digest rides the user prompt, and its usage lands as continued work.
+	const done = await executeClaimed(client, cfg, c2.task);
+	expect(done.outcome).toBe("completed");
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	const second = view.items.filter((i: { attempt: number }) => i.attempt === 2);
+	expect(second.map((i: { kind: string }) => i.kind)).toEqual([
+		"config",
+		"resumed_from",
+		"message",
+		"usage",
+	]);
+	expect(second[1].body).toMatchObject({
+		resumedFromAttempt: 1,
+		failureCode: "platform.lease_expired",
+		items: 4,
+		omitted: 0,
+	});
+	const promptText = second[2].body.content[0].text as string;
+	expect(promptText).toContain("You are terse."); // instructions still lead
+	expect(promptText).toContain("Prior attempt context (attempt 1)");
+	expect(promptText).toContain("I will report usage now.");
+	expect(promptText).toContain(
+		"Continue the task from where the transcript ends",
+	);
+	// The digest precedes the original prompt: the imperative lands last.
+	expect(promptText.split("\n").pop()?.trim()).toBe("spend");
+	// Continued work is metered per attempt: attempt 1 kept its context
+	// report, attempt 2 recorded its own run.
+	expect(view.usage.map((u: { attempt: number }) => u.attempt)).toEqual([1, 2]);
+	expect(view.usage[1].tokensTotal).toBe(1500);
+});
+
+test("R2 negative control: other platform.* retries and agent_error retries never resume", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "echo x",
+		maxAttempts: 3,
+	});
+	// Attempt 1 dies of a harness crash — retried, but the transcript may be
+	// what killed the harness, so it must NOT replay.
+	const c1 = await claim(client);
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.harness_exited",
+		failureMessage: "harness exited (code=3)",
+	});
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	expect(c2.task.resume).toBeUndefined();
+	expect(
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.resumedFromAttempt,
+	).toBeNull();
+	const resumed = await p.db.sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task-resumed'`;
+	expect(resumed[0].n).toBe(0);
+	// And the cold-start retry still completes normally.
+	const done = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c2.task,
+	);
+	expect(done.outcome).toBe("completed");
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(
+		view.items.filter(
+			(i: { attempt: number; kind: string }) =>
+				i.attempt === 2 && i.kind === "resumed_from",
+		),
+	).toHaveLength(0);
+});
+
+test("R3 lease expiry under needs_permission settles the parked approval as 'plane', and the retry replays the settled request", async () => {
+	// Short lease: the parked node stops heartbeating and the lease lapses.
+	const p = await plane(300);
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: [],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park hold",
+		maxAttempts: 3,
+	});
+	const client = new PlaneClient(p.url, token);
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	// The node parks: approval item flushed, permission reported, then dark.
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "approval",
+				body: {
+					request: {
+						sessionId: "fake-1",
+						toolCallId: "call-park",
+						toolName: "deploy",
+						title: "Run deploy",
+						options: [{ optionId: "yes", name: "Allow", kind: "allow_once" }],
+						arguments: { target: "prod", force: true },
+					},
+					status: "pending",
+				},
+				occurredAt: new Date().toISOString(),
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/permission`, {
+		attempt: 1,
+		request: {
+			sessionId: "fake-1",
+			toolCallId: "call-park",
+			toolName: "deploy",
+			title: "Run deploy",
+			options: [{ optionId: "yes", name: "Allow", kind: "allow_once" }],
+		},
+	});
+	expect((await p.op("GET", `tasks/${t.body.id}`)).body.task.status).toBe(
+		"needs_permission",
+	);
+	// The lease lapses; the next claim reaps it first.
+	await new Promise((r) => setTimeout(r, 450));
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	// The parked approval was settled by the PLANE (Paseo #8453 P2): the
+	// audit trail never shows a request still awaiting an answer.
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	const settled = view.items.find(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(settled.body.status).toBe("cancelled");
+	expect(settled.body.decidedBy).toBe("plane");
+	expect(settled.body.decidedAt).toBeTruthy();
+	// The requeue itself is plane-attributed.
+	const [requeue] = await p.db.sql<{ actor: string }[]>`
+    SELECT actor FROM event WHERE org='acme' AND plugin_type='agents:task-requeued'`;
+	expect(requeue.actor).toBe("plane");
+	// The retry carries the settled request — the resumed session sees the
+	// operator never answered, instead of re-asking blind.
+	const resume = c2.task.resume;
+	expect(resume?.fromAttempt).toBe(1);
+	const replayedApproval = resume?.items.find((i) => i.kind === "approval");
+	const replayedBody = replayedApproval?.body as
+		| { status: string; decidedBy: string }
+		| undefined;
+	expect(replayedBody?.status).toBe("cancelled");
+	expect(replayedBody?.decidedBy).toBe("plane");
 });

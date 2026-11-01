@@ -39,6 +39,9 @@ export const ITEM_KINDS = [
 	"harness_meta",
 	"usage",
 	"push",
+	/** Attempt-continuity seam (NEVR-415): the node emits it as the FIRST
+	 * item of an attempt that resumed a prior one's transcript. */
+	"resumed_from",
 ] as const;
 export const ItemKind = Schema.Literal(...ITEM_KINDS);
 export type ItemKind = typeof ItemKind.Type;
@@ -261,6 +264,11 @@ export interface TaskDescriptor {
 	readonly prompt: string;
 	readonly subjectRef: string | null;
 	readonly leaseMs: number;
+	/** Present when this attempt continues a prior one (NEVR-415): the prior
+	 * attempt's transcript, replay-capped, to seed the new session. Absent on
+	 * fresh attempts, on agent_error.* retries (the transcript may be the
+	 * poison), and on platform.* codes not yet admitted per-code. */
+	readonly resume?: TaskResume;
 	readonly agent: {
 		readonly id: string;
 		readonly name: string;
@@ -271,6 +279,26 @@ export interface TaskDescriptor {
 		/** Null preserves the legacy allow-once behaviour. */
 		readonly permissionPolicy: PermissionPolicy | null;
 	};
+}
+
+/** One prior-attempt transcript item carried in a TaskDescriptor.resume. */
+export interface ResumeItem {
+	readonly seq: number;
+	readonly kind: ItemKind;
+	readonly body: unknown;
+	readonly occurredAt: string;
+}
+
+/** Attempt-continuity payload (NEVR-415): what the plane knows about the
+ * attempt a platform.lease_expired retry continues. Items are oldest-first,
+ * already capped to the replay token budget (tail kept — the freshest context
+ * is where the interrupted work stopped); `omitted` counts replayable items
+ * dropped from the head to fit. */
+export interface TaskResume {
+	readonly fromAttempt: number;
+	readonly failureCode: FailureCode;
+	readonly items: ReadonlyArray<ResumeItem>;
+	readonly omitted: number;
 }
 
 export const TASK_STATUSES = [
