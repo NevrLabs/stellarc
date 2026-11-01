@@ -76,6 +76,7 @@
 		"@kaneo/email": "workspace:*"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "^4.14.0",
 		"@biomejs/biome": "2.4.6",
 		"@playwright/test": "1.62.0",
 		"@types/bcryptjs": "^3.0.0",
