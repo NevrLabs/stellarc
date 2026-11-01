@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, Link2, Plus, Search } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import {
   Fragment,
   useCallback,

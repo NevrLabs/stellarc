@@ -1,11 +1,6 @@
-import {
-  Check,
-  ExternalLink,
-  Github,
-  Link2Off,
-  ShieldCheck,
-} from "lucide-react";
+import { Check, ExternalLink, Link2Off, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { Github } from "@/components/icons/github";
 import {
   AlertDialog,
   AlertDialogClose,

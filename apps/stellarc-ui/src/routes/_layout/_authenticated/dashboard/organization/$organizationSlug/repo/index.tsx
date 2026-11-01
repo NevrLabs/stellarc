@@ -4,7 +4,6 @@ import {
   CircleDot,
   Eye,
   EyeOff,
-  Github,
   GitPullRequest,
   Plus,
   RefreshCw,
@@ -13,6 +12,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import OrganizationLayout from "@/components/common/organization-layout";
+import { Github } from "@/components/icons/github";
 import PageTitle from "@/components/page-title";
 import { useAuth } from "@/components/providers/auth-provider/hooks/use-auth";
 import { AddRepoDialog } from "@/components/repo/add-repo-dialog";
