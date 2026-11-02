@@ -38,6 +38,8 @@ const TASK = {
 			readonly args: ReadonlyArray<string>;
 			readonly env: ReadonlyArray<{ name: string; value: string }>;
 		}>,
+		/** Null preserves the legacy allow-once permission behaviour. */
+		permissionPolicy: null,
 	},
 };
 const workRoot = () => mkdtemp(join(tmpdir(), "stellarc-node-test-"));
@@ -79,7 +81,10 @@ describe("runTask (fake ACP agent)", () => {
 			onItems: async (batch) => {
 				items.push(...batch);
 			},
-			heartbeat: async () => false,
+			heartbeat: async () => ({ cancelled: false }),
+			onPermissionRequest: async () => {
+				throw new Error("policy-less agent never parks");
+			},
 		});
 		expect(out).toEqual({ outcome: "completed", stopReason: "end_turn" });
 		const replies = items
@@ -97,7 +102,10 @@ describe("runTask (fake ACP agent)", () => {
 			heartbeatMs: 5_000,
 			onStart: async () => {},
 			onItems: async () => {},
-			heartbeat: async () => false,
+			heartbeat: async () => ({ cancelled: false }),
+			onPermissionRequest: async () => {
+				throw new Error("policy-less agent never parks");
+			},
 		});
 		const failureCode = out.failureCode as string | undefined;
 		expect(out.outcome).toBe("failed");
@@ -110,7 +118,10 @@ describe("runTask (fake ACP agent)", () => {
 			heartbeatMs: 5_000,
 			onStart: async () => {},
 			onItems: async () => {},
-			heartbeat: async () => false,
+			heartbeat: async () => ({ cancelled: false }),
+			onPermissionRequest: async () => {
+				throw new Error("policy-less agent never parks");
+			},
 		});
 		const failureCode = out.failureCode as string | undefined;
 		expect(out.outcome).toBe("failed");
@@ -123,7 +134,10 @@ describe("runTask (fake ACP agent)", () => {
 			heartbeatMs: 300,
 			onStart: async () => {},
 			onItems: async () => {},
-			heartbeat: async () => true,
+			heartbeat: async () => ({ cancelled: true }),
+			onPermissionRequest: async () => {
+				throw new Error("policy-less agent never parks");
+			},
 		});
 		const outcome = out.outcome as string;
 		const stopReason = out.stopReason as string | undefined;
