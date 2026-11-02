@@ -6,7 +6,9 @@ a simple migration is enough. we want to use effect.ts, bun, tanstack, and all t
 best libraries there are … tanstackdb, so we have good optimistic updates."
 
 Supersedes ADR 0012 (strangler). Amends ADR 0007 (sync transport) and ADR 0008
-(drops the pixel freeze; the stack choices stand). ADR 0011 (BYO agents) stands
+(drops the pixel freeze; reverses its TanStack Start rejection: that rested on
+"two rewrites at once", and `apps/web` is new, so adopting Start now is free
+while adopting it later touches every route). ADR 0011 (BYO agents) stands
 and continues on `effect/v4`.
 
 ## Problem
@@ -79,7 +81,8 @@ freeze. The operator wants Stellarc, not a port. Kaneo compatibility only means
    | API | Effect `HttpApi` + `HttpApiClient`; better-auth mounted as a raw handler |
    | Client data | **TanStack DB 1.0** (`@tanstack/react-db`): collections, live queries, optimistic mutations. `@tanstack/offline-transactions` for queued writes when offline; `@tanstack/browser-db-sqlite-persistence` (web) and the Tauri/Expo SQLite persistence adapters for warm start |
    | Server cache (non-domain) | TanStack Query, only where DB doesn't fit (auth session, one-off lookups); it is also the engine under `query-db-collection` |
-   | Routing | TanStack Router + `@tanstack/router-plugin` (file routes, typed search params for view/filter state, route loaders preload collections) |
+   | App framework | **TanStack Start** in SPA mode (`defaultSsr: false`) on Vite. Selective SSR only where it pays: share/link-preview routes (Open Graph tags for tickets and boards), login, and future public pages. `@tanstack/react-router-with-db` hydrates DB live queries on those routes. **No server functions for domain data**: Effect `HttpApi` stays the only API. Static SPA build is what Tauri and Capacitor/Expo webviews load |
+   | Routing | TanStack Router (via Start; file routes, typed search params for view/filter state, route loaders preload collections) |
    | Forms | TanStack Form (Effect `Schema` via Standard Schema for validation) |
    | Tables / lists | TanStack Table (list and backlog views, sessions table), TanStack Virtual (every long list, board columns, timeline rows) |
    | Keyboard | TanStack Hotkeys (global shortcuts, Ctrl+E recent, Esc peek, command palette) |
@@ -96,7 +99,6 @@ freeze. The operator wants Stellarc, not a port. Kaneo compatibility only means
 
    | Need | Choice | Why not TanStack |
    |---|---|---|
-   | SSR framework | none (Vite SPA) | TanStack Start rejected per ADR 0008: authed cockpit, no SEO, second RPC surface beside `HttpApi`. Revisit for a public site. |
    | Drag and drop | `@dnd-kit` | TanStack has no DnD library |
    | Command palette | `cmdk` (via shadcn `command`) | no TanStack equivalent; filtering uses match-sorter-utils |
    | Range sliders | Base UI Slider | TanStack Ranger is 0.0.x and unmaintained since 2025-12 |
@@ -141,7 +143,7 @@ freeze. The operator wants Stellarc, not a port. Kaneo compatibility only means
 1. **Schema**: Stellarc domain migrations (0004+) and Effect `Schema` models.
 2. **Import**: `stellarc import kaneo`, fixture test, idempotency test, negative control.
 3. **API**: `HttpApi` groups for org, board, status, ticket, label, project, comment, activity; txid on every mutation.
-4. **apps/web scaffold**: Vite + Router + shadcn base + tokens from the mockup; shell (header, tabs on desktop, rail, sidebar, Recent).
+4. **apps/web scaffold**: TanStack Start (SPA mode) + shadcn base + tokens from the mockup; shell (header, tabs on desktop, rail, sidebar, Recent).
 5. **Collections (phase A)**: query-db-collection per resource; optimistic insert/update/delete; WS invalidation.
 6. **Board views**: board, list, timeline, backlog, calendar, custom views; ticket peek.
 7. **Cutover**: import NevrLabs and Noovoleum data on staging, redirect old URLs, retire `apps/stellarc-ui` and `packages/kaneo*`.
