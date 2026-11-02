@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 
-const ARTIFACTS = path.join(import.meta.dirname, "artifacts");
+const ARTIFACTS = path.join(import.meta.dirname, ".artifacts");
 
 /**
  * NEVR-433 shell proofs at 1440x900:
@@ -57,6 +57,29 @@ test("search box width is unchanged with 20 tabs open", async ({ page }) => {
 	await expect(page.getByTestId("tab").first()).toBeVisible();
 
 	const search = page.getByTestId("search");
+
+	// The protection itself, pinned at the computed-style level (deterministic
+	// red under sabotage — no geometry dependence):
+	//  - the search box is flex-immovable: `.header > * { flex: none }` (the
+	//    mockup's own rule; the mockup has no flex:none on `.search` itself)
+	//  - the tab strip is the sole pressure absorber: grow 1 / shrink 1 /
+	//    min-width 0, so it collapses instead of pushing the search box
+	const flex = await search.evaluate((el) => {
+		const cs = getComputedStyle(el);
+		return `${cs.flexGrow}/${cs.flexShrink}`;
+	});
+	expect(flex, "search must be flex-immovable (grow 0, shrink 0)").toBe("0/0");
+	const strip = await page.evaluate(() => {
+		const el = document.querySelector(".header > .tabs");
+		if (!el) return "missing";
+		const cs = getComputedStyle(el);
+		return `${cs.flexGrow}/${cs.flexShrink}/${cs.minWidth}`;
+	});
+	expect(
+		strip,
+		"tab strip must absorb pressure (grow 1, shrink 1, min-width 0)",
+	).toBe("1/1/0px");
+
 	const widthBefore = (await search.boundingBox())?.width;
 	expect(widthBefore).toBeCloseTo(232, 0);
 
@@ -71,6 +94,19 @@ test("search box width is unchanged with 20 tabs open", async ({ page }) => {
 	expect(boxAfter?.width).toBeCloseTo(widthBefore ?? 0, 0);
 
 	// Overflowing tabs clip and surface an +N count instead of pushing content.
+	await expect(page.getByTestId("tabs-more")).toHaveClass(/show/);
+
+	// Header pressure at a narrow desktop width: same 20 tabs, tighter header.
+	// The search box must keep its width and its position relative to the
+	// header's right edge (constant right inset) — the tab strip absorbs the
+	// missing 340px, not the search box.
+	const insetBefore = 1440 - ((boxAfter?.x ?? 0) + (boxAfter?.width ?? 0));
+	await page.setViewportSize({ width: 1100, height: 900 });
+	await page.waitForTimeout(200);
+	const boxNarrow = await search.boundingBox();
+	expect(boxNarrow?.width).toBeCloseTo(widthBefore ?? 0, 0);
+	const insetAfter = 1100 - ((boxNarrow?.x ?? 0) + (boxNarrow?.width ?? 0));
+	expect(insetAfter).toBeCloseTo(insetBefore, 0);
 	await expect(page.getByTestId("tabs-more")).toHaveClass(/show/);
 });
 
