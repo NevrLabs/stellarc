@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # NEVR-191 — desktop is a single-crate cargo workspace. Weekly, so Tauri 2.x
+  # patches arrive as reviewable PRs against desktop/Cargo.lock instead of
+  # silent re-resolves on fresh CI runners.
+  - package-ecosystem: "cargo"
+    directory: "/desktop"
+    schedule:
+      interval: "weekly"

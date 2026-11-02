@@ -1,6 +1,7 @@
 # ADR 0009: Development workflow — `forge` staged pipeline, merge gate, UI evidence
 
-Status: **accepted** (2026-09-08). Governs how every change lands on `dev`.
+Status: **accepted** (2026-09-08; amended 2026-10-28 — mobile platform
+deferred, see *Target platforms*). Governs how every change lands on `dev`.
 
 ## Decision
 
@@ -53,17 +54,25 @@ labelled `forge:rework`, spec re-armed, cycle counter advances.
 
 ## Target platforms
 
-Stellarc ships to **web, desktop (Linux/Windows/macOS), and mobile (Android/iOS)**
-from **one React codebase**. The shell is **Tauri 2** — already the v1 choice
-(`desktop/Cargo.toml`, `@tauri-apps/cli ^2`) and Tauri 2 targets iOS and
-Android from the same webview app. No second UI stack (Capacitor, Expo,
-React Native) — that would fork the pixel-frozen UI.
+Stellarc ships to **web and desktop (Linux/Windows/macOS)** from **one React
+codebase**. **Mobile (Android/iOS) is deferred as of 2026-10**: the Tauri 2
+mobile skeleton built on branch `forge/stl-23` was archived without landing —
+the branch is deleted, its head commit (`a3a4977`, 2026-09-19) is unreachable
+from any ref, and it is not in `dev` history. Mobile returns only if the
+owner re-charters it. The shell is **Tauri 2** — already the v1 choice
+(`desktop/Cargo.toml`, `@tauri-apps/cli ^2`) and, if mobile is ever
+re-chartered, Tauri 2 still targets iOS and Android from the same webview
+app. No second UI stack (Capacitor, Expo, React Native) — that would fork the
+pixel-frozen UI.
 
 Consequence for the freeze: the fork's **responsive layer is part of the
 frozen surface**. It exists today — 473 Tailwind breakpoint prefixes
 (`sm:` 358, `md:` 70, `lg:` 34), `useIsMobile()` at **768px** in 12 sites, the
 sidebar collapsing to a Sheet below it — but it was **never under test**.
-`dev` puts it under test from T0.
+`dev` puts it under test from T0. That holds with mobile deferred: the
+**four Playwright viewport projects** (including the touch-driven `mobile`
+390×844 and `mobile-small` 360×640) are the mobile surrogate meanwhile, and
+that part is already built and under test.
 
 ## UI evidence: Playwright projects per viewport, Maestro per native shell
 
@@ -101,9 +110,10 @@ sidebar collapsing to a Sheet below it — but it was **never under test**.
 
 **Maestro** covers the **native shells** (Tauri desktop, Tauri iOS/Android) when
 those stages land. v1 already has `.maestro/config.mobile.yaml` and 21 flows;
-they return with the desktop/mobile packaging tickets. Maestro is not run
-against the web bundle — that is Playwright's job, and one surface does not
-get two runners.
+they return with the desktop packaging tickets — the mobile flows only
+if/when mobile is re-chartered (deferred 2026-10, see *Target platforms*).
+Maestro is not run against the web bundle — that is Playwright's job, and one
+surface does not get two runners.
 
 ## Screenshot delivery
 

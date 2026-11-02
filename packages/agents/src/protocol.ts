@@ -23,6 +23,7 @@ export const FAILURE_CODES = [
 	"agent_error.max_tokens",
 	"agent_error.max_turn_requests",
 	"agent_error.prompt_failed",
+	"agent_error.permission_denied",
 ] as const;
 export const FailureCode = Schema.Literals([...FAILURE_CODES]);
 export type FailureCode = typeof FailureCode.Type;
@@ -38,6 +39,11 @@ export const ITEM_KINDS = [
 	"checkpoint",
 	"config",
 	"harness_meta",
+	"usage",
+	"push",
+	/** Attempt-continuity seam (NEVR-415): the node emits it as the FIRST
+	 * item of an attempt that resumed a prior one's transcript. */
+	"resumed_from",
 ] as const;
 export const ItemKind = Schema.Literals([...ITEM_KINDS]);
 export type ItemKind = typeof ItemKind.Type;
@@ -58,7 +64,86 @@ export const McpServer = Schema.Struct({
 });
 export type McpServer = typeof McpServer.Type;
 
+/** Agent-level permission policy (NEVR-198). `autoAllow` holds glob-style
+ * tool patterns (`read`, `grep`, `mcp:github.list_*`) that the node may
+ * auto-approve without a human. A null policy preserves the legacy behaviour
+ * exactly: every `session/request_permission` answered allow_once. */
+export const PermissionPolicy = Schema.Struct({
+	autoAllow: Schema.Array(
+		Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(256))),
+	).pipe(Schema.check(Schema.isMaxLength(256))),
+});
+export type PermissionPolicy = typeof PermissionPolicy.Type;
+
+/** One permission request as the node reports it to the plane: the options the
+ * harness offered plus the RESOLVED argument values (not the template), so the
+ * deciding human sees what would actually run (D12; Factory v0.237 lesson). */
+export const PermissionRequestReport = Schema.Struct({
+	sessionId: Schema.String.pipe(Schema.check(Schema.isMaxLength(256))),
+	toolCallId: Schema.String.pipe(Schema.check(Schema.isMaxLength(256))),
+	/** Programmatic tool name when the harness reports one (e.g. `bash`,
+	 * `mcp:github.create_issue`); null when only a human title is known. */
+	toolName: Schema.NullOr(
+		Schema.String.pipe(Schema.check(Schema.isMaxLength(256))),
+	),
+	title: Schema.NullOr(
+		Schema.String.pipe(Schema.check(Schema.isMaxLength(512))),
+	),
+	options: Schema.Array(
+		Schema.Struct({
+			optionId: Schema.String.pipe(Schema.check(Schema.isMaxLength(256))),
+			name: Schema.String.pipe(Schema.check(Schema.isMaxLength(256))),
+			kind: Schema.String.pipe(Schema.check(Schema.isMaxLength(64))),
+		}),
+	).pipe(Schema.check(Schema.isMaxLength(32))),
+});
+export type PermissionRequestReport = typeof PermissionRequestReport.Type;
+
 // ── operator surface ────────────────────────────────────────────────────────
+export const BUDGET_WINDOWS = ["daily", "weekly", "monthly"] as const;
+export type BudgetWindow = (typeof BUDGET_WINDOWS)[number];
+export const BUDGET_SCOPES = ["org", "agent", "node"] as const;
+export type BudgetScope = (typeof BUDGET_SCOPES)[number];
+
+/** Money ceiling on a budget: amount + ISO-4217 currency. */
+export const BudgetCost = Schema.Struct({
+	amount: Schema.Number.pipe(
+		Schema.check(Schema.isGreaterThan(0), Schema.isFinite()),
+	),
+	currency: Schema.String.pipe(
+		Schema.check(Schema.isPattern(/^[A-Z]{3}$/), Schema.isMaxLength(3)),
+	),
+});
+export type BudgetCost = typeof BudgetCost.Type;
+
+export const CreateBudget = Schema.Struct({
+	scope: Schema.Literals([...BUDGET_SCOPES]),
+	agentId: Schema.optional(Id),
+	nodeId: Schema.optional(Id),
+	window: Schema.Literals([...BUDGET_WINDOWS]),
+	/** Token ceiling for the window; at least one ceiling must be set. */
+	ceilingTokens: Schema.optional(
+		Schema.Number.pipe(
+			Schema.check(Schema.isGreaterThan(0), Schema.isFinite()),
+		),
+	),
+	ceilingCost: Schema.optional(BudgetCost),
+});
+export type CreateBudget = typeof CreateBudget.Type;
+
+export const UpdateBudget = Schema.Struct({
+	window: Schema.optional(Schema.Literals([...BUDGET_WINDOWS])),
+	ceilingTokens: Schema.optional(
+		Schema.NullOr(
+			Schema.Number.pipe(
+				Schema.check(Schema.isGreaterThan(0), Schema.isFinite()),
+			),
+		),
+	),
+	ceilingCost: Schema.optional(Schema.NullOr(BudgetCost)),
+});
+export type UpdateBudget = typeof UpdateBudget.Type;
+
 export const CreateNode = Schema.Struct({ name: Name });
 export const CreateAgent = Schema.Struct({
 	name: Name,
@@ -74,6 +159,7 @@ export const CreateAgent = Schema.Struct({
 	mcpServers: Schema.Array(McpServer).pipe(
 		Schema.withDecodingDefaultType(Effect.sync(() => [] as Array<McpServer>)),
 	),
+	permissionPolicy: Schema.optional(PermissionPolicy),
 });
 export type CreateAgent = typeof CreateAgent.Type;
 export const CreateTask = Schema.Struct({
@@ -121,6 +207,74 @@ export const Items = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0))),
 	items: Schema.Array(Item).pipe(Schema.check(Schema.isMaxLength(500))),
 });
+/** Harness-reported usage for one run attempt (ACP `usage` is cumulative for
+ * the session; the plane records numbers, never invents them — where the
+ * harness reports only tokens, cost stays absent). */
+export const Usage = Schema.Struct({
+	tokensTotal: Schema.optional(
+		Schema.Number.pipe(
+			Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+		),
+	),
+	tokensIn: Schema.optional(
+		Schema.Number.pipe(
+			Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+		),
+	),
+	tokensOut: Schema.optional(
+		Schema.Number.pipe(
+			Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+		),
+	),
+	thoughtTokens: Schema.optional(
+		Schema.NullOr(
+			Schema.Number.pipe(
+				Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+			),
+		),
+	),
+	cachedReadTokens: Schema.optional(
+		Schema.NullOr(
+			Schema.Number.pipe(
+				Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+			),
+		),
+	),
+	cachedWriteTokens: Schema.optional(
+		Schema.NullOr(
+			Schema.Number.pipe(
+				Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+			),
+		),
+	),
+	/** Cumulative session cost when the harness reports one. */
+	costAmount: Schema.optional(
+		Schema.Number.pipe(
+			Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+		),
+	),
+	costCurrency: Schema.optional(
+		Schema.String.pipe(
+			Schema.check(Schema.isPattern(/^[A-Z]{3}$/), Schema.isMaxLength(3)),
+		),
+	),
+});
+export type Usage = typeof Usage.Type;
+
+/** One durable push fact observed in the run's workdir (NEVR-199): commit
+ * authorship is spoofable free text; the push event is the attribution the
+ * plane keeps. Populated by stellarc-node from the harness workdir's git
+ * remote-tracking reflogs at finish — no GitHub API at this stage. */
+export const Push = Schema.Struct({
+	commitSha: Schema.String.pipe(
+		Schema.check(Schema.isPattern(/^[0-9a-f]{40}$/)),
+	),
+	ref: Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(256))),
+	remote: Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(512))),
+	pushedAt: Schema.String,
+});
+export type Push = typeof Push.Type;
+
 export const Finish = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0))),
 	outcome: Schema.Literals(["completed", "cancelled", "failed"]),
@@ -131,8 +285,33 @@ export const Finish = Schema.Struct({
 	failureMessage: Schema.optional(
 		Schema.String.pipe(Schema.check(Schema.isMaxLength(4000))),
 	),
+	/** Harness-reported token/cost totals for this attempt (ACP
+	 * `PromptResponse.usage`, UNSTABLE but SDK-typed). */
+	usage: Schema.optional(Usage),
+	/** Commits the run's workdir pushed to git remotes during this attempt.
+	 * Absent or empty when nothing was pushed (NEVR-199). */
+	pushes: Schema.optional(
+		Schema.Array(Push).pipe(Schema.check(Schema.isMaxLength(200))),
+	),
 });
 export type Finish = typeof Finish.Type;
+
+/** Node → plane: a non-allowlisted permission request parked the task. The
+ * plane flips the task to needs_permission (no attempt burn, no failure_code,
+ * lease and native session preserved) and waits for an operator verdict. */
+export const PermissionPark = Schema.Struct({
+	attempt: Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0))),
+	request: PermissionRequestReport,
+});
+export type PermissionPark = typeof PermissionPark.Type;
+
+/** Operator → plane: the human verdict on a parked permission request. Grant
+ * resumes the held session on the same attempt; deny fails the task with
+ * agent_error.permission_denied and is never retried. */
+export const PermissionDecision = Schema.Struct({
+	decision: Schema.Literals(["grant", "deny"]),
+});
+export type PermissionDecision = typeof PermissionDecision.Type;
 
 /** What a node receives on claim: everything needed to drive the harness. */
 export interface TaskDescriptor {
@@ -142,6 +321,11 @@ export interface TaskDescriptor {
 	readonly prompt: string;
 	readonly subjectRef: string | null;
 	readonly leaseMs: number;
+	/** Present when this attempt continues a prior one (NEVR-415): the prior
+	 * attempt's transcript, replay-capped, to seed the new session. Absent on
+	 * fresh attempts, on agent_error.* retries (the transcript may be the
+	 * poison), and on platform.* codes not yet admitted per-code. */
+	readonly resume?: TaskResume;
 	readonly agent: {
 		readonly id: string;
 		readonly name: string;
@@ -149,7 +333,40 @@ export interface TaskDescriptor {
 		readonly model: string | null;
 		readonly instructions: string;
 		readonly mcpServers: ReadonlyArray<McpServer>;
+		/** Null preserves the legacy allow-once behaviour. */
+		readonly permissionPolicy: PermissionPolicy | null;
 	};
+}
+
+/** Per-item rendered-digest cap (NEVR-415): the node's resume renderer clips
+ * every digest line's payload to this many chars, and the plane's replay
+ * budget counts each item at its RENDERED size (clip + line overhead), so the
+ * wire never ships budget for bytes the prompt will discard. Shared here so
+ * the renderer and the budget cannot drift apart. */
+export const RESUME_ITEM_RENDER_CAP = 1500;
+
+/** One prior-attempt transcript item carried in a TaskDescriptor.resume. */
+export interface ResumeItem {
+	readonly seq: number;
+	readonly kind: ItemKind;
+	readonly body: unknown;
+	readonly occurredAt: string;
+}
+
+/** Attempt-continuity payload (NEVR-415): what the plane knows about the
+ * attempt a platform.lease_expired retry continues. `items` is the resume
+ * CHAIN's transcript — the dead attempt plus every earlier attempt its
+ * `resumed_from` markers link, back to the chain's fresh root — oldest-first,
+ * already capped to the replay token budget (tail kept — the freshest context
+ * is where the interrupted work stopped); `omitted` counts replayable items
+ * dropped from the head to fit. `fromAttempt` names only the immediately
+ * prior attempt; the chain's seams show up as `resumed_from` items inside
+ * `items`. */
+export interface TaskResume {
+	readonly fromAttempt: number;
+	readonly failureCode: FailureCode;
+	readonly items: ReadonlyArray<ResumeItem>;
+	readonly omitted: number;
 }
 
 export const TASK_STATUSES = [
@@ -159,5 +376,14 @@ export const TASK_STATUSES = [
 	"completed",
 	"failed",
 	"cancelled",
+	/** Parked by an exhausted budget: excluded from claims, no attempt burn, no
+	 * failure_code; resumable on window reset (claim loop retries) or an admin
+	 * raise. A platform-shaped condition, never agent_error.*. */
+	"budget_exhausted",
+	/** Parked by a non-allowlisted permission request (NEVR-198): excluded
+	 * from claims, no attempt burn, no failure_code. The node keeps the lease
+	 * and holds the native session open; an operator grant resumes the same
+	 * attempt in place, a deny fails with agent_error.permission_denied. */
+	"needs_permission",
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
