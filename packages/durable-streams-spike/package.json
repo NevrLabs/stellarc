@@ -1,0 +1,15 @@
+{
+	"name": "@stellarc/durable-streams-spike",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"description": "NEVR-438 spike: Durable Streams protocol read-path served from the Stellarc event log by an Effect handler. Not for production.",
+	"dependencies": {
+		"@durable-streams/client": "0.2.7",
+		"@durable-streams/state": "0.3.2"
+	},
+	"devDependencies": {
+		"@standard-schema/spec": "1.0.0",
+		"@tanstack/db": "0.15.2"
+	}
+}
