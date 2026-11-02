@@ -74,7 +74,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | `@shadcn/typeset` (NOT on npm — registry-only install; never `bun add`) | TRIAL (clarified) | 2026-10-16 | design |
 | `@shadcn/react` 0.3.1 (registry-native elements delivered in #108; remaining showcase is the chatbot template) | REJECT | 2026-10-16 | design |
 | `ui-typecheck-budget` red on PRs + dev (continue-on-error; count 429 = budget 429; informational, not a blocker) | REJECT (as blocker) | 2026-10-15 | design |
-| Base UI (`@base-ui/react` **1.9.0 stands** — dist-tags verified 11-02; **trunk broke the dep-bump train 11-02 with two real fixes** — [toast] id-in-loading-options #6129 + [menu] no re-render on popup close #6160; cadence math (1.7→08-04, 1.8→09-04, 1.9→10-09) puts 1.10 ≈ mid-Nov; **Listbox PR #5115 ASSIGNED to maintainer jjenzz 11-02** — first movement since the 06-24 atomiks review (merge-blocker: `itemToString*` API, still open); 11,276★; fold 1.10 when it tags) | ADOPT | 2026-11-02 | design |
+| Base UI (`@base-ui/react` **1.9.0 stands** — dist-tags verified 11-02; **trunk broke the dep-bump train 11-02 with two real fixes** — [toast] id-in-loading-options #6129 + [menu] no re-render on popup close #6160; cadence math (1.7→08-04, 1.8→09-04, 1.9→10-09) puts 1.10 ≈ mid-Nov; **Listbox PR #5115 ASSIGNED to maintainer michaldudak 11-02** — first movement since the 06-24 atomiks review (merge-blocker: `itemToString*` API, still open); 11,276★; fold 1.10 when it tags) | ADOPT | 2026-11-02 | design |
 | shadcn Typeset (streaming-safe markdown css; rides PR #91; registry-only, not on npm) | TRIAL | 2026-10-16 | design |
 | @coss registry entry in components.json (AGPL, unused; removal rides PR #92) | REJECT | 2026-10-14 | design |
 | skills/migrate-radix-to-base (shadcn method skill; used by PR #92) | ADOPT | 2026-10-14 | design |
@@ -95,7 +95,7 @@ One row per tracked item. Rings: ADOPT / TRIAL / WATCH / REJECT.
 | pragmatic-drag-and-drop (design-lane view; dnd-kit stays) | WATCH | 2026-10-14 | design |
 | shadcn-admin (satnaing, reference; **16,360★**, pushed 09-10) | WATCH | 2026-11-02 | design |
 | HeroUI | REJECT | 2026-10-13 | design |
-| cmdk (dormant 19mo — 1.1.1 dates 2025-03, re-verified 11-02; in use; successor trigger = Base UI Listbox #5115 — **assigned to maintainer jjenzz 11-02**, first movement since 06-24, merge-blocker `itemToString*` still open) | WATCH | 2026-11-02 | design |
+| cmdk (dormant 19mo — 1.1.1 dates 2025-03, re-verified 11-02; in use; successor trigger = Base UI Listbox #5115 — **assigned to maintainer michaldudak 11-02**, first movement since 06-24, merge-blocker `itemToString*` still open) | WATCH | 2026-11-02 | design |
 | shadcn DESIGN.md workflow skill (seed for post-freeze design-system merge) | TRIAL | 2026-10-14 | design |
 | shadcn named styles (8 styles × 3 dialects; `base-nova` = converged choice) | TRIAL | 2026-10-15 | design |
 | shadcn repo velocity: **CLI 4.23.0 (10-27) stands**; `r/index.json` **65 unchanged**; **trunk broke the dependabot streak 11-02 with #11465 — the official chat-primitives anchored-stream scroll fix** (manual scroll during anchored streaming stranded the tail spacer / yanked the viewport; fixed in `reconcileFollowMode`) — lands directly on our #91 transcript lane, spec-delta amendment filed 11-02; 127,165★ | ADOPT (tooling hygiene) | 2026-11-02 | design |
