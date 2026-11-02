@@ -1,0 +1,44 @@
+import {
+	createRootRoute,
+	HeadContent,
+	Outlet,
+	Scripts,
+} from "@tanstack/react-router";
+import type { ReactNode } from "react";
+
+import "@/styles/app.css";
+
+export const Route = createRootRoute({
+	head: () => ({
+		meta: [
+			{ charSet: "utf-8" },
+			{ name: "viewport", content: "width=device-width, initial-scale=1" },
+			{ title: "Stellarc" },
+			// Kill the default /favicon.ico request in the static build.
+			{ rel: "icon", href: "data:," },
+		],
+	}),
+	component: RootComponent,
+});
+
+function RootComponent() {
+	return (
+		<RootDocument>
+			<Outlet />
+		</RootDocument>
+	);
+}
+
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+	return (
+		<html lang="en" data-theme="dark">
+			<head>
+				<HeadContent />
+			</head>
+			<body>
+				{children}
+				<Scripts />
+			</body>
+		</html>
+	);
+}
