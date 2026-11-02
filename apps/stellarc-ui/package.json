@@ -107,7 +107,7 @@
 		"dompurify": "3.4.15"
 	},
 	"devDependencies": {
-		"@shadcn/lint": "0.2.3",
+		"@shadcn/lint": "0.2.4",
 		"@stellarc/contracts": "workspace:*",
 		"@tailwindcss/postcss": "^4.3.3",
 		"@testing-library/jest-dom": "^6.9.1",

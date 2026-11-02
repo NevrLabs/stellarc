@@ -31,7 +31,7 @@ test("NEVR-315 wiring: devDependency, dedicated script, and existing lint untouc
 	expect(
 		pkg.devDependencies?.["@shadcn/lint"],
 		"@shadcn/lint devDependency",
-	).toBe("0.2.3");
+	).toBe("0.2.4");
 	expect(
 		pkg.devDependencies?.oxlint,
 		"oxlint runner devDependency",
