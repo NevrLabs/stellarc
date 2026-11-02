@@ -67,17 +67,41 @@ freeze. The operator wants Stellarc, not a port. Kaneo compatibility only means
    closed; their ideas are re-filed against `apps/web`. #110 (interrupt-safe
    transcripts) is backend-only and continues on the agent track.
 
-4. **Stack (latest, per the always-newest policy).**
+4. **Stack (latest, per the always-newest policy). TanStack first** (operator,
+   2026-11-02): if TanStack ships it, use it, unless something else is clearly
+   better for the job; then the table below records why. Beta TanStack packages
+   (Hotkeys, Pacer, Store) are acceptable: pin exact versions and let the weekly
+   deps autopilot move them.
 
    | Layer | Choice |
    |---|---|
    | Runtime | Bun, Effect 4.1.x, `@effect/platform-bun`, `@effect/sql-pg` |
    | API | Effect `HttpApi` + `HttpApiClient`; better-auth mounted as a raw handler |
-   | Client data | **TanStack DB 1.0** (`@tanstack/react-db`): collections, live queries, optimistic mutations |
-   | Routing | TanStack Router (Vite SPA; TanStack Start stays rejected per ADR 0008) |
-   | Forms / keys / lists | TanStack Form, TanStack Hotkeys, TanStack Virtual, TanStack Table |
-   | UI | shadcn (Base UI variants), Tailwind v4, lucide, `@dnd-kit`, cmdk |
-   | Desktop / mobile | Tauri 2 (desktop tabs; ADR 0013) / Expo later, sharing the collection layer |
+   | Client data | **TanStack DB 1.0** (`@tanstack/react-db`): collections, live queries, optimistic mutations. `@tanstack/offline-transactions` for queued writes when offline; `@tanstack/browser-db-sqlite-persistence` (web) and the Tauri/Expo SQLite persistence adapters for warm start |
+   | Server cache (non-domain) | TanStack Query, only where DB doesn't fit (auth session, one-off lookups); it is also the engine under `query-db-collection` |
+   | Routing | TanStack Router + `@tanstack/router-plugin` (file routes, typed search params for view/filter state, route loaders preload collections) |
+   | Forms | TanStack Form (Effect `Schema` via Standard Schema for validation) |
+   | Tables / lists | TanStack Table (list and backlog views, sessions table), TanStack Virtual (every long list, board columns, timeline rows) |
+   | Keyboard | TanStack Hotkeys (global shortcuts, Ctrl+E recent, Esc peek, command palette) |
+   | Rate control | TanStack Pacer (search-as-you-type, drag autosave, resize persistence) |
+   | Local UI state | TanStack Store (tabs, panel sizes, peek state); no zustand |
+   | Fuzzy search | `@tanstack/match-sorter-utils` (command palette, pickers) |
+   | Charts | **TanStack Charts** (`@tanstack/charts`, React adapter `@tanstack/charts/react`): spend sparkline, project progress, burn-up, cycle-time, agent usage. Same API on React Native for mobile |
+   | Agent chat UI | TanStack AI (`@tanstack/ai`, `@tanstack/ai-react`) for streamed transcripts, tool-call rendering and in-app agent chat, when the agent views land |
+   | Agent docs | TanStack Intent: install the skills each TanStack package ships, so Builder agents read the versioned docs instead of guessing APIs |
+   | Devtools | TanStack Devtools + `@tanstack/devtools-vite` (Router, Query, DB panels in one) |
+   | UI | shadcn (Base UI variants), Tailwind v4, lucide |
+
+   Not TanStack, and why:
+
+   | Need | Choice | Why not TanStack |
+   |---|---|---|
+   | SSR framework | none (Vite SPA) | TanStack Start rejected per ADR 0008: authed cockpit, no SEO, second RPC surface beside `HttpApi`. Revisit for a public site. |
+   | Drag and drop | `@dnd-kit` | TanStack has no DnD library |
+   | Command palette | `cmdk` (via shadcn `command`) | no TanStack equivalent; filtering uses match-sorter-utils |
+   | Range sliders | Base UI Slider | TanStack Ranger is 0.0.x and unmaintained since 2025-12 |
+   | Persistence of small UI prefs | TanStack Store + `localStorage` subscriber | `@tanstack/react-persister` is 0.1.x, untouched since 2025-07 |
+   | Desktop / mobile shell | Tauri 2 (ADR 0013) / Expo later | out of TanStack's scope |
 
 5. **Sync: one collection layer, three transports, phased.** TanStack DB is the
    store; it does not move data. Each collection picks a sync adapter, and UI
