@@ -11,6 +11,7 @@
 			"**",
 			"!**/coverage",
 			"!docs/effect-v4",
+			"!docs/design/shell",
 			"!**/tsconfig*.json",
 			"!**/routeTree.gen.ts",
 			"!**/dist",
