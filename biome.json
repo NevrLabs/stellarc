@@ -35,7 +35,8 @@
 			"!.forge",
 			"!tools/forge/__pycache__",
 			"!packages/kaneo-legacy",
-			"!packages/kaneo-email"
+			"!packages/kaneo-email",
+			"!apps/stellarc-ui/src/vendor"
 		]
 	},
 	"formatter": {
