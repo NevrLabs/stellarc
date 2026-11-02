@@ -68,6 +68,12 @@ M1_GROUPS = [
 ]
 
 
+# ADR 0014 epic NEVR-429: sub-issue -> stage. Stage n starts when stages < n are done.
+ADR0014_STAGES = {"NEVR-430": 1, "NEVR-431": 2, "NEVR-432": 2, "NEVR-433": 3, "NEVR-434": 4,
+                  "NEVR-435": 5, "NEVR-436": 6, "NEVR-437": 7, "NEVR-438": 7}
+ADR0014_ASSIGNEE = {"NEVR-438": "Stellarc Scout"}
+
+
 def log(msg: str) -> None:
     line = f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {msg}"
     print(line)
@@ -219,6 +225,16 @@ def set_status(key: str, status: str, assignee: str | None = None, no_start: boo
     mc(*args, check=False)
 
 
+def active_run(key: str) -> dict | None:
+    """Newest in-flight (queued/dispatched/running) agent run on the issue."""
+    try:
+        out = mcj("issue", "runs", key, "--active")
+    except Exception:
+        return None
+    runs = out if isinstance(out, list) else out.get("runs", [])
+    return runs[0] if runs else None
+
+
 def is_design(i: dict) -> bool:
     return (i.get("title") or "").startswith("Design:")
 
@@ -239,6 +255,14 @@ def step(state: dict) -> None:
             log(f"scout report {k} → Talos triage")
             continue
         if who not in (BUILDER, DESIGNER) or st != "in_review" or k in reviews:
+            continue
+        # Never review while the issue's own agent run is still in flight
+        # (NEVR-213 lesson): a run closing on a REWORK-flipped issue can leave
+        # status in_review seconds before the real rework run starts, and the
+        # review then covers a stale head and burns a phantom rework cycle.
+        ar = active_run(k)
+        if ar:
+            log(f"{k} in_review but agent run {str(ar.get('id'))[:8]} still {ar.get('status')}; holding review dispatch")
             continue
         if who == DESIGNER and state["cycles"].get(k, 0) >= 1 and k in state.get("design_ready", []):
             continue
@@ -376,19 +400,31 @@ def step(state: dict) -> None:
         if i.get("status") == "blocked" and assignee_name(i) in (BUILDER, DESIGNER, REVIEWER, SCOUT):
             escalate(state, k, f"{k} ({i.get('title')}) is blocked. Read its comments and unblock it: decide, re-scope, or reassign.")
 
-    # 4. feeder: M1 groups once the effect/v4 port is merged into dev
-    v4_open = [i for i in all_issues if (i.get("title") or "").startswith("Effect v4 port:") and i.get("status") != "done"]
-    open_build = [i for i in all_issues if assignee_name(i) == BUILDER and i.get("status") in ("todo", "in_progress", "in_review")]
-    if not v4_open and state.get("v4_merged_to_dev") and state.get("disk_ok", True):
-        for group, src in M1_GROUPS:
-            if len(open_build) >= WIP_BUILD:
+    # 4. ADR 0014 stage feeder (replaces the ADR 0012 M1 strangler feeder).
+    # Sub-issues of the epic carry a stage (1..7). A stage's issues are assigned
+    # (Builder unless already assigned, e.g. Scout spikes) only when every issue
+    # in all earlier stages is done. Stage numbers live in ADR0014_STAGES because
+    # the CLI list output does not expose stage reliably.
+    if state.get("disk_ok", True):
+        stages = ADR0014_STAGES
+        done = lambda k: (by_key.get(k) or {}).get("status") in ("done", "cancelled")
+        for st_no in sorted(set(stages.values())):
+            earlier = [k for k, n in stages.items() if n < st_no]
+            if not all(done(k) for k in earlier):
                 break
-            if group in state["filed_groups"]:
-                continue
-            k = create_issue(f"M1: migrate `{group}` to Effect-native", BUILDER, m1_brief(group, src))
-            state["filed_groups"].append(group)
-            open_build.append({"identifier": k})
-            log(f"filed M1 {group} → {k}")
+            for k, n in stages.items():
+                if n != st_no:
+                    continue
+                i = by_key.get(k)
+                if not i or i.get("status") != "backlog":
+                    continue
+                who = ADR0014_ASSIGNEE.get(k, BUILDER)
+                if DRY:
+                    log(f"DRY stage {st_no}: would start {k}")
+                    continue
+                set_status(k, "todo", assignee=who)
+                comment(k, f"Orchestrator: stage {st_no} unblocked (all earlier ADR 0014 stages are done). Starting.")
+                log(f"ADR0014 stage {st_no}: started {k}")
 
 
 def escalate(state: dict, key: str, why: str) -> None:
