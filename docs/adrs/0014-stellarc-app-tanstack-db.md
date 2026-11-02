@@ -63,8 +63,9 @@ freeze. The operator wants Stellarc, not a port. Kaneo compatibility only means
    views rail, sidebar with pinned Recent, Linear-style board views, ticket peek).
    `apps/stellarc-ui` (the Kaneo UI) is not ported; it keeps running until
    `apps/web` covers boards, then it is deleted. The UI freeze ends. The frozen
-   PRs against `apps/stellarc-ui` (#90, #91, #92, #108, #110, #115, #118) are
-   closed; their ideas are re-filed against `apps/web`.
+   PRs against `apps/stellarc-ui` (#90, #91, #92, #108, #115, #118) are
+   closed; their ideas are re-filed against `apps/web`. #110 (interrupt-safe
+   transcripts) is backend-only and continues on the agent track.
 
 4. **Stack (latest, per the always-newest policy).**
 

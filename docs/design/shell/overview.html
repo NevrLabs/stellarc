@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stellarc shell v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0b0d;color:#e6e6e9;font:14px/1.55 Geist,system-ui,sans-serif}
+main{max-width:1280px;margin:0 auto;padding:40px 28px 80px}
+h1{font-size:26px;font-weight:600;letter-spacing:-.015em;margin:0 0 6px}
+h2{font-size:17px;font-weight:600;margin:44px 0 6px}
+p,li{color:#a6a6ae;max-width:76ch}
+p{margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px}
+b{color:#e6e6e9;font-weight:500}
+.open{display:inline-flex;gap:8px;align-items:center;height:34px;padding:0 14px;border-radius:8px;background:#ededef;color:#0b0b0d;text-decoration:none;font-weight:500;margin:6px 0 4px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:14px}
+figure{margin:0;border:1px solid #232327;border-radius:10px;overflow:hidden;background:#131316}
+figure img{display:block;width:100%}
+figcaption{padding:9px 12px;color:#a6a6ae;font-size:12.5px;border-top:1px solid #232327}
+.m{grid-template-columns:2fr 1fr 1fr}
+</style></head><body><main>
+<h1>Stellarc shell v2</h1>
+<p>Graphite and Paper are now the dark and light modes of one design. Toggle with the sun/moon at the bottom of the rail, or the Theme switch in the review bar.</p>
+<a class="open" href="index.html" target="_blank">Open the interactive prototype</a>
+
+<h2>What changed from your feedback</h2>
+<ul>
+<li><b>One-row header, identity in the header.</b> Org, tabs, search, your avatar, window controls. Tabs carry the icon of what is open, not avatars.</li>
+<li><b>Tabs can't eat the search bar.</b> Every header item is fixed size except the tab strip. Tabs are 200px, shrink evenly to 88px, then the strip clips and a count button shows how many are hidden. The active tab always scrolls into view. Measured at 1024, 1280 and 1440px with 4, 12 and 20 tabs: search stays 232px and unmoved. Try "Stress tabs" in the review bar.</li>
+<li><b>Linear-style board views.</b> Board, List, Timeline, Backlog, Calendar as defaults, then saved custom views (Agent work, Mine this week) and "+ View" to save the current filter. Filter and Display sit at the right of the same row. The tab title follows the view ("Engineering, Timeline").</li>
+<li><b>Recent pinned to the sidebar footer</b> in every view, with Ctrl+E. Click opens it in this tab; Ctrl+click opens a new tab. Inbox stays in Home.</li>
+<li><b>Polish:</b> 4 rounds of vision critique checked against DOM measurements. Fixed a CSS collision that squashed the New ticket button, made avatars one language (square tile; tinted initial for agents, dashed for unassigned), made priority icons legible, sorted list rows by due date, gave the calendar a sixth week, and made timeline bars show dates or live status instead of repeating the title.</li>
+</ul>
+
+<h2>New in this pass: ticket peek, Agents, Projects, Repos</h2>
+<p>Click any card or list row to open the ticket in a side panel; the board stays usable beside it. Esc closes it. If an agent is working on the ticket, the panel links straight to the live session.</p>
+<div class="grid">
+<figure><img src="shots/dark-peek.png"><figcaption>Ticket peek on the board, with the agent working on it.</figcaption></figure>
+<figure><img src="shots/light-peek-list.png"><figcaption>Ticket peek on the list.</figcaption></figure>
+<figure><img src="shots/dark-sessions.png"><figcaption>Agents, Sessions: what's running now, spend against the cap, every session with cost.</figcaption></figure>
+<figure><img src="shots/light-sessions.png"><figcaption>Sessions, light.</figcaption></figure>
+<figure><img src="shots/dark-agent.png"><figcaption>Agent profile: runs, success rate, budget, setup, what it picks up.</figcaption></figure>
+<figure><img src="shots/light-project.png"><figcaption>Project: progress by status, milestones.</figcaption></figure>
+<figure><img src="shots/dark-repo.png"><figcaption>Repo: PRs (agent vs human authors, checks) and pushes.</figcaption></figure>
+<figure><img src="shots/dark-mytickets.png"><figcaption>Home, My tickets: assigned to me, waiting for my review.</figcaption></figure>
+</div>
+
+<h2>Board views, dark</h2>
+<div class="grid">
+<figure><img src="shots/dark-board.png"><figcaption>Board. Live agent cards carry the only motion.</figcaption></figure>
+<figure><img src="shots/dark-list.png"><figcaption>List, grouped by status, sorted by due date.</figcaption></figure>
+<figure><img src="shots/dark-timeline.png"><figcaption>Timeline, opens a week before today.</figcaption></figure>
+<figure><img src="shots/dark-backlog.png"><figcaption>Backlog, grouped by priority, with agent triage.</figcaption></figure>
+<figure><img src="shots/dark-calendar.png"><figcaption>Calendar by due date.</figcaption></figure>
+<figure><img src="shots/dark-agentwork.png"><figcaption>Custom view: Agent work, a column per agent.</figcaption></figure>
+</div>
+
+<h2>Board views, light</h2>
+<div class="grid">
+<figure><img src="shots/light-board.png"><figcaption>Board</figcaption></figure>
+<figure><img src="shots/light-list.png"><figcaption>List</figcaption></figure>
+<figure><img src="shots/light-timeline.png"><figcaption>Timeline</figcaption></figure>
+<figure><img src="shots/light-calendar.png"><figcaption>Calendar</figcaption></figure>
+</div>
+
+<h2>Other views and platforms</h2>
+<div class="grid">
+<figure><img src="shots/dark-session.png"><figcaption>Agents, live session (dark)</figcaption></figure>
+<figure><img src="shots/light-session.png"><figcaption>Agents, live session (light)</figcaption></figure>
+<figure><img src="shots/dark-tabs-stress.png"><figcaption>14 tabs at 1280px: tabs at minimum width, hidden count shown, search intact.</figcaption></figure>
+<figure><img src="shots/light-web.png"><figcaption>Web: no tabs, centred search.</figcaption></figure>
+</div>
+<div class="grid m">
+<figure><img src="shots/dark-machine.png"><figcaption>Machine</figcaption></figure>
+<figure><img src="shots/dark-mobile.png"><figcaption>Mobile board, view chips</figcaption></figure>
+<figure><img src="shots/light-mobile-drawer.png"><figcaption>Mobile drawer with Recent</figcaption></figure>
+</div>
+</main></body></html>
