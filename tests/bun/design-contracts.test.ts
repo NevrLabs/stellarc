@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { parse } from "yaml";
 
 /**
  * NEVR-455 — design-system contracts on apps/web from day one.
@@ -32,29 +33,24 @@ function readJson(path: string) {
 	return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
 }
 
-/**
- * The body of one top-level workflow job: from its own key line (anchored at
- * exactly two spaces of indent, so a textual mention in a comment cannot
- * match) up to the next two-space-indented key, exclusive — never a fixed
- * character window, so it cannot bleed into a following job.
- */
-function jobBody(workflow: string, job: string): string {
-	const start = workflow.match(new RegExp(`^  ${job}:[ \\t]*$`, "m"));
-	if (!start || start.index === undefined) return "";
-	const rest = workflow.slice(start.index);
-	const next = rest
-		.slice(rest.indexOf("\n") + 1)
-		.match(/^ {2}\S[^\n]*:[ \t]*$/m);
-	if (!next || next.index === undefined) return rest;
-	return rest.slice(0, rest.indexOf("\n") + 1 + next.index);
-}
+type WorkflowJob = {
+	"continue-on-error"?: boolean;
+	if?: string;
+	env?: Record<string, unknown>;
+	steps?: Array<{
+		run?: string;
+		uses?: string;
+		if?: string;
+		with?: Record<string, unknown>;
+		env?: Record<string, unknown>;
+	}>;
+};
 
-/** YAML comment lines must never satisfy a wiring assertion (NEVR-333). */
-function stripComments(yaml: string): string {
-	return yaml
-		.split("\n")
-		.filter((line) => !line.trimStart().startsWith("#"))
-		.join("\n");
+function workflowJobs(): Record<string, WorkflowJob> {
+	const wf = parse(
+		readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8"),
+	) as { jobs?: Record<string, WorkflowJob> };
+	return wf.jobs ?? {};
 }
 
 test("NEVR-455 wiring: exact-pin devDependencies, dedicated script, Biome untouched", () => {
@@ -119,63 +115,66 @@ test("NEVR-455 contracts: six rules at error severity, ui dir may style itself, 
 });
 
 test("NEVR-455 CI: ui-design-contracts job is blocking and scoped to apps/web", () => {
-	const workflow = stripComments(
-		readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8"),
-	);
-	const job = jobBody(workflow, "ui-design-contracts");
-	expect(job, "ui-design-contracts job exists").not.toBe("");
+	const job = workflowJobs()["ui-design-contracts"];
+	expect(job, "ui-design-contracts job exists").toBeDefined();
 	expect(
-		job,
-		"the job must gate: no continue-on-error anywhere in its body",
-	).not.toMatch(/^ {4}continue-on-error:/m);
-	expect(job, "the pass must run through the dedicated script").toContain(
-		"bun run --cwd apps/web lint:design",
-	);
+		job?.["continue-on-error"],
+		"the job must gate: no continue-on-error anywhere",
+	).toBeUndefined();
+	const steps = job?.steps ?? [];
+	const pass = steps.find((s) => s.run?.includes("lint:design"));
+	expect(pass, "the pass must run through the dedicated script").toBeDefined();
+	expect(pass?.run).toContain("bun run --cwd apps/web lint:design");
 	expect(
-		job,
+		job?.env?.SHADCN_LINT_TAILWIND_TIMEOUT,
 		"Tailwind-worker timeout knob must be set for cold CI machines",
-	).toMatch(/^ {6}SHADCN_LINT_TAILWIND_TIMEOUT:/m);
-	expect(job, "failure log must be captured as an artifact").toContain(
-		"design-contract.log",
+	).toBe("120000");
+	const artifact = steps.find((s) =>
+		String(s.with?.path ?? "").includes("design-contract.log"),
 	);
+	expect(artifact, "failure log must be captured as an artifact").toBeDefined();
 });
 
 test("NEVR-455 CI: onsystem diff job non-blocking, SHA-pinned, diff-gated to apps/web", () => {
-	const workflow = stripComments(
-		readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8"),
+	const jobs = workflowJobs();
+	const job = jobs["onsystem-diff"];
+	expect(job, "onsystem-diff job exists").toBeDefined();
+	expect(job?.["continue-on-error"], "the job must stay non-blocking").toBe(
+		true,
 	);
-	const job = jobBody(workflow, "onsystem-diff");
-	expect(job, "onsystem-diff job exists").not.toBe("");
-	expect(job, "the job must stay non-blocking").toMatch(
-		/^ {4}continue-on-error:[ \t]*true$/m,
-	);
+	const steps = job?.steps ?? [];
+	const action = steps.find((s) => s.uses?.startsWith("dgesteves/onsystem@"));
 	expect(
-		job,
+		action?.uses,
 		"the action must stay pinned to the v0.12.1 release commit",
-	).toMatch(
-		new RegExp(
-			`^ {8}uses: ${ONSYSTEM_PIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} # v0\\.12\\.1$`,
-			"m",
-		),
+	).toBe(ONSYSTEM_PIN);
+	expect(action?.with?.["working-directory"], "scoped to apps/web").toBe(
+		"apps/web",
 	);
-	expect(job, "scoped to apps/web").toMatch(
-		/^ {10}working-directory: apps\/web$/m,
+	expect(action?.with?.["fail-on"], "report warnings while non-blocking").toBe(
+		"warning",
 	);
+	const checkout = steps.find((s) => s.uses?.startsWith("actions/checkout"));
 	// The action diffs against event.pull_request.base.sha itself; the job
 	// must hand it a full checkout to do so (and feed the path gate).
-	expect(job, "full checkout for the diff").toMatch(/^ {10}fetch-depth: 0$/m);
-	expect(job, "report warnings while non-blocking").toMatch(
-		/^ {10}fail-on: warning$/m,
-	);
+	expect(checkout?.with?.["fetch-depth"], "full checkout for the diff").toBe(0);
 	// Diff-scoped: only PRs touching apps/web/src/components/** run it, and
 	// only pull requests (pushes have no PR diff to scope to).
-	expect(job, "PR-only posture").toContain(
-		"github.event_name == 'pull_request'",
+	expect(job?.if).toContain("github.event_name == 'pull_request'");
+	const gate = steps.find((s) => s.run?.includes("apps/web/src/components/"));
+	expect(
+		gate,
+		"a git-diff gate step scopes the check to components",
+	).toBeDefined();
+	expect(action?.if, "the diff gate must actually control the action").toBe(
+		"steps.diff.outputs.components == 'true'",
 	);
-	expect(job, "components diff gate").toContain("apps/web/src/components/");
 	// The trial is additive: no existing job removed, no gate touched.
-	expect(workflow).toContain("foundation:");
-	expect(workflow).toContain("ui-typecheck-budget:");
+	expect(jobs.foundation, "foundation job untouched").toBeDefined();
+	expect(
+		jobs["ui-typecheck-budget"],
+		"ui-typecheck-budget job untouched",
+	).toBeDefined();
 });
 
 test("NEVR-455 catch behaviour: a seeded violation fails the pass with agent-readable remediation", () => {
