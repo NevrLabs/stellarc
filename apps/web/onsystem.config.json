@@ -1,0 +1,5 @@
+{
+	"$schema": "https://unpkg.com/onsystem/schema.json",
+	"components": ["src/components/ui/**/*.tsx"],
+	"tokens": ["src/styles/app.css"]
+}
