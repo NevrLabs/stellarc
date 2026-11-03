@@ -425,7 +425,7 @@ test("T06 migration exports its applied version through the caller trace", async
 		);
 		expect(applied).toHaveLength(1);
 		expect(applied[0].attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation,0002_identity,0003_agents,0004_budgets,0005_pushes,0006_permissions,0007_resumed_from",
+			"0001_foundation,0002_identity,0003_agents,0004_budgets,0005_pushes,0006_permissions,0007_resumed_from,0008_stellarc_domain",
 		);
 		expect(applied[0].spanContext().traceId).toBe(
 			spans.find((span) => span.name === "migration.caller")?.spanContext()
@@ -1834,7 +1834,7 @@ test("T06 migrations serialize, repeat safely, and reject checksum drift", async
 	const db = await disposablePostgres();
 	resources.push(db.close);
 	await Promise.all([migrate(db.sql), migrate(db.sql)]);
-	expect((await db.sql`SELECT version FROM stellarc_migration`).length).toBe(7);
+	expect((await db.sql`SELECT version FROM stellarc_migration`).length).toBe(8);
 	await db.sql`UPDATE stellarc_migration SET checksum='invalid'`;
 	await expect(migrate(db.sql)).rejects.toThrow("Migration checksum mismatch");
 });

@@ -563,6 +563,7 @@ test("D1 runMigration returns every entry's version+checksum in order; re-run ve
 		"0005_pushes",
 		"0006_permissions",
 		"0007_resumed_from",
+		"0008_stellarc_domain",
 	]);
 	expect(fresh.inserted.map((e) => e.version)).toEqual([
 		"0001_foundation",
@@ -572,6 +573,7 @@ test("D1 runMigration returns every entry's version+checksum in order; re-run ve
 		"0005_pushes",
 		"0006_permissions",
 		"0007_resumed_from",
+		"0008_stellarc_domain",
 	]);
 	// second run over the same cluster: entries verified, nothing re-applied
 	const second = await runMigration(fresh.sql);
@@ -583,8 +585,9 @@ test("D1 runMigration returns every entry's version+checksum in order; re-run ve
 		"0005_pushes",
 		"0006_permissions",
 		"0007_resumed_from",
+		"0008_stellarc_domain",
 	]);
-	expect(fresh.inserted).toHaveLength(7);
+	expect(fresh.inserted).toHaveLength(8);
 });
 
 test("D1 applyMigration annotates stellarc.migration.version with the run's versions", async () => {
@@ -600,7 +603,7 @@ test("D1 applyMigration annotates stellarc.migration.version with the run's vers
 		const span = spans.find((s) => s.name === "stellarc.migrate.apply");
 		expect(span, "applyMigration span").toBeDefined();
 		expect(span?.attributes["stellarc.migration.version"]).toBe(
-			"0001_foundation,0002_identity,0003_agents,0004_budgets,0005_pushes,0006_permissions,0007_resumed_from",
+			"0001_foundation,0002_identity,0003_agents,0004_budgets,0005_pushes,0006_permissions,0007_resumed_from,0008_stellarc_domain",
 		);
 	} finally {
 		await runtime.dispose();
