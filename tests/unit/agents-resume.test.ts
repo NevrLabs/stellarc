@@ -6,6 +6,7 @@ import {
 import type { ResumeItem } from "../../packages/agents/src/protocol";
 import {
 	capReplayItems,
+	RESUMABLE_FAILURE_CODES,
 	RESUME_TOKEN_BUDGET,
 } from "../../packages/agents/src/store";
 
@@ -171,4 +172,33 @@ test("resume digest skips bookkeeping kinds instead of dumping raw bodies", () =
 	expect(digest).toContain("[assistant] kept");
 	expect(digest).not.toContain("contextTokens");
 	expect(digest).not.toContain("secret");
+});
+
+// ── RESUMABLE_FAILURE_CODES (NEVR-462): transcript-safe platform codes ───────
+
+test("resumable failure codes are exactly the transcript-safe platform codes — protocol_error and agent_error.* stay out", () => {
+	// Admission rule (NEVR-462): a code rides the resume when its failure
+	// mechanism cannot have corrupted the RECORDED transcript. Every item
+	// body is Schema-decoded at the ingest seam before insert, so platform
+	// faults truncate at worst — they cannot corrupt what persisted.
+	expect([...RESUMABLE_FAILURE_CODES].sort()).toEqual([
+		"platform.harness_exited",
+		"platform.harness_unavailable",
+		"platform.lease_expired",
+		"platform.node_error",
+	]);
+	// Held out pending one real case with evidence: a harness violating the
+	// protocol mid-stream (the attribution race moves most exits to
+	// harness_exited anyway).
+	expect(RESUMABLE_FAILURE_CODES.has("platform.protocol_error")).toBe(false);
+	// The transcript may be the poison — agent faults never replay.
+	for (const code of [
+		"agent_error.refusal",
+		"agent_error.max_tokens",
+		"agent_error.max_turn_requests",
+		"agent_error.prompt_failed",
+		"agent_error.permission_denied",
+	]) {
+		expect(RESUMABLE_FAILURE_CODES.has(code)).toBe(false);
+	}
 });

@@ -1789,7 +1789,7 @@ test("R1 a lease-expiry retry replays the prior attempt's transcript into the ne
 	expect(view.usage[1].tokensTotal).toBe(1500);
 });
 
-test("R2 negative control: other platform.* retries and agent_error retries never resume", async () => {
+test("R2 negative control: held-out protocol_error retries never resume, and agent_error never retries", async () => {
 	const p = await plane();
 	const { token, agentId } = await registerNodeAndAgent(p);
 	const client = new PlaneClient(p.url, token);
@@ -1798,14 +1798,19 @@ test("R2 negative control: other platform.* retries and agent_error retries neve
 		prompt: "echo x",
 		maxAttempts: 3,
 	});
-	// Attempt 1 dies of a harness crash — retried, but the transcript may be
-	// what killed the harness, so it must NOT replay.
+	// Attempt 1 dies of a protocol violation — retried (isRetryable takes
+	// every platform.*), but protocol_error stays HELD OUT of
+	// RESUMABLE_FAILURE_CODES (NEVR-462): a harness violating the protocol
+	// mid-stream deserves one real case as evidence before its transcript
+	// rides a replay, and the runner's attribution race already moves most
+	// real exits to harness_exited, which IS admitted. The other exclusion
+	// law is unchanged: agent_error.* never even retries.
 	const c1 = await claim(client);
 	await client.call(`tasks/${c1.task.id}/finish`, {
 		attempt: 1,
 		outcome: "failed",
-		failureCode: "platform.harness_exited",
-		failureMessage: "harness exited (code=3)",
+		failureCode: "platform.protocol_error",
+		failureMessage: "malformed session update",
 	});
 	const c2 = await claim(client);
 	expect(c2.task.attempt).toBe(2);
@@ -2084,4 +2089,328 @@ test("R4 chained lease expiries keep the whole chain's context: attempt 3 replay
 			i.kind === "message" && i.body.role === "assistant",
 	);
 	expect(said3.at(-1).body.content[0].text).toBe("seed:1:chain work");
+});
+
+// ── attempt continuity across the widened platform codes (NEVR-462) ─────────
+
+test("NEVR-462 harness_exited after items resumes: the retry carries the transcript and the digest names the code", async () => {
+	// Admission 1: process death under the agent (OOM, crash, wrapper
+	// failure) can truncate the persisted stream but never corrupt it —
+	// every item body is Schema-decoded at the ingest seam before insert.
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "exit work",
+		maxAttempts: 3,
+	});
+	// Attempt 1: streams real items, then the harness dies and the node
+	// reports platform.harness_exited.
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	const at = new Date().toISOString();
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-462a",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "message",
+				body: {
+					role: "user",
+					content: [{ type: "text", text: "exit work" }],
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 1,
+				kind: "tool_call",
+				body: {
+					call_id: "call-462",
+					title: "Prepare",
+					kind: "execute",
+					status: "pending",
+					input: { command: "prepare before death" },
+					locations: [],
+				},
+				occurredAt: at,
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.harness_exited",
+		failureMessage: "child exited with code 137 (OOM)",
+	});
+	// A platform fault requeues for retry (isRetryable takes every
+	// platform.*) — the retry must now RESUME, not cold-start.
+	const mid = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(mid.task.status).toBe("queued");
+	expect(mid.task.failureCode).toBe("platform.harness_exited");
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	const resume = c2.task.resume;
+	expect(resume?.fromAttempt).toBe(1);
+	expect(resume?.failureCode).toBe("platform.harness_exited");
+	const call = resume?.items.find(
+		(i) =>
+			i.kind === "tool_call" &&
+			(i.body as { call_id?: string }).call_id === "call-462",
+	);
+	expect(call).toBeDefined();
+	const digest = renderResumeDigest(resume as NonNullable<typeof resume>);
+	expect(digest).toContain("platform.harness_exited");
+	expect(digest).toContain(
+		'[tool_call Prepare (call-462)] {"command":"prepare before death"}',
+	);
+});
+
+test("NEVR-462 agent_error.* never replays: the finish is terminal, and a requeued agent_error row still cold-starts", async () => {
+	// The exclusion law: the transcript may be the poison. An agent fault is
+	// never retried; even when an operator pushes the failed row back to
+	// queued (no public requeue API — the same write an operator surface
+	// would make), the claim must seed a cold start.
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "poison work",
+		maxAttempts: 3,
+	});
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	const at = new Date().toISOString();
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-462b",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "tool_call",
+				body: {
+					call_id: "call-462b",
+					title: "Poison",
+					kind: "execute",
+					status: "pending",
+					input: { command: "possibly the poison" },
+					locations: [],
+				},
+				occurredAt: at,
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "agent_error.max_tokens",
+		failureMessage: "ran out of tokens",
+	});
+	// Agent faults are terminal — attempts left or not.
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.task.status).toBe("failed");
+	expect(view.task.failureCode).toBe("agent_error.max_tokens");
+	// The operator unblock: failed → queued, failure_code still on the row.
+	await p.db
+		.sql`UPDATE agent_task SET status='queued', updated_at=now() WHERE id=${t.body.id}`;
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	expect(c2.task.resume).toBeUndefined();
+});
+
+test("NEVR-462 chained platform faults across the widened codes keep the chain: harness_unavailable then node_error replay attempt 1 into attempt 3", async () => {
+	// Admissions 2+3. harness_unavailable's old premise ("the prior
+	// transcript is empty. Replay adds nothing") is stale in the chain
+	// world: attempt 1 DID run items before the harness failed to come up
+	// for attempt 2's spawn — and without admission, a platform fault
+	// consecutive to a resumed attempt (here node_error on attempt 2)
+	// drops the chain. Attempts 2 and 3 are hand-driven (items + finish),
+	// the same seam the node uses.
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	await p.op("POST", "tasks", {
+		agentId,
+		prompt: "chain across codes",
+		maxAttempts: 3,
+	});
+	// Attempt 1: real work, then the harness never came up again.
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	const at = new Date().toISOString();
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-462c1",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "message",
+				body: {
+					role: "user",
+					content: [{ type: "text", text: "chain across codes" }],
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 1,
+				kind: "tool_call",
+				body: {
+					call_id: "call-462a1",
+					title: "Prepare",
+					kind: "execute",
+					status: "pending",
+					input: { command: "attempt one work" },
+					locations: [],
+				},
+				occurredAt: at,
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.harness_unavailable",
+		failureMessage: "spawn ENOENT",
+	});
+	// Attempt 2 resumes from 1 — carrying attempt 1's items.
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	expect(c2.task.resume?.fromAttempt).toBe(1);
+	expect(c2.task.resume?.failureCode).toBe("platform.harness_unavailable");
+	const a1OnTwo = c2.task.resume?.items.find(
+		(i) =>
+			i.kind === "tool_call" &&
+			(i.body as { call_id?: string }).call_id === "call-462a1",
+	);
+	expect(a1OnTwo).toBeDefined();
+	// Attempt 2 runs: the resumed_from marker the node pushes as its first
+	// item, plus fresh work — then the node itself faults.
+	await client.call(`tasks/${c2.task.id}/start`, {
+		attempt: 2,
+		nativeSessionId: "sess-462c2",
+	});
+	await client.call(`tasks/${c2.task.id}/items`, {
+		attempt: 2,
+		items: [
+			{
+				seq: 0,
+				kind: "resumed_from",
+				body: {
+					resumedFromAttempt: 1,
+					failureCode: "platform.harness_unavailable",
+					items: 2,
+					omitted: 0,
+				},
+				occurredAt: at,
+			},
+			{
+				seq: 1,
+				kind: "tool_call",
+				body: {
+					call_id: "call-462b2",
+					title: "Continue",
+					kind: "execute",
+					status: "pending",
+					input: { command: "attempt two work" },
+					locations: [],
+				},
+				occurredAt: at,
+			},
+		],
+	});
+	await client.call(`tasks/${c2.task.id}/finish`, {
+		attempt: 2,
+		outcome: "failed",
+		failureCode: "platform.node_error",
+		failureMessage: "node disk full while persisting",
+	});
+	// Attempt 3 resumes the CHAIN: attempt 1's work, the seam marker,
+	// attempt 2's work — in order — named with the code that killed it.
+	const c3 = await claim(client);
+	expect(c3.task.attempt).toBe(3);
+	const resume = c3.task.resume;
+	expect(resume?.fromAttempt).toBe(2);
+	expect(resume?.failureCode).toBe("platform.node_error");
+	const items = resume?.items ?? [];
+	const a1 = items.findIndex(
+		(i) => (i.body as { call_id?: string }).call_id === "call-462a1",
+	);
+	const seam = items.findIndex((i) => i.kind === "resumed_from");
+	const a2 = items.findIndex(
+		(i) => (i.body as { call_id?: string }).call_id === "call-462b2",
+	);
+	expect(a1).toBeGreaterThanOrEqual(0);
+	expect(a2).toBeGreaterThanOrEqual(0);
+	expect(seam).toBeGreaterThanOrEqual(0);
+	expect(a1).toBeLessThan(seam);
+	expect(seam).toBeLessThan(a2);
+	const digest = renderResumeDigest(resume as NonNullable<typeof resume>);
+	expect(digest).toContain("platform.node_error");
+	expect(digest).toContain(
+		'[tool_call Prepare (call-462a1)] {"command":"attempt one work"}',
+	);
+	expect(digest).toContain(
+		'[tool_call Continue (call-462b2)] {"command":"attempt two work"}',
+	);
+});
+
+test("NEVR-462 protocol_error stays held out: the retry is queued but cold-starts", async () => {
+	// The hold: a harness violating the protocol mid-stream deserves one
+	// real case as evidence before admission (the attribution race already
+	// moves most exits to harness_exited). The retry still happens —
+	// isRetryable takes every platform.* — it just replays nothing.
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	await p.op("POST", "tasks", {
+		agentId,
+		prompt: "protocol work",
+		maxAttempts: 3,
+	});
+	const c1 = await claim(client);
+	const at = new Date().toISOString();
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-462d",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "tool_call",
+				body: {
+					call_id: "call-462d",
+					title: "Prepare",
+					kind: "execute",
+					status: "pending",
+					input: { command: "work before the violation" },
+					locations: [],
+				},
+				occurredAt: at,
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.protocol_error",
+		failureMessage: "malformed session update",
+	});
+	const mid = (await p.op("GET", `tasks/${c1.task.id}`)).body;
+	expect(mid.task.status).toBe("queued"); // retried…
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	expect(c2.task.resume).toBeUndefined(); // …but never resumes
 });
