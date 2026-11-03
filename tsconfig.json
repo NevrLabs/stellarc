@@ -28,6 +28,7 @@
 	],
 	"exclude": [
 		"apps/stellarc-ui/**",
+		"apps/web/**",
 		"packages/contracts/src/legacy/**",
 		"node_modules",
 		"packages/kaneo-legacy/**",
