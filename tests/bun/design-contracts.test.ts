@@ -225,3 +225,141 @@ test("NEVR-455 catch behaviour: a seeded violation fails the pass with agent-rea
 		rmSync(probe, { force: true });
 	}
 });
+
+/**
+ * NEVR-475 — the three recorded exceptions are gone, and they stay gone.
+ *
+ * The NEVR-455 pass shipped with three allowlist entries recorded as drift:
+ * six shell-vocab classes (no-unknown-classes), the Menu org/avatar contract
+ * (no-restyle), and px-[5px] (no-arbitrary-values). NEVR-475 reconciled the
+ * drift itself, so an empty allowlist must now be the steady state — any new
+ * entry is a recorded decision and belongs in a deliberate config change,
+ * never a convenience pass. These tests are red against the pre-NEVR-475
+ * config.
+ */
+test("NEVR-475: design-lint exceptions are zero — all three allowlists empty, severity untouched", () => {
+	const cfg = readJson(CONFIG) as {
+		rules?: Record<string, unknown>;
+	};
+	const optionsOf = (rule: string): Record<string, unknown> => {
+		const setting = cfg.rules?.[`shadcn/${rule}`] as
+			| [string, Record<string, unknown>?]
+			| undefined;
+		expect(setting, `shadcn/${rule} must keep its config entry`).toBeDefined();
+		expect(setting?.[0], `shadcn/${rule} must stay an error`).toBe("error");
+		return setting?.[1] ?? {};
+	};
+	expect(
+		optionsOf("no-unknown-classes").allow ?? [],
+		"no-unknown-classes allowlist must be empty",
+	).toEqual([]);
+	expect(
+		optionsOf("no-arbitrary-values").allow ?? [],
+		"no-arbitrary-values allowlist must be empty",
+	).toEqual([]);
+	const restyle = optionsOf("no-restyle");
+	expect(
+		restyle.contracts ?? [],
+		"no-restyle contracts must be empty — chrome belongs to owned variants",
+	).toEqual([]);
+	// The rule-level layout allowance is policy, not a recorded exception;
+	// it must survive the shrink unchanged.
+	expect(restyle.allow).toEqual(["layout"]);
+});
+
+/**
+ * NEVR-475 drift check: the shell vocabulary NEVR-475 took ownership of is
+ * ported into app.css 1:1 with docs/design/shell/shell.css — same selectors,
+ * same declarations, modulo the port's token renames. If either side edits
+ * one of these rules without the other, this is red.
+ */
+test("NEVR-475: ported shell vocabulary stays 1:1 with docs/design/shell/shell.css", () => {
+	const shell = readFileSync(
+		join(ROOT, "docs", "design", "shell", "shell.css"),
+		"utf8",
+	);
+	const app = readFileSync(join(APP, "src", "styles", "app.css"), "utf8");
+	// The port renames the design's --mono to Tailwind's --font-mono; these
+	// selectors use no other renamed tokens.
+	const normalize = (value: string) =>
+		value
+			.replace(/var\(--mono\)/g, "var(--font-mono)")
+			.replace(/\s+/g, " ")
+			.trim();
+	const declarationsOf = (css: string, selector: string): string[] => {
+		const body = css
+			.replace(/\/\*[\s\S]*?\*\//g, "")
+			.match(
+				new RegExp(
+					`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`,
+				),
+			)?.[1];
+		expect(body, `${selector} must exist in this css`).toBeDefined();
+		return (body ?? "")
+			.split(";")
+			.map((d) => normalize(d))
+			.filter(Boolean)
+			.sort();
+	};
+	for (const selector of [".tl-bar.cut", ".mini", ".mini.bot", ".search .k"]) {
+		expect(
+			declarationsOf(app, selector),
+			`${selector} must be ported 1:1 from shell.css`,
+		).toEqual(declarationsOf(shell, selector));
+	}
+});
+
+/**
+ * NEVR-475 negative control: with the allowlists empty, the exact surfaces
+ * that used to be exempted — an unknown shell-vocab class, a raw arbitrary
+ * value, a chrome class passed to an owned component — redden their exact
+ * rule. Red against the pre-NEVR-475 config for the opposite reason: there,
+ * "mc" and the Menu contract were exempted, so those rules never fired.
+ */
+test("NEVR-475 catch behaviour: un-exempted surfaces redden their exact rule", () => {
+	const probe = join(APP, "src", "design-contract-probe.test-fixture.tsx");
+	writeFileSync(
+		probe,
+		[
+			'import { Button } from "@/components/ui/button";',
+			"",
+			"export function DesignContractProbe() {",
+			"\treturn (",
+			'\t\t<div className="mc px-[7px]">',
+			'\t\t\t<Button className="org">seeded violation</Button>',
+			"\t\t</div>",
+			"\t);",
+			"}",
+			"",
+		].join("\n"),
+	);
+	try {
+		const env = { ...process.env };
+		delete env.GITHUB_ACTIONS;
+		env.SHADCN_LINT_TAILWIND_TIMEOUT = "120000";
+		const result = spawnSync(
+			process.execPath,
+			[
+				join(APP, "node_modules", ".bin", "oxlint"),
+				"--config",
+				".oxlintrc.json",
+				"--quiet",
+				"src/design-contract-probe.test-fixture.tsx",
+			],
+			{ cwd: APP, encoding: "utf8", env, timeout: 180_000 },
+		);
+		const output = `${result.stdout}\n${result.stderr}`;
+		expect(
+			result.status,
+			`oxlint must fail on the seeded file:\n${output}`,
+		).not.toBe(0);
+		expect(output).toContain("shadcn(no-unknown-classes)");
+		expect(output).toContain('"mc"');
+		expect(output).toContain("shadcn(no-arbitrary-values)");
+		expect(output).toContain("px-[7px]");
+		expect(output).toContain("shadcn(no-restyle)");
+		expect(output).toContain('"org" is not allowed on <Button>');
+	} finally {
+		rmSync(probe, { force: true });
+	}
+});

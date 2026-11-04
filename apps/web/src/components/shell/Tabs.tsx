@@ -180,7 +180,7 @@ export function Tabs() {
 				}}
 			>
 				<Ico n="chevron-down" sm />
-				<span className="mc">{hidden > 0 ? hidden : ""}</span>
+				<span>{hidden > 0 ? hidden : ""}</span>
 			</button>
 			<button
 				type="button"

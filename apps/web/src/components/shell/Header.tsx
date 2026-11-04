@@ -20,7 +20,7 @@ export function OrgSwitcher() {
 	const navigate = useNavigate();
 	return (
 		<Menu
-			triggerClassName="org"
+			variant="org"
 			trigger={
 				<>
 					<span className="mark">NL</span>
@@ -54,7 +54,7 @@ export function Avatar() {
 	return (
 		<Menu
 			align="end"
-			triggerClassName="avatar"
+			variant="avatar"
 			trigger={<span data-testid="avatar-initials">{initials}</span>}
 		>
 			<div className="px-2 py-1.5">
@@ -93,10 +93,8 @@ export function Header({ tabs }: { tabs: React.ReactNode }) {
 				aria-label="Search (Ctrl K)"
 			>
 				<Ico n="search" sm />
-				<span className="ph">Search</span>
-				<span className="k ml-auto rounded border border-line px-[5px] py-px">
-					Ctrl K
-				</span>
+				<span>Search</span>
+				<span className="k">Ctrl K</span>
 			</button>
 			<Avatar />
 			{/* Window controls are Tauri-only; hidden on the web build. */}

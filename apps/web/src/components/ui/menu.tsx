@@ -6,21 +6,31 @@ import { cn } from "@/lib/cn";
 /**
  * shadcn-style dropdown menu on Base UI. Tokens only — the popup is
  * `--raised` over `--line-strong` with the mockup's shadow.
+ *
+ * The trigger's chrome is owned here: call sites pick a variant, never a
+ * class (no-restyle). "org" and "avatar" are the header's shell classes,
+ * ported 1:1 in src/styles/app.css from docs/design/shell/shell.css.
  */
+const TRIGGER_CLASS = {
+	plain: undefined,
+	org: "org",
+	avatar: "avatar",
+} as const;
+
 export function Menu({
 	trigger,
-	triggerClassName,
+	variant = "plain",
 	children,
 	align = "start",
 }: {
 	trigger: ReactNode;
-	triggerClassName?: string;
+	variant?: keyof typeof TRIGGER_CLASS;
 	children: ReactNode;
 	align?: "start" | "end";
 }) {
 	return (
 		<BaseMenu.Root>
-			<BaseMenu.Trigger className={triggerClassName}>
+			<BaseMenu.Trigger className={TRIGGER_CLASS[variant]}>
 				{trigger}
 			</BaseMenu.Trigger>
 			<BaseMenu.Portal>

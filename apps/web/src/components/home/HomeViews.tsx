@@ -51,7 +51,7 @@ function ListRowLite({ t }: { t: Ticket }) {
 
 function lgroup(head: React.ReactNode, cards: Ticket[]) {
 	return (
-		<div className="lgroup">
+		<div>
 			<div className="lgroup-h">
 				{head}
 				<span className="n">{cards.length}</span>
