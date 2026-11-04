@@ -477,19 +477,38 @@ async function recordAttemptPushes(
 // ── attempt continuity (NEVR-415) ────────────────────────────────────────────
 
 /** Failure codes whose retry replays the prior attempt's transcript
- * (NEVR-415). Deliberately only lease_expired:
+ * (NEVR-415; coverage widened NEVR-462). Admission rule: a code is in when
+ * its failure mechanism cannot have corrupted the RECORDED transcript.
+ * Grounding is the ingest seam — every item body the node pushes is
+ * Schema-decoded before the store inserts it (http.ts body() →
+ * Schema.decodeUnknownEffect → INSERT) — so a platform fault can TRUNCATE
+ * the persisted stream (the in-flight partial item fails decode and never
+ * persists) but cannot CORRUPT what persisted.
  * - platform.lease_expired — the node went dark under a healthy run; the
  *   transcript is good work truncated mid-flight. Replay is exactly right.
- * - platform.harness_unavailable — the harness never started; the prior
- *   transcript is empty. Replay adds nothing.
- * - platform.harness_exited / platform.protocol_error — the harness itself
- *   died or the ACP conversation broke, possibly mid-item; the tail may be
- *   garbage and the transcript may be what triggered the crash. Adjacent to
- *   the agent_error.* "transcript may be the poison" law — excluded until
- *   per-case evidence says otherwise.
- * - agent_error.* never replays (NEVR-415 scope). */
+ * - platform.harness_exited — process death under the agent (OOM, crash,
+ *   wrapper failure). Truncation-only by the seam argument, and the
+ *   runner's attribution race already reclassifies protocol_error outcomes
+ *   to this code when the exit wins — most real harness deaths arrive here.
+ * - platform.harness_unavailable — nothing ran on the dead attempt, but the
+ *   resume CHAIN still carries earlier attempts (the chain query is
+ *   attempt <= N ORDER BY attempt, seq): without admission, a platform
+ *   fault consecutive to a resumed attempt drops the chain — the exact
+ *   rework defect the chain exists to prevent.
+ * - platform.node_error — node-side fault; every item was seam-validated
+ *   before it persisted.
+ * - platform.protocol_error — HELD OUT: a harness violating the protocol
+ *   mid-stream deserves one real case as evidence before admission, and
+ *   the attribution race already moves most exits to harness_exited.
+ * - agent_error.* never replays: the transcript may be the poison.
+ * Crash-loop bound: a transcript that deterministically kills the harness
+ * burns attempts until the existing attempt cap stops it — bounded by
+ * construction, no new mechanism needed. */
 export const RESUMABLE_FAILURE_CODES: ReadonlySet<string> = new Set([
 	"platform.lease_expired",
+	"platform.harness_exited",
+	"platform.harness_unavailable",
+	"platform.node_error",
 ]);
 
 /** Kinds the resume payload can carry. usage/config are plane bookkeeping and
@@ -1126,13 +1145,15 @@ export class AgentStore {
 					await tx`UPDATE agent_task SET status='claimed', attempt=attempt+1, node_id=${n.id},
 					lease_until=now() + ${`${leaseMs} milliseconds`}::interval, failure_code=NULL, failure_message=NULL,
 					permission_decision=NULL, resumed_from_attempt=${resumingFrom}, updated_at=now() WHERE id=${row.id} RETURNING *`;
-				// Attempt continuity (NEVR-415): a retry of platform.lease_expired
-				// carries the resume CHAIN's transcript — the dead attempt plus
-				// every earlier attempt its resumed_from markers link — so the
-				// new session continues instead of cold-starting, and a
-				// consecutive expiry does not lose the chain's first attempts
-				// (rework defect 1). The gate reads the queued row's
-				// failure_code — the claim UPDATE above just cleared it.
+				// Attempt continuity (NEVR-415; codes widened NEVR-462): a
+				// retry whose failure code is in RESUMABLE_FAILURE_CODES
+				// carries the resume CHAIN's transcript — the dead attempt
+				// plus every earlier attempt its resumed_from markers link —
+				// so the new session continues instead of cold-starting, and
+				// a consecutive platform fault does not lose the chain's
+				// first attempts (rework defect 1). The gate reads the
+				// queued row's failure_code — the claim UPDATE above just
+				// cleared it.
 				let resume: TaskResume | undefined;
 				if (resumingFrom !== null) {
 					const rows =
