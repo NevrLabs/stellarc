@@ -2,7 +2,7 @@
 	"jsPlugins": ["@shadcn/lint"],
 	"settings": {
 		"shadcn": {
-			"note": "NEVR-455 design-contract pass on apps/web (day-one, blocking, no budget). Contracts live here: tune allowlists and contracts, never delete rules. Owned components in src/components/ui style themselves; the override below exempts only that directory. Exceptions recorded against #172's tree as merged: (1) no-unknown-classes — 'lgroup'/'backlog'/'cut'/'mini'/'mc'/'ph' are shell-vocabulary hooks whose CSS the app.css port does not yet emit (drift to reconcile against docs/design/shell/shell.css, not new class names to invent); (2) no-restyle — Header composes its org menu and avatar menu by passing the chrome classes 'org'/'avatar' to the owned Menu trigger; (3) no-arbitrary-values — 'px-[5px]' (5px, the search kbd inset) pending an on-scale token.",
+			"note": "NEVR-455 design-contract pass on apps/web (day-one, blocking, no budget). Contracts live here: tune allowlists and contracts, never delete rules. Owned components in src/components/ui style themselves; the override below exempts only that directory. NEVR-475 took the pass to zero exceptions: shell vocabulary (.tl-bar.cut, .mini, .search .k) is emitted from src/styles/app.css 1:1 with docs/design/shell/shell.css, Menu owns its trigger chrome via the variant prop, and the dead prototype hooks (lgroup/backlog/mc/ph) were deleted from markup. Keep it at zero: a new entry here is a recorded decision, never a convenience.",
 			"ui": "@/components/ui"
 		}
 	},
@@ -10,29 +10,13 @@
 		"shadcn/no-restyle": [
 			"error",
 			{
-				"allow": ["layout"],
-				"contracts": [
-					{
-						"pattern": "^Menu$",
-						"allow": ["org", "avatar"]
-					}
-				]
+				"allow": ["layout"]
 			}
 		],
 		"shadcn/no-raw-colors": ["error"],
-		"shadcn/no-arbitrary-values": [
-			"error",
-			{
-				"allow": ["px-[5px]"]
-			}
-		],
+		"shadcn/no-arbitrary-values": ["error"],
 		"shadcn/no-inline-styles": ["error"],
-		"shadcn/no-unknown-classes": [
-			"error",
-			{
-				"allow": ["lgroup", "backlog", "cut", "mini", "mc", "ph"]
-			}
-		],
+		"shadcn/no-unknown-classes": ["error"],
 		"shadcn/require-static-classes": ["error"]
 	},
 	"overrides": [

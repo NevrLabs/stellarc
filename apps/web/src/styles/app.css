@@ -369,6 +369,14 @@
 		border-color: var(--line-strong);
 		color: var(--dim);
 	}
+	.search .k {
+		margin-left: auto;
+		font-family: var(--font-mono);
+		font-size: 10.5px;
+		padding: 1px 5px;
+		border-radius: 4px;
+		border: 1px solid var(--line);
+	}
 	/* Below the tab breakpoint the header is web-style: no tabs, wide search. */
 	@media (max-width: 1023.98px) {
 		.search {
@@ -1317,6 +1325,11 @@
 		background: color-mix(in srgb, var(--accent) 12%, var(--card));
 		border-color: var(--accent-line);
 	}
+	.tl-bar.cut {
+		border-top-left-radius: 0;
+		border-bottom-left-radius: 0;
+		border-left-style: dashed;
+	}
 
 	/* Calendar */
 	.cal {
@@ -1518,6 +1531,23 @@
 	}
 	.inbox .it .u.no {
 		background: transparent;
+	}
+	.mini {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		display: grid;
+		place-items: center;
+		font-size: 9px;
+		font-weight: 600;
+		background: var(--active);
+		color: var(--dim);
+		flex: none;
+	}
+	.mini.bot {
+		border-radius: 6px;
+		color: var(--accent);
+		background: var(--accent-wash);
 	}
 }
 

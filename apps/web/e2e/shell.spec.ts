@@ -25,6 +25,10 @@ test("shell renders header, rail, sidebar with pinned Recent, and workspace", as
 	await hydrated(page);
 	await expect(page.getByTestId("search")).toBeVisible();
 	await expect(page.getByTestId("avatar-initials")).toBeVisible();
+	// NEVR-475: Menu owns its trigger chrome via the variant prop — the
+	// header's ported shell classes must land on the triggers themselves.
+	await expect(page.locator("header button.org")).toBeVisible();
+	await expect(page.locator("header button.avatar")).toBeVisible();
 	await expect(page.getByTestId("rail-resources")).toHaveClass(/on/);
 	await expect(page.getByTestId("recent-footer")).toBeVisible();
 	await expect(page.getByTestId("board-body")).toBeVisible();

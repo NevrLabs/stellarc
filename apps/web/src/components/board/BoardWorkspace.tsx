@@ -84,7 +84,7 @@ function ListGroup({
 	cards: Ticket[];
 }) {
 	return (
-		<div className="lgroup">
+		<div>
 			<div className="lgroup-h">
 				<Ico n="chevron-down" sm />
 				{head}
@@ -191,7 +191,7 @@ function BoardBacklog({ tickets }: { tickets: Ticket[] }) {
 	const b = tickets.filter((t) => t.status === "backlog");
 	const order: Priority[] = ["urgent", "high", "medium", "low", "none"];
 	return (
-		<div className="list backlog" data-testid="backlog-body">
+		<div className="list" data-testid="backlog-body">
 			<div className="bl-note">
 				<Ico n="archive" sm />
 				<span>
