@@ -2,6 +2,9 @@ import { StartClient } from "@tanstack/react-start/client";
 import { StrictMode, startTransition } from "react";
 import { hydrateRoot } from "react-dom/client";
 
+// NEVR-498: page-local collections handle for e2e/debug (see data/devtools).
+import "@/data/devtools";
+
 // Canonical Start client entry (matches the framework default entry): React
 // hydrates the whole document; a manual hydrateStart() call deadlocks because
 // the router hand-off waits for hydration that only this entry triggers.

@@ -4,6 +4,7 @@ import {
 	InboxView,
 	MyTicketsView,
 } from "@/components/home/HomeViews";
+import { Suggestions } from "@/components/home/Suggestions";
 import { AppShell, useFirstBoardId } from "@/components/shell/AppShell";
 import { useBoards } from "@/data/queries";
 
@@ -35,6 +36,7 @@ function HomePage() {
 				<main className="work">
 					<HomeToolbar activeItem="inbox" />
 					<div className="vp">
+						<Suggestions />
 						<InboxView />
 					</div>
 				</main>
