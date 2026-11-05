@@ -1,6 +1,6 @@
 # Agent-view interaction contracts (apps/web)
 
-> **Status:** Pinned 2026-11-03 (NEVR-456, from the 2026-11-03 design scout report, PR #177, adopted as filed after primary-source verification: shadcn-ui/ui#11465 diff and PR body, signoff-ui 0.12.1/0.13.0/0.14.0 release notes, and our own closed-PR bodies #91/#115/#118 read live).
+> **Status:** Pinned 2026-11-03 (NEVR-456, from the 2026-11-03 design scout report, PR #177, adopted as filed after primary-source verification: shadcn-ui/ui#11465 diff and PR body, signoff-ui 0.12.1/0.13.0/0.14.0 release notes, and our own closed-PR bodies #91/#115/#118 read live). Slop-redline section (Section D) pinned 2026-11-05 (NEVR-493, from NEVR-491's triage of the 2026-11-05 design scout report NEVR-490, PR #194 → `dev` `6b793f7`; the unslop repo, README, and CC BY 4.0 license re-verified live at pin time).
 >
 > **What this is.** The pinned acceptance criteria the `apps/web` transcript and agent views are built and reviewed against. It carries forward — and supersedes — the stellarc-ui-scoped spec deltas recorded on NEVR-355 (blocked; that substrate retires at cutover per ADR 0014, NEVR-436).
 >
@@ -84,8 +84,36 @@ Usage reports within one turn are cumulative snapshots — the last report is th
 Totals: tokens summed over turns; cost summed only over turns that report a cost. When no turn reports usage, nothing renders at all.
 *Regression play:* `usage: totals sum tokens across turns, cost only across reporting turns; the no-usage case renders nothing` — three fixtures (mixed, tokens-only, no-usage); assert the totals-line math on the first two and zero usage nodes on the third. Red when totals fabricate cost or render an empty row.
 
+## D. Slop redline
+
+Source: [unslop](https://github.com/heydamir/unslop) — Damir Sokolovsky (@heydamir), created 2026-10-29, CC BY 4.0 (repo, README, and license re-verified live at pin time), reached through the 2026-11-05 design scout report (NEVR-490, PR #194 → `dev` `6b793f7`, adopted at NEVR-491 triage). The stack beneath this doc is mechanical: `@shadcn/lint` at error with zero exceptions (`ui-design-contracts`, NEVR-455/475), the `onsystem-diff` diff gate, the token law in [DESIGN.md](../../DESIGN.md) — the lint catches off-token classes, but nothing in the stack named the *aesthetic* failure modes agent-written views drift into. unslop turned that review into a method — find the slop first, set a direction from the product, then fix pass by pass like a designer working a redline — and that method is adopted here as the aesthetic acceptance layer on top of token/class discipline. Its five signs of slop are pinned below as **hard negatives**: a view that shows any of them fails review, and no direction argument rescues it. License discipline: the method is credited by name and link; every sentence below is ours, zero text is taken from the repo (CC BY 4.0 would make any taken text an attribution obligation — taking none is the intended path), and the skill itself is never vendored into this repo.
+
+**D1 — Decoration is carried by the token layer; a view never paints its own gradient.**
+Every gradient the system has lives in the token layer (`styles/app.css`): the accent sweep, the edge fades, the row-grid texture. A decorative gradient in a view source — background washes, gradient text fills, aurora/mesh blocks — is slop no matter how well it is built: if the design did not put the gradient in the token layer, the view does not get one.
+*Regression play:* `slop: zero gradients in view sources outside the token layer` — CI grep gate over `apps/web/src` (excluding `styles/app.css`) for gradient declarations and gradient utilities; zero matches. Red when a view ships its own gradient decoration.
+
+**D2 — Depth is flat; glow never stands in for it.**
+Elevation is surface layering plus hairline borders; the one shadow ladder serves floating chrome only (DESIGN.md, Elevation & Depth). Glow effects — colored box-shadow blooms under buttons and cards, text-shadow halos, blur blooms behind headings — read as neon, not depth, and are a hard negative even when the color is on-token.
+*Regression play:* `slop: zero glow shadows in view sources` — CI grep gate for non-token-ladder box-shadows and any text-shadow in view sources; zero matches. Red when a glowing card or haloed heading lands.
+
+**D3 — Emoji never label the UI.**
+Icons come from the lucide set; status reads through an 8px dot plus a text label (DESIGN.md, Components). An emoji standing in for either — in button labels, section headers, empty states, status lines — is a hard negative: it renders inconsistently across platforms, carries no accessible name, and reads as a placeholder, not a label.
+*Regression play:* `slop: zero emoji in UI label positions` — CI grep gate over user-facing string literals in view sources for emoji code points; zero matches. Red when an emoji-labeled control lands.
+
+**D4 — Copy speaks at speaking volume.**
+Hierarchy is carried by size and weight, never by shouting (DESIGN.md, Typography). Shouty copy — ALL-CAPS strings, exclamation-driven CTAs — is a hard negative in every register the views own: buttons, headings, empty states, banners. Acronyms, keycap labels, and mono-rendered data are not copy and are exempt.
+*Regression play:* `slop: zero shouty copy in view sources` — CI grep gate for all-caps string literals and exclamation-marked CTA/heading strings; zero matches. Red when a shouting empty state lands.
+
+**D5 — Spacing resolves to the scale; nothing is hand-spaced.**
+Density lives in the layout constants and the spacing scale; a view is never re-spaced by hand (DESIGN.md, Layout). Hand-tuned one-off gaps — arbitrary `p-[…]`/`gap-[…]` values, raw px margins stacked beside scale values — produce the uneven rhythm that is the fifth sign of slop; arbitrary values already fail `ui-design-contracts`, and the redline reads the same line aesthetically: if sibling gaps do not resolve to scale steps, the view is not done.
+*Regression play:* `slop: every margin, padding, and gap resolves to the scale` — the `ui-design-contracts` arbitrary-value gate plus a review check that sibling gaps hit scale steps. Red when a hand-spaced view lands.
+
+**The method — direction before edits, in that order, always.** The five negatives are a review instrument, never an edit list: editing straight from the slop list produces a clean screen with no character in it, and removing the failure modes is not the goal — a designed interface is. The required order is unslop's: **audit** the view against D1–D5 first, naming every sign found and where it lives; **direction** second — character and world taken from the product (what the surface is for, which one or two moments may carry the accent, what its signature detail is), stated before anything changes; **edits** third, pass by pass, one concern per pass. A clean audit is a finding — "no slop, at most small refinements" — not an invitation to redesign.
+
+**Acceptance.** Agent-view PRs cite this checklist the way they cite Section F of the lifecycle contracts: the PR states the audit result and the direction before the edits, and a view PR carrying edits without both is not reviewable.
+
 ## Maintenance
 
 - A law changes only by editing this doc in a PR. Implementation issues quote laws; they never fork them.
 - When an implementation PR lands a play, add the link beside its law (one line: play name → PR/test file).
-- Pinned sources: shadcn-ui/ui#11465 (message-scroller `reconcileFollowMode`/`handleResize`, merged 2026-11-02); signoff-ui release notes 0.12.1/0.13.0/0.14.0 (PRs #227/#231, #237, #230/#232/#239 upstream); our closed PRs #91, #115, #118 (branches kept for reference); the #73 close comment; ADR 0014.
+- Pinned sources: shadcn-ui/ui#11465 (message-scroller `reconcileFollowMode`/`handleResize`, merged 2026-11-02); signoff-ui release notes 0.12.1/0.13.0/0.14.0 (PRs #227/#231, #237, #230/#232/#239 upstream); our closed PRs #91, #115, #118 (branches kept for reference); the #73 close comment; ADR 0014; [unslop](https://github.com/heydamir/unslop) (CC BY 4.0 — method source for Section D, credited and linked, not vendored, zero text taken).
