@@ -16,6 +16,7 @@ import {
 	ticketsCollection,
 	viewsCollection,
 } from "@/data/collections";
+import { deriveSuggestions } from "@/data/suggestions";
 import type { StatusId, ViewId } from "@/fixtures/data";
 
 export function useOrgs() {
@@ -109,6 +110,24 @@ export function useBoardTickets(boardId: string | undefined) {
 export function useActiveTickets(boardId: string | undefined) {
 	const tickets = useBoardTickets(boardId);
 	return tickets?.filter((t) => t.status !== "backlog");
+}
+
+/** All recorded tickets, across boards (NEVR-498 activity source). */
+export function useTickets() {
+	return useLiveQuery({
+		query: (q) => q.from({ ticket: ticketsCollection }),
+	}).data;
+}
+
+/**
+ * NEVR-498 — onboarding suggestions derived from recorded activity, through
+ * this seam only, so the derivation follows the NEVR-434 fixture→real-API
+ * flip untouched.
+ */
+export function useSuggestions() {
+	const tickets = useTickets() ?? [];
+	const boards = useBoards() ?? [];
+	return deriveSuggestions(tickets, boards, Date.now());
 }
 
 export function useTicketsByStatus(
