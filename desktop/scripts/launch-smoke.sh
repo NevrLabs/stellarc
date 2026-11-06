@@ -43,10 +43,20 @@
 #                              event=window-created
 #   app-death pre-probe: …     app died between window-created and
 #                              event=health-probe
+#   app-death post-probe: …    app died after health-probe but before the
+#                              script's SIGTERM shutdown step
 #   line never appeared: …     app alive, a required startup line timed out
 # If Xvfb dies at ANY point in an attempt, the reason is rewritten to
 # xvfb-startup (the X death is the root cause; the app dying after it is a
 # consequence, not a mode of its own).
+#
+# NEVR-378: the health-probe → SIGTERM gap. An app that dies after logging
+# both startup lines but before the shutdown TERM crashed the script bare
+# under set -e (`kill: (pid) - No such process` — no FAIL line, no dump;
+# run 40834488557). That TERM is now guarded: such a death is a failed
+# launch with the standard semantics (mode-prefixed reason + byte-counted
+# dumps), not a crash. The green path is unchanged — a live app still gets
+# the plain TERM.
 set -euo pipefail
 
 binary="${1:-}"
@@ -318,8 +328,18 @@ done
 # SIGTERM must terminate the app cleanly (no SIGKILL fallback needed). This is
 # the APP pid — never a wrapper (D4; with xvfb-run gone there is no wrapper
 # pid left to mistake it for).
+#
+# NEVR-378: an app that dies in the gap between the health-probe assert and
+# this TERM is not a clean launch — fail with the standard semantics
+# (mode-prefixed reason + byte-counted dumps) instead of the bare
+# `kill: (pid) - No such process` crash set -e produced (run 40834488557).
 clean_exit=0
-kill -TERM "$app_pid"
+if ! kill -TERM "$app_pid" 2>/dev/null; then
+	echo "FAIL: app-death post-probe: app pid $app_pid died before the SIGTERM step" >&2
+	dump_log
+	dump_xvfb_log
+	exit 1
+fi
 for _ in $(seq 1 10); do
 	if ! kill -0 "$app_pid" 2>/dev/null; then
 		clean_exit=1
