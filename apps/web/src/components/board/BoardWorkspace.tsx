@@ -551,15 +551,17 @@ export function BoardWorkspace({
 							<span>{v.label}</span>
 						</button>
 					))}
-					<button
-						type="button"
-						className="vtab add"
-						title="Save the current filters as a view"
-					>
-						<Ico n="plus" sm />
-						<span>View</span>
-					</button>
 				</div>
+				{/* NEVR-505: the add-view action is not a tab, so it must live
+				 * outside the tablist — it stays a plain button sibling. */}
+				<button
+					type="button"
+					className="vtab add"
+					title="Save the current filters as a view"
+				>
+					<Ico n="plus" sm />
+					<span>View</span>
+				</button>
 				<span className="sp" />
 				<div className="filterbar">
 					{chips.map(([icon, label]) => (

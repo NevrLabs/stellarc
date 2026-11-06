@@ -88,13 +88,17 @@ export function HomeToolbar({ activeItem }: { activeItem?: string }) {
 				<b>Home</b>
 			</div>
 			<span className="sp" />
-			<div className="seg" role="tablist" aria-label="Inbox filter">
+			{/* NEVR-505: a labeled fieldset (native group), not `tablist` —
+			 * these filter buttons are not tabs (no tab semantics
+			 * implemented); a bare tablist with non-tab children misleads
+			 * assistive tech. */}
+			<fieldset className="seg" aria-label="Inbox filter">
 				<button type="button" className="on">
 					All
 				</button>
 				<button type="button">Agents</button>
 				<button type="button">People</button>
-			</div>
+			</fieldset>
 			{activeItem === "mine" && (
 				<Button variant="primary" data-testid="my-tickets-cta">
 					<Ico n="plus" sm />

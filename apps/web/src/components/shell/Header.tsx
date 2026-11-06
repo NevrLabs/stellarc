@@ -86,12 +86,10 @@ export function Header({ tabs }: { tabs: React.ReactNode }) {
 		<header className="header">
 			<OrgSwitcher />
 			{tabs}
-			<button
-				type="button"
-				className="search"
-				data-testid="search"
-				aria-label="Search (Ctrl K)"
-			>
+			{/* NEVR-505: no aria-label override — the visible content names the
+			 * control ("Search Ctrl K"), so the accessible name always
+			 * contains the visible label text. */}
+			<button type="button" className="search" data-testid="search">
 				<Ico n="search" sm />
 				<span>Search</span>
 				<span className="k">Ctrl K</span>
