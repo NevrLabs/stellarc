@@ -8,7 +8,7 @@
 >
 > **How to use.** Every law is phrased testably and carries exactly one **named regression play** (house rule: one play per law). At implementation time each play is demonstrated **red when the law is broken, green when it holds** — sabotage-and-revert — and stays in the suite as the law's guard. Briefs for the apps/web transcript/agent-view issues **quote these laws as acceptance criteria and link this doc**; they do not fork them.
 
-Related: [agent-view-lifecycle-contracts.md](./agent-view-lifecycle-contracts.md) (NEVR-463 — the lifecycle & replay half of the same surfaces: render-first, live status, replay honesty; this doc owns interaction, that doc owns lifecycle), [ADR 0014](../adrs/0014-stellarc-app-tanstack-db.md) (apps/web decision), [transcript schema v2](../transcript-schema-v2.md) (the payload side these views render), [shell design](./shell/) (the visual shell they live in).
+Related: [agent-view-lifecycle-contracts.md](./agent-view-lifecycle-contracts.md) (NEVR-463 — the lifecycle & replay half of the same surfaces: render-first, live status, replay honesty; this doc owns interaction, that doc owns lifecycle — including its Section G background-work contract, NEVR-514), [ADR 0014](../adrs/0014-stellarc-app-tanstack-db.md) (apps/web decision), [transcript schema v2](../transcript-schema-v2.md) (the payload side these views render), [shell design](./shell/) (the visual shell they live in).
 
 ## Install path for reference parts
 
