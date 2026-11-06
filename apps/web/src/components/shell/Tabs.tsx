@@ -69,7 +69,7 @@ function useTabMeta() {
 
 /** Tabs shrink to 88px, then the track clips with an overflow count (mockup fitTabs). */
 function useTabOverflow() {
-	const trackRef = useRef<HTMLDivElement>(null);
+	const trackRef = useRef<HTMLUListElement>(null);
 	const [hidden, setHidden] = useState(0);
 
 	useLayoutEffect(() => {
@@ -123,27 +123,35 @@ export function Tabs() {
 	};
 
 	return (
-		<div className="tabs" role="tablist" aria-label="Open tabs">
-			<div className="tabs-track" ref={trackRef}>
+		<nav className="tabs" aria-label="Open tabs">
+			{/* NEVR-505: the strip is navigation, not an ARIA tabs widget — a
+			 * tab's children are presentational by spec, so a close control
+			 * can never live inside one. Each tab is a listitem holding the
+			 * activate button and its close button as siblings. */}
+			<ul className="tabs-track" ref={trackRef}>
 				{tabs.map((tab, i) => {
 					const target = parseUrl(tab.url);
 					const { title, icon } = metaOf(target);
+					const activate = () => {
+						selectTab(tab.id);
+						go(tab.url);
+					};
 					return (
-						<button
-							type="button"
+						<li
 							key={tab.id}
 							className={`tab ${tab.id === activeId ? "on" : ""}`}
-							role="tab"
-							aria-selected={tab.id === activeId}
 							data-testid="tab"
 							title={title}
-							onClick={() => {
-								selectTab(tab.id);
-								go(tab.url);
-							}}
 						>
-							<Ico n={icon} sm />
-							<span className="t">{title}</span>
+							<button
+								type="button"
+								className="tab-btn"
+								aria-current={tab.id === activeId ? "page" : undefined}
+								onClick={activate}
+							>
+								<Ico n={icon} sm />
+								<span className="t">{title}</span>
+							</button>
 							<button
 								type="button"
 								className="x"
@@ -161,10 +169,10 @@ export function Tabs() {
 							>
 								<Ico n="x" sm />
 							</button>
-						</button>
+						</li>
 					);
 				})}
-			</div>
+			</ul>
 			<button
 				type="button"
 				className={`tabs-more ${hidden > 0 ? "show" : ""}`}
@@ -196,6 +204,6 @@ export function Tabs() {
 			>
 				<Ico n="plus" />
 			</button>
-		</div>
+		</nav>
 	);
 }
