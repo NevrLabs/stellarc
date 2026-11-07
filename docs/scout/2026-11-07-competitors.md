@@ -81,8 +81,11 @@ gains: *a closed channel ends the retry question; never retry into a transport t
 
 - **Steering is a reply channel** (Factory v1.6.0): a message steered into agent-owned continuing
   work must surface that work's eventual final answer in the steering conversation. Append to the
-  background-work acceptance lines in `docs/design/agent-view-contracts.md` when that chapter is
-  next edited (Builder's doc — recorded here, not edited by scout).
+  background-work acceptance lines when that chapter is next edited (Builder's doc — recorded
+  here, not edited by scout). *(Triage correction, NEVR-529: the chapter already landed 11-07
+  01:44Z as Section G of `docs/design/agent-view-lifecycle-contracts.md` — NEVR-514 #206 — so
+  these lines land there, not in `agent-view-contracts.md` as written above; the pinning brief is
+  NEVR-530, which also pins the 11-06 transcript-honesty trio and the other 11-07 lines.)*
 - **The composer stays ready after Send** (Paseo #9015): submission never locks the input.
 - **Transcript honesty at the extremes, completed** (Paseo #8358 + Factory's 11-06 pair): short
   collapsed histories fill their older messages too; a dead Load-older button on a short
