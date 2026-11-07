@@ -25,6 +25,12 @@ import { join } from "node:path";
  * there surfaces as an unnamed 30s "app process never appeared under xvfb"
  * slog (or not at all — xvfb-run shields the stub), never as the named
  * xvfb-startup mode.
+ *
+ * NEVR-378 — an app that dies in the health-probe → SIGTERM gap must FAIL
+ * with the named app-death post-probe mode + byte-counted dumps, never as
+ * the bare `kill: (pid) - No such process` set -e crash (run 40834488557).
+ * The gap-death test fails against the pre-NEVR-378 script exactly that
+ * way; the green test still asserts zero retry artifacts.
  */
 
 const repoRoot = join(import.meta.dir, "..", "..");
@@ -70,7 +76,23 @@ function standIns() {
 			"",
 		].join("\n"),
 	);
-	for (const app of ["good-app", "race-death-app"]) {
+	// Gap-death stand-in (NEVR-378): both startup lines appear, then the app
+	// dies BEFORE the launcher's SIGTERM can arrive — health-probe lands 1.5s
+	// after window-created so the poll loops are past their liveness checks
+	// when the death occurs, and the exit (~1ms after the probe echo) always
+	// beats the TERM (which follows one more grep fork+exec, ≥5ms later).
+	writeFileSync(
+		join(dir, "gap-death-app"),
+		[
+			"#!/usr/bin/env bash",
+			'echo "event=window-created"',
+			"sleep 1.5",
+			'echo "event=health-probe"',
+			"exit 0",
+			"",
+		].join("\n"),
+	);
+	for (const app of ["good-app", "race-death-app", "gap-death-app"]) {
 		chmodSync(join(dir, app), 0o755);
 	}
 	return dir;
@@ -89,6 +111,34 @@ it(
 				/^PASS: window-created \+ health-probe logged; app pid \d+ exited cleanly on SIGTERM; no orphaned app process$/m,
 			);
 			// The retry must be invisible on success.
+			expect(out).not.toContain("WARN");
+			expect(out).not.toContain("attempt 2");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	},
+	{ timeout: 90_000 },
+);
+
+it(
+	"gap death after health-probe (NEVR-378): FAIL with reason and byte-counted dump, not a bare crash",
+	() => {
+		const dir = standIns();
+		try {
+			const { code, out } = runSmoke(dir, "gap-death-app");
+
+			// The app died before the SIGTERM step: a failed launch, but it
+			// must FAIL loudly — never the bare `kill: No such process`
+			// set -e crash the 10-29 red showed (run 40834488557).
+			expect(code, out).toBe(1);
+			expect(out).toMatch(
+				/^FAIL: app-death post-probe: app pid \d+ died before the SIGTERM step$/m,
+			);
+			expect(out).toMatch(/app log \(\d+ bytes\) follows:/);
+			expect(out).toContain("event=window-created");
+			expect(out).toContain("event=health-probe");
+
+			// The death is past launch_attempt, so no retry may fire.
 			expect(out).not.toContain("WARN");
 			expect(out).not.toContain("attempt 2");
 		} finally {
