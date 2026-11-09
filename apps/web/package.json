@@ -30,7 +30,7 @@
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "4.14.0",
-		"@playwright/test": "1.62.0",
+		"@playwright/test": "1.65.0",
 		"@shadcn/lint": "0.2.5",
 		"@tailwindcss/vite": "4.3.5",
 		"@tanstack/react-hotkeys": "0.22.3",
