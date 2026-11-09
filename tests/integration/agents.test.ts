@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
+import type { Sql, TransactionSql } from "postgres";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import {
 	executeClaimed,
@@ -14,6 +16,7 @@ import {
 	runTask,
 } from "../../apps/stellarc-node/src/runner";
 import {
+	AgentStore,
 	agentsHttp,
 	staticOperatorAuth,
 } from "../../packages/agents/src/index";
@@ -2413,4 +2416,156 @@ test("NEVR-462 protocol_error stays held out: the retry is queued but cold-start
 	const c2 = await claim(client);
 	expect(c2.task.attempt).toBe(2);
 	expect(c2.task.resume).toBeUndefined(); // …but never resumes
+});
+
+// ── event-seq allocation (NEVR-565) ─────────────────────────────────────────
+
+/** Seed the drift that causes the outage (NEVR-565): `event` rows ABOVE the
+ * counter — exactly the state a partial restore, manual data fix, backfill,
+ * or a future second writer leaves behind. INSERT is the only path tests
+ * need (UPDATE/DELETE on event is revoked); the store's own writers cannot
+ * produce this state, which is the point. */
+async function seedDriftAboveCounter(
+	sql: Sql,
+	org: string,
+	from: number,
+	to: number,
+) {
+	for (let seq = from; seq <= to; seq++) {
+		await sql`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+			VALUES (${org}, ${seq}, 'agents:drift-seed', 'operator', ${sql.json({ seeded: seq })}, 1,
+			pg_current_xact_id()::text::bigint)`;
+	}
+}
+
+/** Instrumented `sql` for store-path tests (NEVR-565): records every statement
+ * (template text, parameters elided) and every `sql.begin` attempt, with an
+ * optional hook that runs just before begin #n — how the tests force the one
+ * race a drifted counter alone cannot produce deterministically (a concurrent
+ * writer taking the seq the retry will allocate). */
+function instrumentSql(
+	base: Sql,
+	beforeBegin?: (attempt: number) => Promise<void>,
+) {
+	const statements: string[] = [];
+	const begins: number[] = [];
+	const wrap = (tag: unknown): Sql => {
+		const call = (strings: TemplateStringsArray, ...values: unknown[]) => {
+			statements.push(strings.join("⟨?⟩"));
+			return (tag as (...a: unknown[]) => unknown)(strings, ...values);
+		};
+		// biome-ignore lint/suspicious/noExplicitAny: proxying the postgres tag
+		return new Proxy(call as any, {
+			get: (_t, prop) => {
+				if (prop === "begin")
+					return (body: (tx: TransactionSql) => Promise<unknown>) =>
+						base.begin(async (rawTx) => {
+							const attempt = begins.push(begins.length + 1);
+							await beforeBegin?.(attempt);
+							return body(wrap(rawTx) as TransactionSql);
+						});
+				const value = Reflect.get(tag as object, prop);
+				return typeof value === "function"
+					? (value as (...a: unknown[]) => unknown).bind(tag)
+					: value;
+			},
+		}) as Sql;
+	};
+	return { sql: wrap(base), statements, begins };
+}
+
+test("NEVR-565 E1 a counter drifted below MAX(event.seq) heals on collision: the next append recovers, seq > MAX, no duplicate PK", async () => {
+	const p = await plane();
+	await registerNodeAndAgent(p);
+	// Three events so far (node-registered, node-hello, agent-created): the
+	// counter sits at 3. Drift: rows 4..6 exist above it. Pre-fix this is the
+	// permanent outage — every append collides on the taken seqs, the rollback
+	// un-bumps the counter, and the next append is handed the same seqs again.
+	await seedDriftAboveCounter(p.db.sql, "acme", 4, 6);
+	const n = await p.op("POST", "nodes", { name: "healed" });
+	expect(n.status).toBe(201);
+	const events = await p.db.sql<{ seq: string; plugin_type: string }[]>`
+		SELECT seq::text, plugin_type FROM event WHERE org='acme' ORDER BY seq`;
+	// The INSERT succeeded at a seq strictly above the seeded MAX — the PK
+	// guarantees no duplicate landed, and the counter now agrees with it.
+	const last = events.at(-1);
+	expect(last?.plugin_type).toBe("agents:node-registered");
+	expect(Number(last?.seq)).toBe(7); // healed to MAX=6, then allocated 7
+	const [counter] = await p.db.sql<{ seq: string }[]>`
+		SELECT seq::text FROM org_event_counter WHERE org='acme'`;
+	expect(Number(counter.seq)).toBe(7);
+	// The next append stays healthy — the heal was once, not a new regime.
+	const again = await p.op("POST", "nodes", { name: "healed-2" });
+	expect(again.status).toBe(201);
+	const seqs = (
+		await p.db.sql<{ seq: string }[]>`
+			SELECT seq::text FROM event WHERE org='acme' ORDER BY seq`
+	).map((r) => Number(r.seq));
+	expect(seqs).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+test("NEVR-565 E2 a second consecutive collision after heal-and-retry surfaces a typed AgentsError, never a loop", async () => {
+	const p = await plane();
+	await registerNodeAndAgent(p);
+	await seedDriftAboveCounter(p.db.sql, "acme", 4, 5); // counter 3, MAX 5
+	// Deterministic stand-in for the concurrent writer that takes the seq the
+	// retry will allocate: occupy MAX+1 = 6 just before begin #2 (the retry).
+	const { sql, statements, begins } = instrumentSql(
+		p.db.sql,
+		async (attempt) => {
+			if (attempt === 2)
+				await p.db
+					.sql`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
+				VALUES ('acme', 6, 'agents:race-writer', 'operator', ${p.db.sql.json({ taken: true })}, 1,
+				pg_current_xact_id()::text::bigint)`;
+		},
+	);
+	const store = new AgentStore(sql);
+	await expect(
+		Effect.runPromise(store.createNode("acme", "operator", "looped")),
+	).rejects.toMatchObject({
+		_tag: "Conflict",
+		message: expect.stringContaining("heal"),
+	});
+	// Exactly one heal-and-retry: begin #1 collided, begin #2 collided, and
+	// there is no begin #3 — the loop bound is structural, not temporal.
+	expect(begins).toHaveLength(2);
+	// One heal statement ran, outside any begin (own committed transaction).
+	expect(
+		statements.filter((s) => s.includes("UPDATE org_event_counter c")),
+	).toHaveLength(1);
+	// Neither failed attempt left partial state behind: both rolled back.
+	const rows = await p.db.sql<{ n: number }[]>`
+		SELECT count(*)::int AS n FROM agent_node WHERE org='acme' AND name='looped'`;
+	expect(rows[0].n).toBe(0);
+});
+
+test("NEVR-565 E3 healthy path unchanged: a non-colliding append performs exactly today's statements — no heal, no extra reads", async () => {
+	const p = await plane();
+	const { sql, statements, begins } = instrumentSql(p.db.sql);
+	const store = new AgentStore(sql);
+	await Effect.runPromise(store.createNode("acme", "operator", "plain"));
+	expect(begins).toHaveLength(1); // one transaction, no retry
+	// The exact pre-NEVR-565 statement list: dup-check SELECT, node INSERT,
+	// counter INSERT, counter bump, txid SELECT, event INSERT. Any new read,
+	// eager reconcile, or heal on the hot path shows up here.
+	expect(statements).toEqual([
+		"SELECT 1 FROM agent_node WHERE org=⟨?⟩ AND name=⟨?⟩",
+		"INSERT INTO agent_node(id,org,name,token_hash,created_by)\n        VALUES (⟨?⟩,⟨?⟩,⟨?⟩,⟨?⟩,⟨?⟩) RETURNING *",
+		"INSERT INTO org_event_counter(org) VALUES (⟨?⟩) ON CONFLICT DO NOTHING",
+		"UPDATE org_event_counter SET seq=seq+⟨?⟩ WHERE org=⟨?⟩ RETURNING seq::text",
+		"SELECT pg_current_xact_id()::text AS txid",
+		"INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)\n      VALUES (⟨?⟩,⟨?⟩,⟨?⟩,⟨?⟩,⟨?⟩,1,⟨?⟩)",
+	]);
+});
+
+test("NEVR-565 E4 the allocation law is pinned in store.ts, naming the second allocation site", () => {
+	const src = readFileSync(
+		join(process.cwd(), "packages/agents/src/store.ts"),
+		"utf8",
+	);
+	expect(src).toContain(
+		"must heal on collision, or one drift becomes a permanent write outage",
+	);
+	expect(src).toContain("packages/domain/src/index.ts:128");
 });
