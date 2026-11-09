@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"dependencies": {
-		"better-auth": "1.6.25",
-		"hono": "4.13.7"
+		"better-auth": "1.7.18",
+		"hono": "4.13.17"
 	}
 }

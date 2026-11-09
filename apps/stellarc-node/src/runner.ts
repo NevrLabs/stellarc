@@ -16,6 +16,7 @@ import type {
 	Usage,
 } from "../../../packages/agents/src/protocol";
 import { RESUME_ITEM_RENDER_CAP } from "../../../packages/agents/src/protocol";
+
 // Re-exported for the unit tests: the canonical constant lives in the agents
 // package so the plane's replay budget and this renderer cannot drift apart.
 export { RESUME_ITEM_RENDER_CAP };
@@ -459,97 +460,101 @@ export async function runTask(
 			child.stdout as Readable,
 		) as unknown as ReadableStream<Uint8Array>,
 	);
-	const conn = new acp.ClientSideConnection(
-		() => ({
-			sessionUpdate: async (n) => folder.update(n.update),
-			requestPermission: async (p) => {
-				folder.update({
-					sessionUpdate: "tool_call_update",
-					toolCallId: p.toolCall.toolCallId,
-				} as acp.SessionUpdate);
-				const toolName = p.toolCall.name ?? null;
-				if (policyAllows(task.agent.permissionPolicy, toolName))
-					return pickPermission(p.options);
-				// Not allowlisted: park. Write the approval transcript item
-				// (options + RESOLVED argument values — Factory v0.237 lesson),
-				// tell the plane, and hold the session open until a verdict
-				// arrives on the heartbeat.
-				const report: PermissionRequestReport = {
-					sessionId: p.sessionId,
-					toolCallId: p.toolCall.toolCallId,
-					toolName,
-					title: p.toolCall.title ?? null,
-					options: p.options.map((o) => ({
-						optionId: o.optionId,
-						name: o.name,
-						kind: o.kind,
-					})),
-				};
-				// Concurrent permission requests serialize on parkGate
-				// (NEVR-212 defect 1): ACP harnesses may issue parallel tool
-				// calls, and two parks in flight would race the plane's
-				// one-verdict mailbox — the second overwriting the first's
-				// waiter and its POST hitting a row still in
-				// needs_permission (409 → requeue). Close the gate
-				// SYNCHRONOUSLY at entry (before any await) and queue on the
-				// PREVIOUS holder: a concurrent callback can never slip past
-				// an already-resolved gate. The queued request parks only
-				// after the previous verdict was DELIVERED — the same
-				// heartbeat transaction that flips the plane row back to
-				// running — so it parks against a resumable row, and each
-				// request consumes exactly one verdict.
-				const previousGate = parkGate;
-				let openGate!: () => void;
-				parkGate = new Promise<void>((o) => {
-					openGate = o;
-				});
-				try {
-					await previousGate;
-					// The run is terminal (operator cancel or deny already
-					// delivered): answer reject locally instead of parking
-					// against a dead row (which would 409).
-					if (cancelled || deniedRun) return denyPermission(p.options);
-					const verdict = new Promise<"granted" | "denied" | "cancelled">(
-						(resolve) => {
-							parkedWaiter = resolve;
-						},
-					);
-					folder.approval({
-						request: {
-							...report,
-							arguments: p.toolCall.rawInput ?? null,
-						},
-						status: "pending",
-					});
-					await flush(true).catch((e) =>
-						hooks.log?.(`approval flush failed: ${e}`),
-					);
-					await hooks.onPermissionRequest(report);
-					const v = await verdict;
-					folder.approval({
-						request: {
-							...report,
-							arguments: p.toolCall.rawInput ?? null,
-						},
-						status: v,
-						decidedAt: new Date().toISOString(),
-					});
-					await flush(true).catch((e) =>
-						hooks.log?.(`approval flush failed: ${e}`),
-					);
-					// A cancelled run answers reject too: the harness gets a
-					// settled response and can wind down instead of blocking
-					// on a permission answer that will never come.
-					return v === "granted"
-						? pickPermission(p.options)
-						: denyPermission(p.options);
-				} finally {
-					openGate();
-				}
-			},
-		}),
-		stream,
+	const clientApp = acp.client({ name: "stellarc-node" });
+	clientApp.onNotification(acp.CLIENT_METHODS.session_update, (ctx) =>
+		folder.update(ctx.params.update),
 	);
+	clientApp.onRequest(
+		acp.CLIENT_METHODS.session_request_permission,
+		async (ctx) => {
+			const p = ctx.params;
+			folder.update({
+				sessionUpdate: "tool_call_update",
+				toolCallId: p.toolCall.toolCallId,
+			} as acp.SessionUpdate);
+			const toolName = p.toolCall.name ?? null;
+			if (policyAllows(task.agent.permissionPolicy, toolName))
+				return pickPermission(p.options);
+			// Not allowlisted: park. Write the approval transcript item
+			// (options + RESOLVED argument values — Factory v0.237 lesson),
+			// tell the plane, and hold the session open until a verdict
+			// arrives on the heartbeat.
+			const report: PermissionRequestReport = {
+				sessionId: p.sessionId,
+				toolCallId: p.toolCall.toolCallId,
+				toolName,
+				title: p.toolCall.title ?? null,
+				options: p.options.map((o) => ({
+					optionId: o.optionId,
+					name: o.name,
+					kind: o.kind,
+				})),
+			};
+			// Concurrent permission requests serialize on parkGate
+			// (NEVR-212 defect 1): ACP harnesses may issue parallel tool
+			// calls, and two parks in flight would race the plane's
+			// one-verdict mailbox — the second overwriting the first's
+			// waiter and its POST hitting a row still in
+			// needs_permission (409 → requeue). Close the gate
+			// SYNCHRONOUSLY at entry (before any await) and queue on the
+			// PREVIOUS holder: a concurrent callback can never slip past
+			// an already-resolved gate. The queued request parks only
+			// after the previous verdict was DELIVERED — the same
+			// heartbeat transaction that flips the plane row back to
+			// running — so it parks against a resumable row, and each
+			// request consumes exactly one verdict.
+			const previousGate = parkGate;
+			let openGate!: () => void;
+			parkGate = new Promise<void>((o) => {
+				openGate = o;
+			});
+			try {
+				await previousGate;
+				// The run is terminal (operator cancel or deny already
+				// delivered): answer reject locally instead of parking
+				// against a dead row (which would 409).
+				if (cancelled || deniedRun) return denyPermission(p.options);
+				const verdict = new Promise<"granted" | "denied" | "cancelled">(
+					(resolve) => {
+						parkedWaiter = resolve;
+					},
+				);
+				folder.approval({
+					request: {
+						...report,
+						arguments: p.toolCall.rawInput ?? null,
+					},
+					status: "pending",
+				});
+				await flush(true).catch((e) =>
+					hooks.log?.(`approval flush failed: ${e}`),
+				);
+				await hooks.onPermissionRequest(report);
+				const v = await verdict;
+				folder.approval({
+					request: {
+						...report,
+						arguments: p.toolCall.rawInput ?? null,
+					},
+					status: v,
+					decidedAt: new Date().toISOString(),
+				});
+				await flush(true).catch((e) =>
+					hooks.log?.(`approval flush failed: ${e}`),
+				);
+				// A cancelled run answers reject too: the harness gets a
+				// settled response and can wind down instead of blocking
+				// on a permission answer that will never come.
+				return v === "granted"
+					? pickPermission(p.options)
+					: denyPermission(p.options);
+			} finally {
+				openGate();
+			}
+		},
+	);
+	const conn = clientApp.connect(stream);
+	const agent = conn.agent;
 
 	let flushing = Promise.resolve();
 	const flush = (final = false) => {
@@ -590,7 +595,10 @@ export async function runTask(
 			if (state.cancelled && !cancelled) {
 				cancelled = true;
 				settleParked("cancelled");
-				if (sessionId) await conn.cancel({ sessionId });
+				if (sessionId)
+					await agent.notify(acp.AGENT_METHODS.session_cancel, {
+						sessionId,
+					});
 			}
 		} catch (error) {
 			hooks.log?.(`heartbeat failed: ${error}`);
@@ -599,20 +607,22 @@ export async function runTask(
 
 	const drive = (async (): Promise<RunOutcome> => {
 		try {
-			await conn.initialize({
+			await agent.request(acp.AGENT_METHODS.initialize, {
 				protocolVersion: acp.PROTOCOL_VERSION,
 				clientCapabilities: {
 					fs: { readTextFile: false, writeTextFile: false },
 				},
 			});
-			const session = await conn.newSession({
+			const session = await agent.request(acp.AGENT_METHODS.session_new, {
 				cwd: hooks.workdir,
-				mcpServers: task.agent.mcpServers.map((s) => ({
-					name: s.name,
-					command: s.command,
-					args: [...s.args],
-					env: [...s.env],
-				})),
+				mcpServers: task.agent.mcpServers.map(
+					(s): acp.McpServer => ({
+						name: s.name,
+						command: s.command,
+						args: [...s.args],
+						env: [...s.env],
+					}),
+				),
 			});
 			sessionId = session.sessionId;
 			// Receipt rides the start report (NEVR-624): composed here, pure over
@@ -627,11 +637,11 @@ export async function runTask(
 				let applied = false;
 				if (opt && opt.type === "select") {
 					try {
-						await conn.setSessionConfigOption({
+						await agent.request(acp.AGENT_METHODS.session_set_config_option, {
 							sessionId: session.sessionId,
 							configId: opt.id,
 							value: task.agent.model,
-						} as acp.SetSessionConfigOptionRequest);
+						});
 						applied = true;
 					} catch (error) {
 						hooks.log?.(`model selection rejected: ${error}`);
@@ -668,21 +678,38 @@ export async function runTask(
 			recorded.push(task.prompt);
 			folder.userPrompt(recorded.join("\n\n---\n\n"));
 			const text = seed.join("\n\n---\n\n");
-			if (cancelled) await conn.cancel({ sessionId: session.sessionId });
-			const res = await conn.prompt({
+			if (cancelled)
+				await agent.notify(acp.AGENT_METHODS.session_cancel, {
+					sessionId: session.sessionId,
+				});
+			const res = await agent.request(acp.AGENT_METHODS.session_prompt, {
 				sessionId: session.sessionId,
 				prompt: [{ type: "text", text }],
 			});
 			if (cancelled) return { outcome: "cancelled", stopReason: "cancelled" };
 			const uc = folder.sessionCost();
-			const usage: Usage | undefined = res.usage
+			// ACP sdk 2.x dropped the unstable usage totals from the stable
+			// PromptResponse type; harnesses still send them on the wire.
+			const wireUsage = (
+				res as {
+					usage?: {
+						totalTokens: number;
+						inputTokens: number;
+						outputTokens: number;
+						thoughtTokens?: number;
+						cachedReadTokens?: number;
+						cachedWriteTokens?: number;
+					};
+				}
+			).usage;
+			const usage: Usage | undefined = wireUsage
 				? {
-						tokensTotal: res.usage.totalTokens,
-						tokensIn: res.usage.inputTokens,
-						tokensOut: res.usage.outputTokens,
-						thoughtTokens: res.usage.thoughtTokens ?? null,
-						cachedReadTokens: res.usage.cachedReadTokens ?? null,
-						cachedWriteTokens: res.usage.cachedWriteTokens ?? null,
+						tokensTotal: wireUsage.totalTokens,
+						tokensIn: wireUsage.inputTokens,
+						tokensOut: wireUsage.outputTokens,
+						thoughtTokens: wireUsage.thoughtTokens ?? null,
+						cachedReadTokens: wireUsage.cachedReadTokens ?? null,
+						cachedWriteTokens: wireUsage.cachedWriteTokens ?? null,
 						costAmount: uc?.amount,
 						costCurrency: uc?.currency,
 					}

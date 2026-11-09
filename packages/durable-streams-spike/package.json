@@ -9,7 +9,7 @@
 		"@durable-streams/state": "0.3.2"
 	},
 	"devDependencies": {
-		"@standard-schema/spec": "1.0.0",
-		"@tanstack/db": "0.15.2"
+		"@standard-schema/spec": "1.1.0",
+		"@tanstack/db": "1.0.0-rc.1.4"
 	}
 }

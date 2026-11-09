@@ -1,5 +1,17 @@
 {
 	"$schema": "https://turbo.build/schema.json",
+	"globalEnv": [
+		"CORS_ORIGINS",
+		"DEPLOYMENT_ENVIRONMENT",
+		"GITHUB_BASE_REF",
+		"KANEO_API_URL",
+		"KANEO_CLIENT_URL",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+		"PG_BIN",
+		"SERVICE_VERSION",
+		"STELLARC_NODE_TOKEN",
+		"STELLARC_OPERATOR_TOKEN"
+	],
 	"tasks": {
 		"build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
 		"@stellarc/gateway#build": {

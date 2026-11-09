@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       - name: Install disposable PostgreSQL binaries
         run: |
           # ubuntu-22.04 runners ship only postgresql-14; the disposable
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - name: Publish expected-red UI diagnostic count
         shell: bash
@@ -189,7 +189,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - name: Design-contract pass on apps/web
         shell: bash
