@@ -82,6 +82,39 @@ jobs:
           name: ui-typecheck-diagnostics
           path: ui-typecheck.log
 
+  # NEVR-586 — knip dead-code gate on apps/web, day one (Multica #10331
+  # pattern: a full-time team still accumulated 2,832 lines of unreferenced
+  # frontend code; the purge made the detector a blocking gate). apps/web is
+  # young enough that the baseline is zero findings — every row of the
+  # NEVR-583 trial report was deleted or un-exported, none suppressed — and
+  # the gate holds that line as the agent views grow. knip is exact-pinned in
+  # the root devDependencies; knip.jsonc maps the workspaces (tests/bun is a
+  # real cross-workspace consumer of the NEVR-544 F5 surface). Blocking from
+  # the start: a warn-only gate re-creates the accumulation this exists to
+  # prevent. Negative control recorded in tests/bun/web-knip-gate.test.ts.
+  ui-knip:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: knip dead-code pass on apps/web
+        shell: bash
+        run: |
+          set +e
+          bunx knip --workspace apps/web > knip.log 2>&1
+          status=$?
+          set -e
+          cat knip.log
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ui-knip-log
+          path: knip.log
+
   # NEVR-455 — @shadcn/lint design contracts on apps/web, day one. Blocking:
   # apps/web is greenfield (ADR 0014), so the tree carries no recorded debt
   # and every contract can gate from the start — a seeded violation turns this

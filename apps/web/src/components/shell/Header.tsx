@@ -15,7 +15,7 @@ function initialsOf(name: string): string {
 		.toUpperCase();
 }
 
-export function OrgSwitcher() {
+function OrgSwitcher() {
 	const orgs = useOrgs() ?? [];
 	const navigate = useNavigate();
 	return (
@@ -45,7 +45,7 @@ export function OrgSwitcher() {
 	);
 }
 
-export function Avatar() {
+function Avatar() {
 	const { data: session } = useSession();
 	const user = session?.user;
 	const name = user?.name ?? me.name;
