@@ -10,9 +10,9 @@
         "@aws-sdk/s3-request-presigner": "3.1090.0",
         "@better-auth/api-key": "1.6.23",
         "@better-auth/drizzle-adapter": "1.6.23",
-        "@effect/opentelemetry": "4.1.2",
-        "@effect/platform-bun": "4.1.2",
-        "@effect/sql-pg": "4.1.2",
+        "@effect/opentelemetry": "4.1.3",
+        "@effect/platform-bun": "4.1.3",
+        "@effect/sql-pg": "4.1.3",
         "@electric-sql/client": "1.5.28",
         "@hono/node-server": "2.0.10",
         "@hono/node-ws": "1.3.1",
@@ -41,7 +41,7 @@
         "croner": "10.0.1",
         "dotenv-mono": "^1.5.1",
         "drizzle-orm": "0.45.2",
-        "effect": "4.1.2",
+        "effect": "4.1.3",
         "hono": "4.12.31",
         "hono-openapi": "1.3.1",
         "ioredis": "5.11.1",
@@ -471,13 +471,13 @@
 
     "@durable-streams/state": ["@durable-streams/state@0.3.2", "", { "dependencies": { "@durable-streams/client": "0.2.7", "@standard-schema/spec": "^1.0.0" }, "peerDependencies": { "@tanstack/db": ">=0.6.0 <1.0.0" }, "optionalPeers": ["@tanstack/db"], "bin": { "intent": "bin/intent.js" } }, "sha512-pFj09315ARvyJR6iCt6p1CP6HW6tw/JsKgD1pfyjduveOzqxq3v01aXPSlUMb83ncwWjtMTuzwyfP6JsywbaJg=="],
 
-    "@effect/opentelemetry": ["@effect/opentelemetry@4.1.2", "", { "peerDependencies": { "@opentelemetry/api": ">=1.9.0 <2.0.0", "@opentelemetry/api-logs": ">=0.203.0 <0.300.0", "@opentelemetry/resources": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-logs": ">=0.203.0 <0.300.0", "@opentelemetry/sdk-metrics": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-trace-base": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-trace-node": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-trace-web": ">=2.0.0 <3.0.0", "@opentelemetry/semantic-conventions": ">=1.33.0 <2.0.0", "effect": "^4.1.2" }, "optionalPeers": ["@opentelemetry/api", "@opentelemetry/api-logs", "@opentelemetry/resources", "@opentelemetry/sdk-logs", "@opentelemetry/sdk-metrics", "@opentelemetry/sdk-trace-base", "@opentelemetry/sdk-trace-node", "@opentelemetry/sdk-trace-web"] }, "sha512-FhxQy4I0nKLX0Dh9l6rZ5S/fRAMt7dKdekHtoxgx7N/XBtPP/IFhcJnGPenceuuSeVbcLp1vpZa43wC05qdxng=="],
+    "@effect/opentelemetry": ["@effect/opentelemetry@4.1.3", "", { "peerDependencies": { "@opentelemetry/api": ">=1.9.0 <2.0.0", "@opentelemetry/api-logs": ">=0.203.0 <0.300.0", "@opentelemetry/resources": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-logs": ">=0.203.0 <0.300.0", "@opentelemetry/sdk-metrics": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-trace-base": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-trace-node": ">=2.0.0 <3.0.0", "@opentelemetry/sdk-trace-web": ">=2.0.0 <3.0.0", "@opentelemetry/semantic-conventions": ">=1.33.0 <2.0.0", "effect": "^4.1.3" }, "optionalPeers": ["@opentelemetry/api", "@opentelemetry/api-logs", "@opentelemetry/resources", "@opentelemetry/sdk-logs", "@opentelemetry/sdk-metrics", "@opentelemetry/sdk-trace-base", "@opentelemetry/sdk-trace-node", "@opentelemetry/sdk-trace-web"] }, "sha512-gGr3Qj5FL3rrUmxXcVfZV5vMVq9K4ARPHpFVKUYfDl8r47oSilKwtwDg5zJQvPRZeo1hgBwhEy8bZbSwseUoJQ=="],
 
-    "@effect/platform-bun": ["@effect/platform-bun@4.1.2", "", { "dependencies": { "@effect/platform-node-shared": "4.1.2" }, "peerDependencies": { "effect": "^4.1.2" } }, "sha512-waEAa84CITqjctgw9VdhlL9PyXRHICG3KAWTFRDPUE2XL/pfMPhO7V9oFdfx22dbAhhUzV+MHs0d9hnmy/DQ7w=="],
+    "@effect/platform-bun": ["@effect/platform-bun@4.1.3", "", { "dependencies": { "@effect/platform-node-shared": "4.1.3" }, "peerDependencies": { "effect": "^4.1.3" } }, "sha512-ypcQxupTHyJsaJ/LJyCiyknjh7rCq8e961MgD3A3kEzEhH65RLoSBsD6YzzKgV3sjJwAeG8z4jdS3Id+g/7WXA=="],
 
-    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.1.2", "", { "dependencies": { "@types/ws": "^8.18.2", "ws": "^8.22.1" }, "peerDependencies": { "effect": "^4.1.2" } }, "sha512-wSwl9A/G1hcVvF8nLI+YfB3EyOIDvWS6+lsTZBkmgDnPBL7m8YWZF+1HD+mdEsb52SUGfukip46Q3gRwSdk3QA=="],
+    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.1.3", "", { "dependencies": { "@types/ws": "^8.18.2", "ws": "^8.22.1" }, "peerDependencies": { "effect": "^4.1.3" } }, "sha512-zcFjbgWuT66NJHi6cCx8/BywQ/pR8I3wSd4GsNolMjwlvMRDELUodTxEPOhwt+sAVekueFPf1lyCS2I05Svnfw=="],
 
-    "@effect/sql-pg": ["@effect/sql-pg@4.1.2", "", { "peerDependencies": { "effect": "^4.1.2" } }, "sha512-0UehR7B5W8dC+dX6fDeWStLbVbBb2M4pk4HBATEeH0cmV4Odl2lckTg0jFmLuadekTLa4OyB+bZQo1yTG1y2Mw=="],
+    "@effect/sql-pg": ["@effect/sql-pg@4.1.3", "", { "peerDependencies": { "effect": "^4.1.3" } }, "sha512-vlpIMCxSSWaYHNCyjy3oPaniXI+aMtCRMF7c+eyCz20OWyLVsTjxO+WoufoATPvzDKDgMBu2pe+F6b/SWqWKpA=="],
 
     "@electric-sql/client": ["@electric-sql/client@1.5.28", "", { "dependencies": { "@microsoft/fetch-event-source": "^2.0.1" }, "optionalDependencies": { "@rollup/rollup-darwin-arm64": "^4.18.1" }, "bin": { "intent": "bin/intent.mjs" } }, "sha512-b0cym3YWXL6PbQmEF0xDRsLt2xgXX46stvOSRAIXRPAP6dLZIHZL0o0HxeTdsZ27L3PbIg6Pw6KnyanRVGtWPA=="],
 
@@ -1633,7 +1633,7 @@
 
     "drizzle-orm": ["drizzle-orm@0.45.2", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@op-engineering/op-sqlite": ">=2", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@prisma/client": "*", "@tidbcloud/serverless": "*", "@types/better-sqlite3": "*", "@types/pg": "*", "@types/sql.js": "*", "@upstash/redis": ">=1.34.7", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "better-sqlite3": ">=7", "bun-types": "*", "expo-sqlite": ">=14.0.0", "gel": ">=2", "knex": "*", "kysely": "*", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "prisma": "*", "sql.js": ">=1", "sqlite3": ">=5" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@neondatabase/serverless", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@prisma/client", "@tidbcloud/serverless", "@types/better-sqlite3", "@types/pg", "@types/sql.js", "@upstash/redis", "@vercel/postgres", "@xata.io/client", "better-sqlite3", "bun-types", "expo-sqlite", "gel", "knex", "kysely", "mysql2", "pg", "postgres", "prisma", "sql.js", "sqlite3"] }, "sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q=="],
 
-    "effect": ["effect@4.1.2", "", {}, "sha512-d3Oah1WyKxFLFh19yWheS5IXIVaITzxZ71JkE1rkUozq/6EcJSU5nPk5bF2QrSygZ3SQoiNQB8TsxFriyMeMaQ=="],
+    "effect": ["effect@4.1.3", "", {}, "sha512-QWNEu35groH/78Ejq01lZGt8U0sF1P4nrhbcAZz5WffcS27bUUK9C/db+xWWUwNYUvFD5SrSLE0mFGtwyP0PCQ=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.425", "", {}, "sha512-QvPtl41EUOnuT1HBvMKgxXRIaHNcagBPs50u7VULzhZXaGfqTbZyE16LQsctZ/RQHlGu+FOWeDTR4mY6YbeF1g=="],
 
