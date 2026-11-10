@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { Effect, Layer } from "effect";
-import { McpProtocol, McpServer, McpTest } from "effect/ai";
+import { Effect, Layer, Option, Schema } from "effect";
+import { McpProtocol, McpServer, McpTest, Tool, Toolkit } from "effect/ai";
 import { Access, Db } from "../../packages/kaneo/src/kernel";
 import { mcpGuardsLive } from "../../packages/kaneo/src/mcp/guards";
 import {
@@ -52,6 +52,11 @@ import { disposablePostgres } from "../helpers/postgres";
  *  M23  McpTest.makeClient smoke (effect 4.1): the PRODUCTION registration
  *       layer lists the full tool registry over the in-memory transport and
  *       one call round-trips the handler wrapper (NEVR-396).
+ *  M24  codec pair (effect 4.1.3 #10332/#10362): a Toolkit tool whose
+ *       parameters and results carry non-JSON values (bigint/Option/
+ *       Uint8Array/Date) round-trips through tools/call without loss —
+ *       parameters decode with their JSON codec, results encode with it
+ *       (NEVR-484 fold).
  */
 
 const resources: Array<() => Promise<void>> = [];
@@ -916,4 +921,66 @@ test("M23 McpTest.makeClient smoke: production registrations list the full regis
 	const hit = upstreamHits[upstreamHits.length - 1];
 	expect(hit?.path).toBe("/api/auth/get-session");
 	expect(hit?.auth).toBe("Bearer token-a");
+});
+
+test("M24 codec pair (4.1.3 #10332/#10362): tool parameters and results carrying non-JSON values round-trip through tools/call without loss", async () => {
+	// effect 4.1.3 decodes tools/call parameters with the tool schema's JSON
+	// codec (#10332) and encodes success results with it (#10362). The wire
+	// is JSON, the handler's world is not: `n` arrives as the JSON string
+	// "9007199254740993" (2^53+1 — NOT representable as a float) and must
+	// reach the handler as a real bigint; the result's bigint/Option/
+	// Uint8Array/Date members must come back as JSON-safe structuredContent.
+	// On 4.1.2 the parameter decode used the raw schema and rejected the
+	// payload ("Expected bigint") — this test is that fold's red/green gate.
+	const params = Schema.Struct({ n: Schema.BigInt });
+	const success = Schema.Struct({
+		// 2*(2^53+1): only a real bigint pipeline produces ...986; a float
+		// path rounds the input to 2^53 and doubles to ...984.
+		doubled: Schema.BigInt,
+		note: Schema.Option(Schema.String),
+		blob: Schema.Uint8Array,
+		at: Schema.Date,
+	});
+	const probe = Tool.make("codec_probe", {
+		description: "codec-pair probe",
+		parameters: params,
+		success,
+	});
+	const kit = Toolkit.make(probe);
+	const Handlers = kit.toLayer({
+		codec_probe: (args: { readonly n: bigint }) =>
+			Effect.succeed({
+				doubled: args.n * 2n,
+				note: Option.some("ok"),
+				blob: new Uint8Array([1, 2, 3]),
+				at: new Date(0),
+			}),
+	});
+	const Registrations = McpServer.toolkit(kit).pipe(Layer.provide(Handlers));
+	const program = Effect.gen(function* () {
+		const client = yield* McpTest.makeClient(Registrations, {
+			protocols: [McpProtocol.v2025_06_18],
+		});
+		return yield* client.callTool({
+			name: "codec_probe",
+			arguments: { n: "9007199254740993" },
+		});
+	}).pipe(Effect.scoped);
+	const called = await Effect.runPromise(program);
+	expect(called.isError).toBeFalsy();
+	// Non-JSON values encode to their JSON forms: bigint → string,
+	// Option → tagged envelope, Uint8Array → base64, Date → ISO.
+	expect(called.structuredContent).toEqual({
+		doubled: "18014398509481986",
+		note: { _tag: "Some", value: "ok" },
+		blob: "AQID",
+		at: "1970-01-01T00:00:00.000Z",
+	});
+	// The text content mirrors the structured payload.
+	const text = called.content
+		.map((c: { type: string; text?: string }) =>
+			c.type === "text" ? c.text : "",
+		)
+		.join("");
+	expect(JSON.parse(text)).toEqual(called.structuredContent);
 });
