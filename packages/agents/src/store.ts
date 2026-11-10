@@ -38,6 +38,13 @@ export const DEFAULT_LEASE_MS = 60_000;
 
 const tasksClaimed = Metric.counter("stellarc_agent_tasks_claimed_total");
 const tasksFinished = Metric.counter("stellarc_agent_tasks_finished_total");
+/** Ops signal for the collision heal (NEVR-565): nonzero means an
+ * org_event_counter drifted below MAX(event.seq) and was repaired — worth an
+ * alert, because the drift itself (restore, manual fix, backfill, a second
+ * writer) never happens on its own. */
+const eventCounterHeals = Metric.counter(
+	"stellarc_agent_event_counter_heals_total",
+);
 
 export interface NodeRow {
 	readonly id: string;
@@ -213,7 +220,25 @@ export const hashToken = (token: string) =>
 
 /** Append events to the org log inside the caller's transaction (D10). An
  * event may carry its own `actor` when the attributed principal differs from
- * the authenticated reporter (D12: the agent acts, the node reports). */
+ * the authenticated reporter (D12: the agent acts, the node reports).
+ *
+ * LAW (NEVR-565, precedent Multica #10117 — identical structure, production
+ * outage): a counter that allocates its seqs INSIDE the insert transaction
+ * must heal on collision, or one drift becomes a permanent write outage.
+ * If org_event_counter ever trails MAX(event.seq) — partial restore, manual
+ * data fix, backfill, a future second writer — every append collides on the
+ * (org, seq) PK, the rollback un-bumps the counter, and the next append is
+ * handed the same taken seqs again: the sole source of truth is frozen
+ * org-wide. The heal lives in `txn` below — collision-triggered only,
+ * outside the failed transaction, never eager, never on a timer.
+ *
+ * Second allocation site with the identical shape:
+ * packages/domain/src/index.ts:128 (`runMutations`, behind
+ * mutateProbes/mutateProbesEffect) — test-only today (no app imports
+ * @stellarc/domain), but it commits on the SAME org_event_counter rows, so a
+ * healed org is healed for every writer; it must adopt this same heal if it
+ * ever goes live. packages/durable-streams-spike is a spike — deliberately
+ * not healed here. */
 async function appendEvents(
 	tx: TransactionSql,
 	org: string,
@@ -237,14 +262,66 @@ async function appendEvents(
 	}
 }
 
-/** Run a transactional body as a span; AgentsError failures pass through typed. */
+/** postgres.js copies the backend notice onto the error verbatim: the
+ * SQLSTATE on `code`, the violated constraint on `constraint_name`. */
+const isEventSeqCollision = (cause: unknown): boolean =>
+	cause instanceof Error &&
+	(cause as { code?: unknown }).code === "23505" &&
+	(cause as { constraint_name?: unknown }).constraint_name === "event_pkey";
+
+/** Heal drifted counters forward to MAX(event.seq) — measured per org in the
+ * same committed statement that writes it, never assumed (NEVR-565). Runs as
+ * its own committed transaction after the failed append has fully rolled
+ * back (a bare statement autocommits). Forward-only (`c.seq < m.max`): a
+ * healthy or already-healed row is a no-op, so a concurrent appender that
+ * advanced the counter meanwhile cannot be dragged backwards. All drifted
+ * orgs at once, not just the colliding one — one transaction can append for
+ * several orgs (reapExpired), and every writer shares these rows. */
+async function healEventCounters(sql: Sql) {
+	return sql`
+    UPDATE org_event_counter c SET seq = m.max
+    FROM (SELECT org, MAX(seq) AS max FROM event GROUP BY org) m
+    WHERE c.org = m.org AND c.seq < m.max
+    RETURNING c.org, c.seq::text`;
+}
+
+/** One transactional attempt; on an event-seq collision, heal outside the
+ * failed transaction and retry the whole body exactly once (NEVR-565). The
+ * body is safe to re-run: the first transaction rolled back completely, so
+ * it sees the same database (plus the heal). A second consecutive collision
+ * becomes a typed Conflict — never a loop. */
+async function runTxn<A>(
+	sql: Sql,
+	name: string,
+	body: (tx: TransactionSql) => Promise<A>,
+): Promise<A> {
+	try {
+		return await (sql.begin((tx) => body(tx)) as Promise<A>);
+	} catch (first) {
+		if (!isEventSeqCollision(first)) throw first;
+		await healEventCounters(sql);
+		Effect.runSync(Metric.update(eventCounterHeals, 1));
+		try {
+			return await (sql.begin((tx) => body(tx)) as Promise<A>);
+		} catch (second) {
+			if (isEventSeqCollision(second))
+				throw new Conflict({
+					message: `event seq collision persisted after an org_event_counter heal (${name}) — the counter still trails event.seq; manual investigation required`,
+				});
+			throw second;
+		}
+	}
+}
+
+/** Run a transactional body as a span; AgentsError failures pass through
+ * typed. */
 const txn = <A>(
 	sql: Sql,
 	name: string,
 	body: (tx: TransactionSql) => Promise<A>,
 ): Effect.Effect<A, AgentsError | Error> =>
 	Effect.tryPromise({
-		try: () => sql.begin((tx) => body(tx)) as Promise<A>,
+		try: () => runTxn(sql, name, body),
 		catch: (cause) =>
 			isAgentsError(cause)
 				? cause
