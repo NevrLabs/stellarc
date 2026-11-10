@@ -1,0 +1,24 @@
+{
+	// NEVR-586 — knip dead-code gate on apps/web (Multica #10331 pattern:
+	// make the detector blocking while the surface is young). The gate command
+	// is `bunx knip --workspace apps/web` (pinned knip in the root
+	// devDependencies); zero findings is the baseline, recorded by
+	// tests/bun/web-knip-gate.test.ts.
+	//
+	// Workspace map:
+	// - "." exists only to give the root-level bun test suite (tests/bun) a
+	//   real consumer graph. Its test files import apps/web modules directly
+	//   (web-dev-timing-hygiene.test.ts consumes the NEVR-544 F5 surface in
+	//   lib/dev-timing-hygiene.ts; design-contracts.test.ts seeds probes into
+	//   apps/web/src), and `--workspace apps/web` tracks that cross-workspace
+	//   usage — so those exports stay green without per-symbol ignores.
+	// - "apps/web" carries no ignores: every finding from the NEVR-583 trial
+	//   report was deleted or un-exported, nothing is suppressed.
+	"$schema": "./node_modules/knip/schema.json",
+	"workspaces": {
+		".": {
+			"entry": ["tests/bun/**/*.test.ts"]
+		},
+		"apps/web": {}
+	}
+}

@@ -21,11 +21,7 @@ let nextId = 1;
 const tab = (url: string): Tab => ({ id: nextId++, url });
 
 /** Canonical URL for a view/item/board-view target (mockup's `{view, item, bview}`). */
-export function targetUrl(
-	view: ViewId,
-	item?: string,
-	bview?: BoardViewId,
-): string {
+function targetUrl(view: ViewId, item?: string, bview?: BoardViewId): string {
 	const params = new URLSearchParams();
 	if (item) params.set("item", item);
 	if (bview && bview !== "board") params.set("view", bview);
@@ -52,14 +48,6 @@ export function selectTab(id: number) {
 	);
 }
 
-/** Point the active tab at a new URL (sidebar/rail navigation). */
-export function setActiveTabUrl(url: string) {
-	tabsStore.setState((s) => ({
-		...s,
-		tabs: s.tabs.map((t) => (t.id === s.activeId ? { ...t, url } : t)),
-	}));
-}
-
 export function openTab(url: string) {
 	tabsStore.setState((s) => {
 		const t = tab(url);
@@ -84,16 +72,6 @@ export function cycleTab(delta: 1 | -1) {
 		const idx = s.tabs.findIndex((t) => t.id === s.activeId);
 		const next = (idx + delta + s.tabs.length) % s.tabs.length;
 		return { ...s, activeId: s.tabs[next].id };
-	});
-}
-
-export function selectTabByIndex(oneBased: number) {
-	tabsStore.setState((s) => {
-		const idx =
-			oneBased >= 9 ? s.tabs.length - 1 : Math.min(oneBased, s.tabs.length) - 1;
-		return idx >= 0 && idx < s.tabs.length
-			? { ...s, activeId: s.tabs[idx].id }
-			: s;
 	});
 }
 
