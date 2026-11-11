@@ -13,6 +13,7 @@
     { "id": "auth-memory", "path": "packages/core-auth/src/auth-check.ts", "freshPostgresCluster": false },
     { "id": "auth-postgres", "path": "packages/core-auth/src/auth-check.ts", "freshPostgresCluster": true, "environment": { "AUTH_PG_CHECK": "1" } },
     { "id": "store", "path": "packages/core-auth/src/store-check.ts", "freshPostgresCluster": true },
+    { "id": "store-recheck", "path": "packages/core-auth/src/store-recheck-check.ts", "freshPostgresCluster": true },
     { "id": "database", "path": "packages/core-auth/src/database-check.ts", "freshPostgresCluster": true },
     { "id": "audit", "path": "packages/core-auth/src/audit-check.ts", "freshPostgresCluster": true },
     { "id": "remote-mcp", "path": "apps/toolgw/src/remote-mcp-check.ts", "freshPostgresCluster": false },

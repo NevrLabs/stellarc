@@ -70,6 +70,17 @@ the exact authorized recovery receipt, original under-lock root/RAM/all PSI floo
 inventory of actual workers/cgroups including Maple image phases. Absence of jobs
 in this snapshot alone does not establish host-wide quietness. No retry loop.
 
+## Superseded: harness mismatch reconciled, checks moved to CI
+
+The 12 `reauthorize` calls in `store-check.ts` are ported to R13 `recheckRun`
+(each expected context now carries the admitted request id). `recheckRun` now
+enforces the caller-lock contract itself (`caller_lock_required`) instead of
+documenting a prerequisite, and reports an unknown run as `run_not_found`.
+Every check in `tools/spikes/auth-llmgw/split-checks.json` runs in the
+`gateway-checks` CI job via `tools/spikes/auth-llmgw/run-checks.sh`, one
+throwaway PostgreSQL 16 cluster per check, so the builder capacity hold above no
+longer gates verification. The sections above and below are history.
+
 ## Resume boundary
 
 After Chief confirms safe approved compute, independently recheck locks, root,

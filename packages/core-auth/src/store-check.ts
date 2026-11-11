@@ -702,6 +702,7 @@ try {
 		subject: a,
 		action: "mcp:status",
 		runId: coreAdmit.runId as string,
+		request: "coretx-plain",
 	};
 	await attempt(
 		"tx-recheck-inside-caller-transaction-max1-pool-no-nesting",
@@ -724,7 +725,7 @@ try {
 				// connection: on a max:1 pool that can only hang, which the bound
 				// below converts into a failure instead of a deadlock.
 				const verdict = await Promise.race([
-					one.transaction((tx) => one.reauthorize(tx, coreCred.raw, plainCtx)),
+					one.transaction((tx) => one.recheckRun(tx, coreCred.raw, plainCtx)),
 					new Promise<never>((_, reject) => {
 						setTimeout(
 							() => reject(new Error("recheck hung on max:1 pool")),
@@ -776,13 +777,14 @@ try {
 		"admitted-zero-budget-remains-recheckable-no-spend-no-new-run-or-admission",
 		async () => {
 			const verdict = await store.transaction((tx) =>
-				store.reauthorize(tx, other.raw, {
+				store.recheckRun(tx, other.raw, {
 					org: "alpha",
 					actor: b,
 					subject: "human",
 					delegation: zeroChild,
 					action: "mcp:status",
 					runId: zeroRun.runId as string,
+					request: "coretx-zero-budget",
 				}),
 			);
 			assert.equal(verdict.principal.id, b);
@@ -817,6 +819,7 @@ try {
 		delegation: zeroChild,
 		action: "mcp:status",
 		runId: zeroRun.runId as string,
+		request: "coretx-zero-budget",
 	};
 	await attempt(
 		"recheck-shares-revoke-expiry-gates-with-public-authorize",
@@ -824,12 +827,13 @@ try {
 			await store.revoke("human", gated.id);
 			await assert.rejects(
 				store.transaction((tx) =>
-					store.reauthorize(tx, gated.raw, {
+					store.recheckRun(tx, gated.raw, {
 						org: "alpha",
 						actor: a,
 						subject: a,
 						action: "mcp:status",
 						runId: gatedRun.runId as string,
+						request: "coretx-gated",
 					}),
 				),
 				/invalid_credential/,
@@ -837,31 +841,31 @@ try {
 			try {
 				await owner`UPDATE gw_credential SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${other.id}`;
 				await assert.rejects(
-					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					store.transaction((tx) => store.recheckRun(tx, other.raw, zeroCtx)),
 					/invalid_credential/,
 				);
 				await owner`UPDATE gw_credential SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${other.id}`;
 				await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${zeroChild}`;
 				await assert.rejects(
-					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					store.transaction((tx) => store.recheckRun(tx, other.raw, zeroCtx)),
 					/delegation_inactive/,
 				);
 				await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${zeroChild}`;
 				await store.revoke("human", zeroParent, true);
 				await assert.rejects(
-					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					store.transaction((tx) => store.recheckRun(tx, other.raw, zeroCtx)),
 					/delegation_inactive/,
 				);
 				await owner`UPDATE gw_delegation SET revoked=false WHERE id=${zeroParent}`;
 				await owner`UPDATE gw_principal SET enabled=false WHERE id=${b}`;
 				await assert.rejects(
-					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					store.transaction((tx) => store.recheckRun(tx, other.raw, zeroCtx)),
 					/principal_inactive/,
 				);
 				await owner`UPDATE gw_principal SET enabled=true WHERE id=${b}`;
 				await owner`UPDATE gw_principal SET permissions='[]'::jsonb WHERE id='human'`;
 				await assert.rejects(
-					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					store.transaction((tx) => store.recheckRun(tx, other.raw, zeroCtx)),
 					/subject_denied/,
 				);
 			} finally {
@@ -915,12 +919,10 @@ try {
 					delegation: over.delegation,
 					action: over.action ?? plainCtx.action,
 					runId: over.runId ?? plainCtx.runId,
-					request: over.request,
+					request: over.request ?? plainCtx.request,
 				};
 				await assert.rejects(
-					store.transaction((tx) =>
-						store.reauthorize(tx, coreCred.raw, merged),
-					),
+					store.transaction((tx) => store.recheckRun(tx, coreCred.raw, merged)),
 					reason,
 				);
 			};
@@ -931,20 +933,22 @@ try {
 			await refuse({ delegation: actorDeleg }, /run_context/);
 			await refuse({ request: "coretx-other" }, /run_context/);
 			await store.finish(lifeRun.runId as string, "completed");
-			await refuse({ runId: lifeRun.runId as string }, /run_not_dispatchable/);
+			await refuse(
+				{ runId: lifeRun.runId as string, request: "coretx-lifecycle" },
+				/run_not_dispatchable/,
+			);
 			await owner`UPDATE gw_run SET terminal_choice='cancelled' WHERE id=${coreAdmit.runId as string}`;
 			await assert.rejects(
-				store.transaction((tx) =>
-					store.reauthorize(tx, coreCred.raw, plainCtx),
-				),
+				store.transaction((tx) => store.recheckRun(tx, coreCred.raw, plainCtx)),
 				/run_not_dispatchable/,
 			);
 			await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${overdueRun.runId as string}`;
 			await assert.rejects(
 				store.transaction((tx) =>
-					store.reauthorize(tx, coreCred.raw, {
+					store.recheckRun(tx, coreCred.raw, {
 						...plainCtx,
 						runId: overdueRun.runId as string,
+						request: "coretx-overdue",
 					}),
 				),
 				/run_not_dispatchable/,
@@ -967,7 +971,7 @@ try {
 		"recheck-refuses-caller-transaction-without-advisory-lock",
 		async () => {
 			await assert.rejects(
-				sql.begin((tx) => store.reauthorize(tx, coreCred.raw, plainCtx)),
+				sql.begin((tx) => store.recheckRun(tx, coreCred.raw, plainCtx)),
 				/caller_lock_required/,
 			);
 		},

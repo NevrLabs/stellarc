@@ -374,6 +374,11 @@ export function gatewayStore(sql: Sql) {
 		},
 	) {
 		// This is an existing-admission check, not permission to start new work.
+		// Fail closed on a transaction that skipped store.transaction's lock
+		// (bigint advisory key: classid 0, objid = the key, objsubid 1).
+		const [held] =
+			await tx`SELECT 1 FROM pg_locks WHERE locktype='advisory' AND pid=pg_backend_pid() AND classid=0 AND objid=719324821 AND objsubid=1 AND granted`;
+		if (!held) throw new Denied(500, "caller_lock_required");
 		const authority = await authorityInTransaction(
 			tx,
 			raw,
@@ -387,8 +392,8 @@ export function gatewayStore(sql: Sql) {
 		if ("error" in authority) throw authority.error;
 		const [run] =
 			await tx`SELECT *,recover_after>clock_timestamp() AS fresh FROM gw_run WHERE id=${expected.runId} FOR UPDATE`;
+		if (!run) throw new Denied(404, "run_not_found");
 		if (
-			!run ||
 			run.org !== expected.org ||
 			run.actor !== expected.actor ||
 			run.subject !== expected.subject ||

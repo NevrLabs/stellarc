@@ -43,6 +43,26 @@ jobs:
           name: playwright-failures
           path: test-results/
 
+  # Every gateway check in tools/spikes/auth-llmgw/split-checks.json, each
+  # PostgreSQL-backed one against its own throwaway PG16 cluster.
+  gateway-checks:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install PostgreSQL 16 binaries
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16
+      - run: bun install --frozen-lockfile
+      - run: tools/spikes/auth-llmgw/run-checks.sh
+
   ui-typecheck-budget:
     runs-on: ubuntu-22.04
     continue-on-error: true
