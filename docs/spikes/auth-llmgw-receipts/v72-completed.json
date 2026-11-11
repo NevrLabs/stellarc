@@ -1,0 +1,47 @@
+{
+	"scope": "local signed IdP/provider/OTLP and disposable PG fixtures; no live identity/inference/deployment",
+	"archiveSha256": "ada390317f637293b6e3cef026117e3fd3196b7466e1777483bb4ffbfd71f929",
+	"sourceSha256": {
+		"apps/stellarc-gateway/README.md": "365fd76d792a1a9a01eace567552fae38a719f56a90c58e8eaf058eaae07c3a7",
+		"apps/stellarc-gateway/package.json": "c34967c5353b97162ea45914bd48d8dcb4e29d61c5ae0ec857e12dbd7319e301",
+		"apps/stellarc-gateway/src/artifact-check.ts": "d42dfec82d3839d9d430a8b5604499d9cc00b97ef049ef70a2e99763ba46203c",
+		"apps/stellarc-gateway/src/audit-check.ts": "af3b82ea80d17885fd8e943d8aed612ebac1e4790dd77d0e9eee331c135b7aa7",
+		"apps/stellarc-gateway/src/audit.ts": "beaa3b12b45ef6826404884ca57151be164faa3d1aedc81132af5be558652271",
+		"apps/stellarc-gateway/src/auth-check.ts": "e4c1b6ea6f97e752c6c41bec9a094d241a5ac51ad8778d5b64d4fd6c7ab8c35d",
+		"apps/stellarc-gateway/src/auth.ts": "caa3beeef6a3aadfa0a1cd4532fd5731359e6ae9a23d337e6df75b99da831105",
+		"apps/stellarc-gateway/src/console.css": "1c10cc3367983814f1b484bcb9f63b4fced0e04fba6d4a63db514d0e326a8d43",
+		"apps/stellarc-gateway/src/console.html": "f0c3e85cbde749d9ccb1b972cbc7a778bc146ca69dfa4f24105714759bd50492",
+		"apps/stellarc-gateway/src/console.js": "b7c6fbb33c126ef9d399eeeda9f312bd2aac17503afc1ef7143bfcbd97da89e7",
+		"apps/stellarc-gateway/src/database-check.ts": "b8654e907ed865d535aca05e89a896119885bfade423228e3a3452f4c10ee4ea",
+		"apps/stellarc-gateway/src/database.ts": "a254325dbb20cda499ace8a8c3edcd773c3ef4824881e6281ad7fadce7362b4c",
+		"apps/stellarc-gateway/src/http-check.ts": "61ad8406a1850402be91065af312479783c7f2a67deb86ec6ce05b730a896a6e",
+		"apps/stellarc-gateway/src/main.ts": "a5f8ffd8a3533275067cf46be0a7ed48cdaa7129a48f4076139195d63196c061",
+		"apps/stellarc-gateway/src/mcp.ts": "fc8b7e37af782140579a7fc2cb4d41c17d28afc891b3af7f07839aa3126db099",
+		"apps/stellarc-gateway/src/migrate.ts": "b2819a149f5fa380cbcaeefb08d437aa2c6757786517f7346cb98da65d8ff9bc",
+		"apps/stellarc-gateway/src/store-check.ts": "98205aa9800240e69a37cc56222845eacbc0d60aa8aab5ea6107b91d71d811eb",
+		"apps/stellarc-gateway/src/store.ts": "ae0f4693699cd1870c474eee64ab672721e1d07589689b2ad1cf07dfefecd4ad",
+		"apps/stellarc-gateway/src/stream-check.ts": "e3888484b8fae42ab0895b4a70eeaad27e2f4db02431469a9baa6d06704b43c4"
+	},
+	"exits": {
+		"audit": 0,
+		"lint": 0,
+		"auth": 0,
+		"typecheck": 0,
+		"full-build": 0,
+		"oidc-fixture": 0,
+		"store": 0,
+		"http": 0,
+		"database": 0,
+		"overall": 0,
+		"stream": 0,
+		"build": 0
+	},
+	"lint": {
+		"warnings": 103,
+		"infos": 10
+	},
+	"sourceVerifiedAgainstArchiveAndGateTree": true,
+	"ownContainersRemoved": true,
+	"remoteReceipts": "/home/rpw/.local/share/stellarc-gates/receipts-v72",
+	"publicCutover": "HOLD"
+}

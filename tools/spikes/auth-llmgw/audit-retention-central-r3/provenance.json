@@ -1,0 +1,48 @@
+{
+  "target_image": "maple-otel-collector:bf46e73",
+  "target_image_id": "sha256:2ed058256f2480c7ea8ee9ce9b2efb0d866deda656cdf2a505d4f60cb131f0e6",
+  "container_id": "24c6682d62bee4aed94800b9da43948eaeab1c05d30ffd29852d5a93c0206272",
+  "container_pid": 1111,
+  "container_started_at": "2026-11-04T16:10:04.969961162Z",
+  "image_architecture": "amd64",
+  "builder_uname_machine": "x86_64",
+  "executable": "/usr/local/bin/otel-collector-maple",
+  "extracted_and_loaded_exe_sha256": "dcda64b76fa64497d571f75da5681ae1a54f35c52edde89a1f8b81df384cc5f6",
+  "executable_type": "ELF64 x86-64 static Go executable; no shared libraries in loaded maps",
+  "component_versions": "OTel receiver/filter/transform/debug v0.151.0; buildinfo.version empty",
+  "extraction": "docker cp running container executable to stdout tar; no production create/start/stop/exec",
+  "docker_diff": "Only /etc, /etc/otelcol, /etc/otelcol/config.yaml; no binary modifications",
+  "mount": "/opt/maple/otel-collector.yaml -> /etc/otelcol/config.yaml, read-only; sole bind mount",
+  "initial_and_final_host_and_loaded_config_sha256": "1abf5febf5c8148b3591b7558bec629f5eb6387166909900ae246ec271d2901a",
+  "initial_and_final_container_identity_unchanged": true,
+  "builder_tag_not_used_image_id": "sha256:052775d3eac6aa410f6ad23602975dcfed01f93df05f44c1ec50d023bfd4ac6e",
+  "builder_exact_image_id_absent": true,
+  "remote_run_directory": "/home/rpw/.cache/stellarc-audit-central-r3-dcda64b76fa64497",
+  "serialization": "~/.cache/stellarc-authgw-gate.lock held by launcher; child closes fd9",
+  "isolation": "unshare -Urn; only loopback up; no external route; debug exporter only",
+  "setup_health": {
+    "initial_exit": 0,
+    "final_exit": 0,
+    "failure_ids": [
+      "CFG-ATTR-01",
+      "CFG-NOTIF-01",
+      "ING-01",
+      "LOG-01",
+      "LOG-02",
+      "STAT-02",
+      "STAT-04"
+    ],
+    "failure_lines_identical": true
+  },
+  "private_evidence_directory": "/home/rpw/.hermes/cache/scratch/stellarc-central-r3",
+  "private_evidence_hashes": {
+    "loaded-binary.private.log": "d4da1297902e9ef2202cfad5e18dd6b1d327888db2bd1eb50ab5773b67c52bc7",
+    "central-discovery.private.log": "4273484e6c2aa9c33c282145ff3d36d85f84b2bc729743c6d95a2bae28ca4445",
+    "health-final.private.log": "4419b56102d9b6c7312b993c313ac3a77f921e2daf242bbff903038f5026ae82",
+    "help.private.log": "227987feac61ad30ee49b10fa5210a3d0d9027e09d9e4eb9523194beddbb955e",
+    "builder-discovery.private.log": "b986f45aaaf1c5e4f4ceee3d6ed379156d2caf716c99c006f8b694b7ffacfe79",
+    "health.private.log": "5ec9fe845de9339df280eea16be06a55f842edefa030b0b0a4b804da13e87998",
+    "container-diff.private.log": "a5701c59b21b4e857774081cc4f4800db1b13df4c7874ade37977a9a1d6c4871",
+    "central-final.private.log": "8cd08a4e769e4a1b066bf29cf8ff17804bda3aec220e26d34f89e791b2b9c685"
+  }
+}

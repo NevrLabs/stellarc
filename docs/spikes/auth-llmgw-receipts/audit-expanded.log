@@ -1,0 +1,96 @@
+RUNTIME 1.4.0
+SOURCE 177386749d6b8f0862f77977e4f9588169550ddd9e555f3157a210ef38a466b1  tools/spikes/auth-llmgw/gateway.ts
+0cf422f2ca93fa407cad20aba6d2d320a684c082ee55b5595e340e308c0b3187  tools/spikes/auth-llmgw/check.ts
+PASS oidc-boundary-guards-no-network
+PASS invalid-context-denied
+PASS body-rejected-without-reading
+PASS scope-escalation-denied
+PASS cross-tenant-denied
+[07:39:15.775] INFO (#7): fixture chunk {
+  "request.id": "5ec67e09-86db-4ad8-a720-ad24cf5077fc",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:16.956] INFO (#8): fixture chunk {
+  "request.id": "5ec67e09-86db-4ad8-a720-ad24cf5077fc",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:17.003] INFO (#9): fixture chunk {
+  "request.id": "5ec67e09-86db-4ad8-a720-ad24cf5077fc",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS fixture-stream-context-cleanup
+[07:39:17.191] INFO (#11): fixture chunk {
+  "request.id": "ad29fa4a-153b-4873-a8ce-f9a5da163b92",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:17.223] INFO (#12): fixture chunk {
+  "request.id": "ad29fa4a-153b-4873-a8ce-f9a5da163b92",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:17.251] INFO (#13): fixture chunk {
+  "request.id": "ad29fa4a-153b-4873-a8ce-f9a5da163b92",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS upstream-retry-once-before-stream
+[07:39:17.573] INFO (#16): fixture chunk {
+  "request.id": "5c375b02-b102-4150-a004-75dee30baac7",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:17.604] WARN (#17): stream stopped {
+  "error.type": "fixture_stream_error",
+}
+PASS post-byte-error-no-retry-cleanup
+[07:39:17.771] INFO (#20): fixture chunk {
+  "request.id": "85dd0f42-3c42-42a2-a341-f791b2ef6f95",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:18.072] INFO (#22): fixture chunk {
+  "request.id": "575604c9-c27b-4b4f-b4d4-11926cf092bf",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS capacity-two-queue-zero-cancel
+[07:39:18.220] WARN (#24): stream stopped {
+  "error.type": "cancelled",
+}
+PASS disconnect-cleanup
+[07:39:18.381] INFO (#26): fixture chunk {
+  "request.id": "d421b792-47c7-47d1-87a3-7b5786720755",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:18.486] INFO (#28): fixture chunk {
+  "request.id": "d421b792-47c7-47d1-87a3-7b5786720755",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:39:18.602] WARN (#29): stream stopped {
+  "error.type": "not_authorized",
+}
+PASS revocation-stops-future-pulls
+PASS expiry-denied
+PASS runtime-audit-append-only
+PASS audit-failure-rolls-back-grant
+PASS grant-row-barrier-revocation
+PASS current-membership-removal-denied
+PASS denial-detection-real-events
+PASS audit-capacity-fails-closed
+PASS emergency-revocation-reserve-and-exhaustion
+PASS timeout-after-receiver-acceptance-replays-stable-batch
+PASS export-failure-partial-malformed-retained
+PASS invalid-partial-success-shapes-retained
+PASS receiver-accepted-cursor-failure-restart-replay
+PASS export-recovery-cursor-dedupe
+PASS audit-allowlist-no-bearer-or-baggage
+PASS three-signal-in-memory-correlation
+PASS all-signals-private-markers-absent
+{"verdict":"PARTIAL","checks":["oidc-boundary-guards-no-network","invalid-context-denied","body-rejected-without-reading","scope-escalation-denied","cross-tenant-denied","fixture-stream-context-cleanup","upstream-retry-once-before-stream","post-byte-error-no-retry-cleanup","capacity-two-queue-zero-cancel","disconnect-cleanup","revocation-stops-future-pulls","expiry-denied","runtime-audit-append-only","audit-failure-rolls-back-grant","grant-row-barrier-revocation","current-membership-removal-denied","denial-detection-real-events","audit-capacity-fails-closed","emergency-revocation-reserve-and-exhaustion","timeout-after-receiver-acceptance-replays-stable-batch","export-failure-partial-malformed-retained","invalid-partial-success-shapes-retained","receiver-accepted-cursor-failure-restart-replay","export-recovery-cursor-dedupe","audit-allowlist-no-bearer-or-baggage","three-signal-in-memory-correlation","all-signals-private-markers-absent"],"provider":"LOCAL FIXTURE ONLY","liveOidc":false,"liveMaple":false}
+CHECK_EXIT=0

@@ -1,0 +1,11 @@
+{
+	"scope": "disposable PG legacy-shape gw_run upgrade; repeats schema idempotently, preserves admission, classifies overdue unknown external effect; not deployed migration proof",
+	"archiveSha256": "4e80159c392040ecb7a0d733bf74bbb4270e8637374edb81b997beb36e268d0c",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"store.log": "PASS legacy-schema-upgrade-idempotent-preserves-admission-no-invented-success\nPASS stable-agent-independent-credentials-and-self-authority\nPASS tenant-and-scope-denied\nPASS server-owned-per-invocation-run-binding-idempotent-terminal-audit\nPASS terminal-audit-permission-outage-rolls-back-and-fresh-store-retries\nPASS bounded-recovery-interrupted-orphan-not-live-run-no-effect-replay\nPASS recovery-rotates-exhausted-org-without-starving-healthy-org\nPASS sigkill-after-terminal-choice-fresh-process-recovers-one-event\nPASS terminal-backlog-and-global-run-ceiling-stop-new-admission-only\nPASS explicit-narrowing-delegation-actor-subject-audit\nPASS shared-ancestor-and-child-call-budget\nPASS ancestor-revocation-current-check\nPASS human-rights-removal-does-not-disable-independent-agent\nPASS runtime-immutable-audit-and-mutation-rollback\nPASS serialized-revoke-admit-both-orders-db-lock-barriers\nPASS credential-expiry-current-check\nPASS installation-stable-event-ids-no-credentials\n{\"checks\":[\"stable-agent-independent-credentials-and-self-authority\",\"tenant-and-scope-denied\",\"server-owned-per-invocation-run-binding-idempotent-terminal-audit\",\"terminal-audit-permission-outage-rolls-back-and-fresh-store-retries\",\"bounded-recovery-interrupted-orphan-not-live-run-no-effect-replay\",\"recovery-rotates-exhausted-org-without-starving-healthy-org\",\"sigkill-after-terminal-choice-fresh-process-recovers-one-event\",\"terminal-backlog-and-global-run-ceiling-stop-new-admission-only\",\"explicit-narrowing-delegation-actor-subject-audit\",\"shared-ancestor-and-child-call-budget\",\"ancestor-revocation-current-check\",\"human-rights-removal-does-not-disable-independent-agent\",\"runtime-immutable-audit-and-mutation-rollback\",\"serialized-revoke-admit-both-orders-db-lock-barriers\",\"credential-expiry-current-check\",\"installation-stable-event-ids-no-credentials\"],\"provider\":\"NO INFERENCE\",\"realOidc\":false}\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"store.exit": "0\n",
+		"overall.exit": "0\n"
+	}
+}

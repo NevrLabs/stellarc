@@ -1,0 +1,34 @@
+{
+	"scope": "PREPARED ONLY: no latest-source tests/build/typecheck executed",
+	"archive": "/home/rpw/.hermes/cache/scratch/stellarc-candidate-v19.tar",
+	"archiveSha256": "520a7d91a208aed3b0555d8cf110654a1201b37454be19d10e121eccd5485289",
+	"sourceHashes": {
+		"apps/stellarc-gateway/src/artifact-check.ts": "71a8acbdb72bab3c4b7532d0ee64af43e5dac188a26065a8337dad38543371de",
+		"apps/stellarc-gateway/src/audit-check.ts": "ed6591763bf1bf46f9e186c00dfae02476ed74c261c2543dc8bd702c43b75d24",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098",
+		"apps/stellarc-gateway/src/auth-check.ts": "728c75304027908ba8ff1b47ef7e6156a17dc8afb6f288997320d6e52e15b271",
+		"apps/stellarc-gateway/src/auth.ts": "a768bca3247f862368359ffcfaa7413a5821f8027445a287c3a01f22fd8169dd",
+		"apps/stellarc-gateway/src/database-check.ts": "73611fbae51a5136204c6f2655106f0a6a1a314b84b3fa35ace8d43bf2821e29",
+		"apps/stellarc-gateway/src/database.ts": "b61e1a80bbc7bfb653fe33afbe877d4bb43d2cf29cc3181022c1fd3f61a43b42",
+		"apps/stellarc-gateway/src/http-check.ts": "ef8497fae8b86d1b38015a7346528b8ca8b3fe273a1144b7734346101e29c0eb",
+		"apps/stellarc-gateway/src/main.ts": "332b62d90fb241170fff0b4836eac9d57869b28ba21b1d68ab0e891616c92539",
+		"apps/stellarc-gateway/src/mcp.ts": "7348a758a81950dd8627887ecd80aa2043bff3deb72f6e85fe6a00d2b114acff",
+		"apps/stellarc-gateway/src/migrate.ts": "34afbd9df49c3ecdcfea78feb7800e5e40303087230d6e8e9f249065773855d7",
+		"apps/stellarc-gateway/src/store-check.ts": "525e8562dc6280f2a910ebc41418233c8715138471efd0294e2438492bfecc51",
+		"apps/stellarc-gateway/src/store.ts": "1230858a4c9aea409f363b3f74f3b59e0cc2a830ae68289ce6baa177fc58aef6",
+		"apps/stellarc-gateway/src/stream-check.ts": "b50fc3b3a8ac59ae7f052b28503c44bf01f9bf305c05dbf98c8b8b922023ee02"
+	},
+	"runner": "/home/rpw/.hermes/cache/scratch/stellarc-verify-v19.sh",
+	"runnerSyntaxExit": 0,
+	"gitDiffCheckExit": 0,
+	"transport": "fxbuilder SSH banner timeout; alternate existing circuit relay through zephyr also timed out; direct LAN unavailable from Terminus",
+	"pending": [
+		"reconcile v16 remote jobs/receipts before launch",
+		"auth session-admission audit and callback outcome fixtures",
+		"issuer/client binding regression",
+		"per-invocation run persistence/terminal event checks; not cross-request harness run identity",
+		"latest full repository gates",
+		"real human OIDC, deployed identity/isolation and candidate Maple persistence"
+	],
+	"externalChanges": "none; no route/service/Kaneo/transport changes"
+}

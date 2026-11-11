@@ -1,0 +1,108 @@
+buildinfo:
+    command: otel-collector-maple
+    description: OpenTelemetry Collector with Maple ClickHouse exporter
+    version: ""
+receivers:
+    - name: otlp
+      module: go.opentelemetry.io/collector/receiver/otlpreceiver v0.151.0
+      stability:
+        logs: Stable
+        metrics: Stable
+        traces: Stable
+processors:
+    - name: batch
+      module: go.opentelemetry.io/collector/processor/batchprocessor v0.151.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: filter
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.151.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: memory_limiter
+      module: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.151.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: resource
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.151.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: transform
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.151.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+exporters:
+    - name: debug
+      module: go.opentelemetry.io/collector/exporter/debugexporter v0.151.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: maple
+      module: github.com/makisuo/maple/packages/otel-collector-maple-exporter v0.0.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: otlp_grpc
+      module: go.opentelemetry.io/collector/exporter/otlpexporter v0.151.0
+      stability:
+        logs: Stable
+        metrics: Stable
+        traces: Stable
+    - name: otlp_http
+      module: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.151.0
+      stability:
+        logs: Stable
+        metrics: Stable
+        traces: Stable
+connectors:
+    - name: forward
+      module: go.opentelemetry.io/collector/connector/forwardconnector v0.151.0
+      stability:
+        logs-to-logs: Beta
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Beta
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Undefined
+        traces-to-traces: Beta
+    - name: span_metrics
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.151.0
+      stability:
+        logs-to-logs: Undefined
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Undefined
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Alpha
+        traces-to-traces: Undefined
+extensions:
+    - name: health_check
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.151.0
+      stability:
+        extension: Alpha
+providers:
+    - scheme: env
+      module: go.opentelemetry.io/collector/confmap/provider/envprovider v1.57.0
+    - scheme: file
+      module: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.57.0
+    - scheme: http
+      module: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.57.0
+    - scheme: https
+      module: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.57.0
+    - scheme: yaml
+      module: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.57.0

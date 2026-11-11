@@ -1,0 +1,29 @@
+{
+	"exit": 0,
+	"log": "STAGE schema\nSTAGE auth migrated\nPASS socket-public-management-denial-no-registration\nPASS socket-fixture-stream-correlated-headers\nPASS socket-tenant-context-denial\n[09:47:52.775] INFO (#16) http.span=226ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nMCP_INIT 200 {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"logging\":{},\"tools\":{\"listChanged\":true},\"completions\":{}},\"serverInfo\":{\"name\":\"stellarc-gateway\",\"version\":\"0.1.0\"}}}\n\n[09:47:54.384] INFO (#21) http.span=20ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\n[09:47:54.438] INFO (#26) http.span=41ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\n[09:47:54.455] INFO (#32) http.span=8ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS effect-mcp-wire-initialize-list-tool-and-unknown-deny\n[09:47:54.507] INFO (#38) http.span=5ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS mcp-session-bound-to-current-principal\n[09:47:54.526] INFO (#43) http.span=1ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 403,\n}\nPASS mcp-exact-origin-not-host-only\n[09:47:54.580] INFO (#45) http.span=42ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS mcp-stateless-modern-protocol-metadata\nPASS mcp-invalid-bearer-durable-denial\nPASS mcp-current-credential-revocation\n{\"checks\":[\"socket-public-management-denial-no-registration\",\"socket-fixture-stream-correlated-headers\",\"socket-tenant-context-denial\",\"effect-mcp-wire-initialize-list-tool-and-unknown-deny\",\"mcp-session-bound-to-current-principal\",\"mcp-exact-origin-not-host-only\",\"mcp-stateless-modern-protocol-metadata\",\"mcp-invalid-bearer-durable-denial\",\"mcp-current-credential-revocation\"],\"realOidc\":false,\"provider\":\"LOCAL FIXTURE ONLY\"}\n",
+	"sourceSha256": {
+		"apps/stellarc-gateway/src/mcp.ts": "94a421714425051451df30554f89f4c28bd0334bda9a76a0316c37f59d63180f",
+		"apps/stellarc-gateway/src/audit-check.ts": "461022abdc04c8ac6ff15d48c5d91560ac64906263fe6cf992c8e798c500b77a",
+		"apps/stellarc-gateway/src/http-check.ts": "7ee5412faea11714f3aeb4dbed736ad8a1a6c1cb586b3be875f73df59d3c06f5",
+		"apps/stellarc-gateway/src/auth.ts": "dc03620fd87c841e7d19fbf5a654e664e802daa4eb4413edc0b1716e01f42dd5",
+		"apps/stellarc-gateway/src/main.ts": "8099af7dbc40f506871810544d85814d28f99877b74c542828590ebaa85ef0a8",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098",
+		"apps/stellarc-gateway/src/stream-check.ts": "0ff1313e576970d4e070c69a42edd3b764ec75d88d0b68fe690d288c2db0d281",
+		"apps/stellarc-gateway/src/store-check.ts": "7f46b1b6661a592e101e903e7acb3137d0a29808ff7c6cb7033472650b278079",
+		"apps/stellarc-gateway/src/store.ts": "5b6f88db48f15d5bea8b4808ee6b6a87fbb31040725b61fb25bbb51fb6e9d745",
+		"apps/stellarc-gateway/src/auth-check.ts": "c03c37dda40f46b19cf533294f331fd917d0ea67492ba08175c70edb7d1c037a",
+		"apps/stellarc-gateway/src/migrate.ts": "8fd20124252060ed289440b6dc072082cd679baa170ea98700ab6d5e7e92376e"
+	},
+	"checks": [
+		"socket-public-management-denial-no-registration",
+		"socket-fixture-stream-correlated-headers",
+		"socket-tenant-context-denial",
+		"effect-mcp-wire-initialize-list-tool-and-unknown-deny",
+		"mcp-session-bound-to-current-principal",
+		"mcp-exact-origin-not-host-only",
+		"mcp-stateless-modern-protocol-metadata",
+		"mcp-invalid-bearer-durable-denial",
+		"mcp-current-credential-revocation"
+	],
+	"scope": "socket regression after post-read revocation fix; LOCAL FIXTURE ONLY"
+}

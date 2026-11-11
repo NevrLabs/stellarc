@@ -1,0 +1,21 @@
+  filter/important-logs:
+    error_mode: ignore
+    logs:
+      log_record:
+        - >-
+          severity_number > 0 and severity_number < 13
+          and IsMatch(trace_id.string, "^0*$")
+          and resource.attributes["service.name"] != "wazuh-alerts"
+          and not (resource.attributes["service.name"] == "zitadel" and IsMatch(body, "msg=(activity|\"?auth)"))
+          and not (IsMatch(resource.attributes["service.name"], "^(sshd|sshd-session|sudo|su|login)$") and IsMatch(body, "^(Accepted|Failed|Invalid user|.*authentication failure|.*COMMAND=|pam_unix\\((sudo|su)[^)]*\\): session opened)"))
+          and not (resource.attributes["service.name"] == "k8s-events" and IsMatch(body, "\"type\":\"Warning\""))
+          and not (resource.attributes["service.name"] == "stellarc-gateway"
+          and instrumentation_scope.name == "stellarc.gateway.audit"
+          and severity_number == SEVERITY_NUMBER_INFO
+          and IsMatch(Coalesce([attributes["event.id"], ""]), "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^:]+:[0-9]+$")
+          and IsString(body)
+          and IsMatch(body, "^(principal\\.bootstrap|deployment\\.preflight|auth\\.login\\.(begin|reject)|auth\\.callback\\.(begin|accept|reject)|auth\\.logout\\.(begin|reject|complete)|auth\\.session\\.admit|agent\\.create|credential\\.(issue|revoke)|delegation\\.(issue|revoke)|management\\.deny|call\\.(admit|completed|failed|cancelled|interrupted))$"))
+        - >-
+          severity_number == 0
+          and resource.attributes["service.name"] != "wazuh-alerts"
+          and not IsMatch(body, "(?i)(error|fatal|panic|fail|exception|denied|refused|timeout|traceback)")

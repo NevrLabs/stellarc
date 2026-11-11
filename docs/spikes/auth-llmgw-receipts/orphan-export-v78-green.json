@@ -1,0 +1,11 @@
+{
+	"scope": "LOCAL OTLP503 and disposable PG; actual loop recovers saved choice and artificially expired orphan exactly once, no provider replay; not daemon-kill/live proof",
+	"archiveSha256": "26487ca755b94bc65802772053d51e3c9bf063e2997633b6da6f6cd8c1ea0000",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "0\n",
+		"stream.exit": "0\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[12:57:02.506] ERROR (#24): run terminal audit unavailable\n[12:57:06.665] WARN (#5): audit export pending\nPASS expired-orphan-recovery-during-otlp-outage-no-effect-replay\nPASS terminal-recovery-independent-of-otlp-export-outage\nPASS sustained-terminal-audit-outage-withholds-success-bounded-retries\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\nPASS shutdown-drains-late-admission-cancellation\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+	}
+}

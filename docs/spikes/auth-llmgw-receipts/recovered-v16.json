@@ -1,0 +1,26 @@
+{
+	"receipts": {
+		"candidate-database-v16.exit": "0\n",
+		"candidate-database-v16.log": "PASS immutable-installation-issuer-client-binding\nPASS effective-runtime-privileges-direct-inherited-owner-and-schema-create\n",
+		"candidate-http-v16.exit": "124\n",
+		"candidate-http-v16.log": ""
+	},
+	"sourceSha256": {
+		"apps/stellarc-gateway/src/audit-check.ts": "461022abdc04c8ac6ff15d48c5d91560ac64906263fe6cf992c8e798c500b77a",
+		"apps/stellarc-gateway/src/http-check.ts": "c101edd01a00451f78e4631ada97b8671d3040d911ef9ab117fcf9a9656ac3f0",
+		"apps/stellarc-gateway/src/artifact-check.ts": "71a8acbdb72bab3c4b7532d0ee64af43e5dac188a26065a8337dad38543371de",
+		"apps/stellarc-gateway/src/stream-check.ts": "294a0683557f905bfe46a87b9a2a0dabd9fdf66686a2bad00e3730d12303b482",
+		"apps/stellarc-gateway/src/store.ts": "5b6f88db48f15d5bea8b4808ee6b6a87fbb31040725b61fb25bbb51fb6e9d745",
+		"apps/stellarc-gateway/src/database-check.ts": "73611fbae51a5136204c6f2655106f0a6a1a314b84b3fa35ace8d43bf2821e29",
+		"apps/stellarc-gateway/src/store-check.ts": "7f46b1b6661a592e101e903e7acb3137d0a29808ff7c6cb7033472650b278079",
+		"apps/stellarc-gateway/src/migrate.ts": "286b2fefaaa450e0f66fcc12a75dc724276692c15949d6bbf45bd6424f1aac44",
+		"apps/stellarc-gateway/src/auth.ts": "dc03620fd87c841e7d19fbf5a654e664e802daa4eb4413edc0b1716e01f42dd5",
+		"apps/stellarc-gateway/src/auth-check.ts": "c03c37dda40f46b19cf533294f331fd917d0ea67492ba08175c70edb7d1c037a",
+		"apps/stellarc-gateway/src/database.ts": "b61e1a80bbc7bfb653fe33afbe877d4bb43d2cf29cc3181022c1fd3f61a43b42",
+		"apps/stellarc-gateway/src/mcp.ts": "94a421714425051451df30554f89f4c28bd0334bda9a76a0316c37f59d63180f",
+		"apps/stellarc-gateway/src/main.ts": "2f6ae0c49f8472c97ad16b6e0a2ee3058c31df354bf899b872d3dde86ba8acdf",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098"
+	},
+	"archiveSha256": "f06ab32b291a8dd03075c25d1c378e61565ea8de91db4d465a27fa9dcd5aa6e0",
+	"scope": "v16 database binding and privilege checks pass; HTTP timed out with empty log, not a pass"
+}

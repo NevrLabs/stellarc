@@ -1,0 +1,31 @@
+{
+	"scope": "Historical background notifications only; not latest-source verification",
+	"results": [
+		{
+			"process": "proc_15f4c8e4f5c5",
+			"reportedExit": 1,
+			"childResult": "INSTALL_EXIT=1",
+			"disposition": "Historical full-install failure; no current-source gate pass established"
+		},
+		{
+			"process": "proc_6da69f4428c1",
+			"reportedExit": 1,
+			"childResult": "HTTP_EXIT=1: invalid MCP bearer lacked durable anonymous denial",
+			"disposition": "Historical RED preserved; candidate-http-expanded-green.json supersedes this specific denial-audit failure on its recorded source snapshot"
+		},
+		{
+			"process": "proc_fbe55e4ace68",
+			"reportedExit": 0,
+			"childResult": "node_modules symlink target directory and stellarc-candidate-check-v5.sh missing; no application test ran",
+			"disposition": "INVALID as test evidence; wrapper exit zero does not establish successful setup or execution; remote host identity not established by this notification"
+		}
+	],
+	"additionalHistoricalResults": {
+		"proc_c18fd8a2cf08": "Missing Docker bridge prevented HTTP/store setup; superseded by loopback-only hostnet runner, not application RED",
+		"proc_9b891a4db746": "INSTALL_EXIT=124 after lock acquired; historical install timeout, not test pass"
+	},
+	"currentTransport": "SSH recovered; hostname fxcompute-01 verified; v16 receipts read back before launching v20",
+	"localChecks": "Four pipeline success/failure combinations checked; pipefail correctly preserves either child failure when enabled before execution",
+	"latestCandidate": "Run-attribution, issuer-binding and lifecycle changes remain unverified; prior GREEN receipts are snapshot-specific",
+	"publicCutover": "HOLD"
+}

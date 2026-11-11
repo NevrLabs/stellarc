@@ -1,0 +1,121 @@
+# Fixture config proposed (deployed predicate + narrow stellarc audit exception)
+# Source of truth for processors: deployed /opt/maple/otel-collector.yaml,
+# sha256 1abf5febf5c8148b3591b7558bec629f5eb6387166909900ae246ec271d2901a
+# (R1 evidence capture 2026-11-08). Blocks copied VERBATIM by build_fixture_configs.py.
+# Differences vs the production logs pipeline (documented, none affect the filter
+# decision): memory_limiter, transform/service-namespace and batch omitted;
+# receiver is a local OTLP/HTTP port; exporter is a local otlphttp sink instead of
+# the maple ClickHouse exporter. filter/important-logs is byte-identical except the appended exception clause.
+receivers:
+  otlp:
+    protocols:
+      http: {endpoint: "127.0.0.1:43119"}
+exporters:
+  debug:
+    verbosity: detailed
+processors:
+
+  transform/service-name:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["k8s.deployment.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.deployment.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.statefulset.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.statefulset.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.daemonset.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.daemonset.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.cronjob.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.cronjob.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.container.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.container.name"] != nil
+          - set(attributes["service.name"], "k8s-events") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.namespace.name"] != nil
+          - set(attributes["service.name"], attributes["container.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["container.name"] != nil
+          - set(attributes["service.name"], "docker") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["container.id"] != nil
+          - set(attributes["service.name"], "journald") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["telemetry.agent"] != nil
+          - set(attributes["service.name"], "unnamed-sender") where attributes["service.name"] == nil or attributes["service.name"] == ""
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["k8s.deployment.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.deployment.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.statefulset.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.statefulset.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.daemonset.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.daemonset.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.cronjob.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.cronjob.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.container.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.container.name"] != nil
+          - set(attributes["service.name"], "k8s-namespace") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.namespace.name"] != nil
+          - set(attributes["service.name"], attributes["container.name"]) where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["container.name"] != nil
+          - set(attributes["service.name"], "docker") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["container.id"] != nil
+          - set(attributes["service.name"], "journald") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["telemetry.agent"] != nil
+          - set(attributes["service.name"], "k8s-pod") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.pod.name"] != nil
+          - set(attributes["service.name"], "k8s-node") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.node.name"] != nil
+          - set(attributes["service.name"], "k8s-cluster") where (attributes["service.name"] == nil or attributes["service.name"] == "") and attributes["k8s.namespace.name"] == nil and attributes["k8s.cluster.name"] != nil
+          - set(attributes["service.name"], "unnamed-sender") where attributes["service.name"] == nil or attributes["service.name"] == ""
+    trace_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], "unnamed-sender") where attributes["service.name"] == nil or attributes["service.name"] == ""
+
+  transform/severity:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          # Canonical aliases from Python/filelog. Keep original level attributes as evidence.
+          - set(severity_text, "WARN") where severity_text == "WARNING"
+          - set(severity_text, "FATAL") where severity_text == "CRITICAL"
+          # An explicit level token near the start of the line (logback/log4j "HH:MM:SS.mmm [thread] INFO  logger",
+          # "LEVEL:" prefixes) wins over keyword guesses in the message text (BRIEF-traces: stirling-pdf INFO
+          # "...status changed from OK to CRITICAL" was classified FATAL).
+          # Node process warnings ("(node:PID) XxxWarning: ...", e.g. the OTel SDK / gcp-metadata cloud probe) are WARN, not ERROR.
+          - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "^\\(node:[0-9]+\\) [A-Za-z]*Warning[:]")
+          - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "^\\S*\\s*(\\[[^\\]]*\\]\\s+)?INFO\\s")
+          - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "^\\S*\\s*(\\[[^\\]]*\\]\\s+)?(DEBUG|TRACE)\\s")
+          - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "^\\S*\\s*(\\[[^\\]]*\\]\\s+)?WARN(ING)?\\s")
+          - set(severity_number, SEVERITY_NUMBER_FATAL) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "(?i)\\b(fatal|panic|critical|crit|emerg)\\b")
+          - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "(?i)(\\berror\\b|level=error|\"level\":\"error\"|\\bexception\\b|^E[0-9]{4} )")
+          - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "(?i)(\\bwarn(ing)?\\b|level=warn|\"level\":\"warn|^W[0-9]{4} )")
+          - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsString(body) and IsMatch(body, "(?i)(level=debug|\"level\":\"debug\")")
+          - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED
+          - set(severity_text, "TRACE") where severity_number >= 1 and severity_number <= 4 and (severity_text == "" or IsMatch(severity_text, "^[0-9]+$"))
+          - set(severity_text, "DEBUG") where severity_number >= 5 and severity_number <= 8 and (severity_text == "" or IsMatch(severity_text, "^[0-9]+$"))
+          - set(severity_text, "INFO") where severity_number >= 9 and severity_number <= 12 and (severity_text == "" or IsMatch(severity_text, "^[0-9]+$"))
+          - set(severity_text, "WARN") where severity_number >= 13 and severity_number <= 16 and (severity_text == "" or IsMatch(severity_text, "^[0-9]+$"))
+          - set(severity_text, "ERROR") where severity_number >= 17 and severity_number <= 20 and (severity_text == "" or IsMatch(severity_text, "^[0-9]+$"))
+          - set(severity_text, "FATAL") where severity_number >= 21 and (severity_text == "" or IsMatch(severity_text, "^[0-9]+$"))
+
+  transform/log-trace-context:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(cache["t"], ExtractPatterns(body, "(?:TraceID=|\"trace_?[iI][dD]\":\")(?P<tid>[0-9a-f]{32})")) where IsMatch(trace_id.string, "^0*$") and IsString(body) and IsMatch(body, "(?i)trace_?id")
+          - set(trace_id.string, cache["t"]["tid"]) where cache["t"]["tid"] != nil
+          - set(cache["s"], ExtractPatterns(body, "(?:SpanID=|\"span_?[iI][dD]\":\")(?P<sid>[0-9a-f]{16})")) where IsMatch(span_id.string, "^0*$") and cache["t"]["tid"] != nil
+          - set(span_id.string, cache["s"]["sid"]) where cache["s"]["sid"] != nil
+
+  filter/important-logs:
+    error_mode: ignore
+    logs:
+      log_record:
+        - >-
+          severity_number > 0 and severity_number < 13
+          and IsMatch(trace_id.string, "^0*$")
+          and resource.attributes["service.name"] != "wazuh-alerts"
+          and not (resource.attributes["service.name"] == "zitadel" and IsMatch(body, "msg=(activity|\"?auth)"))
+          and not (IsMatch(resource.attributes["service.name"], "^(sshd|sshd-session|sudo|su|login)$") and IsMatch(body, "^(Accepted|Failed|Invalid user|.*authentication failure|.*COMMAND=|pam_unix\\((sudo|su)[^)]*\\): session opened)"))
+          and not (resource.attributes["service.name"] == "k8s-events" and IsMatch(body, "\"type\":\"Warning\""))
+          and not (resource.attributes["service.name"] == "stellarc-gateway"
+          and instrumentation_scope.name == "stellarc.gateway.audit"
+          and severity_number == SEVERITY_NUMBER_INFO
+          and IsMatch(Coalesce([attributes["event.id"], ""]), "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^:]+:[0-9]+$")
+          and IsString(body)
+          and IsMatch(body, "^(principal\\.bootstrap|deployment\\.preflight|auth\\.login\\.(begin|reject)|auth\\.callback\\.(begin|accept|reject)|auth\\.logout\\.(begin|reject|complete)|auth\\.session\\.admit|agent\\.create|credential\\.(issue|revoke)|delegation\\.(issue|revoke)|management\\.deny|call\\.(admit|completed|failed|cancelled|interrupted))$"))
+        - >-
+          severity_number == 0
+          and resource.attributes["service.name"] != "wazuh-alerts"
+          and not IsMatch(body, "(?i)(error|fatal|panic|fail|exception|denied|refused|timeout|traceback)")
+
+service:
+  telemetry:
+    logs: {level: debug}
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [transform/service-name, transform/severity, transform/log-trace-context, filter/important-logs]
+      exporters: [debug]

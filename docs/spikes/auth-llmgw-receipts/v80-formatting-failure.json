@@ -1,0 +1,17 @@
+{
+	"scope": "all fixtures/types/build pass; lint fails two new receipt-format errors, not runtime failure",
+	"exits": {
+		"audit.exit": "0\n",
+		"lint.exit": "1\n",
+		"auth.exit": "0\n",
+		"typecheck.exit": "0\n",
+		"full-build.exit": "0\n",
+		"oidc-fixture.exit": "0\n",
+		"store.exit": "0\n",
+		"http.exit": "0\n",
+		"database.exit": "0\n",
+		"overall.exit": "1\n",
+		"stream.exit": "0\n",
+		"build.exit": "0\n"
+	}
+}

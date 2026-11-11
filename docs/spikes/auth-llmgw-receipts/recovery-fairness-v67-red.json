@@ -1,0 +1,11 @@
+{
+	"scope": "disposable PostgreSQL; artificial audit-counter exhaustion for one org; healthy org starved after two batches",
+	"archiveSha256": "c8c3c8630f47b21e5e39017c65f48a738bd013512fabab5469f13376a3aba919",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"store.log": "PASS stable-agent-independent-credentials-and-self-authority\nPASS tenant-and-scope-denied\nPASS server-owned-per-invocation-run-binding-idempotent-terminal-audit\nPASS terminal-audit-permission-outage-rolls-back-and-fresh-store-retries\nPASS bounded-recovery-interrupted-orphan-not-live-run-no-effect-replay\n194 | \t// Artificial counter positioning isolates one org's terminal audit exhaustion.\n195 | \tawait owner`UPDATE gw_audit_state SET delivered=seq-1100 WHERE org='alpha'`;\n196 | \ttry {\n197 | \t\tawait assert.rejects(store.recover());\n198 | \t\tawait store.recover().catch(() => {});\n199 | \t\tassert.equal((await owner`SELECT outcome FROM gw_run WHERE id=${healthyRun.runId!}`)[0].outcome, \"interrupted\", \"an exhausted org must not monopolize every recovery batch\");\n               ^\nAssertionError: an exhausted org must not monopolize every recovery batch\n+ actual - expected\n\n+ 'running'\n- 'interrupted'\n\n generatedMessage: false,\n     actual: \"running\",\n   expected: \"interrupted\",\n   operator: \"strictEqual\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at /home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/store-check.ts:199:10\n\nBun v1.4.0 (Linux x64)\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"store.exit": "1\n",
+		"overall.exit": "1\n"
+	}
+}

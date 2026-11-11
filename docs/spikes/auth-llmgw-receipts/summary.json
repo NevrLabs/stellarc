@@ -1,0 +1,42 @@
+{
+	"base": "2dce6d069db62ebf880ec0cb7c280f3a58a7034c",
+	"checks": [
+		"oidc-boundary-guards-no-network",
+		"invalid-context-denied",
+		"body-rejected-without-reading",
+		"scope-escalation-denied",
+		"cross-tenant-denied",
+		"fixture-stream-context-cleanup",
+		"upstream-retry-once-before-stream",
+		"post-byte-error-no-retry-cleanup",
+		"capacity-two-queue-zero-cancel",
+		"disconnect-cleanup",
+		"revocation-stops-future-pulls",
+		"expiry-denied",
+		"runtime-audit-append-only",
+		"audit-failure-rolls-back-grant",
+		"grant-row-barrier-revocation",
+		"current-membership-removal-denied",
+		"denial-detection-real-events",
+		"audit-capacity-fails-closed",
+		"export-failure-partial-malformed-retained",
+		"receiver-accepted-cursor-failure-restart-replay",
+		"export-recovery-cursor-dedupe",
+		"audit-allowlist-no-bearer-or-baggage",
+		"three-signal-in-memory-correlation"
+	],
+	"count": 23,
+	"targeted_typecheck_exit": 0,
+	"full_repo_gates": "NOT RUN",
+	"oidc_live": "Historical pre-approval receipt; superseded status in oidc-continuation.json. Exact dedicated proof/cleanup authorized; do not infer missing approval from this original run.",
+	"maple": "VERIFIED: fixture request/provider traces + correlated ordinary logs + PG outbox issue/admit/revoke audit records; route aggregate metric also queried. Not OIDC/daemon/full SIEM.",
+	"source_sha256": {
+		"gateway.ts": "07a7b2a80e9132bbc5361d8e61f3e5e47e16749d1222b476eeddb6f071b77f12",
+		"check.ts": "71817ba8c90d3332222f0ef862d628964bfb266539d92e75749b79c2a8f13843",
+		"oidc.ts": "48175f88b5fad01b2af2a8f88c79eefdea204c86aca30778c8eb619d71cac4fe",
+		"telemetry-proof.ts": "77f0e4e7c0f562bf546a5f7ad7450fad8be0a9ff4581c3ffd5518f1c6f0ca49b",
+		"live-fixture.ts": "16a1307813b1679a2177316fd9ba3d3c8282041a218fb2b1400a197897caf45a"
+	},
+	"replay_test": "receiver ack then forced PG cursor-write failure; new exporter instance replays byte-identical batch, not process SIGKILL proof",
+	"live_fixture_typecheck_exit": 0
+}

@@ -86,6 +86,19 @@
 			}
 		},
 		{
+			"includes": [
+				"packages/core-auth/src/*-check.ts",
+				"packages/core-auth/src/migrate.ts"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["apps/stellarc-ui/**", "tests/**"],
 			"linter": {
 				"rules": {

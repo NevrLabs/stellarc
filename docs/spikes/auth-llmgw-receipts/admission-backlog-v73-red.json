@@ -1,0 +1,11 @@
+{
+	"scope": "disposable PG accepts a new invocation despite saved unpublished terminal choice",
+	"archiveSha256": "f24e493cf382f95dada56918bee71b6b0599113374e973f241ed0e6317999dc0",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"store.log": "PASS stable-agent-independent-credentials-and-self-authority\nPASS tenant-and-scope-denied\nPASS server-owned-per-invocation-run-binding-idempotent-terminal-audit\nPASS terminal-audit-permission-outage-rolls-back-and-fresh-store-retries\nPASS bounded-recovery-interrupted-orphan-not-live-run-no-effect-replay\nPASS recovery-rotates-exhausted-org-without-starving-healthy-org\nPASS sigkill-after-terminal-choice-fresh-process-recovers-one-event\nAssertionError: Missing expected rejection: pending terminal bookkeeping must stop new admission in its organization\n generatedMessage: false,\n     actual: undefined,\n   expected: [Function],\n   operator: \"rejects\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at innerFail (node:assert:48:27)\n      at expectsError (node:assert:383:14)\n      at assert.rejects (node:assert:432:17)\n      at processTicksAndRejections (native:7:39)\n\nBun v1.4.0 (Linux x64)\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"store.exit": "1\n",
+		"overall.exit": "1\n"
+	}
+}

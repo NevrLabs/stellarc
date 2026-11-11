@@ -1,0 +1,65 @@
+{
+  "review": "stellarc-deployed-oidc-boundary-v81",
+  "disposition": {
+    "optionalCallbackIssuer": "fixed: absent accepted; foreign or duplicate rejected before exchange; signed ID-token issuer remains mandatory",
+    "authResponseHeaders": "fixed: common security headers merged while preserving response cookies and Location",
+    "staleRegistrationDocument": "already updated before review returned",
+    "realHumanLogin": "open"
+  },
+  "red": {
+    "absentIssuerCallback": "400 !== 302 in auth-check.ts",
+    "authPrivacyHeader": "null !== no-referrer on /auth/login in real-socket http-check.ts"
+  },
+  "intermediate": {
+    "v83": "all phases zero except http: fixture fetch followed callback redirect to gateway.invalid; corrected harness to redirect manual",
+    "v84OuterWait": "300-second execute_code timeout; recovered individual child receipts, not inferred from wrapper"
+  },
+  "v84": {
+    "snapshotSha256": "4516a23c7fc06e2da6c036a5ce962c69e149eb368f4ba594b0919fc9e19e7bb1",
+    "childExits": {
+      "oidc-fixture": 0,
+      "auth": 0,
+      "build": 0,
+      "database": 0,
+      "store": 0,
+      "audit": 0,
+      "http": 0,
+      "stream": 0,
+      "typecheck": 0,
+      "lint": 0,
+      "full-build": 0
+    },
+    "overallExitReceipt": "not present; individual phase receipts verified",
+    "lintWarnings": 109,
+    "lintInfos": 10,
+    "fullBuildTasks": "6 successful, 6 total",
+    "remainingDisposableContainers": [],
+    "sourceHashes": {
+      "auth.ts": "fe3cdfc10b97701c404db033584974ed6044dc6323ef74fccabb75727973838c",
+      "main.ts": "5a0c017f87b3768269babb95616efab4bb14420586aafdba1f8006e33a194794",
+      "auth-check.ts": "775b2e52a47a015c5fc479f45e70f8f27512fe5496fadb79c63ffcc5ba5932f4",
+      "http-check.ts": "5fb5bc172ed02887fe57fb11d1d6c54d711abd8c7a82193db83d7471a45dff9a"
+    }
+  },
+  "deployment": {
+    "release": "talos:/mnt/deepvault/dev/deploy/stellarc-gateway/releases/v84-88d1b0ac9d4b",
+    "mainSha256": "88d1b0ac9d4ba8cc3e6f25ee300b7a47cd5eb7966a019e711e411713bd4172b7",
+    "allFourArtifactHashesVerifiedOnTalos": true,
+    "unitReadback": "new release, active",
+    "serviceVersionReadback": "v84-88d1b0ac9d4b",
+    "unitRollback": "talos:/home/rpw/.config/systemd/user/stellarc-gateway.service.pre-v84",
+    "existingApi1437": 200,
+    "existingWeb5273": 200,
+    "liveSecurityHeaders": {
+      "login200": true,
+      "session200": true,
+      "rejectedCallback302": true,
+      "loginSetCookiePreserved": true,
+      "callbackLocationPreserved": true
+    },
+    "accessChanged": false,
+    "providerEnabled": false,
+    "humanCallbackVerified": false,
+    "authAuditPersistenceGap": "still open; prior missing auth/bootstrap events not cleared by these fixes"
+  }
+}

@@ -1,0 +1,28 @@
+{
+	"kind": "fixture-stream-and-durable-audit-export",
+	"provider": "LOCAL FIXTURE ONLY",
+	"oidc": false,
+	"runtime_exit": 0,
+	"requestId": "68a0766d-8e9e-44b3-b60f-15ab82c93d45",
+	"traceId": "e451a9052faa0d2ae7a0e35ad3639af9",
+	"receiverAccepted": 3,
+	"events": [
+		{
+			"event_id": "authgw:spike-dev:1",
+			"trace_id": "30afac32d2ff609aa978d7951cfcefb4",
+			"plugin_type": "authgw:token-issued"
+		},
+		{
+			"event_id": "authgw:spike-dev:2",
+			"trace_id": "e451a9052faa0d2ae7a0e35ad3639af9",
+			"plugin_type": "authgw:call-admitted"
+		},
+		{
+			"event_id": "authgw:spike-dev:3",
+			"trace_id": "c772bd13e4bf41ad664e905b9ceae17d",
+			"plugin_type": "authgw:token-revoked"
+		}
+	],
+	"warehouse_readback": "maple-live-audit-readback.log",
+	"scope": "Fresh disposable PG; event IDs stable across replay of this database, not across independent discarded databases. Maple source tenancy is the existing personal ingest source; stellarc.org is application attribution, not Maple authorization."
+}

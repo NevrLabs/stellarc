@@ -1,0 +1,22 @@
+{
+	"scope": "full repository snapshot; later local changes are not covered",
+	"base": "2dce6d069db62ebf880ec0cb7c280f3a58a7034c",
+	"remoteRoot": "/mnt/deepvault/scratch/stellarc-authgw-full-2dce6d0",
+	"sourceSha256": {
+		"bun.lock": "c1a1a09938b784198c9aa5d126d751c19e4b12a2a888698c666a7aa7b7f10997",
+		"package.json": "d344736d5de5a848e3e1d4edbdf5e3d9b544d2f3602b907556f8ada563137011",
+		"apps/stellarc-gateway/src/store-check.ts": "d6af3be0267753d49cff3e41b5818bdf0fba8715081a11a3d5f1217bc3b926b2",
+		"apps/stellarc-gateway/src/migrate.ts": "8fd20124252060ed289440b6dc072082cd679baa170ea98700ab6d5e7e92376e",
+		"apps/stellarc-gateway/src/auth-check.ts": "c03c37dda40f46b19cf533294f331fd917d0ea67492ba08175c70edb7d1c037a",
+		"apps/stellarc-gateway/src/mcp.ts": "94a421714425051451df30554f89f4c28bd0334bda9a76a0316c37f59d63180f",
+		"apps/stellarc-gateway/src/store.ts": "5748d7561e685138d93470da2b0dfc96843329e95e8f8564549cb923a0a8f45b",
+		"apps/stellarc-gateway/src/main.ts": "18b732c0b6b698e40fc77d626da646e1623dc556083cedb51276ec3b47a0414b",
+		"apps/stellarc-gateway/src/http-check.ts": "7ee5412faea11714f3aeb4dbed736ad8a1a6c1cb586b3be875f73df59d3c06f5",
+		"apps/stellarc-gateway/src/audit-check.ts": "461022abdc04c8ac6ff15d48c5d91560ac64906263fe6cf992c8e798c500b77a",
+		"apps/stellarc-gateway/src/auth.ts": "dc03620fd87c841e7d19fbf5a654e664e802daa4eb4413edc0b1716e01f42dd5",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098"
+	},
+	"originalFrozenInstall": "failed: candidate workspace missing from original lockfile",
+	"v2Install": "in progress; no lint/typecheck/build result claimed",
+	"storage": "NFS; observed installer worker threads blocked on RPC/file I/O"
+}

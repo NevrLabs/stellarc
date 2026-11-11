@@ -1,0 +1,9 @@
+{
+	"scope": "fresh store can replace in-memory cancelled choice after audit failure",
+	"archiveSha256": "1633d6743fae68b349efd39d0e3df6464f979a393e07fa0524e6ca5e1fc52ac3",
+	"receipts": {
+		"store.log": "PASS stable-agent-independent-credentials-and-self-authority\nPASS tenant-and-scope-denied\nPASS server-owned-per-invocation-run-binding-idempotent-terminal-audit\nAssertionError: Missing expected rejection: fresh store cannot replace the terminal choice after failed audit\n generatedMessage: false,\n     actual: undefined,\n   expected: undefined,\n   operator: \"rejects\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at innerFail (node:assert:48:27)\n      at expectsError (node:assert:383:14)\n      at assert.rejects (node:assert:432:17)\n      at processTicksAndRejections (native:7:39)\n\nBun v1.4.0 (Linux x64)\n",
+		"store.exit": "1\n",
+		"overall.exit": "1\n"
+	}
+}

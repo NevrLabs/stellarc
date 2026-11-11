@@ -1,0 +1,97 @@
+{
+  "status": "development-candidate-active-human-login-open",
+  "release": "talos:/mnt/deepvault/dev/deploy/stellarc-gateway/releases/v79-d88ca67d6f84",
+  "migrationBundle": "talos:/home/rpw/.local/share/stellarc-gateway/candidate-migrate-v81.js",
+  "database": {
+    "endpoint": "talos:127.0.0.1:55438",
+    "database": "stellarc_gateway_candidate",
+    "runtimeRole": "stellarc_gateway_runtime",
+    "issuer": "https://auth.entelechia.cloud",
+    "client": "398712419469230680",
+    "principals": 1,
+    "sessions": 0,
+    "runs": 0
+  },
+  "service": {
+    "host": "talos",
+    "listener": "127.0.0.1:1438",
+    "unit": "stellarc-gateway.service",
+    "active": true,
+    "enabled": true,
+    "postgresUnitEnabled": true,
+    "transportUnit": "stellarc-gateway-forward.service",
+    "transportListener": "127.0.0.1:8802",
+    "transportEnabled": true
+  },
+  "route": {
+    "hostname": "stellarc.entelechia.cloud",
+    "previousOrigin": "http://127.0.0.1:8801",
+    "candidateOrigin": "http://127.0.0.1:8802",
+    "exactConfigReadback": true,
+    "siblingIngressUnchanged": true,
+    "accessPolicyChanged": false,
+    "publicResponse": "302 to existing Cloudflare Access Google login",
+    "privateRollbackConfiguration": "/home/rpw/.hermes/cache/scratch/stellarc-route-pre-v79.json"
+  },
+  "liveChecks": {
+    "health": 200,
+    "wrongHost": 400,
+    "anonymousMcp": 401,
+    "anonymousManagement": 401,
+    "anonymousLlm": 401,
+    "forgedIdentityMcp": 401,
+    "existingApi1437": 200,
+    "existingWeb5273": 200,
+    "loginInitiation": 200,
+    "authorizationEndpoint": "https://auth.entelechia.cloud/oauth/v2/authorize",
+    "callback": "https://stellarc.entelechia.cloud/api/auth/oauth2/callback/zitadel",
+    "scope": "openid",
+    "pkce": "S256",
+    "secureTransactionCookies": true,
+    "realIdpArrival": "200 /ui/v2/login/loginname"
+  },
+  "maple": {
+    "durableDenialEvent": "dc867804-f03f-4625-bb9f-f1326cd727cb:system:2",
+    "request": "58ab898a-0e5a-4696-9f02-a85889c3015b",
+    "trace": "d35d9d7eafe5fb879ba89e74ae48fb4e",
+    "exactLogCopies": 1,
+    "matchedSpan": "stellarc.gateway.request",
+    "spanKind": "Server",
+    "route": "/mcp",
+    "deliveryReadback": {
+      "personal": { "seq": "1", "delivered": "1" },
+      "system": { "seq": "3", "delivered": "3" }
+    },
+    "authAuditPersistenceVerified": false,
+    "missingAtExactReadback": [
+      "dc867804-f03f-4625-bb9f-f1326cd727cb:system:3",
+      "dc867804-f03f-4625-bb9f-f1326cd727cb:personal:1"
+    ],
+    "missingKinds": ["auth.login.begin", "principal.bootstrap"],
+    "receiverAcknowledgmentIsNotPersistenceProof": true,
+    "setupHealthExit": 0,
+    "remainingFailureIds": [
+      "LOG-02",
+      "CFG-NOTIF-01",
+      "CFG-ATTR-01",
+      "ING-01",
+      "LOG-01",
+      "STAT-02",
+      "STAT-04"
+    ],
+    "stat04AffectedServices": 2,
+    "privateHealthOutput": "/home/rpw/.hermes/cache/scratch/stellarc-maple-postactivation-health.txt"
+  },
+  "limits": {
+    "humanCallbackVerified": false,
+    "humanSessionVerified": false,
+    "liveInferenceEnabled": false,
+    "llmMode": "local fixture only",
+    "mcpMode": "metadata tool only",
+    "externalMcpProxyVerified": false,
+    "machineAccessThroughCloudflareAccessVerified": false,
+    "crossRequestExecutionBindingVerified": false,
+    "fullSiem": false,
+    "sameUnixUserTrusted": true
+  }
+}

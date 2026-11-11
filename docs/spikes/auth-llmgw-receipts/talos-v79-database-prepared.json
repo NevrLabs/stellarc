@@ -1,0 +1,32 @@
+{
+	"scope": "new isolated PG18 cluster on Talos loopback55438; owner-applied gateway tables, effective runtime-role check; no OIDC pin/bootstrap/auth tables/service/route, not login proof",
+	"schemaApplied": true,
+	"runtimePrivilegeValidation": "pass",
+	"independentRuntimeReadback": "stellarc_gateway_runtime|stellarc_gateway_candidate|0|0|0|f|f|f",
+	"postgresUnit": "/home/rpw/.config/systemd/user/stellarc-gateway-postgres.service",
+	"postgresData": "/home/rpw/.local/share/stellarc-gateway/postgres",
+	"postgresPort": 55438,
+	"postgresActive": true,
+	"automaticBootEnabled": false,
+	"memoryCurrentBytes": 33808384,
+	"privateConfigMode": "0700",
+	"credentialFileMode": "0600",
+	"existingApiHealth": 200,
+	"existingWebHealth": 200,
+	"candidate1438Listening": false,
+	"sharedClusterUnchangedDatabaseNames": [
+		"kaneo_migration_probe",
+		"kaneo_rebasetest",
+		"postgres"
+	],
+	"identityRows": 0,
+	"principalRows": 0,
+	"auditRows": 0,
+	"tables": "gw_audit,gw_audit_state,gw_credential,gw_delegation,gw_identity_binding,gw_installation,gw_principal,gw_run",
+	"runtimeRole": "stellarc_gateway_runtime",
+	"database": "stellarc_gateway_candidate",
+	"credentials": [
+		"/home/rpw/.config/stellarc-gateway/owner.env",
+		"/home/rpw/.config/stellarc-gateway/runtime.env"
+	]
+}

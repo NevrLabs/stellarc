@@ -1,0 +1,19 @@
+{
+	"scope": "actual candidate runtime login; rolled-back negative checks; no login or gateway activation proof",
+	"checks": [
+		"identity-update-denied",
+		"installation-delete-denied",
+		"audit-delete-denied",
+		"audit-update-denied",
+		"audit-truncate-denied",
+		"owner-role-denied",
+		"schema-create-denied",
+		"candidate-credential-rejected-by-shared-cluster",
+		"protected-row-counts-unchanged-after-negative-checks"
+	],
+	"database": "stellarc_gateway_candidate",
+	"port": 55438,
+	"checkCount": 9,
+	"scriptSha256": "928feebe132ec82837cfe38aca895529216746fece89221a04bf3258fbdc5dcd",
+	"note": "Repeated after metadata preflight; existing audit count preserved, no identity bootstrap"
+}

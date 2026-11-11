@@ -1,0 +1,9 @@
+{
+	"scope": "local intercepted upstream; abort during terminal persistence unexpectedly released DONE",
+	"archiveSha256": "2862f73c35ca711185a672d8e340f907459b7e73009a7a3c37b6f2dd3adc12d6",
+	"receipts": {
+		"overall.exit": "1\n",
+		"stream.exit": "1\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nerror: ManagedRuntime disposed\nManagedRuntime disposed\nAssertionError: Missing expected rejection: abort during terminal persistence must not release DONE\n generatedMessage: false,\n     actual: undefined,\n   expected: /stream stopped/,\n   operator: \"rejects\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at innerFail (node:assert:48:27)\n      at expectsError (node:assert:383:14)\n      at assert.rejects (node:assert:432:17)\n      at processTicksAndRejections (native:7:39)\n\nBun v1.4.0 (Linux x64)\n"
+	}
+}

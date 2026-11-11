@@ -1,0 +1,17 @@
+{
+	"projectId": "398712419033023064",
+	"status": "verified",
+	"appId": "398712419452453464",
+	"clientId": "398712419469230680",
+	"issuer": "https://auth.entelechia.cloud",
+	"redirectUris": [
+		"https://stellarc.entelechia.cloud/api/auth/oauth2/callback/zitadel"
+	],
+	"appType": "OIDC_APP_TYPE_WEB",
+	"authMethodType": "OIDC_AUTH_METHOD_TYPE_BASIC",
+	"grantTypes": [
+		"OIDC_GRANT_TYPE_AUTHORIZATION_CODE"
+	],
+	"secretPath": "talos:/home/rpw/.config/stellarc-gateway/oidc.env",
+	"enumReadback": "WEB/BASIC zero-valued protobuf defaults omitted"
+}

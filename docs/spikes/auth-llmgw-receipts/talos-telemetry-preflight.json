@@ -1,0 +1,39 @@
+{
+	"scope": "read-only receiver discovery using empty OTLP envelopes; no candidate telemetry emitted, no Maple configuration changes, no persistence proof",
+	"host": "talos",
+	"setupHealth": {
+		"commandExit": 0,
+		"pass": 37,
+		"fail": 7,
+		"failureIds": [
+			"LOG-02",
+			"CFG-NOTIF-01",
+			"CFG-ATTR-01",
+			"ING-01",
+			"LOG-01",
+			"STAT-02",
+			"STAT-04"
+		],
+		"note": "Existing recommendations; CFG-NOTIF-01 intentionally disabled. No baseline-clearance claim.",
+		"savedOutput": "/home/rpw/.hermes/cache/scratch/stellarc-maple-preflight-health.txt"
+	},
+	"receivers": {
+		"http://127.0.0.1:4318": {
+			"process": "tempo",
+			"traces": 200,
+			"logs": 404,
+			"metrics": 404
+		},
+		"http://127.0.0.1:14318": {
+			"binding": "loopback",
+			"traces": 200,
+			"logs": 200,
+			"metrics": 200
+		}
+	},
+	"remaining": [
+		"verify existing receiver forwarding destination privately",
+		"configured candidate request and durable audit emission",
+		"Maple exact event/trace readback"
+	]
+}

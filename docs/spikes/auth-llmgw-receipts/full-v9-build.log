@@ -1,0 +1,155 @@
+$ turbo run build
+• turbo 2.8.17
+ WARNING  An issue occurred while attempting to parse /home/rpw/.local/share/stellarc-gates/full-v9/bun.lock. Turborepo will still function, but some features may not be available:
+   x Could not resolve workspaces.
+  `-> Unsupported bun lockfile version: 2
+
+• Packages in scope: @kaneo/api, @kaneo/email, @kaneo/permissions, @stellarc/agents, @stellarc/api, @stellarc/contracts, @stellarc/db, @stellarc/domain, @stellarc/durable-streams-spike, @stellarc/gateway, @stellarc/node, @stellarc/sync, @stellarc/ui, @stellarc/web, @stellarc/worker
+• Running build in 15 packages
+• Remote caching disabled
+@stellarc/web:build: cache miss, executing 32f8645c959d3b7b
+@stellarc/gateway:build: cache miss, executing 55564efad66251c4
+@stellarc/api:build: cache miss, executing 3ffed9fae9a14fd0
+@stellarc/node:build: cache miss, executing a2fc135a54aedb6e
+@stellarc/worker:build: cache miss, executing f47f64b2343dafb2
+@stellarc/node:build: $ bun build src/main.ts --target bun --outdir dist
+@stellarc/ui:build: cache miss, executing 22cbf3739e652d1e
+@stellarc/web:build: $ vite build
+@stellarc/gateway:build: $ bun build src/main.ts --target bun --outdir dist
+@stellarc/api:build: $ bun build src/main.ts --target bun --outdir dist
+@stellarc/worker:build: $ bun build src/main.ts --target bun --outdir dist
+@stellarc/ui:build: $ vite build
+@stellarc/node:build: Bundled 236 modules in 2338ms
+@stellarc/node:build: 
+@stellarc/node:build:   main.js  1.51 MB  (entry point)
+@stellarc/node:build: 
+@stellarc/worker:build: Bundled 512 modules in 2315ms
+@stellarc/worker:build: 
+@stellarc/worker:build:   main.js  1.58 MB  (entry point)
+@stellarc/worker:build: 
+@stellarc/api:build: Bundled 808 modules in 2621ms
+@stellarc/api:build: 
+@stellarc/api:build:   main.js  2.97 MB  (entry point)
+@stellarc/api:build: 
+@stellarc/gateway:build: Bundled 1222 modules in 2874ms
+@stellarc/gateway:build: 
+@stellarc/gateway:build:   main.js  3.31 MB  (entry point)
+@stellarc/gateway:build: 
+@stellarc/ui:build: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@stellarc/ui:build:   - `__dirname` (vite.config.ts:114:25). Use `import.meta.dirname` instead
+@stellarc/ui:build:   - JSON import "../../package.json" without import attributes (vite.config.ts:7:25). Add `with { type: 'json' }`
+@stellarc/ui:build: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@stellarc/web:build: vite v8.3.6 building client environment for production...
+@stellarc/web:build: transforming...
+@stellarc/ui:build: vite v8.3.4 building client environment for production...
+@stellarc/ui:build: transforming...
+@stellarc/web:build: ✓ 2760 modules transformed.
+@stellarc/web:build: rendering chunks...
+@stellarc/web:build: computing gzip size...
+@stellarc/web:build: dist/client/assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2        5.81 kB
+@stellarc/web:build: dist/client/assets/geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2    6.17 kB
+@stellarc/web:build: dist/client/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2         7.42 kB
+@stellarc/web:build: dist/client/assets/geist-mono-vietnamese-wght-normal-DadHysG0.woff2      7.69 kB
+@stellarc/web:build: dist/client/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2           8.00 kB
+@stellarc/web:build: dist/client/assets/geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2       12.94 kB
+@stellarc/web:build: dist/client/assets/geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2      14.69 kB
+@stellarc/web:build: dist/client/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2            15.08 kB
+@stellarc/web:build: dist/client/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2           16.51 kB
+@stellarc/web:build: dist/client/assets/geist-mono-latin-wght-normal-XN7g48iV.woff2          23.12 kB
+@stellarc/web:build: dist/client/assets/geist-latin-wght-normal-BgDaEnEv.woff2               29.40 kB
+@stellarc/web:build: dist/client/assets/index-CUHXNRvi.css                                   33.57 kB │ gzip:   7.86 kB
+@stellarc/web:build: dist/client/assets/agents-Cj6PUZUu.js                                    0.23 kB │ gzip:   0.20 kB
+@stellarc/web:build: dist/client/assets/button-BH4Er7-E.js                                    0.31 kB │ gzip:   0.24 kB
+@stellarc/web:build: dist/client/assets/routes-DUwy87hm.js                                    2.85 kB │ gzip:   0.99 kB
+@stellarc/web:build: dist/client/assets/resources-CbQVBWd3.js                                11.96 kB │ gzip:   3.05 kB
+@stellarc/web:build: dist/client/assets/index-CIZ746G1.js                                   342.43 kB │ gzip: 110.19 kB
+@stellarc/web:build: dist/client/assets/AppShell-OHyvqeM9.js                                525.25 kB │ gzip: 165.20 kB
+@stellarc/web:build: 
+@stellarc/web:build: [plugin builtin:vite-reporter] 
+@stellarc/web:build: (!) Some chunks are larger than 500 kB after minification. Consider:
+@stellarc/web:build: - Using dynamic import() to code-split the application
+@stellarc/web:build: - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+@stellarc/web:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+@stellarc/web:build: ✓ built in 11.10s
+@stellarc/web:build: vite v8.3.6 building ssr environment for production...
+@stellarc/web:build: transforming...
+@stellarc/web:build: ✓ 165 modules transformed.
+@stellarc/web:build: rendering chunks...
+@stellarc/web:build: computing gzip size...
+@stellarc/web:build: dist/server/assets/empty-plugin-adapters-Cipd4ZH4.js         0.26 kB │ gzip:  0.17 kB
+@stellarc/web:build: dist/server/assets/flags-BSA6Uwo2.js                         0.34 kB │ gzip:  0.22 kB
+@stellarc/web:build: dist/server/assets/agents-x7UTrgA8.js                        0.44 kB │ gzip:  0.29 kB
+@stellarc/web:build: dist/server/assets/button-hwUsWqeM.js                        0.58 kB │ gzip:  0.36 kB
+@stellarc/web:build: dist/server/assets/start--ECrG67D.js                         1.14 kB │ gzip:  0.50 kB
+@stellarc/web:build: dist/server/assets/_tanstack-start-manifest_v-CdO1ADR7.js    1.17 kB │ gzip:  0.44 kB
+@stellarc/web:build: dist/server/assets/router-GAhG8KgA.js                        3.09 kB │ gzip:  1.14 kB
+@stellarc/web:build: dist/server/assets/routes-B89RoZst.js                        4.81 kB │ gzip:  1.39 kB
+@stellarc/web:build: dist/server/assets/resources-D4QtQYFo.js                    20.21 kB │ gzip:  4.44 kB
+@stellarc/web:build: dist/server/server.js                                       93.88 kB │ gzip: 23.58 kB
+@stellarc/web:build: dist/server/assets/AppShell-BsB2U1yc.js                    100.07 kB │ gzip: 27.23 kB
+@stellarc/web:build: 
+@stellarc/web:build: ✓ built in 4.62s
+@stellarc/web:build: [33m[PLUGIN_TIMINGS] [0mJavaScript callbacks ran for 3.9s of this 4.6s build (86%).
+@stellarc/web:build: The slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+@stellarc/web:build:   - plugin @tailwindcss/vite:generate:build transform (34%, 1.5s, 1 call)
+@stellarc/web:build: Additional callback time came from the callbacks below and from callbacks under 1s.
+@stellarc/web:build: 2 callbacks are listed without a time. Their calls overlapped, so the time inside one call includes work from other calls. To find their cost, profile the build with `node --cpu-prof`:
+@stellarc/web:build:   - plugin tanstack-start-core:import-protection resolveId (371 calls)
+@stellarc/web:build:   - plugin tanstack-start-core::server-fn:ssr transform (12 calls)
+@stellarc/web:build: See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+@stellarc/web:build: 
+@stellarc/web:build: [prerender] Prerendering pages...
+@stellarc/web:build: [prerender] Concurrency: 4
+@stellarc/web:build: [prerender] Crawling: /
+@stellarc/web:build: [prerender] Crawling: /agents
+@stellarc/web:build: [prerender] Crawling: /resources
+@stellarc/web:build: [prerender] Prerendered 0 pages:
+@stellarc/web:build: 74 | 				const retries = retriesByPath.get(page.path) || 0;
+@stellarc/web:build: 75 | 				try {
+@stellarc/web:build: 76 | 					const res = await requestWithRedirects(withTrailingSlash(withBase(page.path, routerBasePath)), { headers: { ...prerenderOptions.headers ?? {} } }, prerenderOptions.maxRedirects);
+@stellarc/web:build: 77 | 					if (!res.ok) {
+@stellarc/web:build: 78 | 						if (isRedirectResponse(res)) logger.warn(`Max redirects reached for ${page.path}`);
+@stellarc/web:build: 79 | 						throw new Error(`Failed to fetch ${page.path}: ${res.statusText}`, { cause: res });
+@stellarc/web:build:                      ^
+@stellarc/web:build: error: Failed to fetch /resources: Internal Server Error
+@stellarc/web:build:       at <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/@tanstack+start-plugin-core@1.171.55+64dfb59c8dd9da3e/node_modules/@tanstack/start-plugin-core/dist/esm/prerender.js:79:17)
+@stellarc/web:build: 74 | 				const retries = retriesByPath.get(page.path) || 0;
+@stellarc/web:build: 75 | 				try {
+@stellarc/web:build: 76 | 					const res = await requestWithRedirects(withTrailingSlash(withBase(page.path, routerBasePath)), { headers: { ...prerenderOptions.headers ?? {} } }, prerenderOptions.maxRedirects);
+@stellarc/web:build: 77 | 					if (!res.ok) {
+@stellarc/web:build: 78 | 						if (isRedirectResponse(res)) logger.warn(`Max redirects reached for ${page.path}`);
+@stellarc/web:build: 79 | 						throw new Error(`Failed to fetch ${page.path}: ${res.statusText}`, { cause: res });
+@stellarc/web:build:                      ^
+@stellarc/web:build: error: Failed to fetch /agents: Internal Server Error
+@stellarc/web:build:       at <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/@tanstack+start-plugin-core@1.171.55+64dfb59c8dd9da3e/node_modules/@tanstack/start-plugin-core/dist/esm/prerender.js:79:17)
+@stellarc/web:build: 74 | 				const retries = retriesByPath.get(page.path) || 0;
+@stellarc/web:build: 75 | 				try {
+@stellarc/web:build: 76 | 					const res = await requestWithRedirects(withTrailingSlash(withBase(page.path, routerBasePath)), { headers: { ...prerenderOptions.headers ?? {} } }, prerenderOptions.maxRedirects);
+@stellarc/web:build: 77 | 					if (!res.ok) {
+@stellarc/web:build: 78 | 						if (isRedirectResponse(res)) logger.warn(`Max redirects reached for ${page.path}`);
+@stellarc/web:build: 79 | 						throw new Error(`Failed to fetch ${page.path}: ${res.statusText}`, { cause: res });
+@stellarc/web:build:                      ^
+@stellarc/web:build: error: Failed to fetch /: Internal Server Error
+@stellarc/web:build:       at <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/@tanstack+start-plugin-core@1.171.55+64dfb59c8dd9da3e/node_modules/@tanstack/start-plugin-core/dist/esm/prerender.js:79:17)
+@stellarc/web:build: SyntaxError: Export named '_getRenderedMatches' not found in module '/home/rpw/stellarc-dev/ui/node_modules/@tanstack/router-core/dist/esm/index.js'.
+@stellarc/web:build:     at <parse> (:0)
+@stellarc/web:build:     at processTicksAndRejections (native:7:39)
+@stellarc/web:build: SyntaxError: Export named '_getRenderedMatches' not found in module '/home/rpw/stellarc-dev/ui/node_modules/@tanstack/router-core/dist/esm/index.js'.
+@stellarc/web:build:     at <parse> (:0)
+@stellarc/web:build:     at processTicksAndRejections (native:7:39)
+@stellarc/web:build: SyntaxError: Export named '_getRenderedMatches' not found in module '/home/rpw/stellarc-dev/ui/node_modules/@tanstack/router-core/dist/esm/index.js'.
+@stellarc/web:build:     at <parse> (:0)
+@stellarc/web:build:     at processTicksAndRejections (native:7:39)
+@stellarc/web:build: 
+@stellarc/web:build: Bun v1.4.0 (Linux x64)
+@stellarc/web:build: error: script "build" exited with code 1
+@stellarc/web:build: ERROR: command finished with error: command (/home/rpw/.local/share/stellarc-gates/full-v9/apps/web) /tmp/bun-node-34cbb9a40/bun run build exited (1)
+@stellarc/web#build: command (/home/rpw/.local/share/stellarc-gates/full-v9/apps/web) /tmp/bun-node-34cbb9a40/bun run build exited (1)
+
+ Tasks:    4 successful, 6 total
+Cached:    0 cached, 6 total
+  Time:    46.209s 
+Failed:    @stellarc/web#build
+
+ ERROR  run failed: command  exited (1)
+error: script "build" exited with code 1

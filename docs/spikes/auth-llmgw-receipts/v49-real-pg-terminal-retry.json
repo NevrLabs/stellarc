@@ -1,0 +1,11 @@
+{
+	"scope": "LOCAL upstream interception; actual PG audit INSERT revoked for first terminal attempt then restored; two attempts, one completion event; not process-kill recovery",
+	"archiveSha256": "b7429adf8238caf5b2ed8e5ad6ad3818442183d137247c4799427d4a54060a20",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "0\n",
+		"stream.exit": "0\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+	}
+}

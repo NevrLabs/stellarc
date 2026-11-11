@@ -1,0 +1,7 @@
+[05:10:44.373] WARN (#1): authgw:telemetry-proof {
+  "request.id": "50734840-b653-4c97-be9b-315653b02ef0",
+  "stellarc.actor": "fixture-actor",
+  "stellarc.org": "spike-dev",
+  "verification.kind": "metadata-probe-not-live-login",
+}
+{"requestId":"50734840-b653-4c97-be9b-315653b02ef0","traceId":"1bd613e2a677f615a7460a12339ff7ff","service":"stellarc-authgw-spike","kind":"metadata-probe-not-live-login"}

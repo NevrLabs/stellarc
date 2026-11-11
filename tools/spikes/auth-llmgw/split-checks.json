@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scope": "Source-only split fixture checks; not a passing receipt or live-deployment command",
+  "workingDirectory": "repository-root",
+  "requiredSourceDirectories": [
+    "packages/core-auth/src",
+    "packages/telemetry/src",
+    "apps/llmgw/src",
+    "apps/toolgw/src",
+    "apps/stellarc-gateway/src"
+  ],
+  "checks": [
+    { "id": "auth-memory", "path": "packages/core-auth/src/auth-check.ts", "freshPostgresCluster": false },
+    { "id": "auth-postgres", "path": "packages/core-auth/src/auth-check.ts", "freshPostgresCluster": true, "environment": { "AUTH_PG_CHECK": "1" } },
+    { "id": "store", "path": "packages/core-auth/src/store-check.ts", "freshPostgresCluster": true },
+    { "id": "database", "path": "packages/core-auth/src/database-check.ts", "freshPostgresCluster": true },
+    { "id": "audit", "path": "packages/core-auth/src/audit-check.ts", "freshPostgresCluster": true },
+    { "id": "remote-mcp", "path": "apps/toolgw/src/remote-mcp-check.ts", "freshPostgresCluster": false },
+    { "id": "openapi", "path": "apps/toolgw/src/openapi-operation-check.ts", "freshPostgresCluster": false },
+    { "id": "approval", "path": "apps/toolgw/src/tool-approval-check.ts", "freshPostgresCluster": true, "openDefects": ["F1", "F2", "F3"] },
+    { "id": "bounded-sse", "path": "apps/llmgw/src/bounded-sse-check.ts", "freshPostgresCluster": false },
+    { "id": "provider-routing", "path": "apps/llmgw/src/provider-routing-check.ts", "freshPostgresCluster": false, "openDefects": ["cleanup-hang-unproven-root-cause"] },
+    { "id": "http", "path": "apps/stellarc-gateway/src/http-check.ts", "freshPostgresCluster": true, "environment": { "SLOW_BODY_CHECK": "1" }, "minimumDeadlineSeconds": 120 },
+    { "id": "stream", "path": "apps/stellarc-gateway/src/stream-check.ts", "freshPostgresCluster": true }
+  ],
+  "executionConstraints": [
+    "Wait for supervisor acceptance of builder headroom; serialize heavy gates",
+    "Create a new immutable split-tree snapshot; never overlay or resume a historical runner",
+    "Verify source-parent dependency resolution and source/runner hashes before execution",
+    "Use private disposable SPIKE_OWNER_DSN and SPIKE_RUNTIME_DSN only where required",
+    "Capture each actual child exit and log; expected failures and timeouts do not pass acceptance",
+    "Reconcile processes, containers and locks after execution; do not replay external effects"
+  ]
+}

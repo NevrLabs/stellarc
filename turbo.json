@@ -1,4 +1,17 @@
 {
 	"$schema": "https://turbo.build/schema.json",
-	"tasks": { "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] } }
+	"tasks": {
+		"build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+		"@stellarc/gateway#build": {
+			"dependsOn": ["^build"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/packages/core-auth/src/**",
+				"$TURBO_ROOT$/apps/toolgw/src/**",
+				"$TURBO_ROOT$/apps/llmgw/src/**",
+				"$TURBO_ROOT$/packages/telemetry/src/**"
+			],
+			"outputs": ["dist/**"]
+		}
+	}
 }

@@ -1,0 +1,3 @@
+POST /v1/logs -> 200 b'{}'
+POST /v1/logs -> 200 b'{}'
+{"validation": {"baseline": 0, "proposed": 0}, "failures": {"baseline": [], "proposed": [], "types-baseline": [], "types-proposed": []}, "pass": true}

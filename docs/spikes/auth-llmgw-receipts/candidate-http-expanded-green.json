@@ -1,0 +1,35 @@
+{
+	"exit": 0,
+	"checks": [
+		"socket-public-management-denial-no-registration",
+		"socket-fixture-stream-correlated-headers",
+		"socket-tenant-context-denial",
+		"effect-mcp-wire-initialize-list-tool-and-unknown-deny",
+		"mcp-session-bound-to-current-principal",
+		"mcp-exact-origin-not-host-only",
+		"mcp-stateless-modern-protocol-metadata",
+		"mcp-invalid-bearer-durable-denial",
+		"mcp-current-credential-revocation"
+	],
+	"sourceSha256": {
+		"apps/stellarc-gateway/package.json": "79aa9a620810fc25d65d0f1f7bd8a09c14a852286337856938ac6f9260607bfa",
+		"apps/stellarc-gateway/README.md": "365fd76d792a1a9a01eace567552fae38a719f56a90c58e8eaf058eaae07c3a7",
+		"apps/stellarc-gateway/src/http-check.ts": "7ee5412faea11714f3aeb4dbed736ad8a1a6c1cb586b3be875f73df59d3c06f5",
+		"apps/stellarc-gateway/src/main.ts": "d5588fcc41fdd7a15830d3cc7d2097a4421955be1b097f917c3c712ca6276974",
+		"apps/stellarc-gateway/src/store-check.ts": "7f46b1b6661a592e101e903e7acb3137d0a29808ff7c6cb7033472650b278079",
+		"apps/stellarc-gateway/src/migrate.ts": "8fd20124252060ed289440b6dc072082cd679baa170ea98700ab6d5e7e92376e",
+		"apps/stellarc-gateway/src/console.css": "1c10cc3367983814f1b484bcb9f63b4fced0e04fba6d4a63db514d0e326a8d43",
+		"apps/stellarc-gateway/src/auth.ts": "dc03620fd87c841e7d19fbf5a654e664e802daa4eb4413edc0b1716e01f42dd5",
+		"apps/stellarc-gateway/src/audit-check.ts": "461022abdc04c8ac6ff15d48c5d91560ac64906263fe6cf992c8e798c500b77a",
+		"apps/stellarc-gateway/src/console.html": "f0c3e85cbde749d9ccb1b972cbc7a778bc146ca69dfa4f24105714759bd50492",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098",
+		"apps/stellarc-gateway/src/mcp.ts": "94a421714425051451df30554f89f4c28bd0334bda9a76a0316c37f59d63180f",
+		"apps/stellarc-gateway/src/stream-check.ts": "0ff1313e576970d4e070c69a42edd3b764ec75d88d0b68fe690d288c2db0d281",
+		"apps/stellarc-gateway/src/console.js": "6b6a418eae59fcb8b3190c3bd0161ae781162e79cce49270151dcee42ac6dedc",
+		"apps/stellarc-gateway/src/auth-check.ts": "c03c37dda40f46b19cf533294f331fd917d0ea67492ba08175c70edb7d1c037a",
+		"apps/stellarc-gateway/src/store.ts": "5b6f88db48f15d5bea8b4808ee6b6a87fbb31040725b61fb25bbb51fb6e9d745"
+	},
+	"scope": "real sockets, disposable restricted PG, local fixture only; no OIDC/Maple/public ingress",
+	"supersedes": "mcp-denial-red.log for denial-audit regression only",
+	"typecheck": "not rerun for this source snapshot"
+}

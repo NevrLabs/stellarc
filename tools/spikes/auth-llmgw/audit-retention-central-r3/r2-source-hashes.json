@@ -1,0 +1,16 @@
+{
+  "README.md": "ab23e473b90d0f2aaacd859fb3dbc5065a54dea06cf7a41595e5c269a5b440d3",
+  "proposed-filter-block.yaml": "29a44bd8359427db41561205852d5471704697a02c76987d4aa7d944b414cc1a",
+  "proposed-filter.patch": "71a6ed9f4eb31fb884529c50ca5e46570f1a966a768324b54179147cd16dfb78",
+  "fixture/check.py": "ef2397a8a939070599f5d90f052ef7f1d7f6bb40a43b329fedcf235ea7908001",
+  "fixture/collector-baseline.log": "ac7c03e881de9379b5a541870b80c5608fb1e7a2b4884505fe2e98c7b6619363",
+  "fixture/collector-proposed.log": "86dedfedce4866d3b7d8ea303155601b2f033c706d2be8a04ba287e1fc0bd177",
+  "fixture/config-proposed.yaml": "5596653aed7266f1e5cabd3b929e8cd566780ca682219c0789f611f5241ce74d",
+  "fixture/results.json": "a9fb7be095005fe726f4abc74c4ac634cdd3c228615ae2e14ab97fa19b2f5a7f",
+  "fixture/config-baseline.yaml": "d71406989134db997e1243aa4913dae11422ac4a54230f10b9c703fd3e863f0a",
+  "fixture/gen_cases.py": "0eba1904f03726d35b24ac360d9954d06814bebda62146daccdd13f10ee910c2",
+  "fixture/send_cases.py": "0cfc9f758c72f367ffb4d58eaee51b55a3dd291aae1cb6f82ce166d6dfddbc2a",
+  "fixture/cases.json": "4da041254de73b30e091fcfcc6d021a84da7f2c17a451e2d1d46fc1f88f1d794",
+  "fixture/otelcol-maple-agent": "b8a190d137f6ded897b307b1561b089f35da0c9fa71128a264d20da982392418",
+  "fixture/run.sh": "68ed6891c285821ce735f59e1ae2aa4aff7cfd90bb82262ce18ec2f3092fa91b"
+}
