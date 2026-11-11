@@ -10,24 +10,15 @@ import {
 	boardViewsCollection,
 	inboxCollection,
 	orgsCollection,
-	recentCollection,
 	sectionsCollection,
 	statusesCollection,
 	ticketsCollection,
-	viewsCollection,
 } from "@/data/collections";
-import type { StatusId, ViewId } from "@/fixtures/data";
+import type { ViewId } from "@/fixtures/data";
 
 export function useOrgs() {
 	return useLiveQuery({
 		query: (q) => q.from({ org: orgsCollection }),
-	}).data;
-}
-
-export function useViews() {
-	return useLiveQuery({
-		query: (q) =>
-			q.from({ view: viewsCollection }).orderBy(({ view }) => view.id, "asc"),
 	}).data;
 }
 
@@ -38,13 +29,6 @@ export function useSidebarSections(view: ViewId) {
 				.from({ section: sectionsCollection })
 				.where(({ section }) => eq(section.view, view))
 				.orderBy(({ section }) => section.order, "asc"),
-	}).data;
-}
-
-export function useRecent() {
-	return useLiveQuery({
-		query: (q) =>
-			q.from({ item: recentCollection }).orderBy(({ item }) => item.id, "asc"),
 	}).data;
 }
 
@@ -103,18 +87,4 @@ export function useBoardTickets(boardId: string | undefined) {
 				.where(({ ticket }) => eq(ticket.boardId, boardId));
 		},
 	}).data;
-}
-
-/** Tickets whose status is not backlog — what the board/list/timeline show. */
-export function useActiveTickets(boardId: string | undefined) {
-	const tickets = useBoardTickets(boardId);
-	return tickets?.filter((t) => t.status !== "backlog");
-}
-
-export function useTicketsByStatus(
-	boardId: string | undefined,
-	status: StatusId,
-) {
-	const tickets = useBoardTickets(boardId);
-	return tickets?.filter((t) => t.status === status);
 }

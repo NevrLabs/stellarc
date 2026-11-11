@@ -19,13 +19,6 @@ export const orgsCollection = createCollection(
 	}),
 );
 
-export const viewsCollection = createCollection(
-	localOnlyCollectionOptions({
-		getKey: (view) => view.id,
-		initialData: fixtures.views,
-	}),
-);
-
 export const sectionsCollection = createCollection(
 	localOnlyCollectionOptions({
 		getKey: (section) => section.id,

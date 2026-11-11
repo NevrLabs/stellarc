@@ -16,7 +16,7 @@ export type BoardViewId =
 	| "agentwork"
 	| "mine";
 
-export interface Org {
+interface Org {
 	id: string;
 	name: string;
 	initials: string;
@@ -28,7 +28,7 @@ export interface Ref {
 	bview?: BoardViewId;
 }
 
-export interface SidebarItem {
+interface SidebarItem {
 	id: string;
 	label: string;
 	icon?: string;
@@ -38,7 +38,7 @@ export interface SidebarItem {
 	ref?: Ref;
 }
 
-export interface SidebarSection {
+interface SidebarSection {
 	id: string;
 	view: ViewId;
 	label: string | null;
@@ -47,7 +47,7 @@ export interface SidebarSection {
 	items: SidebarItem[];
 }
 
-export interface RecentItem {
+interface RecentItem {
 	id: string;
 	label: string;
 	kind: string;
@@ -56,7 +56,7 @@ export interface RecentItem {
 	ref: Ref;
 }
 
-export interface InboxItem {
+interface InboxItem {
 	id: string;
 	who: string;
 	agent: boolean;
@@ -80,19 +80,19 @@ export interface Ticket {
 	boardId: string;
 }
 
-export interface Status {
+interface Status {
 	id: StatusId;
 	label: string;
 	order: number;
 }
 
-export interface Board {
+interface Board {
 	id: string;
 	label: string;
 	count: number;
 }
 
-export interface BoardView {
+interface BoardView {
 	id: BoardViewId;
 	label: string;
 	icon: string;
@@ -100,7 +100,7 @@ export interface BoardView {
 	desc?: string;
 }
 
-export interface ViewMeta {
+interface ViewMeta {
 	id: ViewId;
 	label: string;
 	icon: string;
