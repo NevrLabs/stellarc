@@ -26,15 +26,27 @@ const plugins = new Map<string, IntegrationPlugin>();
 let eventSubscriptionsInitialized = false;
 
 export function registerPlugin(plugin: IntegrationPlugin): void {
-  // Idempotent (NEVR-603): the registry is process-global, and test suites
-  // that boot the legacy tree once per file call initializePlugins() more
-  // than once in one process. Re-registering the same plugin is a no-op —
-  // same convention as initializeEventSubscriptions below.
   if (plugins.has(plugin.type)) {
-    return;
+    // Real mis-registration in prod must fail loudly, not silently no-op
+    // (NEVR-604 defect 4). Test suites that boot the legacy tree once per
+    // file call __resetPluginRegistryForTests() in beforeAll instead.
+    throw new Error(
+      `Plugin "${plugin.type}" is already registered. A plugin type must map to exactly one implementation.`,
+    );
   }
   plugins.set(plugin.type, plugin);
   console.log(`✓ Registered plugin: ${plugin.name}`);
+}
+
+/**
+ * Test-only: the plugin registry is process-global, and suites that boot the
+ * legacy tree once per file re-run initializePlugins() in one process. Reset
+ * the registry so runStartupTasks() sees a clean slate instead of tripping
+ * the duplicate-registration guard above. Never call this from prod code.
+ */
+export function __resetPluginRegistryForTests(): void {
+  plugins.clear();
+  eventSubscriptionsInitialized = false;
 }
 
 export function initializeEventSubscriptions(): void {

@@ -1,13 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
+import {
+	BOUNDED_CURSORS,
+	REDIRECT_SAFE,
+} from "../../packages/contracts/src/scope";
 import {
 	type AuditRoute,
 	auditRoutes,
 	isCursorFieldName,
+	isRedirectFieldName,
 	isSecretFieldName,
+	isServerDerivedFieldName,
 	staleRows,
 } from "../../packages/contracts/src/scope-audit";
 
@@ -22,8 +28,9 @@ import {
  * a clean tree (48 HttpApi endpoints + 32 MCP tools all carry a declared
  * scope root). Part (c) is the catch-behaviour negative control: a seeded
  * undeclared endpoint must redden R1 (exit 1) and a seeded stale table row
- * must redden R2 — plus in-process probes over the pure engine for R4–R11
- * and the credential rate-limit config pin (line f).
+ * must redden R2 — plus in-process probes over the pure engine for R4–R13,
+ * the registry-behaviour contract for BOUNDED_CURSORS/REDIRECT_SAFE
+ * (NEVR-604 defect 2), and the credential rate-limit config pin (line f).
  */
 
 const ROOT = join(import.meta.dir, "..", "..");
@@ -294,18 +301,28 @@ describe("NEVR-603 engine rules", () => {
 			}),
 		]);
 		expect(unregistered.some((f) => f.rule === "R10")).toBe(true);
+		// Registration now carries the bound + the test that proves it —
+		// a bare name no longer satisfies the audit (NEVR-604 defect 2).
 		const registered = auditRoutes(
 			[
 				probeRoute({
 					request: { path: ["org"], query: ["startingAfter"], payload: [] },
 				}),
 			],
-			{ boundedCursors: new Set(["startingAfter"]) },
+			{
+				boundedCursors: {
+					startingAfter: {
+						max: 100,
+						test: "tests/bun/scope-audit-gate.test.ts",
+					},
+				},
+			},
 		);
 		expect(registered).toHaveLength(0);
 	});
 
 	test("R11: redirect-ish request fields must be registered", () => {
+		expect(isRedirectFieldName("callbackUrl")).toBe(true);
 		const unregistered = auditRoutes([
 			probeRoute({
 				request: { path: ["org"], query: ["callbackUrl"], payload: [] },
@@ -318,9 +335,69 @@ describe("NEVR-603 engine rules", () => {
 					request: { path: ["org"], query: ["callbackUrl"], payload: [] },
 				}),
 			],
-			{ redirectSafe: new Set(["callbackUrl"]) },
+			{
+				redirectSafe: {
+					callbackUrl: {
+						rejectsAuthorityRelative: true,
+						test: "tests/bun/scope-audit-gate.test.ts",
+					},
+				},
+			},
 		);
 		expect(registered).toHaveLength(0);
+	});
+
+	test("R10/R11 registry contract: every entry carries its bound/proof and the proof file exists (NEVR-604 defect 2)", () => {
+		for (const [name, entry] of Object.entries(BOUNDED_CURSORS)) {
+			expect(
+				Number.isInteger(entry.max),
+				`${name}: max must be an integer`,
+			).toBe(true);
+			expect(entry.max, `${name}: max must be positive`).toBeGreaterThan(0);
+			expect(existsSync(join(ROOT, entry.test)), `${name}: ${entry.test}`).toBe(
+				true,
+			);
+		}
+		for (const [name, entry] of Object.entries(REDIRECT_SAFE)) {
+			expect(
+				entry.rejectsAuthorityRelative,
+				`${name}: must assert authority-relative rejection`,
+			).toBe(true);
+			expect(existsSync(join(ROOT, entry.test)), `${name}: ${entry.test}`).toBe(
+				true,
+			);
+		}
+		// The registries are empty today — the contract test exists so the
+		// FIRST registration already has to carry behaviour with it.
+	});
+
+	test("R13: request schemas must not declare server-derived actor/timestamp fields (line b)", () => {
+		expect(isServerDerivedFieldName("createdBy")).toBe(true);
+		expect(isServerDerivedFieldName("created_at")).toBe(true);
+		expect(isServerDerivedFieldName("updatedById")).toBe(true);
+		// Naming a TARGET user is legitimate (add-team-member); the ACTOR
+		// never is.
+		expect(isServerDerivedFieldName("userId")).toBe(false);
+		expect(isServerDerivedFieldName("assigneeId")).toBe(false);
+		expect(isServerDerivedFieldName("expiresAt")).toBe(false);
+		for (const where of ["path", "query", "payload"] as const) {
+			const findings = auditRoutes([
+				probeRoute({
+					request: {
+						path: ["org"],
+						query: [],
+						payload: [],
+						[where]: ["createdBy"],
+					},
+				}),
+			]);
+			expect(
+				findings.some((f) => f.rule === "R13"),
+				`${where}`,
+			).toBe(true);
+		}
+		// The shipped surface is clean: the real collector run is asserted by
+		// the baseline test above; this proves the rule fires at all.
 	});
 
 	test("R2 (in process): stale rows name routes that do not exist", () => {

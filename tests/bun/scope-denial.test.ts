@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { Effect } from "effect";
 import { isNative, kaneoNativeHandler } from "../../packages/kaneo/src/http";
+import { Access, DbLive } from "../../packages/kaneo/src/kernel";
+import { mcpGuardsLive } from "../../packages/kaneo/src/mcp/guards";
+import {
+	type McpPrincipal,
+	McpRequestPrincipal,
+	mcpTools,
+} from "../../packages/kaneo/src/mcp/tools";
 import { disposablePostgres } from "../helpers/postgres";
 
 /**
@@ -37,9 +45,13 @@ let adminCookie = "";
 let boardId = "";
 let labelId = "";
 let taskId = "";
+let dbUrl = "";
+let foreignUserId = "";
+let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 
 beforeAll(async () => {
 	const db = await disposablePostgres();
+	pg = db;
 	resources.push(db.close);
 	const opts = db.sql.options as unknown as {
 		host: string[];
@@ -47,6 +59,7 @@ beforeAll(async () => {
 		user: string;
 	};
 	const url = `postgresql://${opts.user}@localhost/${opts.database}?host=${encodeURIComponent(opts.host[0])}`;
+	dbUrl = url;
 	process.env.DATABASE_URL = url;
 	process.env.AUTH_SECRET = "scope-denial-secret-0123456789abcdef";
 	process.env.KANEO_CLIENT_URL = ORIGIN;
@@ -56,6 +69,13 @@ beforeAll(async () => {
 	process.env.DISABLE_LOGIN_FORM = "false";
 	const L = "../../packages/kaneo-legacy/src";
 	const legacy = await import(`${L}/index.ts`);
+	// The plugin registry is process-global; a prior suite in this process may
+	// have run initializePlugins() already. Reset it so runStartupTasks()'s
+	// duplicate-registration guard (NEVR-604 defect 4) sees a clean slate.
+	const { __resetPluginRegistryForTests } = await import(
+		`${L}/plugins/registry.ts`
+	);
+	__resetPluginRegistryForTests();
 	await legacy.runStartupTasks();
 	const { resolvePrincipal, domainPorts } = await import(
 		`${L}/stellarc-auth.ts`
@@ -166,6 +186,7 @@ beforeAll(async () => {
 	const orgB = await createOrg(adminCookie, "Org Beta", "org-beta");
 	const [foreign] =
 		await db.sql`SELECT id FROM "user" WHERE email='owner-b@scope.test'`;
+	foreignUserId = foreign.id;
 	await db.sql`INSERT INTO organization_member(id, organization_id, user_id, role, joined_at)
 		VALUES ('m-scope-b', ${orgB}, ${foreign.id}, 'member', now())`;
 }, 120_000);
@@ -318,4 +339,219 @@ test("S5 user-self: get-session returns only the caller's own identity", async (
 	expect(res.status).toBe(200);
 	const body = (await res.json()) as { user?: { email?: string } };
 	expect(body.user?.email).toBe("owner-b@scope.test");
+});
+
+/**
+ * NEVR-604 defect 1 — acceptance line (b), runtime half. The board-create
+ * schema declares exactly name/organizationId/icon/slug; the actor and
+ * timestamps are server-derived. A client POSTing Plane-INFRA-772-style
+ * spoofs (createdBy / userId / createdAt / updated_at) must get a normal
+ * 200 whose stored row carries NONE of the spoofed values — decode
+ * constructs from the declared struct, so the extras are dropped before
+ * the handler runs. R13 (scope-audit) is the static half: a request
+ * schema that *declares* such a field fails the audit.
+ */
+test("B1 line (b): body-supplied actor/timestamp fields never reach the stored row", async () => {
+	const res = await fetch(`${base}/api/board`, {
+		method: "POST",
+		headers: { ...json, cookie: adminCookie },
+		body: JSON.stringify({
+			name: "Line B Board",
+			organizationId: orgA,
+			icon: "Layout",
+			slug: "line-b-board",
+			createdBy: foreignUserId,
+			created_by: foreignUserId,
+			userId: foreignUserId,
+			createdAt: "1999-01-01T00:00:00.000Z",
+			created_at: "1999-01-01T00:00:00.000Z",
+			updated_at: "1999-01-01T00:00:00.000Z",
+		}),
+	});
+	expect(res.status).toBe(200);
+	const echoed = JSON.stringify(await res.json());
+	expect(echoed).not.toContain(foreignUserId);
+	expect(echoed).not.toContain("1999-01-01");
+
+	const [stored] = await pg.sql`SELECT * FROM board WHERE slug='line-b-board'`;
+	expect(stored).toBeDefined();
+	// No spoofed value survives in any column, and the server-derived
+	// created_at is "now", not the client's 1999 timestamp.
+	const values = Object.values(stored as Record<string, unknown>).map((v) =>
+		String(v),
+	);
+	expect(values.some((v) => v.includes(foreignUserId))).toBe(false);
+	expect(values.some((v) => v.startsWith("1999-01-01"))).toBe(false);
+	const createdAt = new Date(
+		(stored as { created_at: string | Date }).created_at,
+	);
+	expect(createdAt.getUTCFullYear()).toBeGreaterThanOrEqual(2026);
+});
+
+/**
+ * NEVR-604 defect 5 — MCP denial coverage. The audit validates declarations;
+ * these probes exercise the tool handlers themselves: a principal whose only
+ * membership is org B invokes org-A-scoped tools and must get an isError
+ * result every time — for guard-bearing tools (get_task) the guard denies
+ * BEFORE any proxy call; for label tools the proxied route's membership
+ * check denies. byTask has no MCP tool in the registry (labels-by-task is
+ * HTTP-only), so its coverage is S1's `/api/label/task/:id` probe.
+ */
+
+const tokenOf = (cookie: string) =>
+	cookie
+		.split(";")
+		.map((c) => c.trim())
+		.find((c) => c.startsWith("better-auth.session_token="))
+		?.slice("better-auth.session_token=".length) ?? "";
+
+const registry = () => mcpTools(mcpGuardsLive(), base);
+const specOf = (name: string) => {
+	const spec = registry().find((t) => t.name === name);
+	if (!spec) throw new Error(`MCP tool not found: ${name}`);
+	return spec;
+};
+
+const callTool = (name: string, args: unknown, principal: McpPrincipal) =>
+	Effect.runPromise(
+		specOf(name)
+			.handler(args)
+			.pipe(
+				// guard-bearing tools compose Access/Db into the handler; the
+				// cast in tool() hides it from the type, so provide both.
+				Effect.provideService(McpRequestPrincipal, principal),
+				Effect.provide(Access.layer),
+				Effect.provide(DbLive(dbUrl)),
+			),
+	) as unknown as Promise<{
+		isError?: boolean;
+		content: ReadonlyArray<{ text?: string }>;
+	}>;
+
+const foreignPrincipal = (): McpPrincipal => ({
+	userId: foreignUserId,
+	userRole: "user",
+	token: tokenOf(foreignCookie),
+});
+const ownerPrincipal = (): McpPrincipal => ({
+	userId: "", // resolved by token on the proxy path; guards use membership
+	userRole: "admin",
+	token: tokenOf(adminCookie),
+});
+
+test("M1 MCP: org-B principal is denied org-A label tools through the MCP surface", async () => {
+	const cases: Array<{ name: string; args: unknown }> = [
+		{ name: "list_organization_labels", args: { organizationId: orgA } },
+		{
+			name: "attach_label_to_task",
+			args: { labelId, taskId },
+		},
+	];
+	for (const c of cases) {
+		const result = (await callTool(c.name, c.args, foreignPrincipal())) as {
+			isError?: boolean;
+			content: Array<{ text?: string }>;
+		};
+		const text = result.content[0]?.text ?? "";
+		expect(
+			result.isError === true,
+			`${c.name}: expected isError for foreign principal, got ${text}`,
+		).toBe(true);
+		expect(
+			/organization|forbidden|not accessible/i.test(text),
+			`${c.name}: denial text should name the scope, got ${text}`,
+		).toBe(true);
+	}
+});
+
+test("M2 MCP: get_task denies the foreign principal BEFORE the proxy (guard first)", async () => {
+	const result = (await callTool(
+		"get_task",
+		{ taskId },
+		foreignPrincipal(),
+	)) as { isError?: boolean; content: Array<{ text?: string }> };
+	const text = result.content[0]?.text ?? "";
+	expect(result.isError).toBe(true);
+	expect(/forbidden|not accessible|resource/i.test(text)).toBe(true);
+});
+
+test("M3 MCP: the org-A owner passes the same tools (denials are scope denials)", async () => {
+	// Fresh label so the attach probe is independent of S2's assignment.
+	const created = await fetch(`${base}/api/label`, {
+		method: "POST",
+		headers: { ...json, cookie: adminCookie },
+		body: JSON.stringify({
+			name: "mcp-ok",
+			color: "#0000ff",
+			organizationId: orgA,
+		}),
+	});
+	expect(created.status).toBe(200);
+	const freshLabel = ((await created.json()) as { id: string }).id;
+
+	const byOrg = (await callTool(
+		"list_organization_labels",
+		{ organizationId: orgA },
+		ownerPrincipal(),
+	)) as { isError?: boolean; content: Array<{ text?: string }> };
+	expect(byOrg.isError, byOrg.content[0]?.text).toBeFalsy();
+	expect(byOrg.content[0]?.text).toContain("label-alpha");
+
+	const got = (await callTool("get_task", { taskId }, ownerPrincipal())) as {
+		isError?: boolean;
+		content: Array<{ text?: string }>;
+	};
+	expect(got.isError, got.content[0]?.text).toBeFalsy();
+	expect(got.content[0]?.text).toContain("Investigate");
+
+	const attached = (await callTool(
+		"attach_label_to_task",
+		{ labelId: freshLabel, taskId },
+		ownerPrincipal(),
+	)) as { isError?: boolean; content: Array<{ text?: string }> };
+	expect(attached.isError, attached.content[0]?.text).toBeFalsy();
+});
+
+test("M4 MCP line (b): excess actor/timestamp args are dropped by decode, not forwarded", async () => {
+	const created = await fetch(`${base}/api/label`, {
+		method: "POST",
+		headers: { ...json, cookie: adminCookie },
+		body: JSON.stringify({
+			name: "mcp-excess",
+			color: "#000022",
+			organizationId: orgA,
+		}),
+	});
+	expect(created.status).toBe(200);
+	const freshLabel = ((await created.json()) as { id: string }).id;
+
+	// Extra keys beyond the declared schema: decode CONSTRUCTS from the
+	// struct (excess dropped), the handler builds its request body from the
+	// decoded value only — so the spoofed fields never reach the route and
+	// the call itself still succeeds for a legitimate member.
+	const result = (await callTool(
+		"attach_label_to_task",
+		{
+			labelId: freshLabel,
+			taskId,
+			createdBy: foreignUserId,
+			created_by: foreignUserId,
+			userId: foreignUserId,
+			createdAt: "1999-01-01T00:00:00.000Z",
+		},
+		ownerPrincipal(),
+	)) as { isError?: boolean; content: Array<{ text?: string }> };
+	expect(result.isError, result.content[0]?.text).toBeFalsy();
+
+	const [row] =
+		await pg.sql`SELECT task_id FROM label WHERE id = ${freshLabel}`;
+	expect((row as { task_id: string }).task_id).toBe(taskId);
+	// And nothing else changed about the row: no user/timestamp columns
+	// were influenced by the spoofed args.
+	const [full] = await pg.sql`SELECT * FROM label WHERE id = ${freshLabel}`;
+	const values = Object.values(full as Record<string, unknown>).map((v) =>
+		String(v),
+	);
+	expect(values.some((v) => v.includes(foreignUserId))).toBe(false);
+	expect(values.some((v) => v.startsWith("1999-01-01"))).toBe(false);
 });

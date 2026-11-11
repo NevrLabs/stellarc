@@ -200,7 +200,20 @@ const tool = <A, I, RD>(
 });
 
 /** MCP requires an object-root JSON Schema; derive it from the Effect Schema
- * exactly as effect/ai's own registerToolkit does (top-level $ref inlined). */
+ * exactly as effect/ai's own registerToolkit does (top-level $ref inlined).
+ *
+ * Line (b) note (NEVR-604 defect 1): `onExcessProperty: "ignore"` here only
+ * governs how the JSON Schema is EMITTED (no `additionalProperties: false` in
+ * the advertised tool schema — MCP clients may send extra keys). It is not
+ * the decode policy. The decode happens in the tool wrapper above via
+ * `Schema.decodeUnknownEffect(schema)(payload)`, which CONSTRUCTS a value
+ * from the declared struct — excess keys are dropped before the handler ever
+ * runs, and every handler builds its proxy request exclusively from the
+ * decoded value. A client-supplied `created_by`/`created_at` therefore never
+ * reaches the loopback route; actor identity comes from the authenticated
+ * McpRequestPrincipal token, never from args. Audit rule R13 additionally
+ * fails any tool or route whose declared request schema names an
+ * actor/timestamp field in the first place. */
 const jsonSchemaOf = (schema: Schema.Top): Schema.JsonObject => {
 	const document = Schema.toJsonSchemaDocument(schema as never, {
 		onExcessProperty: "ignore",

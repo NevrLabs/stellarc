@@ -23,11 +23,15 @@
  *  R12 every MCP tool declares a scope root ∈ taxonomy (declared as a
  *      required field of McpToolSpec — the compiler enforces presence, this
  *      validates the value)
+ *  R13 request schemas must not declare server-derived field names
+ *      (created_by/created_at/updated_at/updated_by — line b, Plane INFRA-772)
  */
 
 import {
 	BOUNDED_CURSORS,
+	type BoundedCursor,
 	REDIRECT_SAFE,
+	type RedirectSafeField,
 	type RouteScope,
 	SCOPE_ROOTS,
 } from "./scope";
@@ -73,6 +77,12 @@ const CURSOR_FIELD =
 	/(^|_)(cursor|cursor_id|page_token|next_page|after_cursor|before_cursor|starting_after)($|_)/;
 const REDIRECT_FIELD =
 	/(^|_)(redirect|redirect_uri|redirect_url|callback|callback_url|next_path|next_url|return_url|continue_url|continue)($|_)/;
+/** Line b: field names that are the server's to set — a request schema
+ * declaring them is the INFRA-772 failure (body-supplied created_by/
+ * created_at). `userId` is deliberately absent: naming a TARGET user (e.g.
+ * add-team-member) is legitimate; naming the ACTOR never is. */
+const SERVER_DERIVED_FIELD =
+	/(^|_)(created_by|created_by_id|created_at|updated_at|updated_by)($|_)/;
 
 const matches = (pattern: RegExp) => (name: string) =>
 	pattern.test(normalize(name));
@@ -80,14 +90,15 @@ const matches = (pattern: RegExp) => (name: string) =>
 export const isSecretFieldName = matches(SECRET_FIELD);
 export const isCursorFieldName = matches(CURSOR_FIELD);
 export const isRedirectFieldName = matches(REDIRECT_FIELD);
+export const isServerDerivedFieldName = matches(SERVER_DERIVED_FIELD);
 
 // --- the engine ---------------------------------------------------------------------------
 
 export function auditRoutes(
 	routes: ReadonlyArray<AuditRoute>,
 	options?: {
-		boundedCursors?: ReadonlySet<string>;
-		redirectSafe?: ReadonlySet<string>;
+		boundedCursors?: Readonly<Record<string, BoundedCursor>>;
+		redirectSafe?: Readonly<Record<string, RedirectSafeField>>;
 	},
 ): AuditFinding[] {
 	const cursors = options?.boundedCursors ?? BOUNDED_CURSORS;
@@ -189,20 +200,27 @@ export function auditRoutes(
 					break;
 				}
 
-		// R10/R11 — cursor and redirect discipline over request fields.
+		// R10/R11/R13 — cursor, redirect, and server-derived discipline over
+		// request fields.
 		for (const source of ["path", "query", "payload"] as const)
 			for (const field of route.request[source]) {
-				if (isCursorFieldName(field) && !cursors.has(field))
+				if (isCursorFieldName(field) && !Object.hasOwn(cursors, field))
 					fail(
 						"R10",
 						route.id,
-						`request field "${field}" looks like a pagination cursor but is not registered in BOUNDED_CURSORS (line e: validate + bound it, or rename)`,
+						`request field "${field}" looks like a pagination cursor but is not registered in BOUNDED_CURSORS (line e: register it with its max + the test that proves the clamp, or rename)`,
 					);
-				if (isRedirectFieldName(field) && !redirects.has(field))
+				if (isRedirectFieldName(field) && !Object.hasOwn(redirects, field))
 					fail(
 						"R11",
 						route.id,
-						`request field "${field}" looks like a redirect/callback target but is not registered in REDIRECT_SAFE (line h: reject authority-relative paths)`,
+						`request field "${field}" looks like a redirect/callback target but is not registered in REDIRECT_SAFE (line h: register it with the authority-relative rejection proof, or rename)`,
+					);
+				if (isServerDerivedFieldName(field))
+					fail(
+						"R13",
+						route.id,
+						`request schema declares server-derived field "${field}" (line b: the actor and timestamps are derived by the handler, never accepted from the client — Plane INFRA-772)`,
 					);
 			}
 	}

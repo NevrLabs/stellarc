@@ -846,6 +846,16 @@ export const auth = betterAuth({
   },
   advanced: {
     ipAddress: {
+      // SECURITY (NEVR-604 defect 3): the rate limiter keys on these headers,
+      // which are only trustworthy when the deployment actually sits behind a
+      // matching trusted proxy (TRUSTED_PROXIES; loopback + RFC1918 by
+      // default). With NO proxy in front, a client can rotate
+      // X-Forwarded-For to mint fresh buckets and sidestep the 3/min sign-up
+      // limit — the limiter is effective against enumeration only behind a
+      // proxy that overwrites these headers. Direct-exposure deployments must
+      // front the API with one (or accept that the limit is advisory).
+      // cf-connecting-ip is set by Cloudflare, which strips client-supplied
+      // values, so it stays unconditionally.
       ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
       trustedProxies: trustedProxies(),
     },

@@ -233,8 +233,28 @@ export const identityScopeRoots = {
 // callback PR has to declare its bounds (line e) or its safe-redirect rule
 // (line h) instead of silently starting the next accumulation.
 
-/** Field names accepted as bounded, validated pagination cursors (line e). */
-export const BOUNDED_CURSORS: ReadonlySet<string> = new Set([]);
+/** A registered pagination cursor (line e). Registration is not a name
+ * allow-list: an entry must carry the hard bound the handler clamps to and
+ * the repo-relative test that proves the clamp, so a cursor name can never
+ * satisfy the audit without behaviour behind it (NEVR-604 defect 2). */
+export interface BoundedCursor {
+	/** Maximum items the handler ever returns for one page. */
+	readonly max: number;
+	/** Path of the test proving validation + the clamp, e.g. "tests/bun/x.test.ts". */
+	readonly test: string;
+}
+
+/** Field names accepted as pagination cursors (line e). */
+export const BOUNDED_CURSORS: Readonly<Record<string, BoundedCursor>> = {};
+
+/** A registered redirect/callback target (line h). The entry must carry the
+ * proof that the handler rejects authority-relative targets (`//host`,
+ * `scheme:`), so registering a name asserts behaviour, not intent. */
+export interface RedirectSafeField {
+	readonly rejectsAuthorityRelative: true;
+	/** Path of the test proving the rejection. */
+	readonly test: string;
+}
 
 /** Field names accepted as redirect/callback targets (line h). */
-export const REDIRECT_SAFE: ReadonlySet<string> = new Set([]);
+export const REDIRECT_SAFE: Readonly<Record<string, RedirectSafeField>> = {};
