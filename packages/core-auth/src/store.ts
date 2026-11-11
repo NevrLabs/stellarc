@@ -436,6 +436,7 @@ export function gatewayStore(sql: Sql) {
 			const targetOrg = org ?? p.org;
 			const runId = admit ? crypto.randomUUID() : undefined;
 			if (admit) {
+				const confirmedRunId: string = runId;
 				const [backlog] =
 					await tx`SELECT count(*)::int AS running,coalesce(bool_or(org=${targetOrg} AND (terminal_choice IS NOT NULL OR recover_after<=clock_timestamp())),false) AS pending FROM gw_run WHERE outcome='running'`;
 				if (backlog.pending) throw new Denied(503, "terminal_backlog");
@@ -449,9 +450,9 @@ export function gatewayStore(sql: Sql) {
 					subject,
 					request,
 					trace,
-					{ action, delegation: delegation ?? "", run: runId! },
+					{ action, delegation: delegation ?? "", run: confirmedRunId },
 				);
-				await tx`INSERT INTO gw_run(id,org,actor,subject,delegation,request,trace,action) VALUES (${runId!},${targetOrg},${p.id},${subject},${delegation ?? null},${request},${trace},${action})`;
+				await tx`INSERT INTO gw_run(id,org,actor,subject,delegation,request,trace,action) VALUES (${confirmedRunId},${targetOrg},${p.id},${subject},${delegation ?? null},${request},${trace},${action})`;
 				for (const d of ancestors)
 					await tx`UPDATE gw_delegation SET remaining=remaining-1 WHERE id=${d.id}`;
 			}
