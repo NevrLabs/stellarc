@@ -135,6 +135,39 @@ jobs:
           name: ui-knip-log
           path: knip.log
 
+  # NEVR-603 — scope-root audit on the HttpApi + MCP surface, day one. Every
+  # route (48 HttpApi endpoints, 32 MCP tools) must carry a declared object
+  # scope root (org/board/task/user-self/public) with structural parent
+  # provenance, credential routes must answer RateLimited, secret material
+  # may only appear on create-apikey's success, and cursor/redirect-ish
+  # request fields must be consciously registered. Blocking from the start,
+  # the knip-gate pattern (NEVR-586) applied to authorization: a warn-only
+  # audit re-creates the per-route accumulation Plane purged in v1.5.0-rc1.
+  # Negative controls recorded in tests/bun/scope-audit-gate.test.ts.
+  scope-audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Scope-root audit (HttpApi + MCP)
+        shell: bash
+        run: |
+          set +e
+          bun run scope:audit > scope-audit.log 2>&1
+          status=$?
+          set -e
+          cat scope-audit.log
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        name: Upload scope-audit log
+        with:
+          name: scope-audit-log
+          path: scope-audit.log
+
   # NEVR-455 — @shadcn/lint design contracts on apps/web, day one. Blocking:
   # apps/web is greenfield (ADR 0014), so the tree carries no recorded debt
   # and every contract can gate from the start — a seeded violation turns this

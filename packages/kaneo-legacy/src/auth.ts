@@ -566,10 +566,15 @@ export const auth = betterAuth({
     },
   },
   rateLimit: {
-    // Enable in cloud; self-hosted instances opt in by setting KANEO_CLOUD.
-    // Default better-auth rate-limit only kicks in for production; we keep the
-    // global limits conservative and tighten signup/invite via customRules.
-    enabled: isCloud(),
+    // NEVR-603 (Plane v1.5.0-rc1 #9335 pattern): credential surfaces are
+    // rate-limited everywhere, self-hosted included — a limiter that only
+    // fires when KANEO_CLOUD is set re-creates the enumeration window the
+    // flag was meant to close. Global limits stay conservative; sign-up and
+    // invite stay tightened via customRules. The identity api-key create and
+    // invitation create/accept endpoints are contract-declared credential
+    // routes (packages/contracts/src/scope.ts) and meet this line when their
+    // handlers land.
+    enabled: true,
     window: 10,
     max: 100,
     customRules: {

@@ -199,7 +199,13 @@ let pool: Pool | undefined;
 let dbInstance: DatabaseInstance | undefined;
 
 export function getDatabasePool(): Pool {
-  if (!pool) {
+  // Self-healing (NEVR-603): a previous caller may have `end()`ed this
+  // singleton pool (test suites end it in afterAll); the next caller —
+  // possibly with a different DATABASE_URL, e.g. the next test file's
+  // disposable instance — must get a fresh pool instead of the dead one
+  // ("Cannot use a pool after calling end on the pool").
+  if (!pool || pool.ended) {
+    if (pool?.ended) dbInstance = undefined;
     pool = new Pool({
       connectionString: resolveDatabaseConnectionString(),
       // Fail fast when Railway's internal network is slow rather than hanging
@@ -229,7 +235,9 @@ export function getDatabasePool(): Pool {
 }
 
 export function getDatabase(): DatabaseInstance {
-  if (!dbInstance) {
+  // Same self-heal as getDatabasePool(): a cached drizzle instance wrapping
+  // an ended pool is dead weight — rebuild it over the fresh pool.
+  if (!dbInstance || pool?.ended) {
     dbInstance = drizzle(getDatabasePool(), {
       schema,
     });
