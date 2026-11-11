@@ -14,6 +14,7 @@
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
 		"typecheck:ui": "tsc --noEmit --pretty false -p apps/stellarc-ui/tsconfig.app.json",
+		"scope:audit": "bun tools/scope-audit/run.ts",
 		"build": "turbo run build",
 		"desktop:build": "DESKTOP_API_URL=${DESKTOP_API_URL:-https://api.stellarc.dev} bash desktop/scripts/build-ui.sh && bun run --cwd desktop tauri build -c target/tauri.conf.build.json",
 		"desktop:check": "cargo check --manifest-path desktop/Cargo.toml --all-targets",

@@ -15,6 +15,7 @@
 
 import { Context, Effect, Schema } from "effect";
 import { McpSchema } from "effect/ai";
+import type { ParentRef, ScopeRoot } from "../../../contracts/src/scope";
 import * as S from "./schemas";
 
 /* ---------- caller context ---------- */
@@ -149,6 +150,14 @@ const run = <A, R>(
 
 export interface McpToolSpec {
 	readonly name: string;
+	/** NEVR-603: the object-scope root this tool's access hangs off; required
+	 * so a new tool cannot be registered undeclared (the CI audit validates
+	 * the value against the taxonomy in packages/contracts/src/scope.ts). */
+	readonly scope: ScopeRoot;
+	/** NEVR-603: for org/board/task scopes, the argument (or resolution) the
+	 * parent resource arrives through — same provenance contract as the HTTP
+	 * tables (path/query/payload/resolved). */
+	readonly parent?: ParentRef;
 	readonly description: string;
 	/** JSON Schema derived from the tool's Effect Schema (single source of truth). */
 	readonly jsonSchema: Schema.JsonObject;
@@ -159,11 +168,15 @@ export interface McpToolSpec {
 
 const tool = <A, I, RD>(
 	name: string,
+	scope: ScopeRoot,
+	parent: ParentRef | undefined,
 	description: string,
 	schema: Schema.Codec<A, I, RD, unknown>,
 	handler: (args: A) => Effect.Effect<unknown, ApiError, McpRequestPrincipal>,
 ): McpToolSpec => ({
 	name,
+	scope,
+	...(parent ? { parent } : {}),
 	description,
 	jsonSchema: jsonSchemaOf(schema),
 	handler: (payload) =>
@@ -187,7 +200,20 @@ const tool = <A, I, RD>(
 });
 
 /** MCP requires an object-root JSON Schema; derive it from the Effect Schema
- * exactly as effect/ai's own registerToolkit does (top-level $ref inlined). */
+ * exactly as effect/ai's own registerToolkit does (top-level $ref inlined).
+ *
+ * Line (b) note (NEVR-604 defect 1): `onExcessProperty: "ignore"` here only
+ * governs how the JSON Schema is EMITTED (no `additionalProperties: false` in
+ * the advertised tool schema — MCP clients may send extra keys). It is not
+ * the decode policy. The decode happens in the tool wrapper above via
+ * `Schema.decodeUnknownEffect(schema)(payload)`, which CONSTRUCTS a value
+ * from the declared struct — excess keys are dropped before the handler ever
+ * runs, and every handler builds its proxy request exclusively from the
+ * decoded value. A client-supplied `created_by`/`created_at` therefore never
+ * reaches the loopback route; actor identity comes from the authenticated
+ * McpRequestPrincipal token, never from args. Audit rule R13 additionally
+ * fails any tool or route whose declared request schema names an
+ * actor/timestamp field in the first place. */
 const jsonSchemaOf = (schema: Schema.Top): Schema.JsonObject => {
 	const document = Schema.toJsonSchemaDocument(schema as never, {
 		onExcessProperty: "ignore",
@@ -227,11 +253,21 @@ export const mcpTools = (
 	guards: McpGuards,
 	apiBaseUrl: string,
 ): ReadonlyArray<McpToolSpec> => [
-	tool("whoami", "Return the current Kaneo session and user.", S.Whoami, () =>
-		apiClient(apiBaseUrl).fetchJson("/api/auth/get-session", { method: "GET" }),
+	tool(
+		"whoami",
+		"user-self",
+		undefined,
+		"Return the current Kaneo session and user.",
+		S.Whoami,
+		() =>
+			apiClient(apiBaseUrl).fetchJson("/api/auth/get-session", {
+				method: "GET",
+			}),
 	),
 	tool(
 		"list_organizations",
+		"user-self",
+		undefined,
 		"List organizations the authenticated principal (user session or agent key) can access. Agent keys see only the organization they are scoped to.",
 		S.ListOrganizations,
 		() =>
@@ -239,6 +275,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_boards",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"List boards in a organization.",
 		S.ListBoards,
 		(args) => {
@@ -249,13 +287,21 @@ export const mcpTools = (
 			});
 		},
 	),
-	tool("get_board", "Get a single board by ID.", S.GetBoard, (args) =>
-		apiClient(apiBaseUrl).fetchJson(
-			`/api/board/${encodeURIComponent(args.id)}`,
-		),
+	tool(
+		"get_board",
+		"board",
+		{ resource: "board", from: "payload", param: "id" },
+		"Get a single board by ID.",
+		S.GetBoard,
+		(args) =>
+			apiClient(apiBaseUrl).fetchJson(
+				`/api/board/${encodeURIComponent(args.id)}`,
+			),
 	),
 	tool(
 		"create_board",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"Create a board in a organization.",
 		S.CreateBoard,
 		(args) =>
@@ -271,6 +317,8 @@ export const mcpTools = (
 	),
 	tool(
 		"update_board",
+		"board",
+		{ resource: "board", from: "payload", param: "id" },
 		"Update board metadata (PATCH-style: only provided fields are changed).",
 		S.UpdateBoard,
 		(args) => {
@@ -324,6 +372,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_tasks",
+		"board",
+		{ resource: "board", from: "payload", param: "boardId" },
 		"List tasks for a board (optionally filtered/sorted).",
 		S.ListTasks,
 		(args) => {
@@ -339,43 +389,58 @@ export const mcpTools = (
 			);
 		},
 	),
-	tool("get_task", "Get a task by ID.", S.GetTask, (args) =>
-		Effect.gen(function* () {
-			yield* guards.guardTask(args.taskId, { task: ["read"] });
-			return yield* apiClient(apiBaseUrl).fetchJson(
-				`/api/task/${encodeURIComponent(args.taskId)}`,
-				{
-					method: "GET",
-				},
-			);
-		}),
+	tool(
+		"get_task",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
+		"Get a task by ID.",
+		S.GetTask,
+		(args) =>
+			Effect.gen(function* () {
+				yield* guards.guardTask(args.taskId, { task: ["read"] });
+				return yield* apiClient(apiBaseUrl).fetchJson(
+					`/api/task/${encodeURIComponent(args.taskId)}`,
+					{
+						method: "GET",
+					},
+				);
+			}),
 	),
-	tool("create_task", "Create a task in a board.", S.CreateTask, (args) => {
-		const body: Record<string, string | undefined> = {
-			title: args.title,
-			description: args.description,
-			priority: args.priority,
-			status: args.status,
-		};
-		if (args.startDate !== undefined) body.startDate = args.startDate;
-		if (args.dueDate !== undefined) body.dueDate = args.dueDate;
-		if (args.userId !== undefined) body.userId = args.userId;
-		return Effect.gen(function* () {
-			yield* guards.guardBoard(args.boardId, { task: ["create"] });
-			if (args.userId !== undefined) {
-				yield* guards.guardBoard(args.boardId, { task: ["assign"] });
-			}
-			return yield* apiClient(apiBaseUrl).fetchJson(
-				`/api/task/${encodeURIComponent(args.boardId)}`,
-				{
-					method: "POST",
-					body: JSON.stringify(body),
-				},
-			);
-		});
-	}),
+	tool(
+		"create_task",
+		"board",
+		{ resource: "board", from: "payload", param: "boardId" },
+		"Create a task in a board.",
+		S.CreateTask,
+		(args) => {
+			const body: Record<string, string | undefined> = {
+				title: args.title,
+				description: args.description,
+				priority: args.priority,
+				status: args.status,
+			};
+			if (args.startDate !== undefined) body.startDate = args.startDate;
+			if (args.dueDate !== undefined) body.dueDate = args.dueDate;
+			if (args.userId !== undefined) body.userId = args.userId;
+			return Effect.gen(function* () {
+				yield* guards.guardBoard(args.boardId, { task: ["create"] });
+				if (args.userId !== undefined) {
+					yield* guards.guardBoard(args.boardId, { task: ["assign"] });
+				}
+				return yield* apiClient(apiBaseUrl).fetchJson(
+					`/api/task/${encodeURIComponent(args.boardId)}`,
+					{
+						method: "POST",
+						body: JSON.stringify(body),
+					},
+				);
+			});
+		},
+	),
 	tool(
 		"assign_task",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"Assign a task to a user (or unassign by omitting userId). Requires task:assign in the task's organization.",
 		S.AssignTask,
 		(args) =>
@@ -395,6 +460,8 @@ export const mcpTools = (
 	),
 	tool(
 		"update_task",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"Update a task (fetches current task, merges fields, then full update).",
 		S.UpdateTask,
 		(args) => {
@@ -421,6 +488,8 @@ export const mcpTools = (
 	),
 	tool(
 		"move_task",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"Move a task to another board (and optional column status).",
 		S.MoveTask,
 		(args) =>
@@ -439,6 +508,8 @@ export const mcpTools = (
 	),
 	tool(
 		"update_task_status",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"Update only the status (column) of a task.",
 		S.UpdateTaskStatus,
 		(args) =>
@@ -452,6 +523,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_task_comments",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"List comments on a task.",
 		S.ListTaskComments,
 		(args) =>
@@ -464,6 +537,8 @@ export const mcpTools = (
 	),
 	tool(
 		"create_task_comment",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"Add a comment to a task.",
 		S.CreateTaskComment,
 		(args) =>
@@ -477,6 +552,13 @@ export const mcpTools = (
 	),
 	tool(
 		"update_task_comment",
+		"task",
+		{
+			resource: "comment",
+			from: "payload",
+			param: "commentId",
+			note: "comment -> task -> board -> org",
+		},
 		"Update one of your comments on a task.",
 		S.UpdateTaskComment,
 		(args) =>
@@ -490,6 +572,8 @@ export const mcpTools = (
 	),
 	tool(
 		"delete_task_comment",
+		"task",
+		{ resource: "comment", from: "payload", param: "commentId" },
 		"Delete one of your comments from a task.",
 		S.DeleteTaskComment,
 		(args) =>
@@ -502,6 +586,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_organization_labels",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"List labels defined in a organization.",
 		S.ListOrganizationLabels,
 		(args) =>
@@ -512,6 +598,8 @@ export const mcpTools = (
 	),
 	tool(
 		"create_label",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"Create a label in a organization (optionally attach to a task).",
 		S.CreateLabel,
 		(args) =>
@@ -527,6 +615,13 @@ export const mcpTools = (
 	),
 	tool(
 		"attach_label_to_task",
+		"org",
+		{
+			resource: "label",
+			from: "payload",
+			param: "labelId",
+			note: "label -> org; the route refuses a payload taskId from another org",
+		},
 		"Attach an existing label to a task.",
 		S.AttachLabelToTask,
 		(args) =>
@@ -540,6 +635,8 @@ export const mcpTools = (
 	),
 	tool(
 		"detach_label_from_task",
+		"org",
+		{ resource: "label", from: "payload", param: "labelId" },
 		"Detach a label from its current task.",
 		S.DetachLabelFromTask,
 		(args) =>
@@ -552,6 +649,8 @@ export const mcpTools = (
 	),
 	tool(
 		"create_task_relation",
+		"task",
+		{ resource: "task", from: "payload", param: "sourceTaskId" },
 		"Create a relation between two tasks. relationType: 'subtask' (sourceTaskId is the parent, targetTaskId the child), 'blocks' (sourceTaskId blocks targetTaskId), or 'related' (bidirectional).",
 		S.CreateTaskRelation,
 		(args) =>
@@ -566,6 +665,8 @@ export const mcpTools = (
 	),
 	tool(
 		"get_task_relations",
+		"task",
+		{ resource: "task", from: "payload", param: "taskId" },
 		"List all relations (subtask/blocks/related) involving a task.",
 		S.GetTaskRelations,
 		(args) =>
@@ -578,6 +679,12 @@ export const mcpTools = (
 	),
 	tool(
 		"delete_task_relation",
+		"task",
+		{
+			resource: "task",
+			from: "resolved",
+			note: "relation id -> task; the proxied route scopes the delete",
+		},
 		"Delete a task relation by its relation ID.",
 		S.DeleteTaskRelation,
 		(args) =>
@@ -590,6 +697,8 @@ export const mcpTools = (
 	),
 	tool(
 		"delete_label",
+		"org",
+		{ resource: "label", from: "payload", param: "id" },
 		"Delete a label by ID. Only task-associated labels can be deleted; organization-level labels (taskId null) are rejected by the API.",
 		S.DeleteLabel,
 		(args) =>
@@ -614,6 +723,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_board_columns",
+		"board",
+		{ resource: "board", from: "payload", param: "boardId" },
 		"List a board's columns. The `slug` of a column is the exact value the `status` argument of create_task, update_task, update_task_status and move_task expects — call this before writing a status rather than guessing. Also returns `isFinal`, which marks columns that count as complete.",
 		S.ListBoardColumns,
 		(args) =>
@@ -626,6 +737,8 @@ export const mcpTools = (
 	),
 	tool(
 		"search",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"Search across tasks, boards, comments, activities, repositories, GitHub issues and pull requests in one call. Use this to resolve a name or keyword to an ID before acting, instead of listing boards and scanning them. `organizationId` is required — get one from list_organizations first.",
 		S.Search,
 		(args) => {
@@ -646,6 +759,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_organization_members",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"List members of an organization with their user IDs. Use this to resolve a person's name or email to the `userId` that create_task and update_task expect for assignment.",
 		S.ListOrganizationMembers,
 		(args) =>
@@ -656,6 +771,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_repos",
+		"org",
+		{ resource: "org", from: "payload", param: "organizationId" },
 		"List repositories connected to an organization.",
 		S.ListRepos,
 		(args) =>
@@ -666,6 +783,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_repo_pull_requests",
+		"org",
+		{ resource: "repo", from: "payload", param: "repoId", note: "repo -> org" },
 		"List pull requests for a connected repository, optionally filtered by state.",
 		S.ListRepoPullRequests,
 		(args) => {
@@ -680,6 +799,8 @@ export const mcpTools = (
 	),
 	tool(
 		"list_repo_issues",
+		"org",
+		{ resource: "repo", from: "payload", param: "repoId", note: "repo -> org" },
 		"List GitHub issues for a connected repository, optionally filtered by state.",
 		S.ListRepoIssues,
 		(args) => {
@@ -694,6 +815,8 @@ export const mcpTools = (
 	),
 	tool(
 		"get_repo_pull_request_files",
+		"org",
+		{ resource: "repo", from: "payload", param: "repoId", note: "repo -> org" },
 		"Get the changed files and patches for a pull request — the diff an agent needs to review code rather than only read metadata.",
 		S.GetRepoPullRequestFiles,
 		(args) =>

@@ -45,6 +45,13 @@ beforeAll(async () => {
 	// crawls it (it keeps Kaneo's own compiler settings).
 	const L = "../../packages/kaneo-legacy/src";
 	const legacy = await import(`${L}/index.ts`);
+	// Process-global plugin registry: another suite may have booted the legacy
+	// tree already in this process. Reset before runStartupTasks() re-registers
+	// (NEVR-604 defect 4: duplicate registration throws again, by design).
+	const { __resetPluginRegistryForTests } = await import(
+		`${L}/plugins/registry.ts`
+	);
+	__resetPluginRegistryForTests();
 	await legacy.runStartupTasks();
 	const { resolvePrincipal, domainPorts } = await import(
 		`${L}/stellarc-auth.ts`

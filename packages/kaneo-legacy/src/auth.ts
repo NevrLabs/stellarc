@@ -566,10 +566,15 @@ export const auth = betterAuth({
     },
   },
   rateLimit: {
-    // Enable in cloud; self-hosted instances opt in by setting KANEO_CLOUD.
-    // Default better-auth rate-limit only kicks in for production; we keep the
-    // global limits conservative and tighten signup/invite via customRules.
-    enabled: isCloud(),
+    // NEVR-603 (Plane v1.5.0-rc1 #9335 pattern): credential surfaces are
+    // rate-limited everywhere, self-hosted included — a limiter that only
+    // fires when KANEO_CLOUD is set re-creates the enumeration window the
+    // flag was meant to close. Global limits stay conservative; sign-up and
+    // invite stay tightened via customRules. The identity api-key create and
+    // invitation create/accept endpoints are contract-declared credential
+    // routes (packages/contracts/src/scope.ts) and meet this line when their
+    // handlers land.
+    enabled: true,
     window: 10,
     max: 100,
     customRules: {
@@ -841,6 +846,16 @@ export const auth = betterAuth({
   },
   advanced: {
     ipAddress: {
+      // SECURITY (NEVR-604 defect 3): the rate limiter keys on these headers,
+      // which are only trustworthy when the deployment actually sits behind a
+      // matching trusted proxy (TRUSTED_PROXIES; loopback + RFC1918 by
+      // default). With NO proxy in front, a client can rotate
+      // X-Forwarded-For to mint fresh buckets and sidestep the 3/min sign-up
+      // limit — the limiter is effective against enumeration only behind a
+      // proxy that overwrites these headers. Direct-exposure deployments must
+      // front the API with one (or accept that the limit is advisory).
+      // cf-connecting-ip is set by Cloudflare, which strips client-supplied
+      // values, so it stays unconditionally.
       ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
       trustedProxies: trustedProxies(),
     },
