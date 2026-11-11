@@ -32,9 +32,9 @@ for (const multiline of [false, true]) {
 	}
 }
 for (const wire of [
-	"data: " + "x".repeat(65537),
-	": " + "x".repeat(65537),
-	"event: " + "x".repeat(65537),
+	`data: ${"x".repeat(65537)}`,
+	`: ${"x".repeat(65537)}`,
+	`event: ${"x".repeat(65537)}`,
 ]) {
 	for (const width of [wire.length, 1]) {
 		const parser = boundedSse(

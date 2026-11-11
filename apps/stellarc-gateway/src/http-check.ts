@@ -5,8 +5,11 @@ import { Pool } from "pg";
 import postgres from "postgres";
 import { gatewayAuth } from "../../../packages/core-auth/src/auth";
 import { bindIdentity } from "../../../packages/core-auth/src/database";
+import {
+	gatewaySchema,
+	gatewayStore,
+} from "../../../packages/core-auth/src/store";
 import { gatewayApp } from "./main";
-import { gatewaySchema, gatewayStore } from "../../../packages/core-auth/src/store";
 
 // Real socket + disposable PG + local OTLP sink. NO live OIDC or inference.
 const origin = "https://gateway.invalid";
@@ -156,20 +159,20 @@ try {
 				result.every((text) => /^HTTP\/1\.1 408 /.test(text)),
 				"all slow auth and LLM bodies must hit server deadline",
 			);
-			assert.equal((await fetch(base + "/manage/status")).status, 401);
+			assert.equal((await fetch(`${base}/manage/status`)).status, 401);
 			pass("slow-body-socket-deadlines-release-all-auth-and-llm-slots");
 		} finally {
 			for (const socket of sockets) socket.destroy();
 		}
 	}
-	assert.equal((await fetch(base + "/manage/status")).status, 401);
+	assert.equal((await fetch(`${base}/manage/status`)).status, 401);
 	assert.equal(
-		(await fetch(base + "/api/auth/sign-up/email", { method: "POST" })).status,
+		(await fetch(`${base}/api/auth/sign-up/email`, { method: "POST" })).status,
 		404,
 	);
 	assert.equal(
 		(
-			await fetch(base + "/auth/login", {
+			await fetch(`${base}/auth/login`, {
 				method: "POST",
 				headers: { origin: "https://evil.invalid" },
 			})
@@ -183,7 +186,7 @@ try {
 		"management denial must be durably audited",
 	);
 	pass("socket-public-management-denial-no-registration");
-	const stream = await fetch(base + "/orgs/alpha/v1/chat/completions", {
+	const stream = await fetch(`${base}/orgs/alpha/v1/chat/completions`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
@@ -207,7 +210,7 @@ try {
 	const beforeNonstream = (
 		await owner`SELECT count(*)::int AS n FROM gw_run`
 	)[0].n;
-	const nonstream = await fetch(base + "/orgs/alpha/v1/chat/completions", {
+	const nonstream = await fetch(`${base}/orgs/alpha/v1/chat/completions`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
@@ -240,7 +243,7 @@ try {
 	};
 	let fixtureOutput = "";
 	const fixtureResponse = await fetch(
-		base + "/orgs/alpha/v1/chat/completions",
+		`${base}/orgs/alpha/v1/chat/completions`,
 		{
 			method: "POST",
 			headers,
@@ -252,7 +255,7 @@ try {
 		},
 	);
 	const fixtureRead = (async () => {
-		const reader = fixtureResponse.body!.getReader();
+		const reader = fixtureResponse.body?.getReader();
 		for (;;) {
 			const next = await reader.read();
 			if (next.done) break;
@@ -277,7 +280,7 @@ try {
 	pass("socket-default-fixture-finalizer-revocation-withholds-done");
 	assert.equal(
 		(
-			await fetch(base + "/orgs/beta/v1/chat/completions", {
+			await fetch(`${base}/orgs/beta/v1/chat/completions`, {
 				method: "POST",
 				headers,
 				body: JSON.stringify({ model: "local-fixture", stream: true }),
@@ -287,7 +290,7 @@ try {
 	);
 	assert.equal(
 		(
-			await fetch(base + "/orgs/alpha/v1/chat/completions", {
+			await fetch(`${base}/orgs/alpha/v1/chat/completions`, {
 				method: "POST",
 				headers: { ...headers, traceparent: "bad" },
 				body: "{}",
@@ -298,7 +301,7 @@ try {
 	pass("socket-tenant-context-denial");
 	let mcpSession = "";
 	const rpc = async (value: unknown, bearer = raw.raw) => {
-		const response = await fetch(base + "/mcp", {
+		const response = await fetch(`${base}/mcp`, {
 			method: "POST",
 			headers: {
 				authorization: `Bearer ${bearer}`,
@@ -364,7 +367,7 @@ try {
 		200,
 	);
 	pass("mcp-session-bound-to-current-principal");
-	const wrongOrigin = await fetch(base + "/mcp", {
+	const wrongOrigin = await fetch(`${base}/mcp`, {
 		method: "POST",
 		headers: {
 			...headers,
@@ -377,7 +380,7 @@ try {
 	});
 	assert.equal(wrongOrigin.status, 403);
 	pass("mcp-exact-origin-not-host-only");
-	const modern = await fetch(base + "/mcp", {
+	const modern = await fetch(`${base}/mcp`, {
 		method: "POST",
 		headers: {
 			...headers,

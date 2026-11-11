@@ -1,4 +1,4 @@
-import { Effect, ManagedRuntime, Metric, Tracer } from "effect";
+import { Effect, ManagedRuntime, Metric } from "effect";
 import { TelemetryLive } from "../../../packages/telemetry/src/index";
 
 // Metadata-only runtime probe, not proof of OIDC or live provider operation.
