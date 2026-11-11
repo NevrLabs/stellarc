@@ -401,6 +401,9 @@ try {
 		"export-outage-orphan",
 		"",
 	);
+	const orphanRunId = orphan.runId;
+	if (typeof orphanRunId !== "string")
+		throw new Error("orphan admission missing");
 	let outageAttempts = 0;
 	app.store.finish = async (id, outcome) => {
 		outageAttempts++;
@@ -443,14 +446,14 @@ try {
 		await owner`GRANT INSERT ON gw_audit TO gateway_runtime`;
 		app.store.finish = originalFinish;
 	}
-	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${orphan.runId}`;
+	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${orphanRunId}`;
 	const providerCallsBeforeRecovery = calls;
 	// Observe the actual background recovery loop; the fixture must not call recover.
 	if (outageId) {
 		const deadline = Date.now() + 12000;
 		while (
 			(
-				await owner`SELECT 1 FROM gw_run WHERE id IN (${outageId},${orphan.runId}) AND outcome='running'`
+				await owner`SELECT 1 FROM gw_run WHERE id IN (${outageId},${orphanRunId}) AND outcome='running'`
 			).length > 0 &&
 			Date.now() < deadline
 		)
@@ -468,12 +471,12 @@ try {
 		);
 	}
 	assert.equal(
-		(await owner`SELECT outcome FROM gw_run WHERE id=${orphan.runId}`)[0]
+		(await owner`SELECT outcome FROM gw_run WHERE id=${orphanRunId}`)[0]
 			.outcome,
 		"interrupted",
 	);
 	const orphanEvents =
-		await owner`SELECT kind,payload FROM gw_audit WHERE payload->>'run'=${orphan.runId} AND kind IN ('call.interrupted','call.completed','call.failed','call.cancelled')`;
+		await owner`SELECT kind,payload FROM gw_audit WHERE payload->>'run'=${orphanRunId} AND kind IN ('call.interrupted','call.completed','call.failed','call.cancelled')`;
 	assert.equal(orphanEvents.length, 1);
 	assert.equal(orphanEvents[0].kind, "call.interrupted");
 	assert.equal(orphanEvents[0].payload.externalEffect, "unknown");

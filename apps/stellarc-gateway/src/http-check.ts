@@ -262,6 +262,7 @@ try {
 	);
 	const fixtureRead = (async () => {
 		const reader = fixtureResponse.body?.getReader();
+		if (!reader) throw new Error("fixture body missing");
 		for (;;) {
 			const next = await reader.read();
 			if (next.done) break;
