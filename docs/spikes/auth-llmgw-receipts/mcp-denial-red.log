@@ -1,0 +1,64 @@
+STAGE schema
+STAGE auth migrated
+PASS socket-public-management-denial-no-registration
+PASS socket-fixture-stream-correlated-headers
+PASS socket-tenant-context-denial
+[09:27:49.362] INFO (#16) http.span=353ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+MCP_INIT 200 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"logging":{},"tools":{"listChanged":true},"completions":{}},"serverInfo":{"name":"stellarc-gateway","version":"0.1.0"}}}
+
+[09:27:50.483] INFO (#21) http.span=47ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+[09:27:50.667] INFO (#26) http.span=69ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+[09:27:50.772] INFO (#32) http.span=34ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+PASS effect-mcp-wire-initialize-list-tool-and-unknown-deny
+[09:27:50.973] INFO (#38) http.span=10ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+PASS mcp-session-bound-to-current-principal
+[09:27:51.037] INFO (#43) http.span=1ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 403,
+}
+PASS mcp-exact-origin-not-host-only
+[09:27:51.289] INFO (#45) http.span=138ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+PASS mcp-stateless-modern-protocol-metadata
+63 |  pass("mcp-exact-origin-not-host-only");
+64 |  const modern=await fetch(base+"/mcp",{method:"POST",headers:{...headers,accept:"application/json, text/event-stream","mcp-protocol-version":"2026-07-28","mcp-method":"tools/call","mcp-name":"stellarc_status"},body:JSON.stringify({jsonrpc:"2.0",id:9,method:"tools/call",params:{name:"stellarc_status",arguments:{},_meta:{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})});
+65 |  assert.equal(modern.status,200);assert.match(await modern.text(),/LOCAL FIXTURE ONLY/);
+66 |  pass("mcp-stateless-modern-protocol-metadata");
+67 |  const anonymous=await owner`SELECT count(*)::int AS n FROM gw_audit WHERE org='system' AND kind='call.deny' AND actor='anonymous'`;
+68 |  assert.ok(anonymous[0].n>=1,"invalid MCP bearer must leave durable anonymous denial");
+             ^
+AssertionError: invalid MCP bearer must leave durable anonymous denial
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /mnt/deepvault/scratch/stellarc-authgw-2dce6d0/apps/stellarc-gateway/src/http-check.ts:68:9
+
+Bun v1.4.0 (Linux x64)

@@ -1,0 +1,69 @@
+RUNTIME 1.4.0
+SOURCE 4dfc3dc33ea68d55dc31b6d41c41966b30fa6534405ff23fdcf9b792124cf410  tools/spikes/auth-llmgw/gateway.ts
+cb3a947aae7dbd81596b36a36f6d04172c3d7608d92620020e40ce7c63eeb5ca  tools/spikes/auth-llmgw/check.ts
+PASS oidc-boundary-guards-no-network
+PASS invalid-context-denied
+PASS body-rejected-without-reading
+PASS scope-escalation-denied
+PASS cross-tenant-denied
+[05:27:47.104] INFO (#7): fixture chunk {
+  "request.id": "966e62bb-abb9-45f5-a019-11b7671c460a",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[05:27:48.647] INFO (#8): fixture chunk {
+  "request.id": "966e62bb-abb9-45f5-a019-11b7671c460a",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[05:27:48.656] INFO (#9): fixture chunk {
+  "request.id": "966e62bb-abb9-45f5-a019-11b7671c460a",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS fixture-stream-context-cleanup
+[05:27:48.823] INFO (#11): fixture chunk {
+  "request.id": "6f658199-2f9b-4c67-b015-d2f6453ba1f3",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[05:27:48.829] INFO (#12): fixture chunk {
+  "request.id": "6f658199-2f9b-4c67-b015-d2f6453ba1f3",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[05:27:48.832] INFO (#13): fixture chunk {
+  "request.id": "6f658199-2f9b-4c67-b015-d2f6453ba1f3",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS upstream-retry-once-before-stream
+[05:27:48.877] INFO (#16): fixture chunk {
+  "request.id": "3ad80eb4-8b2b-4b6f-9fb0-783f345c81b9",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[05:27:48.882] INFO (#17): fixture chunk {
+  "request.id": "3ad80eb4-8b2b-4b6f-9fb0-783f345c81b9",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[05:27:48.889] INFO (#18): fixture chunk {
+  "request.id": "3ad80eb4-8b2b-4b6f-9fb0-783f345c81b9",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:48:27)
+      at expectsError (node:assert:383:14)
+      at assert.rejects (node:assert:432:17)
+      at processTicksAndRejections (native:7:39)
+
+Bun v1.4.0 (Linux x64)

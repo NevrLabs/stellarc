@@ -1,0 +1,11 @@
+{
+	"scope": "LOCAL OTLP rejection; restored PG audit permission; actual background loop recovers exactly one completion despite export 503",
+	"archiveSha256": "727574f3c02dcb4fac750dafe4a55c982bb33b0b7fed99faeaf1bbfcf6d2f507",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "0\n",
+		"stream.exit": "0\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[12:37:40.812] ERROR (#24): run terminal audit unavailable\n[12:37:44.847] WARN (#5): audit export pending\nPASS terminal-recovery-independent-of-otlp-export-outage\nPASS sustained-terminal-audit-outage-withholds-success-bounded-retries\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\nPASS shutdown-drains-late-admission-cancellation\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+	}
+}

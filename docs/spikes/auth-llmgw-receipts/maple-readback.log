@@ -1,0 +1,13 @@
+setup-health: {'pass': 38, 'fail': 6}
+FAIL critical LOG-02 Logs carry trace context | 3 services emit logs with no trace context despite being traced (last 6h). Trace↔log correlation is unavailable for them.
+FAIL warn CFG-NOTIF-01 New errors notify someone | Error notifications are turned off — new and regressed errors will surface in the dashboard only.
+FAIL warn CFG-ATTR-01 No open instrumentation recommendations | 22 open instrumentation recommendations — deprecated or non-conforming attribute keys detected in your live spans.
+FAIL warn ING-01 Service names agree across signals | 65 service names appear in logs but never in traces — usually the tracer and the logger were configured with different `service.name` values, which splits one s
+FAIL warn LOG-01 Traced services also ship logs | 6 services send traces but no logs, while the rest of the org logs normally. Jumping from a trace to its logs will dead-end there.
+FAIL warn STAT-02 Failures are recorded on the span, not just logged | 2 services log errors but never mark a span as failed, so their error rate reads as zero and their failures never open an issue.
+TABLES {"signal":"trace","id":"1bd613e2a677f615a7460a12339ff7ff","request_id":"50734840-b653-4c97-be9b-315653b02ef0","rows":1}
+{"signal":"trace","id":"3bdef5c999b31cfb30f1e57618578c61","request_id":"375e00b6-8e73-4f00-9d8d-ca227774a219","rows":1}
+{"signal":"trace","id":"3bdef5c999b31cfb30f1e57618578c61","request_id":"","rows":4}
+{"signal":"metric","id":"authgw_telemetry_proof_total","request_id":"","rows":1}
+{"signal":"log","id":"1bd613e2a677f615a7460a12339ff7ff","request_id":"50734840-b653-4c97-be9b-315653b02ef0","rows":1}
+{"signal":"log","id":"3bdef5c999b31cfb30f1e57618578c61","request_id":"375e00b6-8e73-4f00-9d8d-ca227774a219","rows":3}

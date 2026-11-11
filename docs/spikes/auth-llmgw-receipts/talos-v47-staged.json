@@ -1,0 +1,32 @@
+{
+	"scope": "inactive artifact staging and negative startup only; no DB/role/client/unit/route writes; NOT cutover clearance",
+	"host": "talos",
+	"releasePath": "/mnt/deepvault/dev/deploy/stellarc-gateway/releases/v47-822a9675c1f8",
+	"sourceSha256": {
+		"apps/stellarc-gateway/src/main.ts": "989b35cf19d2ce81f7d736971484750c93b204c123a2612713e70544c8f91383",
+		"apps/stellarc-gateway/src/mcp.ts": "fc8b7e37af782140579a7fc2cb4d41c17d28afc891b3af7f07839aa3126db099",
+		"apps/stellarc-gateway/src/store.ts": "f52de4e8b7ed2a017e248acc9dca2463324434b33cbedfe06473dbeb7d1e3e57",
+		"apps/stellarc-gateway/src/auth.ts": "e216f6ecd0827ffff704b046a2634c3af3ccdf89ec6dd2d42b7ea045a68a3425"
+	},
+	"manifest": {
+		"console.html": {
+			"bytes": 4383,
+			"sha256": "f0c3e85cbde749d9ccb1b972cbc7a778bc146ca69dfa4f24105714759bd50492"
+		},
+		"console.css": {
+			"bytes": 3947,
+			"sha256": "1c10cc3367983814f1b484bcb9f63b4fced0e04fba6d4a63db514d0e326a8d43"
+		},
+		"main.js": {
+			"bytes": 3328690,
+			"sha256": "822a9675c1f803b93891c63062bf784a6af452a5957de841567a9982006c8d40"
+		},
+		"console.js": {
+			"bytes": 5031,
+			"sha256": "b7c6fbb33c126ef9d399eeeda9f312bd2aac17503afc1ef7143bfcbd97da89e7"
+		}
+	},
+	"negativeStartupExit": 1,
+	"expectedMissingOrigin": true,
+	"dependencyError": false
+}

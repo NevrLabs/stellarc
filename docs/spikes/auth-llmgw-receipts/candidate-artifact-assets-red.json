@@ -1,0 +1,4 @@
+{
+	"bundle": true,
+	"assets": { "console.html": false, "console.js": false, "console.css": false }
+}

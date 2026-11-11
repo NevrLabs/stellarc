@@ -1,0 +1,11 @@
+{
+	"scope": "LOCAL intercepted upstream; audit INSERT denied through all three terminal attempts; success withheld; run stays running without terminal audit; fixture explicitly cleans up after restoring permission; NOT automatic recovery",
+	"archiveSha256": "bb81e336c41898a529373284becdddde4cc02bd3ac0a7d2b0b6006087320ce96",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "0\n",
+		"stream.exit": "0\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[11:45:38.596] ERROR (#24): run terminal audit unavailable\nPASS sustained-terminal-audit-outage-withholds-success-bounded-retries\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+	}
+}

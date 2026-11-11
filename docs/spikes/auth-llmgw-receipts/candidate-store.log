@@ -1,0 +1,10 @@
+PASS stable-agent-independent-credentials-and-self-authority
+PASS tenant-and-scope-denied
+PASS explicit-narrowing-delegation-actor-subject-audit
+PASS shared-ancestor-and-child-call-budget
+PASS ancestor-revocation-current-check
+PASS human-rights-removal-does-not-disable-independent-agent
+PASS runtime-immutable-audit-and-mutation-rollback
+PASS credential-expiry-current-check
+PASS installation-stable-event-ids-no-credentials
+{"checks":["stable-agent-independent-credentials-and-self-authority","tenant-and-scope-denied","explicit-narrowing-delegation-actor-subject-audit","shared-ancestor-and-child-call-budget","ancestor-revocation-current-check","human-rights-removal-does-not-disable-independent-agent","runtime-immutable-audit-and-mutation-rollback","credential-expiry-current-check","installation-stable-event-ids-no-credentials"],"provider":"NO INFERENCE","realOidc":false}

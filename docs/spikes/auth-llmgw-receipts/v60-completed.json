@@ -1,0 +1,14 @@
+{
+	"scope": "actual background recovery loop after sustained audit permission outage; fixture never invokes recover; stream/full typecheck",
+	"realOidc": false,
+	"realInference": false,
+	"fullDaemonKillProof": false,
+	"archiveSha256": "6930d13522f6791a87c5751bc7e0c7fce6c85085736b9bde97aea8ce4ab3612f",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "0\n",
+		"stream.exit": "0\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[12:12:33.795] ERROR (#24): run terminal audit unavailable\nPASS sustained-terminal-audit-outage-withholds-success-bounded-retries\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+	}
+}

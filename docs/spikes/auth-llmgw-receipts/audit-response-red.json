@@ -1,0 +1,14 @@
+{
+	"stage": "RED before exporter fix",
+	"process": "proc_8ee98c5fb0bb",
+	"exit": 1,
+	"gateway_sha256": "07a7b2a80e9132bbc5361d8e61f3e5e47e16749d1222b476eeddb6f071b77f12",
+	"check_sha256": "0cf422f2ca93fa407cad20aba6d2d320a684c082ee55b5595e340e308c0b3187",
+	"assertion": "Missing expected rejection after export-failure-partial-malformed-retained; first invalid-partial shape was partialSuccess:null",
+	"finding": "Malformed partialSuccess value was accepted and could advance the durable audit cursor",
+	"prior_new_checks_passed": [
+		"emergency-revocation-reserve-and-exhaustion",
+		"timeout-after-receiver-acceptance-replays-stable-batch"
+	],
+	"scope": "Disposable PG and local OTLP fixture only; no Maple or IdP writes"
+}

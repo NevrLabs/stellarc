@@ -1,0 +1,55 @@
+{
+	"scope": "metadata-only candidate DB/audit exporter preflight on Talos; NOT human login/inference/full gateway activation",
+	"proof": {
+		"scope": "metadata-only preflight, not human login/inference",
+		"request": "78c8218f-4d4a-4c1a-817d-e417ac8b9d5f",
+		"trace": "d676535a1ac76d88df97309b80b87719",
+		"eventId": "dc867804-f03f-4625-bb9f-f1326cd727cb:system:1",
+		"accepted": 1,
+		"realOidc": false,
+		"realInference": false
+	},
+	"postgresReadback": {
+		"eventId": "dc867804-f03f-4625-bb9f-f1326cd727cb:system:1",
+		"kind": "deployment.preflight",
+		"trace": "d676535a1ac76d88df97309b80b87719",
+		"seq": "1",
+		"delivered": "1",
+		"identityRows": 0,
+		"principalRows": 0,
+		"runRows": 0
+	},
+	"mapleAuditReadback": [
+		{
+			"Timestamp": "2026-11-08 13:20:50.952000000",
+			"ServiceName": "stellarc-gateway",
+			"TraceId": "d676535a1ac76d88df97309b80b87719",
+			"Body": "deployment.preflight",
+			"eventId": "dc867804-f03f-4625-bb9f-f1326cd727cb:system:1",
+			"requestId": "78c8218f-4d4a-4c1a-817d-e417ac8b9d5f"
+		}
+	],
+	"mapleSpanReadback": [
+		{
+			"Timestamp": "2026-11-08 13:20:50.923000000",
+			"ServiceName": "stellarc-gateway",
+			"SpanName": "stellarc.gateway.deployment.preflight",
+			"TraceId": "d676535a1ac76d88df97309b80b87719",
+			"environment": "development"
+		}
+	],
+	"mapleCorrelatedLogs": [
+		{
+			"Timestamp": "2026-11-08 13:20:50.952000000",
+			"TraceId": "d676535a1ac76d88df97309b80b87719",
+			"Body": "deployment.preflight"
+		},
+		{
+			"Timestamp": "2026-11-08 13:20:50.967000000",
+			"TraceId": "d676535a1ac76d88df97309b80b87719",
+			"Body": "Stellarc metadata-only deployment preflight; no login or inference"
+		}
+	],
+	"oidcPinInitialized": false,
+	"gatewayActivated": false
+}

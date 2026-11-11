@@ -1,0 +1,39 @@
+{
+	"scope": "artifact staging only; no candidate DB, unit, listener, OIDC app or route created",
+	"host": "talos",
+	"releasePath": "/mnt/deepvault/dev/deploy/stellarc-gateway/releases/v37-47212b913a2d",
+	"runtimeBunVersion": "1.4.4",
+	"artifactManifest": {
+		"console.html": {
+			"bytes": 4383,
+			"sha256": "f0c3e85cbde749d9ccb1b972cbc7a778bc146ca69dfa4f24105714759bd50492"
+		},
+		"console.css": {
+			"bytes": 3947,
+			"sha256": "1c10cc3367983814f1b484bcb9f63b4fced0e04fba6d4a63db514d0e326a8d43"
+		},
+		"console.js": {
+			"bytes": 5031,
+			"sha256": "b7c6fbb33c126ef9d399eeeda9f312bd2aac17503afc1ef7143bfcbd97da89e7"
+		},
+		"main.js": {
+			"bytes": 3321436,
+			"sha256": "47212b913a2d1f448064218c5852d9f010e82696b0ab4e7be4664dcfbda8e460"
+		}
+	},
+	"readBackEqual": true,
+	"existingServicesUnchanged": true,
+	"unconfiguredBoot": {
+		"exitCode": 1,
+		"expectedMissingGatewayOrigin": true,
+		"dependencyResolutionErrorObserved": false,
+		"scope": "negative startup check only, not configured service readiness"
+	},
+	"postgresPreflight": {
+		"version": "15.19",
+		"noninteractiveOwnerMetadataRead": true,
+		"candidateDatabaseExists": false,
+		"candidateOwnerRoleExists": false,
+		"candidateRuntimeRoleExists": false
+	}
+}

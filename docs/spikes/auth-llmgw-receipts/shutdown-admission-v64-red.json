@@ -1,0 +1,11 @@
+{
+	"scope": "LOCAL committed admission barrier demonstrates disposal can close pools before handler settles",
+	"archiveSha256": "e77c7cbc40af4f7f89e74acc521850e2e619ea984025de37de9007b35004342b",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "1\n",
+		"stream.exit": "1\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[12:18:16.492] ERROR (#24): run terminal audit unavailable\nPASS sustained-terminal-audit-outage-withholds-success-bounded-retries\nPASS cancellation-during-terminal-persistence-withholds-done\n382 | \t\t\tfalse,\n383 | \t\t\t\"shutdown must await the held terminal audit before closing pools\",\n384 | \t\t);\n385 | \t\treleaseTerminal();\n386 | \t\tawait new Promise(resolve => setTimeout(resolve, 100));\n387 | \t\tassert.equal(shutdownFinished, false, \"shutdown must also await committed admission returning to its handler\");\n               ^\nAssertionError: shutdown must also await committed admission returning to its handler\n\ntrue !== false\n\n generatedMessage: false,\n     actual: true,\n   expected: false,\n   operator: \"strictEqual\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at /home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/stream-check.ts:387:10\n\nBun v1.4.0 (Linux x64)\n"
+	}
+}

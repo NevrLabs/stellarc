@@ -1,0 +1,427 @@
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "stellarc-gateway"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "fixture"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "development"
+            }
+          }
+        ]
+      },
+      "scopeLogs": [
+        {
+          "logRecords": [
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T01"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "intValue": "42"
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T02"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T03"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "stringValue": "x"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T04"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "x",
+                          "value": {
+                            "stringValue": "y"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T07"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "doubleValue": 1.5
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T08"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "bytesValue": "eA=="
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T09"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "body": {
+                "stringValue": "principal.bootstrap"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T05"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                  }
+                }
+              ],
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T06"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                  }
+                }
+              ],
+              "body": {
+                "kvlistValue": {
+                  "values": []
+                }
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T10"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                  }
+                }
+              ],
+              "body": {
+                "intValue": "42"
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T11"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                  }
+                }
+              ],
+              "body": {
+                "boolValue": true
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T12"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                  }
+                }
+              ],
+              "body": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "auth.login.begin"
+                    }
+                  ]
+                }
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "fixture.case",
+                  "value": {
+                    "stringValue": "T13"
+                  }
+                },
+                {
+                  "key": "stellarc.org",
+                  "value": {
+                    "stringValue": "fixture"
+                  }
+                },
+                {
+                  "key": "event.id",
+                  "value": {
+                    "stringValue": "0f1e2d3c-4b5a-6978-8796-a5b6c7d8e9f0:fixture:9000"
+                  }
+                }
+              ],
+              "body": {
+                "bytesValue": "eA=="
+              },
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "timeUnixNano": "1731072000000000000"
+            }
+          ],
+          "scope": {
+            "name": "stellarc.gateway.audit"
+          }
+        }
+      ]
+    }
+  ]
+}

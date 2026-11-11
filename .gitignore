@@ -15,3 +15,6 @@ __pycache__/
 __pycache__/
 *.pyc
 .forge/runs/
+# Captured 166MB Maple collector fixture binary; evidence lives in
+# audit-retention-central-r3 receipts, not in git.
+tools/spikes/auth-llmgw/audit-retention-review/fixture/otelcol-maple-agent

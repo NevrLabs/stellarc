@@ -1,0 +1,69 @@
+{
+	"archiveSha256": "520a7d91a208aed3b0555d8cf110654a1201b37454be19d10e121eccd5485289",
+	"scope": "local IdP/provider, restricted disposable PG, local OTLP and real sockets; not human OIDC or Maple/public deployment",
+	"checks": {
+		"store": [
+			"stable-agent-independent-credentials-and-self-authority",
+			"tenant-and-scope-denied",
+			"server-owned-per-invocation-run-binding-idempotent-terminal-audit",
+			"explicit-narrowing-delegation-actor-subject-audit",
+			"shared-ancestor-and-child-call-budget",
+			"ancestor-revocation-current-check",
+			"human-rights-removal-does-not-disable-independent-agent",
+			"runtime-immutable-audit-and-mutation-rollback",
+			"serialized-revoke-admit-both-orders-db-lock-barriers",
+			"credential-expiry-current-check",
+			"installation-stable-event-ids-no-credentials"
+		],
+		"database": [
+			"immutable-installation-issuer-client-binding",
+			"effective-runtime-privileges-direct-inherited-owner-and-schema-create"
+		],
+		"typecheck": [],
+		"http": [
+			"slow-body-socket-deadlines-release-all-auth-and-llm-slots",
+			"socket-public-management-denial-no-registration",
+			"socket-fixture-stream-correlated-headers",
+			"socket-tenant-context-denial",
+			"effect-mcp-wire-initialize-list-tool-and-unknown-deny",
+			"mcp-session-bound-to-current-principal",
+			"mcp-exact-origin-not-host-only",
+			"mcp-stateless-modern-protocol-metadata",
+			"mcp-invalid-bearer-durable-denial",
+			"mcp-current-credential-revocation"
+		],
+		"auth": [
+			"library-code-pkce-nonce-session-and-replay",
+			"library-browser-binding-before-exchange",
+			"library-signed-identity-negative-vectors-no-provider-token-storage",
+			"auth-route-allowlist-and-exact-origin",
+			"auth-lifecycle-audit-failure-withholds-session"
+		],
+		"audit": [
+			"invalid-otlp-ack-retains-cursor",
+			"timeout-after-acceptance-stable-replay",
+			"accepted-before-checkpoint-failure-replays-on-fresh-exporter",
+			"normal-backlog-fails-closed-with-persisted-gap-and-revoke-reserve",
+			"emergency-exhaustion-rolls-back-revocation"
+		],
+		"stream": ["pending-upstream-read-revocation-stops-output-no-retry"],
+		"build": ["built-console-assets-byte-identical"]
+	},
+	"receipts": {
+		"audit.exit": "0\n",
+		"auth.exit": "0\n",
+		"store.log": "PASS stable-agent-independent-credentials-and-self-authority\nPASS tenant-and-scope-denied\nPASS server-owned-per-invocation-run-binding-idempotent-terminal-audit\nPASS explicit-narrowing-delegation-actor-subject-audit\nPASS shared-ancestor-and-child-call-budget\nPASS ancestor-revocation-current-check\nPASS human-rights-removal-does-not-disable-independent-agent\nPASS runtime-immutable-audit-and-mutation-rollback\nPASS serialized-revoke-admit-both-orders-db-lock-barriers\nPASS credential-expiry-current-check\nPASS installation-stable-event-ids-no-credentials\n{\"checks\":[\"stable-agent-independent-credentials-and-self-authority\",\"tenant-and-scope-denied\",\"server-owned-per-invocation-run-binding-idempotent-terminal-audit\",\"explicit-narrowing-delegation-actor-subject-audit\",\"shared-ancestor-and-child-call-budget\",\"ancestor-revocation-current-check\",\"human-rights-removal-does-not-disable-independent-agent\",\"runtime-immutable-audit-and-mutation-rollback\",\"serialized-revoke-admit-both-orders-db-lock-barriers\",\"credential-expiry-current-check\",\"installation-stable-event-ids-no-credentials\"],\"provider\":\"NO INFERENCE\",\"realOidc\":false}\n",
+		"database.log": "PASS immutable-installation-issuer-client-binding\nPASS effective-runtime-privileges-direct-inherited-owner-and-schema-create\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"store.exit": "0\n",
+		"http.log": "STAGE schema\nSTAGE auth migrated\nPASS slow-body-socket-deadlines-release-all-auth-and-llm-slots\nPASS socket-public-management-denial-no-registration\nPASS socket-fixture-stream-correlated-headers\nPASS socket-tenant-context-denial\n[10:32:25.372] INFO (#27) http.span=182ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nMCP_INIT 200 {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"logging\":{},\"tools\":{\"listChanged\":true},\"completions\":{}},\"serverInfo\":{\"name\":\"stellarc-gateway\",\"version\":\"0.1.0\"}}}\n\n[10:32:25.465] INFO (#32) http.span=36ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\n[10:32:25.583] INFO (#37) http.span=91ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\n[10:32:25.658] INFO (#43) http.span=17ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS effect-mcp-wire-initialize-list-tool-and-unknown-deny\n[10:32:25.737] INFO (#49) http.span=5ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS mcp-session-bound-to-current-principal\n[10:32:25.744] INFO (#54) http.span=1ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 403,\n}\nPASS mcp-exact-origin-not-host-only\n[10:32:25.830] INFO (#56) http.span=80ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS mcp-stateless-modern-protocol-metadata\nPASS mcp-invalid-bearer-durable-denial\nPASS mcp-current-credential-revocation\n{\"checks\":[\"slow-body-socket-deadlines-release-all-auth-and-llm-slots\",\"socket-public-management-denial-no-registration\",\"socket-fixture-stream-correlated-headers\",\"socket-tenant-context-denial\",\"effect-mcp-wire-initialize-list-tool-and-unknown-deny\",\"mcp-session-bound-to-current-principal\",\"mcp-exact-origin-not-host-only\",\"mcp-stateless-modern-protocol-metadata\",\"mcp-invalid-bearer-durable-denial\",\"mcp-current-credential-revocation\"],\"realOidc\":false,\"provider\":\"LOCAL FIXTURE ONLY\"}\n",
+		"auth.log": "FIXTURE_CALLBACK https://gateway.invalid\nPASS library-code-pkce-nonce-session-and-replay\nPASS library-browser-binding-before-exchange\nPASS library-signed-identity-negative-vectors-no-provider-token-storage\nPASS auth-route-allowlist-and-exact-origin\n# SERVER_ERROR:  31 |  return Response.json({access_token:\"PRIVATE_UPSTREAM_TOKEN\",id_token:`${unsigned}.${variant===\"signature\"?\"a\".repeat(sig.length):sig}`,token_type:\"Bearer\",expires_in:60});\n32 | }) as typeof fetch;\n33 | try {\n34 |  const auth=gatewayAuth({origin,issuer,clientId:\"fixture\",clientSecret:\"FIXTURE_SECRET_NOT_REAL\",secret:\"fixture-auth-secret-long-enough-for-security-checks\",database:memoryAdapter(db),\n35 |   authorizationEndpoint:`${issuer}/authorize`,tokenEndpoint:`${issuer}/token`,jwksUri:`${issuer}/keys`,\n36 |   audit:async(kind)=>{if(auditFails&&kind===\"auth.session.admit\")throw new Error(\"audit unavailable\");auditKinds.push(kind);},\n                                                                                ^\nerror: audit unavailable\n      at audit (/home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/auth-check.ts:36:76)\n      at record (/home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/auth.ts:57:20)\n      at <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/auth.ts:67:10)\n      at <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/@better-auth+core@1.6.25+7399f7a1f61f32ca/node_modules/@better-auth/core/dist/instrumentation/tracer.mjs:36:19)\n      at createWithHooks (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/better-auth@1.6.25+d71d247c675c3c6a/node_modules/better-auth/dist/db/with-hooks.mjs:12:26)\n      at async <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/better-auth@1.6.25+d71d247c675c3c6a/node_modules/better-auth/dist/db/internal-adapter.mjs:193:17)\n      at async handleOAuthUserInfo (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/better-auth@1.6.25+d71d247c675c3c6a/node_modules/better-auth/dist/oauth2/link-account.mjs:134:50)\n      at async <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/node_modules/.bun/better-auth@1.6.25+d71d247c675c3c6a/node_modules/better-auth/dist/plugins/generic-oauth/routes.mjs:273:18)\n\nPASS auth-lifecycle-audit-failure-withholds-session\n",
+		"http.exit": "0\n",
+		"database.exit": "0\n",
+		"audit.log": "PASS invalid-otlp-ack-retains-cursor\nPASS timeout-after-acceptance-stable-replay\nPASS accepted-before-checkpoint-failure-replays-on-fresh-exporter\nPASS normal-backlog-fails-closed-with-persisted-gap-and-revoke-reserve\nPASS emergency-exhaustion-rolls-back-revocation\n{\"checks\":[\"invalid-otlp-ack-retains-cursor\",\"timeout-after-acceptance-stable-replay\",\"accepted-before-checkpoint-failure-replays-on-fresh-exporter\",\"normal-backlog-fails-closed-with-persisted-gap-and-revoke-reserve\",\"emergency-exhaustion-rolls-back-revocation\"],\"realOidc\":false,\"maplePersistence\":false,\"capacityEvidence\":\"ARTIFICIAL COUNTER POSITIONING\"}\n",
+		"stream.exit": "0\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n",
+		"build.log": "$ bun build src/main.ts --target bun --outdir dist && cp src/console.html src/console.css src/console.js dist/ && bun src/artifact-check.ts\nBundled 1223 modules in 2286ms\n\n  main.js  3.32 MB  (entry point)\n\nPASS built-console-assets-byte-identical\n",
+		"build.exit": "0\n"
+	}
+}

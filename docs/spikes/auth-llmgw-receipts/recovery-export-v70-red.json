@@ -1,0 +1,11 @@
+{
+	"scope": "LOCAL OTLP 503 prevents background recovery despite restored PG audit INSERT",
+	"archiveSha256": "c563a64ecb516926b8ac0a27dbcf94b3b8c6b5fdb942358fb64921daa21a6652",
+	"receipts": {
+		"typecheck.exit": "0\n",
+		"typecheck.log": "$ tsc --noEmit\n",
+		"overall.exit": "1\n",
+		"stream.exit": "1\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[12:36:04.923] ERROR (#24): run terminal audit unavailable\n[12:36:08.679] WARN (#5): audit export pending\n[12:36:13.682] WARN (#5): audit export pending\n297 | \t\t\tDate.now() < deadline\n298 | \t\t)\n299 | \t\t\tawait new Promise((resolve) => setTimeout(resolve, 50));\n300 | \t\tconst recoveredOutage =\n301 | \t\t\tawait owner`SELECT outcome,terminal_choice FROM gw_run WHERE id=${outageId}`;\n302 | \t\tassert.equal(recoveredOutage[0].outcome, \"completed\");\n               ^\nAssertionError: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'running'\n- 'completed'\n\n generatedMessage: true,\n     actual: \"running\",\n   expected: \"completed\",\n   operator: \"strictEqual\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at /home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/stream-check.ts:302:10\n\nBun v1.4.0 (Linux x64)\n"
+	}
+}

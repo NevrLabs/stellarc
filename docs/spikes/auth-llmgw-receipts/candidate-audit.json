@@ -1,0 +1,32 @@
+{
+	"scope": "new candidate disposable PG/local OTLP; NOT deployed or Maple persistence",
+	"checks": [
+		"invalid-otlp-ack-retains-cursor",
+		"timeout-after-acceptance-stable-replay",
+		"accepted-before-checkpoint-failure-replays-on-fresh-exporter",
+		"normal-backlog-fails-closed-with-persisted-gap-and-revoke-reserve",
+		"emergency-exhaustion-rolls-back-revocation"
+	],
+	"auditExit": 0,
+	"targetedTypesExit": 0,
+	"sourceSha256": {
+		"apps/stellarc-gateway/package.json": "d9c4feb3a750e2bf93d88ab2ed6db381e5e14c0eab2b2b49bad4f4c4e1df9f08",
+		"apps/stellarc-gateway/src/auth-check.ts": "c03c37dda40f46b19cf533294f331fd917d0ea67492ba08175c70edb7d1c037a",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098",
+		"apps/stellarc-gateway/src/console.js": "6b6a418eae59fcb8b3190c3bd0161ae781162e79cce49270151dcee42ac6dedc",
+		"apps/stellarc-gateway/src/console.html": "f0c3e85cbde749d9ccb1b972cbc7a778bc146ca69dfa4f24105714759bd50492",
+		"apps/stellarc-gateway/src/store.ts": "5748d7561e685138d93470da2b0dfc96843329e95e8f8564549cb923a0a8f45b",
+		"apps/stellarc-gateway/src/audit-check.ts": "461022abdc04c8ac6ff15d48c5d91560ac64906263fe6cf992c8e798c500b77a",
+		"apps/stellarc-gateway/src/main.ts": "18b732c0b6b698e40fc77d626da646e1623dc556083cedb51276ec3b47a0414b",
+		"apps/stellarc-gateway/src/migrate.ts": "8fd20124252060ed289440b6dc072082cd679baa170ea98700ab6d5e7e92376e",
+		"apps/stellarc-gateway/src/mcp.ts": "94a421714425051451df30554f89f4c28bd0334bda9a76a0316c37f59d63180f",
+		"apps/stellarc-gateway/src/console.css": "1c10cc3367983814f1b484bcb9f63b4fced0e04fba6d4a63db514d0e326a8d43",
+		"apps/stellarc-gateway/src/store-check.ts": "b11099aac5b127c694da60cd5c8b485a7d21077acd7f1f14f6019e9935fa9a97",
+		"apps/stellarc-gateway/src/auth.ts": "dc03620fd87c841e7d19fbf5a654e664e802daa4eb4413edc0b1716e01f42dd5",
+		"apps/stellarc-gateway/src/http-check.ts": "7ee5412faea11714f3aeb4dbed736ad8a1a6c1cb586b3be875f73df59d3c06f5"
+	},
+	"fullRepoGates": "pending",
+	"capacityEvidence": "artificial counter positioning, not full backlog load",
+	"realOidc": false,
+	"paidInference": false
+}

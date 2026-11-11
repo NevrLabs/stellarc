@@ -1,0 +1,21 @@
+{
+	"scope": "LOCAL fixtures only; one-off terminal write recovery and post-admission MCP cancellation; not sustained-outage/process-kill recovery",
+	"archiveSha256": {
+		"v44": "04c29461e2c11d3e59c1f8cbcd3fff207d639b2d0ae85176f6d8b114399eb649",
+		"v46": "c88cee24901e6ca6d4dca824b850500c36f56445ff8a80046f23615486a286fe"
+	},
+	"receipts": {
+		"v44": {
+			"typecheck.exit": "0\n",
+			"typecheck.log": "$ tsc --noEmit\n",
+			"overall.exit": "0\n",
+			"stream.exit": "0\n",
+			"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+		},
+		"v46": {
+			"http.log": "STAGE schema\nSTAGE auth migrated\nPASS slow-body-socket-deadlines-release-all-auth-and-llm-slots\nPASS socket-public-management-denial-no-registration\nPASS socket-fixture-stream-correlated-headers\nPASS socket-tenant-context-denial\n[11:35:50.748] INFO (#27) http.span=284ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nMCP_INIT 200 {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"logging\":{},\"tools\":{\"listChanged\":true},\"completions\":{}},\"serverInfo\":{\"name\":\"stellarc-gateway\",\"version\":\"0.1.0\"}}}\n\n[11:35:51.364] INFO (#32) http.span=29ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\n[11:35:51.756] INFO (#37) http.span=371ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\n[11:35:51.846] INFO (#43) http.span=63ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS effect-mcp-wire-initialize-list-tool-and-unknown-deny\n[11:35:51.959] INFO (#49) http.span=6ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS mcp-session-bound-to-current-principal\n[11:35:51.965] INFO (#54) http.span=1ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 403,\n}\nPASS mcp-exact-origin-not-host-only\n[11:35:52.165] INFO (#56) http.span=195ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 200,\n}\nPASS mcp-stateless-modern-protocol-metadata\n[11:35:52.207] INFO (#62) http.span=30ms: Sent HTTP response {\n  \"http.method\": \"POST\",\n  \"http.url\": \"/mcp\",\n  \"http.status\": 499,\n}\nPASS mcp-cancel-after-admission-persists-cancelled\nPASS mcp-invalid-bearer-durable-denial\nPASS mcp-current-credential-revocation\n{\"checks\":[\"slow-body-socket-deadlines-release-all-auth-and-llm-slots\",\"socket-public-management-denial-no-registration\",\"socket-fixture-stream-correlated-headers\",\"socket-tenant-context-denial\",\"effect-mcp-wire-initialize-list-tool-and-unknown-deny\",\"mcp-session-bound-to-current-principal\",\"mcp-exact-origin-not-host-only\",\"mcp-stateless-modern-protocol-metadata\",\"mcp-cancel-after-admission-persists-cancelled\",\"mcp-invalid-bearer-durable-denial\",\"mcp-current-credential-revocation\"],\"realOidc\":false,\"provider\":\"LOCAL FIXTURE ONLY\"}\n",
+			"http.exit": "0\n",
+			"overall.exit": "0\n"
+		}
+	}
+}

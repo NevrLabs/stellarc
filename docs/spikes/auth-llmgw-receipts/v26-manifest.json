@@ -1,0 +1,28 @@
+{
+	"archiveSha256": "84626d98ad4f0fc6ec93b64bce21f010b06ab06c1645caa30c58daf9b030506f",
+	"scope": "formatted candidate and original OIDC fixture rerun; current run pending",
+	"knownFullBuildBlocker": "Generated web router-core bare import climbs to /home/rpw/node_modules -> unrelated stellarc-dev/ui checkout. No shared path or web dependency edited.",
+	"sourceSha256": {
+		"apps/stellarc-gateway/src/database-check.ts": "d2c15437a1b0f462c926ac178fa41a97844e14b8db324cbba7b5283a0fc9365f",
+		"apps/stellarc-gateway/src/migrate.ts": "b2819a149f5fa380cbcaeefb08d437aa2c6757786517f7346cb98da65d8ff9bc",
+		"apps/stellarc-gateway/src/artifact-check.ts": "d42dfec82d3839d9d430a8b5604499d9cc00b97ef049ef70a2e99763ba46203c",
+		"apps/stellarc-gateway/src/database.ts": "6862fdb597e042ae115e8ce672e75464787bfcf2fc3cef5202de407d8b4fe140",
+		"apps/stellarc-gateway/src/audit-check.ts": "af3b82ea80d17885fd8e943d8aed612ebac1e4790dd77d0e9eee331c135b7aa7",
+		"apps/stellarc-gateway/src/auth.ts": "db5c9bead494e618d9bba095262e47a0aad9799cd56658ffa8df8ef3ef51807a",
+		"apps/stellarc-gateway/src/store-check.ts": "e9655e00f837605b86aad3869a24b901aef4d532cf4ed95690196900595abdba",
+		"apps/stellarc-gateway/src/audit.ts": "beaa3b12b45ef6826404884ca57151be164faa3d1aedc81132af5be558652271",
+		"apps/stellarc-gateway/src/stream-check.ts": "4b1b8a869f2fd50d4f9274887bff50c6243632fef8aa2e11f9e40ca8a5011679",
+		"apps/stellarc-gateway/src/auth-check.ts": "18bb97680bcef3dd0e0c649936575f1fc89ab4fe52694ae437817e2480e9d7af",
+		"apps/stellarc-gateway/src/store.ts": "f52de4e8b7ed2a017e248acc9dca2463324434b33cbedfe06473dbeb7d1e3e57",
+		"apps/stellarc-gateway/src/main.ts": "79b9e7fae78e0117331f9267f7f37d9fdaaab25539df35912e3800138e929b15",
+		"apps/stellarc-gateway/src/mcp.ts": "51e850d903d08cf2ba8c0f63d302a63ccd11ad7d2ae12ec58a0b99acde46c2df",
+		"apps/stellarc-gateway/src/http-check.ts": "4b2e1370adad16544476c15bf21aede0fb0bcf9fde1af7f2b0008b24f8ea7b47",
+		"tools/spikes/auth-llmgw/check.ts": "595d75c760a2390363e914a95e7479cd6a9d01d781f6fee82bec8dfd24ce7979",
+		"tools/spikes/auth-llmgw/oidc.ts": "837535c9980f42681754be30f575e30ffa71c74cd25fe8ef88b8a4dcc456931c",
+		"tools/spikes/auth-llmgw/telemetry-proof.ts": "045d5888232ccc404161c5f403f515ec3490a116c476726a3aed6e4c2aaa6c22",
+		"tools/spikes/auth-llmgw/oidc-live.ts": "f1ab6d3a08f9577149c54b5e8bf8d02c5707b7bcb4b80e52ba45d5b71b548c3d",
+		"tools/spikes/auth-llmgw/oidc-check.ts": "4b0e40e81cd4356b5f7d6564b9bff963fd83278ab6cce82a1960111f98a85278",
+		"tools/spikes/auth-llmgw/live-fixture.ts": "b38d84f4a1367d276142931f0d5b527abde28a39faf1af3fd90f08bc6d3ee897",
+		"tools/spikes/auth-llmgw/gateway.ts": "19ff4077ccab840c23ecba3b378354a9f28495de333dae379f16672a4272c111"
+	}
+}

@@ -1,0 +1,4 @@
+{
+	"candidate-http-v13-red.exit": "1\n",
+	"candidate-http-v13-red.log": "STAGE schema\nSTAGE auth migrated\n35 |  if(process.env.SLOW_BODY_CHECK===\"1\"){\n36 |   const sockets:ReturnType<typeof createConnection>[]=[];\n37 |   try{\n38 |    const responses=Array.from({length:8},(_,n)=>new Promise<string>((resolve,reject)=>{\n39 |     const socket=createConnection({host:\"127.0.0.1\",port:server.port!});sockets.push(socket);let text=\"\";\n40 |     socket.setTimeout(35000,()=>reject(new Error(\"slow-body deadline did not release request\")));\n                                                ^\nerror: slow-body deadline did not release request\n      at <anonymous> (/home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/http-check.ts:40:44)\n      at emit (node:events:97:22)\n      at <anonymous> (node:net:943:12)\n\nBun v1.4.0 (Linux x64)\n"
+}

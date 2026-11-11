@@ -29,6 +29,9 @@ export default defineConfig(({ command }) => ({
 	// server, or the Tauri webview (ADR 0014 §4: static SPA build). The dev
 	// server needs the absolute base — its injected module URLs 404 under "./".
 	base: command === "build" ? "./" : "/",
+	// Keep generated SSR imports inside this build instead of resolving hoisted
+	// transitive dependencies from an unrelated ancestor node_modules directory.
+	ssr: { noExternal: true },
 	plugins: [
 		// MUST come before react()
 		tanstackStart(startConfig),

@@ -1,0 +1,7 @@
+PASS literal-loopback-only-issuer-tls
+PASS browser-bound-single-use-pkce
+PASS browser-mismatch-consumes-before-exchange
+PASS signed-identity-negative-vectors
+PASS multi-audience-requires-matching-azp
+PASS https-cookie-protection-unchanged
+{"provider":"LOCAL SIGNED IDENTITY FIXTURE","realOidc":false,"checks":["literal-loopback-only-issuer-tls","browser-bound-single-use-pkce","browser-mismatch-consumes-before-exchange","signed-identity-negative-vectors","multi-audience-requires-matching-azp","https-cookie-protection-unchanged"]}

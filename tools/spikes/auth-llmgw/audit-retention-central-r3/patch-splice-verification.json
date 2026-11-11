@@ -1,0 +1,6 @@
+{
+  "zero_fuzz_patch_exit": 0,
+  "source_sha256": "1abf5febf5c8148b3591b7558bec629f5eb6387166909900ae246ec271d2901a",
+  "patched_config_sha256": "0d30e467a449ea37d00a97e3cbddfa1d03dfc6458a8cf3b597e6d321eab82b49",
+  "baseline_and_proposed_filter_splices_exact": true
+}

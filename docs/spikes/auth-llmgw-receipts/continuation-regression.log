@@ -1,0 +1,92 @@
+RUNTIME 1.4.0
+SOURCE 07a7b2a80e9132bbc5361d8e61f3e5e47e16749d1222b476eeddb6f071b77f12  tools/spikes/auth-llmgw/gateway.ts
+71817ba8c90d3332222f0ef862d628964bfb266539d92e75749b79c2a8f13843  tools/spikes/auth-llmgw/check.ts
+PASS oidc-boundary-guards-no-network
+PASS invalid-context-denied
+PASS body-rejected-without-reading
+PASS scope-escalation-denied
+PASS cross-tenant-denied
+[07:31:06.781] INFO (#7): fixture chunk {
+  "request.id": "1150ef3a-efd6-42af-b355-b02271bc46ba",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.313] INFO (#8): fixture chunk {
+  "request.id": "1150ef3a-efd6-42af-b355-b02271bc46ba",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.322] INFO (#9): fixture chunk {
+  "request.id": "1150ef3a-efd6-42af-b355-b02271bc46ba",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS fixture-stream-context-cleanup
+[07:31:08.366] INFO (#11): fixture chunk {
+  "request.id": "c3ae3338-02c7-45c6-a2c9-046ea704693c",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.370] INFO (#12): fixture chunk {
+  "request.id": "c3ae3338-02c7-45c6-a2c9-046ea704693c",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.374] INFO (#13): fixture chunk {
+  "request.id": "c3ae3338-02c7-45c6-a2c9-046ea704693c",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS upstream-retry-once-before-stream
+[07:31:08.413] INFO (#16): fixture chunk {
+  "request.id": "7bb0dc24-d481-427c-b5e9-6d0bf680c638",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.417] WARN (#17): stream stopped {
+  "error.type": "fixture_stream_error",
+}
+PASS post-byte-error-no-retry-cleanup
+[07:31:08.435] INFO (#20): fixture chunk {
+  "request.id": "60c78466-e91f-4d28-a7a3-62bc3e105845",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.468] INFO (#22): fixture chunk {
+  "request.id": "84b2ace8-7a09-4d9e-8859-39e1d8b139d3",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+PASS capacity-two-queue-zero-cancel
+[07:31:08.536] WARN (#24): stream stopped {
+  "error.type": "cancelled",
+}
+PASS disconnect-cleanup
+[07:31:08.571] INFO (#26): fixture chunk {
+  "request.id": "7fcd28ad-bd27-4c2f-9fd2-7e26649c769c",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.581] INFO (#28): fixture chunk {
+  "request.id": "7fcd28ad-bd27-4c2f-9fd2-7e26649c769c",
+  "stellarc.org": "alpha",
+  "stellarc.actor": "fixture-actor",
+}
+[07:31:08.602] WARN (#29): stream stopped {
+  "error.type": "not_authorized",
+}
+PASS revocation-stops-future-pulls
+PASS expiry-denied
+PASS runtime-audit-append-only
+PASS audit-failure-rolls-back-grant
+PASS grant-row-barrier-revocation
+PASS current-membership-removal-denied
+PASS denial-detection-real-events
+PASS audit-capacity-fails-closed
+PASS export-failure-partial-malformed-retained
+PASS receiver-accepted-cursor-failure-restart-replay
+PASS export-recovery-cursor-dedupe
+PASS audit-allowlist-no-bearer-or-baggage
+PASS three-signal-in-memory-correlation
+{"verdict":"PARTIAL","checks":["oidc-boundary-guards-no-network","invalid-context-denied","body-rejected-without-reading","scope-escalation-denied","cross-tenant-denied","fixture-stream-context-cleanup","upstream-retry-once-before-stream","post-byte-error-no-retry-cleanup","capacity-two-queue-zero-cancel","disconnect-cleanup","revocation-stops-future-pulls","expiry-denied","runtime-audit-append-only","audit-failure-rolls-back-grant","grant-row-barrier-revocation","current-membership-removal-denied","denial-detection-real-events","audit-capacity-fails-closed","export-failure-partial-malformed-retained","receiver-accepted-cursor-failure-restart-replay","export-recovery-cursor-dedupe","audit-allowlist-no-bearer-or-baggage","three-signal-in-memory-correlation"],"provider":"LOCAL FIXTURE ONLY","liveOidc":false,"liveMaple":false}
+CHECK_EXIT=0

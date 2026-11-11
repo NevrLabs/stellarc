@@ -1,0 +1,21 @@
+{
+	"installExit": 0,
+	"typecheckExit": 0,
+	"buildExit": 1,
+	"lint": "invalid: initial scan included runner-created dependency cache; rerun queued",
+	"buildFailure": "apps/web prerender: _getRenderedMatches missing from router-core resolved outside gate tree; attribution unresolved",
+	"candidateBundle": "build output confirms bundling succeeded; console assets unverified",
+	"sourceSha256": {
+		"apps/stellarc-gateway/src/audit-check.ts": "461022abdc04c8ac6ff15d48c5d91560ac64906263fe6cf992c8e798c500b77a",
+		"apps/stellarc-gateway/src/http-check.ts": "7ee5412faea11714f3aeb4dbed736ad8a1a6c1cb586b3be875f73df59d3c06f5",
+		"apps/stellarc-gateway/src/stream-check.ts": "0ff1313e576970d4e070c69a42edd3b764ec75d88d0b68fe690d288c2db0d281",
+		"apps/stellarc-gateway/src/store.ts": "5b6f88db48f15d5bea8b4808ee6b6a87fbb31040725b61fb25bbb51fb6e9d745",
+		"apps/stellarc-gateway/src/store-check.ts": "7f46b1b6661a592e101e903e7acb3137d0a29808ff7c6cb7033472650b278079",
+		"apps/stellarc-gateway/src/migrate.ts": "8fd20124252060ed289440b6dc072082cd679baa170ea98700ab6d5e7e92376e",
+		"apps/stellarc-gateway/src/auth.ts": "dc03620fd87c841e7d19fbf5a654e664e802daa4eb4413edc0b1716e01f42dd5",
+		"apps/stellarc-gateway/src/auth-check.ts": "c03c37dda40f46b19cf533294f331fd917d0ea67492ba08175c70edb7d1c037a",
+		"apps/stellarc-gateway/src/mcp.ts": "94a421714425051451df30554f89f4c28bd0334bda9a76a0316c37f59d63180f",
+		"apps/stellarc-gateway/src/main.ts": "8099af7dbc40f506871810544d85814d28f99877b74c542828590ebaa85ef0a8",
+		"apps/stellarc-gateway/src/audit.ts": "6c0f55c6ac9801b11545a6190a570b5e1c162569935a1c25078b5ab3a145d098"
+	}
+}

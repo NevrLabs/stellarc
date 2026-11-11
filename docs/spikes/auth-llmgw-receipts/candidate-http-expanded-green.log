@@ -1,0 +1,49 @@
+STAGE schema
+STAGE auth migrated
+PASS socket-public-management-denial-no-registration
+PASS socket-fixture-stream-correlated-headers
+PASS socket-tenant-context-denial
+[09:41:14.666] INFO (#16) http.span=231ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+MCP_INIT 200 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"logging":{},"tools":{"listChanged":true},"completions":{}},"serverInfo":{"name":"stellarc-gateway","version":"0.1.0"}}}
+
+[09:41:15.651] INFO (#21) http.span=20ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+[09:41:15.736] INFO (#26) http.span=72ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+[09:41:15.769] INFO (#32) http.span=18ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+PASS effect-mcp-wire-initialize-list-tool-and-unknown-deny
+[09:41:15.859] INFO (#38) http.span=7ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+PASS mcp-session-bound-to-current-principal
+[09:41:15.868] INFO (#43) http.span=0ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 403,
+}
+PASS mcp-exact-origin-not-host-only
+[09:41:15.962] INFO (#45) http.span=77ms: Sent HTTP response {
+  "http.method": "POST",
+  "http.url": "/mcp",
+  "http.status": 200,
+}
+PASS mcp-stateless-modern-protocol-metadata
+PASS mcp-invalid-bearer-durable-denial
+PASS mcp-current-credential-revocation
+{"checks":["socket-public-management-denial-no-registration","socket-fixture-stream-correlated-headers","socket-tenant-context-denial","effect-mcp-wire-initialize-list-tool-and-unknown-deny","mcp-session-bound-to-current-principal","mcp-exact-origin-not-host-only","mcp-stateless-modern-protocol-metadata","mcp-invalid-bearer-durable-denial","mcp-current-credential-revocation"],"realOidc":false,"provider":"LOCAL FIXTURE ONLY"}

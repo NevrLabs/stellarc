@@ -1,0 +1,17 @@
+{
+	"scope": "local prepared snapshot, NOT transferred or executed",
+	"archive": "/home/rpw/.hermes/cache/scratch/stellarc-candidate-v18.tar",
+	"archiveSha256": "23a2484308b944b646c1c1ca5a849642358996de4ae5878e28b4a6ee9be0f860",
+	"runner": "/home/rpw/.hermes/cache/scratch/stellarc-verify-v18.sh",
+	"verifiedPriorSnapshot": "body-and-db-green.json: ten socket groups and effective-runtime-role checks passed",
+	"pending": [
+		"issuer/client binding test readback from v16",
+		"auth lifecycle fail-closed session fixture",
+		"management denial audit",
+		"latest full typecheck/build/lint",
+		"trusted run binding and durable terminal outcomes",
+		"real OIDC and candidate Maple persistence",
+		"deployment/public cutover"
+	],
+	"blocker": "repeated dumbpipe SSH banner failures; fresh connection also failed; no shared transport restarted"
+}

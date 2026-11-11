@@ -1,0 +1,6 @@
+PASS invalid-otlp-ack-retains-cursor
+PASS timeout-after-acceptance-stable-replay
+PASS accepted-before-checkpoint-failure-replays-on-fresh-exporter
+PASS normal-backlog-fails-closed-with-persisted-gap-and-revoke-reserve
+PASS emergency-exhaustion-rolls-back-revocation
+{"checks":["invalid-otlp-ack-retains-cursor","timeout-after-acceptance-stable-replay","accepted-before-checkpoint-failure-replays-on-fresh-exporter","normal-backlog-fails-closed-with-persisted-gap-and-revoke-reserve","emergency-exhaustion-rolls-back-revocation"],"realOidc":false,"maplePersistence":false,"capacityEvidence":"ARTIFICIAL COUNTER POSITIONING"}

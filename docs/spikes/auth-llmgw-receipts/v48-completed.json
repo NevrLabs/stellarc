@@ -1,0 +1,12 @@
+{
+	"scope": "store permission-outage rollback and explicit fresh-store retry; not automatic/crash recovery",
+	"realOidc": false,
+	"realInference": false,
+	"maplePersistence": false,
+	"archiveSha256": "69064018f04092738650c0fa80d2eb7943f553b56e766ec2c9bba37b42fdfcb9",
+	"receipts": {
+		"store.log": "PASS stable-agent-independent-credentials-and-self-authority\nPASS tenant-and-scope-denied\nPASS server-owned-per-invocation-run-binding-idempotent-terminal-audit\nPASS terminal-audit-permission-outage-rolls-back-and-fresh-store-retries\nPASS explicit-narrowing-delegation-actor-subject-audit\nPASS shared-ancestor-and-child-call-budget\nPASS ancestor-revocation-current-check\nPASS human-rights-removal-does-not-disable-independent-agent\nPASS runtime-immutable-audit-and-mutation-rollback\nPASS serialized-revoke-admit-both-orders-db-lock-barriers\nPASS credential-expiry-current-check\nPASS installation-stable-event-ids-no-credentials\n{\"checks\":[\"stable-agent-independent-credentials-and-self-authority\",\"tenant-and-scope-denied\",\"server-owned-per-invocation-run-binding-idempotent-terminal-audit\",\"terminal-audit-permission-outage-rolls-back-and-fresh-store-retries\",\"explicit-narrowing-delegation-actor-subject-audit\",\"shared-ancestor-and-child-call-budget\",\"ancestor-revocation-current-check\",\"human-rights-removal-does-not-disable-independent-agent\",\"runtime-immutable-audit-and-mutation-rollback\",\"serialized-revoke-admit-both-orders-db-lock-barriers\",\"credential-expiry-current-check\",\"installation-stable-event-ids-no-credentials\"],\"provider\":\"NO INFERENCE\",\"realOidc\":false}\n",
+		"store.exit": "0\n",
+		"overall.exit": "0\n"
+	}
+}

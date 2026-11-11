@@ -1,0 +1,9 @@
+{
+	"scope": "disposable PG runtime role accepts immutable-table INSERT contamination",
+	"archiveSha256": "42f5fe2b87b3c9ca7e02df8148d6faf8a67e2300796b7e32332d593c0f59100b",
+	"receipts": {
+		"database.log": "PASS immutable-installation-issuer-client-binding\nAssertionError: Missing expected rejection: gw_identity_binding INSERT must reject startup\n generatedMessage: false,\n     actual: undefined,\n   expected: undefined,\n   operator: \"rejects\",\n       diff: \"simple\",\n       code: \"ERR_ASSERTION\"\n\n      at innerFail (node:assert:48:27)\n      at expectsError (node:assert:383:14)\n      at assert.rejects (node:assert:432:17)\n      at processTicksAndRejections (native:7:39)\n\nBun v1.4.0 (Linux x64)\n",
+		"database.exit": "1\n",
+		"overall.exit": "1\n"
+	}
+}

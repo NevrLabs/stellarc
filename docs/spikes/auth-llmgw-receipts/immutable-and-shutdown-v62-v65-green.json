@@ -1,0 +1,21 @@
+{
+	"scope": "disposable PG immutable-role/searchpath checks and LOCAL stream late-admission shutdown; full typecheck; no deployment evidence",
+	"archiveSha256": {
+		"v62": "664924944113938880a273872fb2a0eefb1c66ddfc11878b4a826cf61a22f5d1",
+		"v65": "0a5b28250bd196ce7cabe1137f64e734332132c115d657e6c204e270c70c04c7"
+	},
+	"receipts": {
+		"v62": {
+			"database.log": "PASS immutable-installation-issuer-client-binding\nPASS immutable-identity-and-installation-effective-mutation-denied\nPASS runtime-search-path-rejects-shadow-schema\nPASS effective-runtime-privileges-direct-inherited-owner-and-schema-create\n",
+			"database.exit": "0\n",
+			"overall.exit": "0\n"
+		},
+		"v65": {
+			"typecheck.exit": "0\n",
+			"typecheck.log": "$ tsc --noEmit\n",
+			"overall.exit": "0\n",
+			"stream.exit": "0\n",
+			"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\nPASS transient-terminal-write-recovers-exactly-once\n[12:20:12.895] ERROR (#24): run terminal audit unavailable\nPASS sustained-terminal-audit-outage-withholds-success-bounded-retries\nPASS cancellation-during-terminal-persistence-withholds-done\nPASS shutdown-drains-held-terminal-audit-before-pool-close\nPASS shutdown-drains-late-admission-cancellation\n{\"realOidc\":false,\"realInference\":false,\"upstream\":\"LOCAL FETCH INTERCEPTION ONLY\"}\n"
+		}
+	}
+}

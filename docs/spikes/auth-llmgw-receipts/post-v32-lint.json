@@ -1,0 +1,20 @@
+{
+	"scope": "full repository lint after formatting new stream assertion and prior receipt JSON",
+	"result": {
+		"exit": 0,
+		"summary": {
+			"changed": 0,
+			"unchanged": 1085,
+			"matches": 0,
+			"duration": 8988029935,
+			"errors": 0,
+			"warnings": 69,
+			"infos": 10,
+			"skipped": 0,
+			"suggestedFixesSkipped": 0,
+			"diagnosticsNotPrinted": 0,
+			"scannerDuration": 104784298
+		},
+		"errors": []
+	}
+}

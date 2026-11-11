@@ -1,0 +1,11 @@
+{
+	"scope": "dependency setup only; lint/typecheck/build NOT RUN",
+	"receipts": {
+		"install.exit": "1\n",
+		"install.log": "bun install v1.4.0 (34cbb9a40)\nerror: lockfile had changes, but lockfile is frozen\nnote: try re-running without --frozen-lockfile and commit the updated lockfile\n",
+		"install-v2.exit": "124\n",
+		"install-v2.log": "bun install v1.4.0 (34cbb9a40)\n"
+	},
+	"observedInstallerWaits": ["rpc_wait_bit_killable", "folio_wait_bit_common"],
+	"dockerSetupFailure": "default docker0 bridge absent; candidate checks switched to loopback-only host-network PG, no daemon restart"
+}

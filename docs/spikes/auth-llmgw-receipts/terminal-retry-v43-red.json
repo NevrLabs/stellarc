@@ -1,0 +1,9 @@
+{
+	"scope": "LOCAL intercepted provider; first terminal write failure strands stream",
+	"archiveSha256": "d3f6e5690c3e7fcebd1705dbeff710c93b81b08f955b7287921b725d227899a1",
+	"receipts": {
+		"overall.exit": "1\n",
+		"stream.exit": "1\n",
+		"stream.log": "PASS pending-upstream-read-revocation-stops-output-no-retry\nPASS provider-eof-and-error-frames-fail-without-done\nPASS split-provider-terminal-frame-exactly-once\n[11:29:22.800] ERROR (#22): run terminal audit unavailable\n532 | \t\t\t\t\t\t\t\t\t\t\t\t);\n533 | \t\t\t\t\t\t\t\t\t\t\t} finally {\n534 | \t\t\t\t\t\t\t\t\t\t\t\tabort.abort();\n535 | \t\t\t\t\t\t\t\t\t\t\t\tawait upstream?.cancel().catch(() => {});\n536 | \t\t\t\t\t\t\t\t\t\t\t\trelease();\n537 | \t\t\t\t\t\t\t\t\t\t\t\tcontroller.error(new Error(\"stream stopped\"));\n                                       ^\nerror: stream stopped\n      at pull (/home/rpw/.local/share/stellarc-gates/full-v9/apps/stellarc-gateway/src/main.ts:537:34)\n      at processTicksAndRejections (unknown:7:39)\n\nBun v1.4.0 (Linux x64)\n"
+	}
+}
