@@ -106,12 +106,15 @@ function watch(
 		live = true,
 		timeoutMs = 8000,
 		stopOnUpToDate = true,
+		stopAt,
 	}: {
 		offset?: string;
 		live?: boolean | "sse" | "long-poll";
 		timeoutMs?: number;
 		/** Drains resolve (and disconnect) at up-to-date; live tails opt out. */
 		stopOnUpToDate?: boolean;
+		/** Disconnect as soon as this many items have been delivered. */
+		stopAt?: number;
 	} = {},
 ) {
 	const items: ChangeMessage[] = [];
@@ -143,11 +146,21 @@ function watch(
 					clearInterval(poll);
 				});
 				unsubscribe = res.subscribeJson((batch: JsonBatch<ChangeMessage>) => {
+					// Nothing is delivered after a disconnect, so lastOffset always
+					// matches the items held.
+					if (aborter.signal.aborted) return;
 					lastOffset = batch.offset;
 					items.push(...batch.items);
 					// Any progress re-arms the stall timer.
 					clearTimeout(timer);
 					timer.refresh();
+					// Cut the connection from inside delivery: a timer-based cut
+					// races catch-up and can find the whole stream already delivered.
+					if (stopAt !== undefined && items.length >= stopAt) {
+						clearInterval(poll);
+						aborter.abort();
+						settle(resolve);
+					}
 				});
 				resources.push(async () => {
 					unsubscribe();
@@ -184,21 +197,8 @@ test("T1 catch-up with disconnect + offset resume is exactly-once", {
 	const url = spike.url("t1", "sess-1");
 
 	// Connect from the start, tear the connection down mid-catch-up (~24/50).
-	const first = watch(url);
-	await new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(
-			() => reject(new Error(`only ${first.items.length} arrived`)),
-			8000,
-		);
-		const poll = setInterval(() => {
-			if (first.items.length >= 24) {
-				clearInterval(poll);
-				clearTimeout(timer);
-				resolve();
-			}
-		}, 10);
-	});
-	first.abort();
+	const first = watch(url, { stopAt: 24 });
+	await first.done;
 	expect(first.items.length).toBeGreaterThanOrEqual(24);
 	expect(first.items.length).toBeLessThan(50);
 
@@ -307,21 +307,8 @@ test("NC1 negative control: ignoring the resume offset is detected as duplicatio
 	await spike.append("nc1", "sess-1", messages(50));
 	const url = spike.url("nc1", "sess-1");
 
-	const first = watch(url);
-	await new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(
-			() => reject(new Error(`only ${first.items.length} arrived`)),
-			8000,
-		);
-		const poll = setInterval(() => {
-			if (first.items.length >= 24) {
-				clearInterval(poll);
-				clearTimeout(timer);
-				resolve();
-			}
-		}, 10);
-	});
-	first.abort();
+	const first = watch(url, { stopAt: 24 });
+	await first.done;
 	const second = await drain(url, first.lastOffset);
 	const all = [...first.items, ...second.items];
 
@@ -338,21 +325,8 @@ test("NC2 negative control: skipping a row on resume is detected as loss", {
 	await spike.append("nc2", "sess-1", messages(50));
 	const url = spike.url("nc2", "sess-1");
 
-	const first = watch(url);
-	await new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(
-			() => reject(new Error(`only ${first.items.length} arrived`)),
-			8000,
-		);
-		const poll = setInterval(() => {
-			if (first.items.length >= 24) {
-				clearInterval(poll);
-				clearTimeout(timer);
-				resolve();
-			}
-		}, 10);
-	});
-	first.abort();
+	const first = watch(url, { stopAt: 24 });
+	await first.done;
 	const second = await drain(url, first.lastOffset);
 	const all = [...first.items, ...second.items];
 
