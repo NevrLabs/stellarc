@@ -571,7 +571,15 @@ test("M16 production wiring: kaneoNativeHandler's own MCP assembly proxies with 
 	expect(spanNames).toContain("mcp.tool.get_task");
 
 	// Restore env for the other tests sharing this process.
-	process.env.KANEO_API_URL = savedApiUrl;
+	// NEVER assign undefined back into process.env: bun (and node) coerce it
+	// to the STRING "undefined", which is truthy — kaneo-legacy auth.ts's
+	// `process.env.KANEO_API_URL || "http://localhost:1337"` fallback then
+	// never fires, better-auth gets baseURL "undefined", and its floating
+	// init() promise rejects as an unhandled error that fails the whole CI
+	// run (NEVR-605 cycle 2, foundation). Deleting the key restores the
+	// actually-unset state.
+	if (savedApiUrl !== undefined) process.env.KANEO_API_URL = savedApiUrl;
+	else delete process.env.KANEO_API_URL;
 	if (savedCors !== undefined) process.env.CORS_ORIGINS = savedCors;
 	else delete process.env.CORS_ORIGINS;
 	if (savedClient !== undefined) process.env.KANEO_CLIENT_URL = savedClient;
