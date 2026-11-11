@@ -350,6 +350,16 @@ test("S5 user-self: get-session returns only the caller's own identity", async (
  * constructs from the declared struct, so the extras are dropped before
  * the handler runs. R13 (scope-audit) is the static half: a request
  * schema that *declares* such a field fails the audit.
+ *
+ * Regression-pin pointer (NEVR-605 note 2): two separate lines hold this
+ * up, with two sabotage points. (1) The schema half: the HttpApi layer
+ * decodes INTO the payload struct declared at `packages/kaneo/src/groups.ts`
+ * (Boards.create: name/organizationId/icon/slug only) — widen that struct
+ * with `createdBy: Schema.String` and audit R13 goes red. (2) The storage
+ * half: the handler's insert is built from an explicit column list at
+ * `packages/kaneo/src/boards.ts` (Boards.create), never a payload spread —
+ * spread the decoded payload into that insert and the stored-row assertions
+ * below go red.
  */
 test("B1 line (b): body-supplied actor/timestamp fields never reach the stored row", async () => {
 	const res = await fetch(`${base}/api/board`, {

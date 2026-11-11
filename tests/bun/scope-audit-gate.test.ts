@@ -413,6 +413,15 @@ describe("NEVR-603 engine rules", () => {
 test("NEVR-603 line (f): better-auth rate limiting is not cloud-gated", async () => {
 	process.env.DATABASE_URL ??= "postgres://probe:probe@127.0.0.1:1/probe";
 	process.env.AUTH_SECRET ??= "probe-secret-probe-secret-probe-secret";
+	// Hermetic URL env (NEVR-605 defect 1, the kaneo-parity pattern): in a
+	// clean CI environment better-auth's async init otherwise rejects with
+	// "Invalid base URL: undefined" AFTER the test passes — an unhandled
+	// error between tests that fails the whole run. BETTER_AUTH_URL is
+	// better-auth's own fallback when a context is built without an explicit
+	// baseURL; KANEO_API_URL feeds auth.ts's baseURL derivation.
+	process.env.BETTER_AUTH_URL ??= "http://localhost";
+	process.env.KANEO_API_URL ??= "http://localhost";
+	process.env.KANEO_CLIENT_URL ??= "http://localhost:5173";
 	// Template-literal specifier (the kaneo-parity pattern): the strict root
 	// typecheck must not crawl the legacy tree — it keeps its own compiler
 	// settings.
