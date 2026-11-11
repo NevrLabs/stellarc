@@ -351,15 +351,23 @@ test("S5 user-self: get-session returns only the caller's own identity", async (
  * the handler runs. R13 (scope-audit) is the static half: a request
  * schema that *declares* such a field fails the audit.
  *
- * Regression-pin pointer (NEVR-605 note 2): two separate lines hold this
- * up, with two sabotage points. (1) The schema half: the HttpApi layer
- * decodes INTO the payload struct declared at `packages/kaneo/src/groups.ts`
- * (Boards.create: name/organizationId/icon/slug only) — widen that struct
- * with `createdBy: Schema.String` and audit R13 goes red. (2) The storage
- * half: the handler's insert is built from an explicit column list at
- * `packages/kaneo/src/boards.ts` (Boards.create), never a payload spread —
- * spread the decoded payload into that insert and the stored-row assertions
- * below go red.
+ * Regression-pin pointer (NEVR-606 defect 1): two independent pins, seeded
+ * by the SAME two-edit sabotage that simulates a route starting to accept
+ * and persist body-supplied identity/timestamps (the Plane INFRA-772
+ * regression) on this exact route:
+ *   edit 1 — declare the field: widen the Boards.create payload struct at
+ *   `packages/kaneo/src/groups.ts` with `createdAt: Schema.optional(Schema.String)`;
+ *   edit 2 — persist it: in the Boards.create insert at
+ *   `packages/kaneo/src/boards.ts`, write `createdAt: new Date(payload.createdAt)`.
+ * With both edits the spoofed `createdAt: "1999-01-01..."` below survives
+ * decode, reaches the handler, and lands in the stored row, so this test
+ * goes RED — first at the echo assertion (`not.toContain("1999-01-01")`;
+ * the returning() row IS the stored row), and the stored-row assertions
+ * below fire with it. Edit 1 alone reddens audit R13 (the static half).
+ * A storage-half edit alone — e.g. spreading the decoded payload into the
+ * insert — is a NO-OP: decode CONSTRUCTS from the declared struct, so
+ * excess keys never reach the handler. That is why the sabotage needs
+ * both edits, and what makes B1 the runtime pin for the storage layer.
  */
 test("B1 line (b): body-supplied actor/timestamp fields never reach the stored row", async () => {
 	const res = await fetch(`${base}/api/board`, {
