@@ -4,7 +4,10 @@ import { assertRuntimeDatabase, bindIdentity } from "./database";
 import { gatewaySchema } from "./store";
 
 // Fresh disposable database. Deliberately contaminate and restore one role.
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 2,
 	onnotice: () => {},
 });
@@ -12,7 +15,10 @@ await owner.unsafe(gatewaySchema);
 await owner`CREATE ROLE gateway_runtime LOGIN PASSWORD 'disposable-only'`;
 await owner`GRANT USAGE ON SCHEMA public TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT ON gw_audit TO gateway_runtime`;
-const runtime = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+const runtimeDsn = process.env.SPIKE_RUNTIME_DSN;
+if (typeof runtimeDsn !== "string" || !runtimeDsn)
+	throw new Error("SPIKE_RUNTIME_DSN required");
+const runtime = postgres(runtimeDsn, {
 	max: 2,
 	onnotice: () => {},
 });

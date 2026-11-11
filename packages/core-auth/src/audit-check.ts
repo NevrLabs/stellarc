@@ -4,7 +4,10 @@ import { auditExporter } from "./audit";
 import { gatewaySchema, gatewayStore } from "./store";
 
 // Disposable PostgreSQL and local OTLP only. Acceptance is not Maple persistence.
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 3,
 	onnotice: () => {},
 });
@@ -14,7 +17,10 @@ await owner`GRANT USAGE ON SCHEMA public TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT,UPDATE ON gw_principal,gw_credential,gw_delegation,gw_run,gw_audit_state TO gateway_runtime`;
 await owner`GRANT SELECT ON gw_installation TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT ON gw_audit TO gateway_runtime`;
-const sql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+const runtimeDsn = process.env.SPIKE_RUNTIME_DSN;
+if (typeof runtimeDsn !== "string" || !runtimeDsn)
+	throw new Error("SPIKE_RUNTIME_DSN required");
+const sql = postgres(runtimeDsn, {
 	max: 3,
 	onnotice: () => {},
 });

@@ -274,7 +274,9 @@ export function gateway(
 				)
 					throw new Refusal(503, "audit_partial_or_invalid");
 				// Crash here replays accepted rows; event.id is the consumer dedupe key.
-				await sql`INSERT INTO authgw_cursor(org,seq) VALUES (${org},${events.at(-1)!.seq})
+				const lastEvent = events.at(-1);
+				if (!lastEvent) throw new Refusal(503, "audit_partial_or_invalid");
+				await sql`INSERT INTO authgw_cursor(org,seq) VALUES (${org},${lastEvent.seq})
      ON CONFLICT(org) DO UPDATE SET seq=GREATEST(authgw_cursor.seq,EXCLUDED.seq)`;
 				count += events.length;
 			}

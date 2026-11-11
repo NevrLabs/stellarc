@@ -34,7 +34,10 @@ const rejects = async (promise: Promise<unknown>, reason: string) =>
 
 // Separate worker processes exercise real cross-process claim contention.
 if (process.argv[2] === "claim-worker") {
-	const workerSql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+	const workerDsn = process.env.SPIKE_RUNTIME_DSN;
+	if (typeof workerDsn !== "string" || !workerDsn)
+		throw new Error("SPIKE_RUNTIME_DSN required");
+	const workerSql = postgres(workerDsn, {
 		max: 1,
 		onnotice: () => {},
 	});
@@ -46,8 +49,10 @@ if (process.argv[2] === "claim-worker") {
 		);
 		const name = `worker-${process.argv[4]}`;
 		try {
+			const claimId = process.argv[3];
+			if (typeof claimId !== "string") throw new Error("claim id required");
 			const payload = await worker.claim(
-				process.argv[3]!,
+				claimId,
 				"alpha",
 				name,
 				async () => true,
@@ -68,7 +73,10 @@ if (process.argv[2] === "claim-worker") {
 }
 
 // Fresh disposable PG only; runtime role exercises real grants.
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 4,
 	onnotice: () => {},
 });
@@ -81,7 +89,10 @@ await owner`GRANT USAGE ON SCHEMA public TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT,UPDATE ON gw_principal,gw_credential,gw_delegation,gw_run,gw_audit_state,gw_tool_approval TO gateway_runtime`;
 await owner`GRANT SELECT ON gw_installation TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT ON gw_audit TO gateway_runtime`;
-const sql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+const runtimeDsn = process.env.SPIKE_RUNTIME_DSN;
+if (typeof runtimeDsn !== "string" || !runtimeDsn)
+	throw new Error("SPIKE_RUNTIME_DSN required");
+const sql = postgres(runtimeDsn, {
 	max: 4,
 	onnotice: () => {},
 });
@@ -147,7 +158,7 @@ async function enqueue(options?: {
 			org,
 			actor: admitted.principal.id,
 			subject: admitted.subject,
-			runId: admitted.runId!,
+			runId: admitted.runId as string,
 			request: label,
 			trace: "trace-approval",
 		},
@@ -462,12 +473,12 @@ try {
 	await attempt(
 		"serialized-concurrent-connection-claim-exactly-one-winner",
 		async () => {
-			const raceA = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+			const raceA = postgres(runtimeDsn, {
 				max: 1,
 				onnotice: () => {},
 				connection: { application_name: "ta-race-a" },
 			});
-			const raceB = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+			const raceB = postgres(runtimeDsn, {
 				max: 1,
 				onnotice: () => {},
 				connection: { application_name: "ta-race-b" },
@@ -550,7 +561,9 @@ try {
 			const denied = outputs.filter((o) => o.startsWith("DENIED"));
 			assert.equal(claimed.length, 1, JSON.stringify(outputs));
 			assert.equal(denied.length, 3);
-			assert.ok(claimed[0]!.includes(args.marker));
+			const claimedOutput = claimed[0];
+			if (typeof claimedOutput !== "string") throw new Error("no claim output");
+			assert.ok(claimedOutput.includes(args.marker));
 			assert.ok(denied.every((o) => o.endsWith("not_claimable")));
 			assert.equal((await row(id)).state, "dispatching");
 			// Council R2 F4 repair: exercise the claim-owner gate while the row
@@ -924,12 +937,12 @@ try {
 			// their per-row transactions would consume the barrier window and
 			// defer this row's candidate selection past the release.
 			await owner`DELETE FROM gw_tool_approval WHERE state IN ('pending','approved') AND expires_at<=clock_timestamp()`;
-			const rpt = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+			const rpt = postgres(runtimeDsn, {
 				max: 1,
 				onnotice: () => {},
 				connection: { application_name: "ta-f2a-rpt" },
 			});
-			const rec = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+			const rec = postgres(runtimeDsn, {
 				max: 1,
 				onnotice: () => {},
 				connection: { application_name: "ta-f2a-rec" },
@@ -1015,12 +1028,12 @@ try {
 			await tightApprovals.claim(id, "alpha", "worker-f2b", async () => true);
 			await new Promise((r) => setTimeout(r, 1300));
 			await owner`DELETE FROM gw_tool_approval WHERE state IN ('pending','approved') AND expires_at<=clock_timestamp()`;
-			const recA = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+			const recA = postgres(runtimeDsn, {
 				max: 1,
 				onnotice: () => {},
 				connection: { application_name: "ta-f2b-a" },
 			});
-			const recB = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+			const recB = postgres(runtimeDsn, {
 				max: 1,
 				onnotice: () => {},
 				connection: { application_name: "ta-f2b-b" },
@@ -1323,7 +1336,8 @@ try {
 			assert.ok(page.rows.every((r) => !("envelope" in r)));
 			const empty = await approvals.queue("beta", { limit: 10 });
 			assert.equal(empty.rows.length, 0);
-			const target = page.rows[0]!;
+			const target = page.rows[0];
+			if (!target) throw new Error("empty page");
 			const full = await approvals.detail("alpha", target.id);
 			assert.equal(full.state, target.state);
 			assert.ok(!("envelope" in full));

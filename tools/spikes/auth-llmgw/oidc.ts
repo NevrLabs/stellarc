@@ -108,7 +108,8 @@ export function oidc(config: {
 		if (["state", "code"].some((k) => url.searchParams.getAll(k).length !== 1))
 			throw new Refusal(400, "invalid_callback");
 		if (url.searchParams.has("error")) throw new Refusal(401, "oidc_denied");
-		const state = url.searchParams.get("state")!;
+		const state = url.searchParams.get("state");
+		if (typeof state !== "string") throw new Denied(400, "state_required");
 		const transaction = pending.get(state);
 		// Single-use, including failed callbacks; no browser mismatch replay opportunity.
 		pending.delete(state);
@@ -142,7 +143,7 @@ export function oidc(config: {
 				grant_type: "authorization_code",
 				client_id: config.clientId,
 				redirect_uri: config.callback,
-				code: url.searchParams.get("code")!,
+				code: url.searchParams.get("code") ?? "",
 				code_verifier: transaction.verifier,
 				...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
 			}),

@@ -38,10 +38,15 @@ globalThis.fetch = (async (
 	if (url === `${issuer}/keys`) return Response.json({ keys: [key] });
 	assert.equal(url, `${issuer}/token`);
 	exchanges++;
-	const form = options!.body as URLSearchParams;
+	const optionsBody = (options as { body?: unknown } | undefined)?.body;
+	if (!(optionsBody instanceof URLSearchParams))
+		throw new Error("token exchange body missing");
+	const form = optionsBody;
 	assert.equal(form.get("redirect_uri"), callback);
 	assert.equal(form.get("client_id"), "fixture");
-	assert.match(form.get("code_verifier")!, /^[A-Za-z0-9_-]{43}$/);
+	const verifier = form.get("code_verifier");
+	if (typeof verifier !== "string") throw new Error("code_verifier missing");
+	assert.match(verifier, /^[A-Za-z0-9_-]{43}$/);
 	const now = Math.floor(Date.now() / 1000);
 	const claims = {
 		iss: issuer,
@@ -101,7 +106,9 @@ try {
 	async function transaction() {
 		const begin = await login.begin();
 		const url = new URL(begin.url);
-		nonce = url.searchParams.get("nonce")!;
+		const beginNonce = url.searchParams.get("nonce");
+		if (typeof beginNonce !== "string") throw new Error("nonce missing");
+		nonce = beginNonce;
 		assert.equal(url.searchParams.get("scope"), "openid");
 		assert.equal(url.searchParams.get("code_challenge_method"), "S256");
 		assert.match(begin.cookie, /HttpOnly; SameSite=Lax/);

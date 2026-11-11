@@ -7,6 +7,11 @@ import { gatewaySchema, gatewayStore } from "./store";
 
 // Owner-only CLI. Runtime never migrates or bootstraps authority.
 const ownerUrl = process.env.GATEWAY_OWNER_DATABASE_URL;
+const env = (name: string): string => {
+	const value = process.env[name];
+	if (typeof value !== "string" || !value) throw new Error(`${name} required`);
+	return value;
+};
 if (!ownerUrl || !process.env.GATEWAY_BOOTSTRAP_SUBJECT)
 	throw new Error("Owner DSN and explicit bootstrap subject required");
 const sql = postgres(ownerUrl, { max: 2, onnotice: () => {} });
@@ -15,20 +20,20 @@ try {
 	await sql.unsafe(gatewaySchema);
 	await bindIdentity(
 		sql,
-		process.env.GATEWAY_OIDC_ISSUER!,
-		process.env.GATEWAY_OIDC_CLIENT!,
+		env("GATEWAY_OIDC_ISSUER"),
+		env("GATEWAY_OIDC_CLIENT"),
 		true,
 	);
 	const auth = gatewayAuth({
-		origin: process.env.GATEWAY_ORIGIN!,
-		issuer: process.env.GATEWAY_OIDC_ISSUER!,
-		clientId: process.env.GATEWAY_OIDC_CLIENT!,
-		clientSecret: process.env.GATEWAY_OIDC_SECRET!,
-		secret: process.env.GATEWAY_AUTH_SECRET!,
+		origin: env("GATEWAY_ORIGIN"),
+		issuer: env("GATEWAY_OIDC_ISSUER"),
+		clientId: env("GATEWAY_OIDC_CLIENT"),
+		clientSecret: env("GATEWAY_OIDC_SECRET"),
+		secret: env("GATEWAY_AUTH_SECRET"),
 		database: pool,
-		authorizationEndpoint: process.env.GATEWAY_OIDC_AUTHORIZE!,
-		tokenEndpoint: process.env.GATEWAY_OIDC_TOKEN!,
-		jwksUri: process.env.GATEWAY_OIDC_JWKS!,
+		authorizationEndpoint: env("GATEWAY_OIDC_AUTHORIZE"),
+		tokenEndpoint: env("GATEWAY_OIDC_TOKEN"),
+		jwksUri: env("GATEWAY_OIDC_JWKS"),
 		approved: gatewayStore(sql).human,
 		audit: gatewayStore(sql).securityEvent,
 	});

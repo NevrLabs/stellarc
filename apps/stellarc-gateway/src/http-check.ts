@@ -14,7 +14,10 @@ import { gatewayApp } from "./main";
 // Real socket + disposable PG + local OTLP sink. NO live OIDC or inference.
 const origin = "https://gateway.invalid";
 const issuer = "https://issuer.invalid";
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 3,
 	onnotice: () => {},
 });
@@ -135,7 +138,7 @@ try {
 					new Promise<string>((resolve, reject) => {
 						const socket = createConnection({
 							host: "127.0.0.1",
-							port: server.port!,
+							port: server.port ?? 0,
 						});
 						sockets.push(socket);
 						let text = "";
@@ -198,14 +201,17 @@ try {
 	assert.equal(stream.status, 200);
 	assert.match(await stream.text(), /fixture-3/);
 	const run = stream.headers.get("x-stellarc-run-id");
-	assert.match(run!, /^[a-f0-9-]{36}$/);
-	const ended = await owner`SELECT outcome FROM gw_run WHERE id=${run!}`;
+	if (typeof run !== "string") throw new Error("run id missing");
+	assert.match(run, /^[a-f0-9-]{36}$/);
+	const ended = await owner`SELECT outcome FROM gw_run WHERE id=${run}`;
 	assert.equal(ended[0].outcome, "completed");
 	const terminal =
-		await owner`SELECT payload FROM gw_audit WHERE kind='call.completed' AND payload->>'run'=${run!}`;
+		await owner`SELECT payload FROM gw_audit WHERE kind='call.completed' AND payload->>'run'=${run}`;
 	assert.equal(terminal.length, 1);
 	assert.equal(terminal[0].payload.usage, "unavailable");
-	assert.match(stream.headers.get("x-trace-id")!, /^[a-f0-9]{32}$/);
+	const traceId = stream.headers.get("x-trace-id");
+	if (typeof traceId !== "string") throw new Error("x-trace-id missing");
+	assert.match(traceId, /^[a-f0-9]{32}$/);
 	pass("socket-fixture-stream-correlated-headers");
 	const beforeNonstream = (
 		await owner`SELECT count(*)::int AS n FROM gw_run`
@@ -457,14 +463,14 @@ try {
 			"cancellation barrier must follow durable admission",
 		);
 		const run =
-			await owner`SELECT outcome FROM gw_run WHERE id=${cancelledRun!}`;
+			await owner`SELECT outcome FROM gw_run WHERE id=${cancelledRun}`;
 		assert.equal(
 			run[0].outcome,
 			"cancelled",
 			"cancelled MCP admission must not complete",
 		);
 		const events =
-			await owner`SELECT kind FROM gw_audit WHERE payload->>'run'=${cancelledRun!} AND kind IN ('call.completed','call.failed','call.cancelled')`;
+			await owner`SELECT kind FROM gw_audit WHERE payload->>'run'=${cancelledRun} AND kind IN ('call.completed','call.failed','call.cancelled')`;
 		assert.deepEqual(
 			events.map((row) => row.kind),
 			["call.cancelled"],

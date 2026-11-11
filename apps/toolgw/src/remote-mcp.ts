@@ -1,5 +1,10 @@
 import { Cause, Effect, Exit, Fiber, Layer, ManagedRuntime } from "effect";
-import { McpClient, McpClientError, McpProtocol, type McpSchema } from "effect/ai";
+import {
+	McpClient,
+	McpClientError,
+	McpProtocol,
+	type McpSchema,
+} from "effect/ai";
 import { FetchHttpClient } from "effect/http";
 import { Denied } from "../../../packages/core-auth/src/store";
 
@@ -108,9 +113,14 @@ function bindResult(
 		throw new Denied(502, "remote_content_items");
 	let chars = 0;
 	for (const item of content)
-		if (typeof item === "object" && "text" in item && typeof item.text === "string")
+		if (
+			typeof item === "object" &&
+			"text" in item &&
+			typeof item.text === "string"
+		)
 			chars += item.text.length;
-	if (chars > bounds.contentChars) throw new Denied(502, "remote_content_chars");
+	if (chars > bounds.contentChars)
+		throw new Denied(502, "remote_content_chars");
 	return result;
 }
 
@@ -161,28 +171,27 @@ export async function connectRemoteMcp(
 		program: Effect.Effect<A, E, McpClient.McpClient>,
 		signal?: AbortSignal,
 	): Promise<A> {
-		if (signal?.aborted)
-			return Promise.reject(new Denied(499, "cancelled"));
+		if (signal?.aborted) return Promise.reject(new Denied(499, "cancelled"));
 		const fiber = runtime.runFork(program);
 		const cancel = () => {
 			void runtime.runPromise(Fiber.interrupt(fiber)).catch(() => {});
 		};
 		if (signal) signal.addEventListener("abort", cancel, { once: true });
-		return runtime
-			.runPromise(Fiber.await(fiber))
-			// The rejection path carries a failed layer build (first call on a
-			// dead remote): ManagedRuntime rejects with the raw McpClientError,
-			// bypassing the Exit below. Sanitize both paths.
-			.then(finish, (failure: unknown) => {
-				if (signal?.aborted) throw new Denied(499, "cancelled");
-				throw toDenied(failure);
-			})
-			.finally(() => signal?.removeEventListener("abort", cancel));
+		return (
+			runtime
+				.runPromise(Fiber.await(fiber))
+				// The rejection path carries a failed layer build (first call on a
+				// dead remote): ManagedRuntime rejects with the raw McpClientError,
+				// bypassing the Exit below. Sanitize both paths.
+				.then(finish, (failure: unknown) => {
+					if (signal?.aborted) throw new Denied(499, "cancelled");
+					throw toDenied(failure);
+				})
+				.finally(() => signal?.removeEventListener("abort", cancel))
+		);
 		// Abort wins over every other outcome: a caller who aborted never
 		// receives success bytes or upstream failure detail.
-		function finish(
-			exit: Exit.Exit<A, E | McpClientError.McpClientError>,
-		): A {
+		function finish(exit: Exit.Exit<A, E | McpClientError.McpClientError>): A {
 			if (Exit.isFailure(exit)) {
 				if (signal?.aborted) throw new Denied(499, "cancelled");
 				throw toDenied(Cause.squash(exit.cause));

@@ -96,7 +96,9 @@ export function auditExporter(sql: Sql, endpoint: string) {
 								partial.errorMessage !== "")))
 				)
 					throw new Denied(503, "audit_partial_or_invalid");
-				await sql`UPDATE gw_audit_state SET delivered=GREATEST(delivered,${events.at(-1)!.seq}) WHERE org=${state.org}`;
+				const lastEvent = events.at(-1);
+				if (!lastEvent) throw new Denied(503, "audit_partial_or_invalid");
+				await sql`UPDATE gw_audit_state SET delivered=GREATEST(delivered,${lastEvent.seq}) WHERE org=${state.org}`;
 				accepted += events.length;
 			}
 			return accepted;

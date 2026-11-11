@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { Effect } from "effect";
 import postgres from "postgres";
 import {
 	TelemetryLive,
@@ -9,7 +8,10 @@ import {
 import { ddl, gateway, traceContext } from "./gateway";
 import { oidc } from "./oidc";
 
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 3,
 	onnotice: () => {},
 });
@@ -31,7 +33,10 @@ await grantRuntime(owner, "authgw_runtime");
 await owner`GRANT SELECT,INSERT,UPDATE ON authgw_grant,authgw_cursor TO authgw_runtime`;
 await owner`GRANT SELECT,UPDATE ON authgw_member TO authgw_runtime`;
 await owner`INSERT INTO authgw_member VALUES ('alpha','fixture-actor')`;
-const sql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+const runtimeDsn = process.env.SPIKE_RUNTIME_DSN;
+if (typeof runtimeDsn !== "string" || !runtimeDsn)
+	throw new Error("SPIKE_RUNTIME_DSN required");
+const sql = postgres(runtimeDsn, {
 	max: 4,
 	onnotice: () => {},
 });
@@ -159,7 +164,8 @@ try {
 		.getFinishedSpans()
 		.filter((s) => s.name === "authgw.provider.attempt").length;
 	const brokenStream = await send();
-	const brokenReader = brokenStream.body!.getReader();
+	if (!brokenStream.body) throw new Error("broken body missing");
+	const brokenReader = brokenStream.body.getReader();
 	assert.equal((await brokenReader.read()).done, false);
 	await assert.rejects(async () => {
 		while (!(await brokenReader.read()).done) {}
@@ -179,18 +185,19 @@ try {
 	const b = await send();
 	const c = await send();
 	assert.equal(c.status, 429);
-	await a.body!.cancel();
-	await b.body!.cancel();
+	await a.body?.cancel();
+	await b.body?.cancel();
 	assert.equal(gw.state().active, 0);
 	ok("capacity-two-queue-zero-cancel");
 	const abort = new AbortController();
 	const d = await send(grant.raw, abort.signal);
 	abort.abort();
-	await d.body!.cancel();
+	await d.body?.cancel();
 	assert.equal(gw.state().active, 0);
 	ok("disconnect-cleanup");
 	const e = await send();
-	const reader = e.body!.getReader();
+	if (!e.body) throw new Error("e body missing");
+	const reader = e.body.getReader();
 	await reader.read();
 	await gw.revoke(grant.id);
 	// Already-buffered transport data is not recallable; subsequent pull must stop.

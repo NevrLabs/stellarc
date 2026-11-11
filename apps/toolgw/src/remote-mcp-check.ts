@@ -116,10 +116,10 @@ const server = Bun.serve({
 						jsonrpc: "2.0",
 						id: message.id,
 						result: {
-							content: Array.from(
-								{ length: bounds.contentItems + 1 },
-								() => ({ type: "text", text: "x" }),
-							),
+							content: Array.from({ length: bounds.contentItems + 1 }, () => ({
+								type: "text",
+								text: "x",
+							})),
 						},
 					});
 				return Response.json({

@@ -266,7 +266,9 @@ export function gatewayAuth(config: {
 	async function audited(request: Request) {
 		return operation.run(
 			{ failed: false, signal: request.signal },
-			async () => {
+			async (): Promise<Response> => {
+				const store = operation.getStore();
+				if (!store) throw new Error("audit operation store missing");
 				const path = new URL(request.url).pathname;
 				const kind =
 					path === "/auth/login"
@@ -279,7 +281,7 @@ export function gatewayAuth(config: {
 				try {
 					if (kind) await record(`${kind}.begin`);
 					const response = await handler(request);
-					if (operation.getStore()!.failed) {
+					if (store.failed) {
 						await discardSession();
 						return new Response("audit unavailable", { status: 503 });
 					}
@@ -291,7 +293,7 @@ export function gatewayAuth(config: {
 					if (kind === "auth.callback")
 						await record(
 							accepted ? "auth.callback.accept" : "auth.callback.reject",
-							operation.getStore()!.actor,
+							store.actor,
 						);
 					else if (kind && response.status >= 400)
 						await record(`${kind}.reject`);

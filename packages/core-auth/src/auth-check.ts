@@ -55,10 +55,12 @@ globalThis.fetch = (async (input: RequestInfo | URL, options?: RequestInit) => {
 	if (url === `${issuer}/keys`) return Response.json({ keys: [jwk] });
 	assert.equal(url, `${issuer}/token`);
 	exchanges++;
-	const body = new URLSearchParams(String(options!.body));
-	assert.ok(body.get("code_verifier"));
+	const optionsBody = (options as { body?: unknown } | undefined)?.body;
+	const body = new URLSearchParams(String(optionsBody));
+	const verifier = body.get("code_verifier");
+	assert.ok(verifier);
 	assert.equal(
-		createHash("sha256").update(body.get("code_verifier")!).digest("base64url"),
+		createHash("sha256").update(verifier).digest("base64url"),
 		nonce,
 	);
 	const seconds = Math.floor(Date.now() / 1000);
@@ -91,7 +93,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, options?: RequestInit) => {
 }) as typeof fetch;
 const owner =
 	process.env.AUTH_PG_CHECK === "1"
-		? postgres(process.env.SPIKE_OWNER_DSN!, { max: 2, onnotice: () => {} })
+		? postgres(
+				(() => {
+					const dsn = process.env.SPIKE_OWNER_DSN;
+					if (typeof dsn !== "string" || !dsn)
+						throw new Error("SPIKE_OWNER_DSN required");
+					return dsn;
+				})(),
+				{ max: 2, onnotice: () => {} },
+			)
 		: undefined;
 const ownerPool = owner
 	? new Pool({ connectionString: process.env.SPIKE_OWNER_DSN, max: 2 })
@@ -154,7 +164,11 @@ try {
 		);
 		assert.equal(r.status, 200);
 		const u = new URL((await r.json()).url);
-		nonce = u.searchParams.get("nonce")!;
+		{
+			const beginNonce = u.searchParams.get("nonce");
+			if (typeof beginNonce !== "string") throw new Error("nonce missing");
+			nonce = beginNonce;
+		}
 		assert.equal(u.searchParams.get("scope"), "openid");
 		assert.equal(u.searchParams.get("code_challenge_method"), "S256");
 		assert.equal(nonce, u.searchParams.get("code_challenge"));

@@ -5,16 +5,28 @@ import { Pool } from "pg";
 import postgres from "postgres";
 import { gatewayAuth } from "../../../packages/core-auth/src/auth";
 import { bindIdentity } from "../../../packages/core-auth/src/database";
+import {
+	gatewaySchema,
+	gatewayStore,
+} from "../../../packages/core-auth/src/store";
 import { gatewayApp } from "./main";
-import { gatewaySchema, gatewayStore } from "../../../packages/core-auth/src/store";
 
 // LOCAL intercepted upstream only. No request reaches a provider or live IdP.
 const origin = "https://gateway.invalid";
 const issuer = "https://issuer.invalid";
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 3,
 	onnotice: () => {},
 });
+
+const headerValue = (headers: Headers, name: string): string => {
+	const value = headers.get(name);
+	if (typeof value !== "string") throw new Error(`${name} missing`);
+	return value;
+};
 const pool = new Pool({
 	connectionString: process.env.SPIKE_OWNER_DSN,
 	max: 2,
@@ -105,7 +117,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 	if (holdHeaders) {
 		enterHeaders();
 		return new Promise<Response>((_, reject) => {
-			init!.signal!.addEventListener(
+			if (!init || !init.signal) throw new Error("init signal missing");
+			init.signal.addEventListener(
 				"abort",
 				() => {
 					fetchAborted = true;
@@ -140,7 +153,8 @@ try {
 		}),
 	);
 	assert.equal(response.status, 200);
-	const result = response.body!.getReader().read();
+	if (!response.body) throw new Error("response body missing");
+	const result = response.body.getReader().read();
 	await reading; // The production pre-read authorization has already completed.
 	await app.store.revoke("operator", key.id);
 	upstream.enqueue(new TextEncoder().encode("PRIVATE_POST_REVOCATION_OUTPUT"));
@@ -151,10 +165,10 @@ try {
 	assert.equal(calls, 1);
 	assert.equal(cancelled, true);
 	const run = response.headers.get("x-stellarc-run-id");
-	const failed = await owner`SELECT outcome FROM gw_run WHERE id=${run!}`;
+	const failed = await owner`SELECT outcome FROM gw_run WHERE id=${run}`;
 	assert.equal(failed[0].outcome, "failed");
 	const terminal =
-		await owner`SELECT payload FROM gw_audit WHERE kind='call.failed' AND payload->>'run'=${run!}`;
+		await owner`SELECT payload FROM gw_audit WHERE kind='call.failed' AND payload->>'run'=${run}`;
 	assert.equal(terminal.length, 1);
 	console.log("PASS pending-upstream-read-revocation-stops-output-no-retry");
 	const secondKey = await app.store.issue("operator", agent);
@@ -199,7 +213,8 @@ try {
 			},
 		});
 		const incomplete = await app.handler(streamRequest());
-		const reader = incomplete.body!.getReader();
+		if (!incomplete.body) throw new Error("incomplete body missing");
+		const reader = incomplete.body.getReader();
 		let output = "";
 		await assert.rejects(
 			async () => {
@@ -213,7 +228,7 @@ try {
 			"provider EOF/error must not become successful completion",
 		);
 		assert.ok(!output.includes("[DONE]"));
-		const id = incomplete.headers.get("x-stellarc-run-id")!;
+		const id = headerValue(incomplete.headers, "x-stellarc-run-id");
 		const outcome = await owner`SELECT outcome FROM gw_run WHERE id=${id}`;
 		assert.equal(outcome[0].outcome, "failed");
 		const events =
@@ -242,7 +257,7 @@ try {
 		1,
 		"forward one audited successful terminal frame",
 	);
-	const completedId = completed.headers.get("x-stellarc-run-id")!;
+	const completedId = headerValue(completed.headers, "x-stellarc-run-id");
 	const completedRow =
 		await owner`SELECT outcome FROM gw_run WHERE id=${completedId}`;
 	assert.equal(completedRow[0].outcome, "completed");
@@ -280,7 +295,7 @@ try {
 	let socketBytes = "";
 	const socket = createConnection({
 		host: "127.0.0.1",
-		port: socketServer.port!,
+		port: socketServer.port ?? 0,
 	});
 	const heldRead = new Promise<void>((resolve, reject) => {
 		socket.on("data", (bytes) => {
@@ -365,7 +380,7 @@ try {
 	);
 	assert.equal(terminalAttempts, 2);
 	assert.equal(terminalDenied, true);
-	const recoveredId = recovered.headers.get("x-stellarc-run-id")!;
+	const recoveredId = headerValue(recovered.headers, "x-stellarc-run-id");
 	const recoveredRow =
 		await owner`SELECT outcome FROM gw_run WHERE id=${recoveredId}`;
 	assert.equal(recoveredRow[0].outcome, "completed");
@@ -402,7 +417,7 @@ try {
 			},
 		});
 		const outage = await app.handler(streamRequest());
-		outageId = outage.headers.get("x-stellarc-run-id")!;
+		outageId = headerValue(outage.headers, "x-stellarc-run-id");
 		assert.equal(outage.status, 200);
 		await assert.rejects(
 			outage.text(),
@@ -428,14 +443,14 @@ try {
 		await owner`GRANT INSERT ON gw_audit TO gateway_runtime`;
 		app.store.finish = originalFinish;
 	}
-	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${orphan.runId!}`;
+	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${orphan.runId}`;
 	const providerCallsBeforeRecovery = calls;
 	// Observe the actual background recovery loop; the fixture must not call recover.
 	if (outageId) {
 		const deadline = Date.now() + 12000;
 		while (
 			(
-				await owner`SELECT 1 FROM gw_run WHERE id IN (${outageId},${orphan.runId!}) AND outcome='running'`
+				await owner`SELECT 1 FROM gw_run WHERE id IN (${outageId},${orphan.runId}) AND outcome='running'`
 			).length > 0 &&
 			Date.now() < deadline
 		)
@@ -453,12 +468,12 @@ try {
 		);
 	}
 	assert.equal(
-		(await owner`SELECT outcome FROM gw_run WHERE id=${orphan.runId!}`)[0]
+		(await owner`SELECT outcome FROM gw_run WHERE id=${orphan.runId}`)[0]
 			.outcome,
 		"interrupted",
 	);
 	const orphanEvents =
-		await owner`SELECT kind,payload FROM gw_audit WHERE payload->>'run'=${orphan.runId!} AND kind IN ('call.interrupted','call.completed','call.failed','call.cancelled')`;
+		await owner`SELECT kind,payload FROM gw_audit WHERE payload->>'run'=${orphan.runId} AND kind IN ('call.interrupted','call.completed','call.failed','call.cancelled')`;
 	assert.equal(orphanEvents.length, 1);
 	assert.equal(orphanEvents[0].kind, "call.interrupted");
 	assert.equal(orphanEvents[0].payload.externalEffect, "unknown");
@@ -499,7 +514,8 @@ try {
 	);
 	assert.equal(interrupted.status, 200);
 	await assert.rejects(
-		interrupted.body!.getReader().read(),
+		interrupted.body?.getReader().read() ??
+			Promise.reject(new Error("body missing")),
 		/provider_|scope_denied|invalid_credential|abort/i,
 		"abort during terminal persistence must not release DONE",
 	);
@@ -534,9 +550,9 @@ try {
 		const response = await app.handler(
 			new Request(request, { signal: controller.signal }),
 		);
-		if (mode === "consumer") await response.body!.cancel();
+		if (mode === "consumer") await response.body?.cancel();
 		else if (mode === "abort") controller.abort();
-		const id = response.headers.get("x-stellarc-run-id")!;
+		const id = headerValue(response.headers, "x-stellarc-run-id");
 		const until = Date.now() + (mode === "deadline" ? 33000 : 3000);
 		while (
 			(await owner`SELECT outcome FROM gw_run WHERE id=${id}`)[0].outcome ===
@@ -642,11 +658,11 @@ try {
 	}
 	const shutdownRun = shutdownStream.headers.get("x-stellarc-run-id");
 	const shutdownOutcome =
-		await owner`SELECT outcome FROM gw_run WHERE id=${shutdownRun!}`;
+		await owner`SELECT outcome FROM gw_run WHERE id=${shutdownRun}`;
 	assert.equal(shutdownOutcome[0].outcome, "cancelled");
 	assert.ok(admissionRun);
 	const admissionOutcome =
-		await owner`SELECT outcome FROM gw_run WHERE id=${admissionRun!}`;
+		await owner`SELECT outcome FROM gw_run WHERE id=${admissionRun}`;
 	assert.equal(
 		admissionOutcome[0].outcome,
 		"cancelled",

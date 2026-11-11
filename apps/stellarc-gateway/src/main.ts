@@ -2,17 +2,20 @@ import { Effect, Layer, ManagedRuntime, Metric, Tracer } from "effect";
 
 import { Pool } from "pg";
 import postgres from "postgres";
-import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import { auditExporter } from "../../../packages/core-auth/src/audit";
 import { gatewayAuth } from "../../../packages/core-auth/src/auth";
-import { assertRuntimeDatabase, bindIdentity } from "../../../packages/core-auth/src/database";
-import { mcpGateway } from "../../toolgw/src/mcp";
+import {
+	assertRuntimeDatabase,
+	bindIdentity,
+} from "../../../packages/core-auth/src/database";
+import { Denied, gatewayStore } from "../../../packages/core-auth/src/store";
+import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import {
 	prepareProviderRequest,
 	providerResponse,
 	validateRoutes,
 } from "../../llmgw/src/provider-routing";
-import { Denied, gatewayStore } from "../../../packages/core-auth/src/store";
+import { mcpGateway } from "../../toolgw/src/mcp";
 
 export async function gatewayApp(
 	env: Record<string, string | undefined> = process.env,
@@ -222,7 +225,7 @@ export async function gatewayApp(
 				if (!runId) return Promise.resolve();
 				if (!terminal) {
 					const id = runId;
-					terminal = Promise.resolve().then(async () => {
+					const settled = Promise.resolve().then(async () => {
 						for (let attempt = 0; ; attempt++) {
 							try {
 								await store.finish(id, outcome);
@@ -233,10 +236,11 @@ export async function gatewayApp(
 							}
 						}
 					});
-					finalizers.add(terminal);
-					void terminal.then(
-						() => finalizers.delete(terminal!),
-						() => finalizers.delete(terminal!),
+					terminal = settled;
+					finalizers.add(settled);
+					void settled.then(
+						() => finalizers.delete(settled),
+						() => finalizers.delete(settled),
 					);
 				}
 				return terminal;
@@ -356,7 +360,9 @@ export async function gatewayApp(
 								/^\/orgs\/([a-z0-9-]{1,64})\/v1\/chat\/completions$/.exec(
 									url.pathname,
 								);
-							let org = match?.[1];
+							let org: string | undefined = match?.[1];
+							if (url.pathname !== "/mcp" && typeof org !== "string")
+								return new Response("not_found", { status: 404, headers });
 							if (url.pathname === "/mcp") {
 								// Org is resolved from authenticated credential, never caller org headers.
 								const decision = await store.authorize(
@@ -369,6 +375,8 @@ export async function gatewayApp(
 									false,
 								);
 								org = decision.principal.org;
+								if (typeof org !== "string")
+									throw new Denied(403, "org_required");
 								const payload = await body(request, abort.signal);
 								if (request.method !== "POST")
 									throw new Denied(405, "post_required");
@@ -388,7 +396,7 @@ export async function gatewayApp(
 									authorize: async () => {
 										const admitted = await store.authorize(
 											raw,
-											org!,
+											org as string,
 											"mcp:status",
 											requestId,
 											span.traceId,
@@ -410,7 +418,7 @@ export async function gatewayApp(
 								throw new Denied(404, "not_found");
 							await store.authorize(
 								raw,
-								org!,
+								org as string,
 								"llm:stream",
 								requestId,
 								span.traceId,
@@ -426,7 +434,7 @@ export async function gatewayApp(
 							runId = (
 								await store.authorize(
 									raw,
-									org!,
+									org as string,
 									"llm:stream",
 									requestId,
 									span.traceId,
@@ -455,7 +463,7 @@ export async function gatewayApp(
 								const work = store
 									.authorize(
 										raw,
-										org!,
+										org as string,
 										"llm:stream",
 										requestId,
 										span.traceId,
@@ -540,7 +548,7 @@ export async function gatewayApp(
 							for (const [key, value] of Object.entries({
 								...headers,
 								"x-request-id": requestId,
-								"x-stellarc-run-id": runId!,
+								"x-stellarc-run-id": runId as string,
 								"x-trace-id": span.traceId,
 								"x-stellarc-provider": env.GATEWAY_PROVIDER_URL
 									? "configured"
@@ -627,7 +635,10 @@ export async function gatewayApp(
 }
 if (import.meta.main) {
 	const app = await gatewayApp();
-	const origin = new URL(process.env.GATEWAY_ORIGIN!);
+	const gatewayOrigin = process.env.GATEWAY_ORIGIN;
+	if (typeof gatewayOrigin !== "string")
+		throw new Error("GATEWAY_ORIGIN required");
+	const origin = new URL(gatewayOrigin);
 	const server = Bun.serve({
 		hostname: "127.0.0.1",
 		port: Number(process.env.GATEWAY_PORT ?? 1438),

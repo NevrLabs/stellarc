@@ -6,7 +6,10 @@ import { ddl, gateway } from "./gateway";
 
 // Fresh process: test Metric registries/exporters cannot consume this process's delta.
 // Same disposable-only DB contract as check.ts; NEVER use an existing DB.
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 3,
 	onnotice: () => {},
 });
@@ -26,7 +29,10 @@ await grantRuntime(owner, "authgw_runtime");
 await owner`GRANT SELECT,INSERT,UPDATE ON authgw_grant,authgw_cursor TO authgw_runtime`;
 await owner`GRANT SELECT,UPDATE ON authgw_member TO authgw_runtime`;
 await owner`INSERT INTO authgw_member VALUES ('spike-dev','fixture-actor')`;
-const sql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+const runtimeDsn = process.env.SPIKE_RUNTIME_DSN;
+if (typeof runtimeDsn !== "string" || !runtimeDsn)
+	throw new Error("SPIKE_RUNTIME_DSN required");
+const sql = postgres(runtimeDsn, {
 	max: 4,
 	onnotice: () => {},
 });

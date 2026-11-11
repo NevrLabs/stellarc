@@ -4,7 +4,10 @@ import { gatewaySchema, gatewayStore } from "./store";
 
 // Separate worker processes exercise actual interruption, not a second function call.
 if (process.argv[2] === "terminal-worker") {
-	const workerSql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+	const workerDsn = process.env.SPIKE_RUNTIME_DSN;
+	if (typeof workerDsn !== "string" || !workerDsn)
+		throw new Error("SPIKE_RUNTIME_DSN required");
+	const workerSql = postgres(workerDsn, {
 		max: 1,
 		onnotice: () => {},
 	});
@@ -25,7 +28,10 @@ if (process.argv[2] === "terminal-worker") {
 }
 
 // Fresh disposable PG only; runtime role exercises real append-only permissions.
-const owner = postgres(process.env.SPIKE_OWNER_DSN!, {
+const ownerDsn = process.env.SPIKE_OWNER_DSN;
+if (typeof ownerDsn !== "string" || !ownerDsn)
+	throw new Error("SPIKE_OWNER_DSN required");
+const owner = postgres(ownerDsn, {
 	max: 3,
 	onnotice: () => {},
 });
@@ -73,7 +79,10 @@ await owner`GRANT USAGE ON SCHEMA public TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT,UPDATE ON gw_principal,gw_credential,gw_delegation,gw_run,gw_audit_state TO gateway_runtime`;
 await owner`GRANT SELECT ON gw_installation TO gateway_runtime`;
 await owner`GRANT SELECT,INSERT ON gw_audit TO gateway_runtime`;
-const sql = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+const runtimeDsn = process.env.SPIKE_RUNTIME_DSN;
+if (typeof runtimeDsn !== "string" || !runtimeDsn)
+	throw new Error("SPIKE_RUNTIME_DSN required");
+const sql = postgres(runtimeDsn, {
 	max: 4,
 	onnotice: () => {},
 });
@@ -143,41 +152,41 @@ try {
 		"trace",
 	);
 	assert.notEqual(runOne.runId, runTwo.runId);
-	assert.match(runOne.runId!, /^[a-f0-9-]{36}$/);
-	await store.finish(runOne.runId!, "completed");
-	await store.finish(runOne.runId!, "completed");
-	await assert.rejects(store.finish(runOne.runId!, "failed"));
+	assert.match(runOne.runId as string, /^[a-f0-9-]{36}$/);
+	await store.finish(runOne.runId as string, "completed");
+	await store.finish(runOne.runId as string, "completed");
+	await assert.rejects(store.finish(runOne.runId as string, "failed"));
 	const terminal =
-		await owner`SELECT payload FROM gw_audit WHERE kind='call.completed' AND payload->>'run'=${runOne.runId!}`;
+		await owner`SELECT payload FROM gw_audit WHERE kind='call.completed' AND payload->>'run'=${runOne.runId as string}`;
 	assert.equal(terminal.length, 1);
 	assert.equal(terminal[0].payload.usage, "unavailable");
 	const persisted =
-		await owner`SELECT actor,org,outcome FROM gw_run WHERE id=${runOne.runId!}`;
+		await owner`SELECT actor,org,outcome FROM gw_run WHERE id=${runOne.runId as string}`;
 	assert.equal(persisted[0].actor, a);
 	assert.equal(persisted[0].org, "alpha");
 	assert.equal(persisted[0].outcome, "completed");
 	pass("server-owned-per-invocation-run-binding-idempotent-terminal-audit");
 	await owner`REVOKE INSERT ON gw_audit FROM gateway_runtime`;
 	try {
-		await assert.rejects(store.finish(runTwo.runId!, "cancelled"));
+		await assert.rejects(store.finish(runTwo.runId as string, "cancelled"));
 		const pending =
-			await owner`SELECT outcome,ended_at FROM gw_run WHERE id=${runTwo.runId!}`;
+			await owner`SELECT outcome,ended_at FROM gw_run WHERE id=${runTwo.runId as string}`;
 		assert.equal(pending[0].outcome, "running");
 		assert.equal(pending[0].ended_at, null);
 	} finally {
 		await owner`GRANT INSERT ON gw_audit TO gateway_runtime`;
 	}
 	await assert.rejects(
-		gatewayStore(sql).finish(runTwo.runId!, "completed"),
+		gatewayStore(sql).finish(runTwo.runId as string, "completed"),
 		"fresh store cannot replace the terminal choice after failed audit",
 	);
 	await gatewayStore(sql).recover();
-	await gatewayStore(sql).finish(runTwo.runId!, "cancelled");
+	await gatewayStore(sql).finish(runTwo.runId as string, "cancelled");
 	const recovered =
-		await owner`SELECT outcome FROM gw_run WHERE id=${runTwo.runId!}`;
+		await owner`SELECT outcome FROM gw_run WHERE id=${runTwo.runId as string}`;
 	assert.equal(recovered[0].outcome, "cancelled");
 	const recoveredEvents =
-		await owner`SELECT kind FROM gw_audit WHERE payload->>'run'=${runTwo.runId!} AND kind IN ('call.cancelled','call.completed','call.failed')`;
+		await owner`SELECT kind FROM gw_audit WHERE payload->>'run'=${runTwo.runId as string} AND kind IN ('call.cancelled','call.completed','call.failed')`;
 	assert.deepEqual(
 		recoveredEvents.map((row) => row.kind),
 		["call.cancelled"],
@@ -199,25 +208,27 @@ try {
 	);
 	await gatewayStore(sql).recover();
 	assert.equal(
-		(await owner`SELECT outcome FROM gw_run WHERE id=${active.runId!}`)[0]
-			.outcome,
+		(
+			await owner`SELECT outcome FROM gw_run WHERE id=${active.runId as string}`
+		)[0].outcome,
 		"running",
 	);
-	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${orphan.runId!}`;
+	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${orphan.runId as string}`;
 	await Promise.all([gatewayStore(sql).recover(), gatewayStore(sql).recover()]);
 	const interrupted =
-		await owner`SELECT outcome FROM gw_run WHERE id=${orphan.runId!}`;
+		await owner`SELECT outcome FROM gw_run WHERE id=${orphan.runId as string}`;
 	assert.equal(interrupted[0].outcome, "interrupted");
 	const interruptedAudit =
-		await owner`SELECT kind,payload FROM gw_audit WHERE payload->>'run'=${orphan.runId!} AND kind='call.interrupted'`;
+		await owner`SELECT kind,payload FROM gw_audit WHERE payload->>'run'=${orphan.runId as string} AND kind='call.interrupted'`;
 	assert.equal(interruptedAudit.length, 1);
 	assert.equal(interruptedAudit[0].payload.externalEffect, "unknown");
 	assert.equal(
-		(await owner`SELECT outcome FROM gw_run WHERE id=${active.runId!}`)[0]
-			.outcome,
+		(
+			await owner`SELECT outcome FROM gw_run WHERE id=${active.runId as string}`
+		)[0].outcome,
 		"running",
 	);
-	await store.finish(active.runId!, "cancelled");
+	await store.finish(active.runId as string, "cancelled");
 	pass("bounded-recovery-interrupted-orphan-not-live-run-no-effect-replay");
 	await store.bootstrap("human-beta", "approved-beta-sub", "beta");
 	const betaAgent = await store.createAgent("human-beta", ["mcp:status"]);
@@ -231,7 +242,7 @@ try {
 			`blocked-${n}`,
 			"trace",
 		);
-		blockedRuns.push(admitted.runId!);
+		blockedRuns.push(admitted.runId as string);
 	}
 	const healthyRun = await store.authorize(
 		betaCredential.raw,
@@ -241,7 +252,7 @@ try {
 		"trace",
 	);
 	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '2 seconds' WHERE id IN ${owner(blockedRuns)}`;
-	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${healthyRun.runId!}`;
+	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${healthyRun.runId as string}`;
 	const [alphaAudit] =
 		await owner`SELECT delivered::text FROM gw_audit_state WHERE org='alpha'`;
 	// Artificial counter positioning isolates one org's terminal audit exhaustion.
@@ -250,8 +261,9 @@ try {
 		await assert.rejects(store.recover());
 		await store.recover().catch(() => {});
 		assert.equal(
-			(await owner`SELECT outcome FROM gw_run WHERE id=${healthyRun.runId!}`)[0]
-				.outcome,
+			(
+				await owner`SELECT outcome FROM gw_run WHERE id=${healthyRun.runId as string}`
+			)[0].outcome,
 			"interrupted",
 			"an exhausted org must not monopolize every recovery batch",
 		);
@@ -270,7 +282,12 @@ try {
 	);
 	await owner`REVOKE INSERT ON gw_audit FROM gateway_runtime`;
 	const workerProcess = Bun.spawn(
-		[process.execPath, import.meta.path, "terminal-worker", killedRun.runId!],
+		[
+			process.execPath,
+			import.meta.path,
+			"terminal-worker",
+			killedRun.runId as string,
+		],
 		{ stdout: "pipe", stderr: "pipe" },
 	);
 	try {
@@ -288,7 +305,7 @@ try {
 		]);
 		assert.match(new TextDecoder().decode(ready.value), /TERMINAL_PENDING/);
 		const pending =
-			await owner`SELECT outcome,terminal_choice FROM gw_run WHERE id=${killedRun.runId!}`;
+			await owner`SELECT outcome,terminal_choice FROM gw_run WHERE id=${killedRun.runId as string}`;
 		assert.equal(pending[0].outcome, "running");
 		assert.equal(pending[0].terminal_choice, "cancelled");
 		workerProcess.kill("SIGKILL");
@@ -308,10 +325,10 @@ try {
 		"replacement recovery worker must finish",
 	);
 	const afterKill =
-		await owner`SELECT outcome FROM gw_run WHERE id=${killedRun.runId!}`;
+		await owner`SELECT outcome FROM gw_run WHERE id=${killedRun.runId as string}`;
 	assert.equal(afterKill[0].outcome, "cancelled");
 	const killEvents =
-		await owner`SELECT kind FROM gw_audit WHERE payload->>'run'=${killedRun.runId!} AND kind='call.cancelled'`;
+		await owner`SELECT kind FROM gw_audit WHERE payload->>'run'=${killedRun.runId as string} AND kind='call.cancelled'`;
 	assert.equal(killEvents.length, 1);
 	pass("sigkill-after-terminal-choice-fresh-process-recovers-one-event");
 	const backlogRun = await store.authorize(
@@ -323,7 +340,7 @@ try {
 	);
 	await owner`REVOKE INSERT ON gw_audit FROM gateway_runtime`;
 	try {
-		await assert.rejects(store.finish(backlogRun.runId!, "cancelled"));
+		await assert.rejects(store.finish(backlogRun.runId as string, "cancelled"));
 	} finally {
 		await owner`GRANT INSERT ON gw_audit TO gateway_runtime`;
 	}
@@ -356,7 +373,7 @@ try {
 		"overdue-backlog",
 		"trace",
 	);
-	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${overdue.runId!}`;
+	await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${overdue.runId as string}`;
 	await assert.rejects(
 		store.authorize(
 			second.raw,
@@ -572,12 +589,12 @@ try {
 	);
 	await owner`GRANT INSERT ON gw_audit TO gateway_runtime`;
 	pass("runtime-immutable-audit-and-mutation-rollback");
-	const raceA = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+	const raceA = postgres(runtimeDsn, {
 		max: 1,
 		onnotice: () => {},
 		connection: { application_name: "gw-race-a" },
 	});
-	const raceB = postgres(process.env.SPIKE_RUNTIME_DSN!, {
+	const raceB = postgres(runtimeDsn, {
 		max: 1,
 		onnotice: () => {},
 		connection: { application_name: "gw-race-b" },
@@ -684,42 +701,45 @@ try {
 		actor: a,
 		subject: a,
 		action: "mcp:status",
-		runId: coreAdmit.runId!,
+		runId: coreAdmit.runId as string,
 	};
-	await attempt("tx-recheck-inside-caller-transaction-max1-pool-no-nesting", async () => {
-		const single = postgres(process.env.SPIKE_RUNTIME_DSN!, {
-			max: 1,
-			onnotice: () => {},
-			connection: { application_name: "gw-coretx-single" },
-		});
-		try {
-			const one = gatewayStore(single);
-			const sideEffects = async () =>
-				(
-					await owner`SELECT (SELECT count(*)::int FROM gw_run) AS runs,
+	await attempt(
+		"tx-recheck-inside-caller-transaction-max1-pool-no-nesting",
+		async () => {
+			const single = postgres(runtimeDsn, {
+				max: 1,
+				onnotice: () => {},
+				connection: { application_name: "gw-coretx-single" },
+			});
+			try {
+				const one = gatewayStore(single);
+				const sideEffects = async () =>
+					(
+						await owner`SELECT (SELECT count(*)::int FROM gw_run) AS runs,
 						(SELECT count(*)::int FROM gw_audit) AS events,
 						(SELECT coalesce(sum(remaining),0)::int FROM gw_delegation) AS budget`
-				)[0];
-			const before = await sideEffects();
-			// A helper that opened its own transaction would need a second
-			// connection: on a max:1 pool that can only hang, which the bound
-			// below converts into a failure instead of a deadlock.
-			const verdict = await Promise.race([
-				one.transaction((tx) => one.reauthorize(tx, coreCred.raw, plainCtx)),
-				new Promise<never>((_, reject) => {
-					setTimeout(
-						() => reject(new Error("recheck hung on max:1 pool")),
-						15000,
-					).unref();
-				}),
-			]);
-			assert.equal(verdict.principal.id, a);
-			assert.equal(verdict.subject, a);
-			assert.deepEqual(await sideEffects(), before);
-		} finally {
-			await single.end();
-		}
-	});
+					)[0];
+				const before = await sideEffects();
+				// A helper that opened its own transaction would need a second
+				// connection: on a max:1 pool that can only hang, which the bound
+				// below converts into a failure instead of a deadlock.
+				const verdict = await Promise.race([
+					one.transaction((tx) => one.reauthorize(tx, coreCred.raw, plainCtx)),
+					new Promise<never>((_, reject) => {
+						setTimeout(
+							() => reject(new Error("recheck hung on max:1 pool")),
+							15000,
+						).unref();
+					}),
+				]);
+				assert.equal(verdict.principal.id, a);
+				assert.equal(verdict.subject, a);
+				assert.deepEqual(await sideEffects(), before);
+			} finally {
+				await single.end();
+			}
+		},
+	);
 	const zeroParent = await store.delegate("human", a, {
 		actions: ["mcp:status"],
 		resource: "gateway",
@@ -762,7 +782,7 @@ try {
 					subject: "human",
 					delegation: zeroChild,
 					action: "mcp:status",
-					runId: zeroRun.runId!,
+					runId: zeroRun.runId as string,
 				}),
 			);
 			assert.equal(verdict.principal.id, b);
@@ -770,13 +790,13 @@ try {
 			assert.deepEqual(await zeroBudget(), [0, 0]);
 			assert.equal(
 				(
-					await owner`SELECT count(*)::int AS n FROM gw_run WHERE id=${zeroRun.runId!}`
+					await owner`SELECT count(*)::int AS n FROM gw_run WHERE id=${zeroRun.runId as string}`
 				)[0].n,
 				1,
 			);
 			assert.equal(
 				(
-					await owner`SELECT count(*)::int AS n FROM gw_audit WHERE kind='call.admit' AND payload->>'run'=${zeroRun.runId!}`
+					await owner`SELECT count(*)::int AS n FROM gw_audit WHERE kind='call.admit' AND payload->>'run'=${zeroRun.runId as string}`
 				)[0].n,
 				1,
 			);
@@ -796,60 +816,63 @@ try {
 		subject: "human",
 		delegation: zeroChild,
 		action: "mcp:status",
-		runId: zeroRun.runId!,
+		runId: zeroRun.runId as string,
 	};
-	await attempt("recheck-shares-revoke-expiry-gates-with-public-authorize", async () => {
-		await store.revoke("human", gated.id);
-		await assert.rejects(
-			store.transaction((tx) =>
-				store.reauthorize(tx, gated.raw, {
-					org: "alpha",
-					actor: a,
-					subject: a,
-					action: "mcp:status",
-					runId: gatedRun.runId!,
-				}),
-			),
-			/invalid_credential/,
-		);
-		try {
-			await owner`UPDATE gw_credential SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${other.id}`;
+	await attempt(
+		"recheck-shares-revoke-expiry-gates-with-public-authorize",
+		async () => {
+			await store.revoke("human", gated.id);
 			await assert.rejects(
-				store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+				store.transaction((tx) =>
+					store.reauthorize(tx, gated.raw, {
+						org: "alpha",
+						actor: a,
+						subject: a,
+						action: "mcp:status",
+						runId: gatedRun.runId as string,
+					}),
+				),
 				/invalid_credential/,
 			);
-			await owner`UPDATE gw_credential SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${other.id}`;
-			await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${zeroChild}`;
-			await assert.rejects(
-				store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
-				/delegation_inactive/,
-			);
-			await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${zeroChild}`;
-			await store.revoke("human", zeroParent, true);
-			await assert.rejects(
-				store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
-				/delegation_inactive/,
-			);
-			await owner`UPDATE gw_delegation SET revoked=false WHERE id=${zeroParent}`;
-			await owner`UPDATE gw_principal SET enabled=false WHERE id=${b}`;
-			await assert.rejects(
-				store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
-				/principal_inactive/,
-			);
-			await owner`UPDATE gw_principal SET enabled=true WHERE id=${b}`;
-			await owner`UPDATE gw_principal SET permissions='[]'::jsonb WHERE id='human'`;
-			await assert.rejects(
-				store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
-				/subject_denied/,
-			);
-		} finally {
-			await owner`UPDATE gw_credential SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${other.id}`;
-			await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${zeroChild}`;
-			await owner`UPDATE gw_delegation SET revoked=false WHERE id=${zeroParent}`;
-			await owner`UPDATE gw_principal SET enabled=true WHERE id=${b}`;
-			await owner`UPDATE gw_principal SET permissions='["manage","llm:stream","mcp:status"]'::jsonb WHERE id='human'`;
-		}
-	});
+			try {
+				await owner`UPDATE gw_credential SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${other.id}`;
+				await assert.rejects(
+					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					/invalid_credential/,
+				);
+				await owner`UPDATE gw_credential SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${other.id}`;
+				await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${zeroChild}`;
+				await assert.rejects(
+					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					/delegation_inactive/,
+				);
+				await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${zeroChild}`;
+				await store.revoke("human", zeroParent, true);
+				await assert.rejects(
+					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					/delegation_inactive/,
+				);
+				await owner`UPDATE gw_delegation SET revoked=false WHERE id=${zeroParent}`;
+				await owner`UPDATE gw_principal SET enabled=false WHERE id=${b}`;
+				await assert.rejects(
+					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					/principal_inactive/,
+				);
+				await owner`UPDATE gw_principal SET enabled=true WHERE id=${b}`;
+				await owner`UPDATE gw_principal SET permissions='[]'::jsonb WHERE id='human'`;
+				await assert.rejects(
+					store.transaction((tx) => store.reauthorize(tx, other.raw, zeroCtx)),
+					/subject_denied/,
+				);
+			} finally {
+				await owner`UPDATE gw_credential SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${other.id}`;
+				await owner`UPDATE gw_delegation SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=${zeroChild}`;
+				await owner`UPDATE gw_delegation SET revoked=false WHERE id=${zeroParent}`;
+				await owner`UPDATE gw_principal SET enabled=true WHERE id=${b}`;
+				await owner`UPDATE gw_principal SET permissions='["manage","llm:stream","mcp:status"]'::jsonb WHERE id='human'`;
+			}
+		},
+	);
 	const actorDeleg = await store.delegate("human", a, {
 		actions: ["llm:stream", "mcp:status"],
 		resource: "gateway",
@@ -907,39 +930,48 @@ try {
 			await refuse({ action: "llm:stream" }, /run_context/);
 			await refuse({ delegation: actorDeleg }, /run_context/);
 			await refuse({ request: "coretx-other" }, /run_context/);
-			await store.finish(lifeRun.runId!, "completed");
-			await refuse({ runId: lifeRun.runId! }, /run_not_dispatchable/);
-			await owner`UPDATE gw_run SET terminal_choice='cancelled' WHERE id=${coreAdmit.runId!}`;
+			await store.finish(lifeRun.runId as string, "completed");
+			await refuse({ runId: lifeRun.runId as string }, /run_not_dispatchable/);
+			await owner`UPDATE gw_run SET terminal_choice='cancelled' WHERE id=${coreAdmit.runId as string}`;
 			await assert.rejects(
-				store.transaction((tx) => store.reauthorize(tx, coreCred.raw, plainCtx)),
+				store.transaction((tx) =>
+					store.reauthorize(tx, coreCred.raw, plainCtx),
+				),
 				/run_not_dispatchable/,
 			);
-			await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${overdueRun.runId!}`;
+			await owner`UPDATE gw_run SET recover_after=clock_timestamp()-interval '1 second' WHERE id=${overdueRun.runId as string}`;
 			await assert.rejects(
 				store.transaction((tx) =>
 					store.reauthorize(tx, coreCred.raw, {
 						...plainCtx,
-						runId: overdueRun.runId!,
+						runId: overdueRun.runId as string,
 					}),
 				),
 				/run_not_dispatchable/,
 			);
 			// Fail closed WITHOUT changing run lifetime: the overdue row is
 			// left exactly as found for the recovery sweeper to own.
-			const [row] = await owner`SELECT outcome,terminal_choice,recover_after<=clock_timestamp() AS overdue FROM gw_run WHERE id=${overdueRun.runId!}`;
-			assert.deepEqual({ ...row }, {
-				outcome: "running",
-				terminal_choice: null,
-				overdue: true,
-			});
+			const [row] =
+				await owner`SELECT outcome,terminal_choice,recover_after<=clock_timestamp() AS overdue FROM gw_run WHERE id=${overdueRun.runId as string}`;
+			assert.deepEqual(
+				{ ...row },
+				{
+					outcome: "running",
+					terminal_choice: null,
+					overdue: true,
+				},
+			);
 		},
 	);
-	await attempt("recheck-refuses-caller-transaction-without-advisory-lock", async () => {
-		await assert.rejects(
-			sql.begin((tx) => store.reauthorize(tx, coreCred.raw, plainCtx)),
-			/caller_lock_required/,
-		);
-	});
+	await attempt(
+		"recheck-refuses-caller-transaction-without-advisory-lock",
+		async () => {
+			await assert.rejects(
+				sql.begin((tx) => store.reauthorize(tx, coreCred.raw, plainCtx)),
+				/caller_lock_required/,
+			);
+		},
+	);
 	if (failures.length) {
 		console.log(JSON.stringify({ failed: failures }));
 		process.exitCode = 1;
