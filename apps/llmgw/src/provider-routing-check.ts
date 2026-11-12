@@ -225,6 +225,7 @@ async function lifecycleChecks() {
 	for (const mode of [
 		"terminal",
 		"cancel",
+		"cancel-finish-rejects",
 		"abort",
 		"deadline",
 		"pending",
@@ -272,6 +273,8 @@ async function lifecycleChecks() {
 			authorize: async () => {},
 			finish: async (outcome) => {
 				outcomes.push(outcome);
+				if (mode === "cancel-finish-rejects")
+					throw new Error("fixture finish rejection");
 			},
 			abort: () => abort.abort(),
 			settled: () => {
@@ -289,6 +292,23 @@ async function lifecycleChecks() {
 				assert.ok(result.body);
 				work = result.body.cancel();
 				await within(work, mode);
+			} else if (mode === "cancel-finish-rejects") {
+				// A failed durable finish reaches the canceller and nobody else.
+				assert.ok(result.body);
+				const unhandled: unknown[] = [];
+				const trap = (reason: unknown) => unhandled.push(reason);
+				process.on("unhandledRejection", trap);
+				try {
+					work = result.body.cancel();
+					await assert.rejects(
+						() => within(work, mode),
+						/fixture finish rejection/,
+					);
+					await new Promise((resolve) => setTimeout(resolve, 0));
+					assert.deepEqual(unhandled, [], `${mode}: no unhandled rejection`);
+				} finally {
+					process.off("unhandledRejection", trap);
+				}
 			} else {
 				if (mode === "pending") {
 					work = result.text();
