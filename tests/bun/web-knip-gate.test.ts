@@ -24,7 +24,7 @@ const APP = join(ROOT, "apps", "web");
 const CONFIG = join(ROOT, "knip.jsonc");
 const KNIP_BIN = join(ROOT, "node_modules", ".bin", "knip");
 const KNIP_ARGS = ["--workspace", "apps/web"];
-const KNIP_VERSION = "6.45.0";
+const KNIP_VERSION = "6.45.1";
 
 /** knip.jsonc is JSON with comments; strip them without touching strings —
  * a naive regex eats the slash-star runs inside the entry globs. */
