@@ -7,6 +7,19 @@ and the tool gateway (`apps/toolgw`) are its subsystems, and it consumes
 `packages/core-auth`. It is not an addition to the running Kaneo API. No legacy auth/domain entrypoint is imported. Rust arclet is
 unchanged.
 
+## Client paths
+
+| Path | Org comes from |
+|---|---|
+| `POST /orgs/<org>/v1/chat/completions` | the path, checked against the credential |
+| `POST /v1/chat/completions` | the credential |
+| `GET /v1/models` | the credential |
+
+The two `/v1` paths are for clients that only accept a base URL
+(`<origin>/v1`). Both need a credential granted `llm:stream`; a caller-supplied
+org header is ignored. `GET /v1/models` lists only the models the chat path
+accepts (one, today) and admits no run.
+
 ## Runnable checks
 
 Use the repository-pinned Bun and dependencies. Run compilation and tests on
