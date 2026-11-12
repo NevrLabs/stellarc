@@ -100,6 +100,11 @@ contract in the next source revision, not by silently changing active inputs.
 Host/runtime execution is still pending; source review does not clear it.
 [Lifecycle council R8](stellarc-lifecycle-council-r8.md).
 
+Both R8 follow-ups are now in source: the `lifecycle-cancel-finish-rejects`
+regression in the provider-routing check, and the `abort` contract stated on
+`providerResponse`'s control. How the host handles a failed terminal write on
+the cancel path is described in `apps/stellarc-gateway/README.md`.
+
 ## Approval R6 executed delta
 Supervisor read the current decision/claim/report/recovery paths, matched final
 source hashes and read back remote receipts: initial six failing groups → four

@@ -33,6 +33,16 @@ A named check is not a passing receipt. Consult the source-hashed receipts in
 `../../docs/spikes/auth-llmgw-receipts/` and the active delivery ledger at
 `../../docs/spikes/stellarc-gateway-delivery.md` for actual outcomes.
 
+## Terminal outcome when a stream is cancelled
+
+If recording the terminal outcome still fails after three attempts while a
+stream is being cancelled, the request path does not report it. The run is not
+lost: the 5-second recovery loop finishes it, with the outcome already chosen if
+that much was stored, or as `interrupted` once the two-minute grace has passed.
+It logs `terminal recovery pending` for as long as that keeps failing. A
+terminal write still in flight at shutdown is awaited and, if it fails, logged
+as `shutdown terminal audit unavailable`.
+
 ## Activation boundary
 
 From this package, `bun ../../packages/core-auth/src/migrate.ts` is the

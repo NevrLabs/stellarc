@@ -172,6 +172,7 @@ export async function providerResponse(
 		signal: AbortSignal;
 		authorize: () => Promise<void>;
 		finish?: (outcome: "completed" | "cancelled" | "failed") => Promise<void>;
+		/** Must abort `signal`: cleanup assumes a parked read resumes into an abort check. */
 		abort?: () => void;
 		settled?: () => void;
 	},
