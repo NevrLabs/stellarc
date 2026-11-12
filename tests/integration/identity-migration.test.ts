@@ -414,9 +414,9 @@ async function readForeignKeys(sql: Sql): Promise<Fk[]> {
      c.confdeltype
    FROM pg_constraint c
    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
-   WHERE c.contype = 'f' AND c.conrelid::regclass::text = ANY(${sql.array([
+   WHERE c.contype = 'f' AND c.conrelid::regclass::text = ANY(${[
 			...TABLES,
-		])})`;
+		]})`;
 	return rows.map((r) => ({
 		table: r.table_name.replace(/^"|"$/g, ""),
 		column: r.column_name,
@@ -431,7 +431,7 @@ async function readIndexes(
 	const rows = await sql<
 		{ tablename: string; indexname: string; indexdef: string }[]
 	>`SELECT tablename, indexname, indexdef FROM pg_indexes
-     WHERE schemaname = 'public' AND tablename = ANY(${sql.array([...TABLES])})`;
+     WHERE schemaname = 'public' AND tablename = ANY(${[...TABLES]})`;
 	return rows.map((r) => ({
 		table: r.tablename,
 		name: r.indexname,
