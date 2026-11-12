@@ -342,9 +342,12 @@ const sha12 = (value: string) =>
  * 'referenced'). Sizes and hashes cover EXACTLY what the node already
  * composes — no file reads, no harness internals, no ACP changes (those
  * sources wait on NEVR-309). The MCP row's hash is over the launch config
- * (command/args/env) so two attempts are comparable; the config itself never
- * leaves the row — and the plane already stores it on the agent, so the hash
- * discloses nothing new. Pure — unit-tested directly. */
+ * MINUS env — name/command/args only, so two attempts are comparable.
+ * Env is deliberately excluded: it is credential material, and a 48-bit
+ * prefix of a hash over a low-entropy env value is offline-brute-forceable;
+ * receipts ship to the org log and the UI, which is broader visibility than
+ * the agent record that already stores the full config. The config itself
+ * never leaves the row. Pure — unit-tested directly. */
 export function contextReceipt(task: TaskDescriptor): ContextReceiptRow[] {
 	const rows: ContextReceiptRow[] = [];
 	const seeded = (
@@ -372,11 +375,12 @@ export function contextReceipt(task: TaskDescriptor): ContextReceiptRow[] {
 	}
 	seeded("prompt", "prompt", task.prompt);
 	for (const s of task.agent.mcpServers) {
+		// Canonical launch config WITHOUT env (see the doc comment above):
+		// secret material must not enter even a hash prefix this public.
 		const config = JSON.stringify({
 			name: s.name,
 			command: s.command,
 			args: s.args,
-			env: s.env,
 		});
 		rows.push({
 			kind: "mcp-server",

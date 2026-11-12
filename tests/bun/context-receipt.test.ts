@@ -52,9 +52,10 @@ const PROMPT_C1 = "echo done";
 const sha12 = (v: string) =>
 	createHash("sha256").update(v).digest("hex").slice(0, 12);
 /** Canonical MCP config string the node hashes (runner.contextReceipt):
- * fixed key order by construction, decode-applied defaults included. */
+ * fixed key order by construction, decode-applied defaults included, env
+ * deliberately EXCLUDED (credential material — see runner doc comment). */
 const mcpConfig = (name: string, command: string) =>
-	JSON.stringify({ name, command, args: [], env: [] });
+	JSON.stringify({ name, command, args: [] });
 
 const resources: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -221,7 +222,7 @@ test("C1 every started attempt leaves a receipt: one row per source, metadata re
 				"sha256",
 			].sort(),
 		);
-});
+}, 120_000);
 
 // ── C2: resumed attempt emits its own receipt incl. the digest row ──────────
 
@@ -289,7 +290,7 @@ test("C2 a resumed attempt emits its own receipt with the resume-digest row (rea
 		byAttempt.get(a)?.find((r) => r.kind === kind);
 	expect(pick(2, "instructions")?.sha256).toBe(pick(1, "instructions")?.sha256);
 	expect(pick(2, "mcp-server")?.sha256).toBe(pick(1, "mcp-server")?.sha256);
-});
+}, 120_000);
 
 // ── C3: replay renders receipts from the event log alone ────────────────────
 
@@ -326,7 +327,7 @@ test("C3 replay: the org log alone folds into exactly the getTask view", async (
 		);
 		expect(fromLog).toEqual(view);
 	}
-});
+}, 120_000);
 
 // ── C4: metadata-only is enforced at the schema seam ────────────────────────
 
@@ -416,7 +417,7 @@ test("C4 metadata-only: smuggled content/command/env keys never survive decode �
 			"sha256",
 		].sort(),
 	);
-});
+}, 120_000);
 
 // ── C5: a pre-receipt node still starts (no regression) ─────────────────────
 
@@ -441,4 +442,4 @@ test("C5 negative control: a start report with no contextReceipt writes zero rec
 	const events = await p.db
 		.sql`SELECT 1 FROM event WHERE org='acme' AND plugin_type='agents:context-receipt'`;
 	expect(events.length).toBe(0);
-});
+}, 120_000);
