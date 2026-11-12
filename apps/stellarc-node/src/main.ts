@@ -139,10 +139,11 @@ export async function executeClaimed(
 			workdir,
 			heartbeatMs: Math.max(1000, Math.floor(task.leaseMs / 3)),
 			log,
-			onStart: async (nativeSessionId) => {
+			onStart: async (nativeSessionId, contextReceipt) => {
 				await plane.call(`tasks/${task.id}/start`, {
 					...base,
 					nativeSessionId,
+					contextReceipt,
 				});
 			},
 			onItems: async (items: ReadonlyArray<Item>) => {

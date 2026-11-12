@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { AppShell, PadPage } from "@/components/shell/AppShell";
+import { RunDetail } from "@/components/agents/RunDetail";
+import { AppShell } from "@/components/shell/AppShell";
 import { hasFlag } from "@/lib/flags";
 
 interface AgentsSearch {
@@ -24,7 +25,7 @@ function AgentsPage() {
 	const { item = "s-229" } = Route.useSearch();
 	return (
 		<AppShell>
-			<PadPage title={item} section="Agents" />
+			<RunDetail item={item} />
 		</AppShell>
 	);
 }

@@ -12,6 +12,10 @@ import {
 import {
 	type BudgetScope,
 	type BudgetWindow,
+	CONTEXT_RECEIPT_CONFIDENCES,
+	CONTEXT_RECEIPT_DELIVERIES,
+	CONTEXT_RECEIPT_KINDS,
+	type ContextReceiptRow,
 	type CreateAgent,
 	type CreateBudget,
 	type CreateTask,
@@ -107,6 +111,13 @@ export interface PushRow {
 	readonly ref: string;
 	readonly remote: string;
 	readonly pushedAt: string;
+}
+/** One context-receipt row as the read path serves it (NEVR-624): the
+ * projection table's fields plus the attempt/position grouping. Metadata
+ * only — no content column exists anywhere in the shape. */
+export interface ContextReceiptView extends ContextReceiptRow {
+	readonly attempt: number;
+	readonly position: number;
 }
 /** Harness-reported usage for one attempt, as the read path serves it
  * (NEVR-243): the COALESCE-merged finals from agent_task_usage — cumulative
@@ -466,6 +477,116 @@ async function usageRows(sql: Sql, taskId: string): Promise<UsageRow[]> {
 		costAmount: num(r.cost_amount),
 		costCurrency: r.cost_currency ?? null,
 	}));
+}
+
+// ── context receipt (NEVR-624) ──────────────────────────────────────────────
+
+/** Per-attempt receipt rows for the operator read path: one row per context
+ * source per attempt from agent_task_context_receipt, ordered. */
+async function receiptRows(
+	sql: Sql,
+	taskId: string,
+): Promise<ContextReceiptView[]> {
+	const rows = await sql`
+    SELECT attempt,position,kind,name,bytes,sha256,delivery,confidence
+    FROM agent_task_context_receipt WHERE task_id=${taskId} ORDER BY attempt,position`;
+	return rows.map((r: Row) => ({
+		attempt: Number(r.attempt),
+		position: Number(r.position),
+		kind: r.kind,
+		name: r.name,
+		bytes: Number(r.bytes),
+		sha256: r.sha256,
+		delivery: r.delivery,
+		confidence: r.confidence,
+	}));
+}
+
+const isReceiptKind = (v: unknown): v is ContextReceiptView["kind"] =>
+	CONTEXT_RECEIPT_KINDS.includes(v as never);
+const isReceiptDelivery = (v: unknown): v is ContextReceiptView["delivery"] =>
+	CONTEXT_RECEIPT_DELIVERIES.includes(v as never);
+const isReceiptConfidence = (
+	v: unknown,
+): v is ContextReceiptView["confidence"] =>
+	CONTEXT_RECEIPT_CONFIDENCES.includes(v as never);
+
+/** Replay projection (NEVR-624): fold org-log events back into the receipt
+ * view. THE LAW the receipt lives by: the view must be renderable from the
+ * event log alone — the projection table is an index, never a second source
+ * of truth — so this fold is the definition of the view, and the tests pin
+ * it against the table after a real run. Lenient by the usage-parser house
+ * style: an event whose payload fails a field check drops out, never throws.
+ * `position` is arrival order within the attempt, which is the order the
+ * node posted the rows in (receipts append only at start, one batch per
+ * attempt). Pure — unit-tested directly. */
+export function projectContextReceipts(
+	events: ReadonlyArray<{ type: string; payload: unknown }>,
+): ContextReceiptView[] {
+	const out: ContextReceiptView[] = [];
+	const perAttempt = new Map<number, number>();
+	for (const e of events) {
+		if (e.type !== "context-receipt") continue;
+		const p = (e.payload ?? {}) as Record<string, unknown>;
+		const attempt = Number(p.attempt);
+		const bytes = Number(p.bytes);
+		if (
+			!Number.isInteger(attempt) ||
+			attempt < 1 ||
+			!isReceiptKind(p.kind) ||
+			typeof p.name !== "string" ||
+			p.name.length === 0 ||
+			p.name.length > 256 ||
+			!Number.isInteger(bytes) ||
+			bytes < 0 ||
+			typeof p.sha256 !== "string" ||
+			!/^[0-9a-f]{12}$/.test(p.sha256) ||
+			!isReceiptDelivery(p.delivery) ||
+			!isReceiptConfidence(p.confidence)
+		)
+			continue;
+		const position = perAttempt.get(attempt) ?? 0;
+		perAttempt.set(attempt, position + 1);
+		out.push({
+			attempt,
+			position,
+			kind: p.kind,
+			name: p.name,
+			bytes,
+			sha256: p.sha256,
+			delivery: p.delivery,
+			confidence: p.confidence,
+		});
+	}
+	return out;
+}
+
+/** Record one attempt's receipt rows: projection-table inserts plus one
+ * `context-receipt` org-log event per row, appended in the SAME transaction
+ * as task-started by the caller — one round trip, and the lease-ownership
+ * check (`owned()`) is inherited for free. Returns the events. */
+async function recordContextReceipt(
+	tx: TransactionSql,
+	n: NodeRow,
+	id: string,
+	attempt: number,
+	receipt: ReadonlyArray<ContextReceiptRow>,
+) {
+	const events = [];
+	for (let position = 0; position < receipt.length; position++) {
+		const r = receipt[position];
+		await tx`INSERT INTO agent_task_context_receipt(org,task_id,attempt,position,kind,name,bytes,sha256,delivery,confidence)
+      VALUES (${n.org},${id},${attempt},${position},${r.kind},${r.name},${r.bytes},${r.sha256},${r.delivery},${r.confidence})`;
+		// Spread of the DECODED row: exactly the six schema fields — a content
+		// key that survived decode would ride this spread into the org log,
+		// which is precisely what the metadata-only negative control pins
+		// cannot happen (decode constructs from the declared struct).
+		events.push({
+			type: "context-receipt",
+			payload: { id, attempt, ...r } as Record<string, unknown>,
+		});
+	}
+	return events;
 }
 
 // ── push attribution (NEVR-199) ─────────────────────────────────────────────
@@ -1040,6 +1161,7 @@ export class AgentStore {
 					sql`SELECT attempt,commit_sha,ref,remote,pushed_at FROM agent_task_push WHERE task_id=${id} ORDER BY attempt,pushed_at`,
 			);
 			const usage = yield* Effect.tryPromise(() => usageRows(sql, id));
+			const receipts = yield* Effect.tryPromise(() => receiptRows(sql, id));
 			const out = {
 				task: t,
 				items: items.map(
@@ -1061,6 +1183,7 @@ export class AgentStore {
 					}),
 				),
 				usage,
+				receipts,
 			};
 			if (t.status === "budget_exhausted") {
 				const blocked = yield* Effect.tryPromise(() =>
@@ -1360,7 +1483,13 @@ export class AgentStore {
 		);
 	}
 
-	start(n: NodeRow, id: string, attempt: number, nativeSessionId?: string) {
+	start(
+		n: NodeRow,
+		id: string,
+		attempt: number,
+		nativeSessionId?: string,
+		contextReceipt?: ReadonlyArray<ContextReceiptRow>,
+	) {
 		const leaseMs = this.leaseMs;
 		return txn(this.sql, "start", async (tx) => {
 			const row = await this.owned(tx, n, id, attempt);
@@ -1369,11 +1498,19 @@ export class AgentStore {
 			const [u] =
 				await tx`UPDATE agent_task SET status='running', native_session_id=${nativeSessionId ?? null},
         lease_until=now() + ${`${leaseMs} milliseconds`}::interval, updated_at=now() WHERE id=${id} RETURNING *`;
+			// Context receipt (NEVR-624): rows + events land in the SAME
+			// transaction as task-started — no second event stream, no
+			// partial receipts, and a node that predates receipts (no
+			// contextReceipt in the report) simply appends none.
+			const receiptEvents = contextReceipt
+				? await recordContextReceipt(tx, n, id, attempt, contextReceipt)
+				: [];
 			await appendEvents(tx, n.org, `node:${n.id}`, [
 				{
 					type: "task-started",
 					payload: { id, attempt, nativeSessionId: nativeSessionId ?? null },
 				},
+				...receiptEvents,
 			]);
 			return task(u);
 		});
