@@ -11,6 +11,7 @@ import {
 import { Denied, gatewayStore } from "../../../packages/core-auth/src/store";
 import { TelemetryLive } from "../../../packages/telemetry/src/index";
 import {
+	modelCatalog,
 	prepareProviderRequest,
 	providerResponse,
 	validateRoutes,
@@ -149,6 +150,35 @@ export async function gatewayApp(
 		/^Bearer ([A-Za-z0-9_-]{43})$/.exec(
 			request.headers.get("authorization") ?? "",
 		)?.[1] ?? "";
+	const providerRoutes = () => {
+		if (env.GATEWAY_ENABLE_LIVE !== "approved")
+			throw new Denied(503, "live_provider_disabled");
+		// First slice: one server-owned native Chat API-key route only.
+		return validateRoutes([
+			{
+				alias: env.GATEWAY_PROVIDER_MODEL ?? "local-fixture",
+				provider: "glm",
+				model: env.GATEWAY_PROVIDER_MODEL ?? "glm-5.3",
+				protocol: "chat",
+				endpoint: env.GATEWAY_PROVIDER_URL,
+				credential: "glm-key",
+			},
+		]);
+	};
+	// Lists only what the chat path accepts.
+	const catalog = () =>
+		env.GATEWAY_PROVIDER_URL
+			? modelCatalog(providerRoutes())
+			: {
+					object: "list",
+					data: [
+						{
+							id: env.GATEWAY_PROVIDER_MODEL ?? "local-fixture",
+							object: "model",
+							owned_by: "local-fixture",
+						},
+					],
+				};
 	function handler(request: Request): Promise<Response> {
 		if (stopping)
 			return Promise.resolve(new Response("stopping", { status: 503 }));
@@ -255,7 +285,10 @@ export async function gatewayApp(
 							? "/manage/:action"
 							: url.pathname === "/mcp"
 								? "/mcp"
-								: "/orgs/:org/v1/chat/completions",
+								: url.pathname === "/v1/models" ||
+										url.pathname === "/v1/chat/completions"
+									? url.pathname
+									: "/orgs/:org/v1/chat/completions",
 					});
 					return yield* Effect.tryPromise({
 						try: async () => {
@@ -361,7 +394,12 @@ export async function gatewayApp(
 									url.pathname,
 								);
 							let org: string | undefined = match?.[1];
-							if (url.pathname !== "/mcp" && typeof org !== "string")
+							// Clients that only take a base URL use <origin>/v1. Their org
+							// comes from the credential, as on /mcp, never from the caller.
+							const chat = !!match || url.pathname === "/v1/chat/completions";
+							const models =
+								request.method === "GET" && url.pathname === "/v1/models";
+							if (url.pathname !== "/mcp" && !chat && !models)
 								return new Response("not_found", { status: 404, headers });
 							if (url.pathname === "/mcp") {
 								// Org is resolved from authenticated credential, never caller org headers.
@@ -414,17 +452,20 @@ export async function gatewayApp(
 								if (runId && abort.signal.aborted) await finish("cancelled");
 								return response;
 							}
-							if (!match || request.method !== "POST")
+							if (!models && request.method !== "POST")
 								throw new Denied(404, "not_found");
-							await store.authorize(
-								raw,
-								org as string,
-								"llm:stream",
-								requestId,
-								span.traceId,
-								delegation,
-								false,
-							);
+							const llmOrg = (
+								await store.authorize(
+									raw,
+									org,
+									"llm:stream",
+									requestId,
+									span.traceId,
+									delegation,
+									false,
+								)
+							).principal.org;
+							if (models) return Response.json(catalog(), { headers });
 							const data = await body(request, abort.signal);
 							if (
 								data.stream !== true ||
@@ -434,7 +475,7 @@ export async function gatewayApp(
 							runId = (
 								await store.authorize(
 									raw,
-									org as string,
+									llmOrg,
 									"llm:stream",
 									requestId,
 									span.traceId,
@@ -463,7 +504,7 @@ export async function gatewayApp(
 								const work = store
 									.authorize(
 										raw,
-										org as string,
+										llmOrg,
 										"llm:stream",
 										requestId,
 										span.traceId,
@@ -481,21 +522,8 @@ export async function gatewayApp(
 							};
 							let response: Response;
 							if (env.GATEWAY_PROVIDER_URL) {
-								if (env.GATEWAY_ENABLE_LIVE !== "approved")
-									throw new Denied(503, "live_provider_disabled");
-								// First slice: one server-owned native Chat API-key route only.
-								const routes = validateRoutes([
-									{
-										alias: env.GATEWAY_PROVIDER_MODEL ?? "local-fixture",
-										provider: "glm",
-										model: env.GATEWAY_PROVIDER_MODEL ?? "glm-5.3",
-										protocol: "chat",
-										endpoint: env.GATEWAY_PROVIDER_URL,
-										credential: "glm-key",
-									},
-								]);
 								const plan = prepareProviderRequest(
-									routes,
+									providerRoutes(),
 									"/v1/chat/completions",
 									data,
 									() => required("GATEWAY_PROVIDER_SECRET"),
