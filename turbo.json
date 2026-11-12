@@ -1,19 +1,34 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"globalEnv": [
+		"AUTH_PG_CHECK",
+		"BETTER_AUTH_URL",
 		"CORS_ORIGINS",
 		"DEPLOYMENT_ENVIRONMENT",
+		"GATEWAY_BOOTSTRAP_SUBJECT",
+		"GATEWAY_OWNER_DATABASE_URL",
+		"GATEWAY_RUNTIME_ROLE",
 		"GITHUB_BASE_REF",
 		"KANEO_API_URL",
 		"KANEO_CLIENT_URL",
 		"OTEL_EXPORTER_OTLP_ENDPOINT",
 		"PG_BIN",
 		"SERVICE_VERSION",
+		"SPIKE_LIVE_TELEMETRY",
+		"SPIKE_OIDC_CLIENT",
+		"SPIKE_OIDC_RECEIPT",
+		"SPIKE_OIDC_SUBJECT",
+		"SPIKE_OWNER_DSN",
+		"SPIKE_RUNTIME_DSN",
 		"STELLARC_NODE_TOKEN",
-		"STELLARC_OPERATOR_TOKEN"
+		"STELLARC_OPERATOR_TOKEN",
+		"WORKER_HOLD"
 	],
 	"tasks": {
-		"build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**"]
+		},
 		"@stellarc/gateway#build": {
 			"dependsOn": ["^build"],
 			"inputs": [

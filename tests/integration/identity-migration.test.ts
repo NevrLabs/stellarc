@@ -414,9 +414,7 @@ async function readForeignKeys(sql: Sql): Promise<Fk[]> {
      c.confdeltype
    FROM pg_constraint c
    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
-   WHERE c.contype = 'f' AND c.conrelid::regclass::text = ANY(${[
-			...TABLES,
-		]})`;
+   WHERE c.contype = 'f' AND c.conrelid::regclass::text = ANY(${[...TABLES]})`;
 	return rows.map((r) => ({
 		table: r.table_name.replace(/^"|"$/g, ""),
 		column: r.column_name,

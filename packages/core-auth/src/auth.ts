@@ -66,8 +66,9 @@ export function gatewayAuth(config: {
 				clientSecret: config.clientSecret,
 				authorizationUrl: config.authorizationEndpoint,
 				tokenUrl: config.tokenEndpoint,
-				issuer: config.issuer,
-				requireIssuerValidation: false,
+				// better-auth 1.7 dropped issuer/requireIssuerValidation from
+				// GenericOAuthConfig; identity is validated locally below via
+				// validateAuthorizationCode + the S256-bound nonce instead.
 				scopes: ["openid"],
 				pkce: true,
 				authentication: "basic",

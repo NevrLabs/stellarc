@@ -11,5 +11,11 @@
     "test:stream": "bun src/stream-check.ts",
     "build": "bun build src/main.ts --target bun --outdir dist && cp src/console.html src/console.css src/console.js dist/ && bun src/artifact-check.ts"
   },
-  "dependencies": { "better-auth": "1.6.25", "jose": "6.2.12", "pg": "8.22.0", "postgres": "3.4.7", "effect": "4.1.4" }
+  "dependencies": {
+    "better-auth": "1.7.18",
+    "jose": "6.2.17",
+    "pg": "8.23.1",
+    "postgres": "4.1.0",
+    "effect": "4.1.4"
+  }
 }

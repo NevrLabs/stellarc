@@ -2467,7 +2467,7 @@ function instrumentSql(
 						base.begin(async (rawTx) => {
 							const attempt = begins.push(begins.length + 1);
 							await beforeBegin?.(attempt);
-							return body(wrap(rawTx) as TransactionSql);
+							return body(wrap(rawTx) as unknown as TransactionSql);
 						});
 				const value = Reflect.get(tag as object, prop);
 				return typeof value === "function"
