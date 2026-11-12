@@ -170,6 +170,113 @@ components:
     textColor: "{colors.text}"
     rounded: "{rounded.sm}"
     padding: "4px 8px"
+  workspace:
+    backgroundColor: "{colors.view}"
+    textColor: "{colors.text}"
+  divider:
+    backgroundColor: "{colors.line}"
+    height: 1px
+  divider-strong:
+    backgroundColor: "{colors.line-strong}"
+    height: 1px
+  card-edge:
+    backgroundColor: "{colors.card-line}"
+    height: 1px
+  card-live-edge:
+    backgroundColor: "{colors.accent-line}"
+    height: 2px
+  chip-live:
+    backgroundColor: "{colors.accent-wash}"
+    rounded: "{rounded.full}"
+    height: 20px
+  avatar-bot:
+    backgroundColor: "{colors.accent-wash}"
+    rounded: "{rounded.full}"
+    height: 28px
+    width: 28px
+  today-marker:
+    backgroundColor: "{colors.accent}"
+    height: 8px
+    width: 2px
+  status-dot-urgent:
+    backgroundColor: "{colors.urgent}"
+    size: 8px
+  # Paper (light) theme — each -paper twin carries only the colors that flip;
+  # shape, size, and rounding never change with the theme, so they live on the
+  # base entry alone.
+  button-primary-paper:
+    backgroundColor: "{colors.paper-btn-pri}"
+    textColor: "{colors.paper-btn-pri-ink}"
+  button-primary-hover-paper:
+    backgroundColor: "{colors.paper-btn-pri}"
+    textColor: "{colors.paper-btn-pri-ink}"
+  button-secondary-paper:
+    backgroundColor: "{colors.paper-raised}"
+    textColor: "{colors.paper-text}"
+  button-secondary-hover-paper:
+    backgroundColor: "{colors.paper-hover}"
+    textColor: "{colors.paper-text}"
+  button-ghost-paper:
+    textColor: "{colors.paper-dim}"
+  button-ghost-hover-paper:
+    backgroundColor: "{colors.paper-hover}"
+    textColor: "{colors.paper-text}"
+  card-paper:
+    backgroundColor: "{colors.paper-card}"
+    textColor: "{colors.paper-text}"
+  card-live-paper:
+    backgroundColor: "{colors.paper-card}"
+    textColor: "{colors.paper-text}"
+  chip-paper:
+    backgroundColor: "{colors.paper-raised}"
+    textColor: "{colors.paper-dim}"
+  avatar-paper:
+    backgroundColor: "{colors.paper-active}"
+    textColor: "{colors.paper-text}"
+  status-dot-ok-paper:
+    backgroundColor: "{colors.paper-ok}"
+  status-dot-warn-paper:
+    backgroundColor: "{colors.paper-warn}"
+  status-dot-err-paper:
+    backgroundColor: "{colors.paper-err}"
+  status-dot-run-paper:
+    backgroundColor: "{colors.paper-run}"
+  app-frame-paper:
+    backgroundColor: "{colors.paper-chrome}"
+    textColor: "{colors.paper-text}"
+  tab-active-paper:
+    backgroundColor: "{colors.paper-side}"
+    textColor: "{colors.paper-text}"
+  sidebar-row-paper:
+    textColor: "{colors.paper-dim}"
+  sidebar-row-active-paper:
+    backgroundColor: "{colors.paper-active}"
+    textColor: "{colors.paper-text}"
+  search-field-paper:
+    backgroundColor: "{colors.paper-raised}"
+    textColor: "{colors.paper-faint}"
+  tooltip-paper:
+    backgroundColor: "{colors.paper-raised}"
+    textColor: "{colors.paper-text}"
+  workspace-paper:
+    backgroundColor: "{colors.paper-view}"
+    textColor: "{colors.paper-text}"
+  divider-paper:
+    backgroundColor: "{colors.paper-line}"
+  divider-strong-paper:
+    backgroundColor: "{colors.paper-line-strong}"
+  card-edge-paper:
+    backgroundColor: "{colors.paper-card-line}"
+  card-live-edge-paper:
+    backgroundColor: "{colors.paper-accent-line}"
+  chip-live-paper:
+    backgroundColor: "{colors.paper-accent-wash}"
+  avatar-bot-paper:
+    backgroundColor: "{colors.paper-accent-wash}"
+  today-marker-paper:
+    backgroundColor: "{colors.paper-accent}"
+  status-dot-urgent-paper:
+    backgroundColor: "{colors.paper-urgent}"
 ---
 
 ## Overview
@@ -294,6 +401,28 @@ that gains `--hover` on hover. Cards pair `--card` with `--card-line`, brighten
 the border to `--line-strong` on hover, and take `--accent-line` + wash when
 live. Status reads through 8px dots on `--ok`/`--warn`/`--err`/`--run` plus a
 text label — color never carries meaning alone.
+
+The front-matter `components:` map documents both themes. Each entry is the
+Graphite (dark) definition; its `-paper` twin carries only the colors that
+flip in Paper — shape, size, and rounding never change with the theme, so
+they live on the base entry alone. Hairline chrome is modeled as the strip
+that renders it (`divider`, `divider-strong`, `card-edge` are 1px
+background strips; `card-live-edge` is the 2px accent sweep), and the wash
+fills (`chip-live`, `avatar-bot`) state fill and shape — the glyph on both is
+`--accent` in Graphite and Paper per the Colors table, not repeated as a
+`textColor`, because a translucent wash cannot be contrast-checked against
+the surface it overlays.
+
+### Changes to this file
+
+Every PR that edits this file pastes the output of
+`bunx @google/design.md@0.4.0 diff <before> <after>` — tokens added, removed,
+and modified, plus the regression boolean — into the PR body, the design-doc
+sibling of the agent-view §E ship-evidence law
+(`docs/design/agent-view-contracts.md`). The `design-doc-lint` CI job runs
+the same pinned version and fails on any error or warning. The pin is
+deliberate: the spec is `version: alpha` and its schema moves, so version
+bumps are deliberate folds like any dependency, never `latest`.
 
 ## Do's and Don'ts
 

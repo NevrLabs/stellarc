@@ -206,6 +206,61 @@ jobs:
           name: ui-design-contracts-log
           path: design-contract.log
 
+  # NEVR-620 — @google/design.md spec lint on the root DESIGN.md, day one.
+  # The NEVR-620 cleanup drove orphaned-tokens to zero: every Paper palette
+  # token and the dark surfaces/lines/accent tokens now have consuming
+  # component entries, so the tree is debt-free and the gate blocks from
+  # the start (NEVR-455 greenfield precedent). The 0.4.0 CLI exits nonzero
+  # only on errors — warnings (orphaned tokens, sub-token contract drift)
+  # stay exit 0 — so the step parses the JSON summary and fails on any
+  # warning too; stdout (the report) and stderr (bunx install chatter) are
+  # kept apart so the report stays parseable. Version pinned at exactly
+  # 0.4.0: the spec is `version: alpha` and its schema moves, so a bump is
+  # a deliberate fold like any dependency, never latest. Negative control
+  # recorded in tests/bun/design-doc-gate.test.ts.
+  design-doc-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: DESIGN.md spec lint (errors and warnings both gate)
+        shell: bash
+        run: |
+          set +e
+          bunx @google/design.md@0.4.0 lint DESIGN.md > design-doc-lint.log 2> design-doc-lint-stderr.log
+          status=$?
+          set -e
+          cat design-doc-lint.log
+          echo "--- stderr ---"
+          cat design-doc-lint-stderr.log
+          python3 - "$status" <<'PY'
+          import json, sys
+          from pathlib import Path
+          status = int(sys.argv[1])
+          if status not in (0, 1):
+              sys.exit(f"lint exited {status} without a JSON report")
+          try:
+              report = json.loads(Path("design-doc-lint.log").read_text())
+          except json.JSONDecodeError as error:
+              sys.exit(f"design-doc-lint.log is not the lint's JSON report: {error}")
+          for finding in report.get("findings", []):
+              if finding.get("severity") != "info":
+                  print(f"{finding.get('severity')}: {finding.get('path', '-')} "
+                        f"[{finding.get('rule')}]: {finding.get('message')}")
+          summary = report.get("summary", {})
+          print(f"DESIGN.md lint: {summary.get('errors', 0)} errors, "
+                f"{summary.get('warnings', 0)} warnings — gate allows 0/0")
+          sys.exit(1 if summary.get("errors", 0) or summary.get("warnings", 0) else 0)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: design-doc-lint-log
+          path: design-doc-lint.log
+
   # NEVR-455 — onsystem diff-scoped design-system check on apps/web.
   # Non-blocking (continue-on-error) until the lint is tuned, then flips to a
   # gate in a follow-up. Where ui-design-contracts above checks the whole
