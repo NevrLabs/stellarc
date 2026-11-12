@@ -1,11 +1,17 @@
 # Replace 9router and Executor with Stellarc — supervised execution map
 
 ## Destination
-The spike delivers an app-structured Stellarc: `core-auth` is a core module;
-`llmgw` and `toolgw` are separate apps consuming core identity/authorization.
-The current `apps/stellarc-gateway` candidate is temporary integration scaffolding,
-not the permanent module boundary. Preserve shared authority/audit semantics
-without merging app-specific provider/tool policy into core-auth.
+The spike delivers one app, **Stellarc Gateway** (`apps/stellarc-gateway`), which
+owns everything gateway-shaped. The model gateway (`apps/llmgw`) and the tool
+gateway (`apps/toolgw`) are subsystems of it, not separate apps; further
+gateways join the same way. `core-auth` stays a core module that the gateway
+consumes. Preserve shared authority/audit semantics without merging
+subsystem-specific provider/tool policy into core-auth.
+
+This supersedes the earlier destination (separate `llmgw` and `toolgw` apps,
+with `apps/stellarc-gateway` as temporary scaffolding), which the dated R-series
+documents in this folder still describe. The source already has this shape: the
+gateway is the only process, and it imports both subsystems.
 
 The user's actual clients can use Stellarc instead of the currently deployed
 9router and Executor, with equivalent required provider/tool functionality,

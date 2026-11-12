@@ -2,9 +2,9 @@
 
 **v84 development candidate deployed; replacement cutover remains gated.**
 Current source is newer than the deployed artifact and is not runtime-accepted.
-This Effect/Bun process is the temporary composition host for
-`packages/core-auth`, `apps/llmgw`, and `apps/toolgw`, not an addition to the
-running Kaneo API. No legacy auth/domain entrypoint is imported. Rust arclet is
+This Effect/Bun process is Stellarc Gateway. The model gateway (`apps/llmgw`)
+and the tool gateway (`apps/toolgw`) are its subsystems, and it consumes
+`packages/core-auth`. It is not an addition to the running Kaneo API. No legacy auth/domain entrypoint is imported. Rust arclet is
 unchanged.
 
 ## Runnable checks
