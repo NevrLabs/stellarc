@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Linux launch smoke (T05): run a bundled desktop binary under xvfb, assert the
-# structured startup lines (window-created, health-probe) appear on stderr, then
+# structured startup lines (window-created, health-probe, log-file — the path
+# of the persistent panic log, NEVR-632/NSH #1865) appear on stderr, then
 # SIGTERM the process and assert it exits without needing SIGKILL.
 #
 # Rework D4: the app process is located directly (pgrep, mount-aware: an
@@ -204,10 +205,10 @@ cleanup() {
 trap cleanup EXIT
 
 # NEVR-328: one launch attempt = deterministic X startup, spawn the binary
-# bare under that DISPLAY, locate the real app pid, assert the two structured
-# startup lines. State lives in the globals (log/xvfb_*/app_pid) so the
-# caller can reap a failed attempt; on failure returns 1 with FAIL_REASON
-# holding the mode-prefixed FAIL text.
+# bare under that DISPLAY, locate the real app pid, assert the structured
+# startup lines (window-created, health-probe, log-file). State lives in the
+# globals (log/xvfb_*/app_pid) so the caller can reap a failed attempt; on
+# failure returns 1 with FAIL_REASON holding the mode-prefixed FAIL text.
 launch_attempt() {
 	app_pid=""
 	log="$(mktemp)"
@@ -280,6 +281,30 @@ launch_attempt() {
 		attempt_fail "line never appeared: health-probe (app pid $app_pid still alive)"
 		return 1
 	fi
+
+	# NEVR-632: the log-file line points at the persistent panic log
+	# (NSH #1865). Setup emits it synchronously before building the window,
+	# so it always precedes window-created — poll anyway, same pattern as the
+	# other lines. Matching `path=/` (absolute) distinguishes the resolved
+	# line from the status=unresolved fallback, which must fail this smoke.
+	deadline=$((SECONDS + 15))
+	local logged=0
+	while ((SECONDS < deadline)); do
+		if grep -q "event=log-file path=/" "$log"; then
+			logged=1
+			break
+		fi
+		if ! kill -0 "$app_pid" 2>/dev/null; then
+			attempt_fail "app-death pre-log-file: app pid $app_pid died before the log-file line"
+			return 1
+		fi
+		sleep 1
+	done
+
+	if [[ "$logged" != 1 ]]; then
+		attempt_fail "line never appeared: log-file (app pid $app_pid still alive)"
+		return 1
+	fi
 }
 
 # NEVR-328: run the launch sequence at most twice — one bounded retry for a
@@ -346,4 +371,4 @@ if [[ -n "$orphans" ]]; then
 	exit 1
 fi
 
-echo "PASS: window-created + health-probe logged; app pid $app_pid exited cleanly on SIGTERM; no orphaned app process"
+echo "PASS: window-created + health-probe + log-file logged; app pid $app_pid exited cleanly on SIGTERM; no orphaned app process"
