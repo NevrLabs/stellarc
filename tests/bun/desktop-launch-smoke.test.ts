@@ -25,6 +25,12 @@ import { join } from "node:path";
  * there surfaces as an unnamed 30s "app process never appeared under xvfb"
  * slog (or not at all — xvfb-run shields the stub), never as the named
  * xvfb-startup mode.
+ *
+ * NEVR-632 — the smoke also asserts the log-file startup line (the absolute
+ * path of the persistent panic log, NSH #1865). The good stand-in emits it
+ * before window-created (mirroring setup's synchronous emission order), and
+ * the green test's PASS regex requires it — against the pre-NEVR-632 script
+ * the PASS line lacks log-file and the regex fails.
  */
 
 const repoRoot = join(import.meta.dir, "..", "..");
@@ -45,11 +51,13 @@ function runSmoke(dir: string, app: string, env?: Record<string, string>) {
 
 function standIns() {
 	const dir = mkdtempSync(join(tmpdir(), "launch-smoke-"));
-	// Green stand-in: logs both startup lines, exits 0 on SIGTERM.
+	// Green stand-in: logs the three startup lines (log-file before
+	// window-created, mirroring setup's emission order), exits 0 on SIGTERM.
 	writeFileSync(
 		join(dir, "good-app"),
 		[
 			"#!/usr/bin/env bash",
+			'echo "event=log-file path=/tmp/launch-smoke-standin/stellarc-desktop.log"',
 			'echo "event=window-created"',
 			'echo "event=health-probe"',
 			"trap 'exit 0' TERM",
@@ -86,7 +94,7 @@ it(
 			const { code, out } = runSmoke(dir, "good-app");
 			expect(code, out).toBe(0);
 			expect(out).toMatch(
-				/^PASS: window-created \+ health-probe logged; app pid \d+ exited cleanly on SIGTERM; no orphaned app process$/m,
+				/^PASS: window-created \+ health-probe \+ log-file logged; app pid \d+ exited cleanly on SIGTERM; no orphaned app process$/m,
 			);
 			// The retry must be invisible on success.
 			expect(out).not.toContain("WARN");
