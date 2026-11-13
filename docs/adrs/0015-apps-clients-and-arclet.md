@@ -1,7 +1,7 @@
 # ADR 0015: Stellarc is a foundation of apps — server, daemon, one UI on three clients; arclet is a separate harness
 
-Status: **proposed** (2026-11-12; revised 2026-11-13 after design reviews R1 and
-R2, see *Review*).
+Status: **proposed** (2026-11-12; revised 2026-11-13 after design reviews R1 to
+R3, see *Review*).
 
 Operator direction, 2026-11-11/12: "we need to
 make our system a super-app like … each subsystem is an app (llmgw, mcpgw,
@@ -237,8 +237,18 @@ These rules bind it:
    - The legacy sign-in can scope its cookie to a parent domain
      (`COOKIE_DOMAIN`, `packages/kaneo-legacy/src/auth.ts`). No session cookie
      may be scoped to a domain that contains the apps domain.
+   - That sign-in also sets `SameSite=None` when the API and the client are on
+     different hosts over HTTPS. A cookie set that way is sent on cross-site
+     requests (platform knowledge), so a separate site alone does not keep it
+     away from a call an app's script makes to the API. The apps domain is
+     never a trusted origin or a CORS origin of the server (`trustedOrigins`,
+     `CORS_ORIGINS`), and any route that accepts a cookie refuses a request
+     whose `Origin` is under the apps domain. A frame reaches Stellarc through
+     the bridge or through its own service, never by calling the API itself.
    - On app hostnames the server removes `Cookie` from requests and
-     `Set-Cookie` from responses, and adds no credential of its own.
+     `Set-Cookie` from responses, and adds no credential of its own. A request
+     on an app hostname goes only to that app, never to the server's own
+     routes.
    - Sibling apps share the apps domain, so script in one app can still set a
      cookie that script in another can read. Apps must not rely on cookies.
      Putting the apps domain on the Public Suffix List removes this; that is
@@ -388,7 +398,7 @@ Reaching the target needs the harness → Gateway edge first.
 | A second UI for mobile (React Native / Expo) | Two UIs to keep in step; no Linux desktop target (ADR 0013 proposal). ADR 0009 already ruled it out. |
 | Third-party code in the server process | Charter D2: venue `main` is full trust. |
 | Third-party UI loaded as code into the shell (module federation) | Runs untrusted code in the shell's origin with the user's session. |
-| Third-party UI under a path on the server's or the shell's origin | Same origin as the shell or the API, so the same exposure as above. |
+| Third-party UI or app HTTP under a path on the server's or the shell's origin | Same origin as the shell or the API, so the same exposure as above. |
 | Apps domain as a subdomain of the shell's or the API's domain | Same site: the user's same-site cookies travel with the app's requests, and the app can set cookies for the parent domain. |
 | arclet as a module of the server | Puts an agent loop in the control plane (charter D4). |
 
@@ -422,7 +432,8 @@ Reaching the target needs the harness → Gateway edge first.
 3. Drive `apps/web` navigation from the registry instead of the fixed route map
    (`apps/web/src/components/shell/nav.ts`).
 4. Point `desktop/` at `apps/web` once `apps/web` reads real data (ADR 0014
-   step 5, NEVR-434), then generate the Android and iOS projects.
+   step 5, NEVR-434). Then, once the operator confirms mobile (*Open*),
+   generate the Android and iOS projects.
 5. Third-party apps, opening with their own ADR and security review: apps
    domain, app tokens, iframe host and message bridge. Built when the first
    third-party app exists.
@@ -496,3 +507,16 @@ and S8 (N7).
 | N8 mobile stated as settled | Should | Listed as a reading the operator confirms | Open, Consequences |
 | N9 a shared sign-in does not end the D11 exception | Should | Ends when the Gateway decides against the server's grants | §6, Open |
 | N10 ADR 0014 clause missed; a listed document postdates 2026-11-11; no server → app row | Should | Clause added; the date test dropped in favour of the list; row added | header, glossary, §7 |
+
+R3: independent read-only closure check of `68ba82f`, 2026-11-13. Verdict:
+cleared with edits. It found N2–N10 and S8 closed and N1 (and so M4) partly
+closed, judged the declined `Authorization` remedy sound as long as an app
+hostname routes only to its app, and listed three edits (E) as the complete set
+needed to clear. All three are applied, so the clearance condition is met. No
+further review was run on these three edits.
+
+| Finding | Applied as | Where |
+|---|---|---|
+| E1 the legacy session cookie is `SameSite=None` across hosts, so a separate site does not withhold it (closes N1, M4) | Apps domain is never a trusted or CORS origin; cookie routes refuse an `Origin` under it; a frame never calls the API itself; an app hostname routes only to its app | §6 rule 1 |
+| E2 the Rejected row covered UI only | Row covers app HTTP too | Rejected |
+| E3 step 4 committed to mobile before the operator confirms | Mobile projects wait for the confirmation | Sequence |
