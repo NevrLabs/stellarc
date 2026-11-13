@@ -136,7 +136,13 @@ export function agentsHttp(
 						const s = yield* body(Start, request);
 						return json(
 							200,
-							yield* store.start(n, id, s.attempt, s.nativeSessionId),
+							yield* store.start(
+								n,
+								id,
+								s.attempt,
+								s.nativeSessionId,
+								s.contextReceipt,
+							),
 						);
 					}
 					if (action === "heartbeat") {

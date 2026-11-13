@@ -190,10 +190,69 @@ export const Claim = Schema.Struct({
 export const Attempt = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0))),
 });
+// ── per-attempt context receipt (NEVR-624) ──────────────────────────────────
+
+/** What a receipt row can name (NEVR-624): the three seed strings the node
+ * composes, the config a session launches, and the growth seams. `file` and
+ * `other` are reserved for ACP growth (NEVR-309) — nothing emits them yet. */
+export const CONTEXT_RECEIPT_KINDS = [
+	"instructions",
+	"prompt",
+	"resume-digest",
+	"mcp-server",
+	"file",
+	"other",
+] as const;
+export type ContextReceiptKind = (typeof CONTEXT_RECEIPT_KINDS)[number];
+
+/** How the source reached the runtime: `inline` = composed into the wire
+ * prompt; `reference` = handed over as config the harness launches. */
+export const CONTEXT_RECEIPT_DELIVERIES = ["inline", "reference"] as const;
+export type ContextReceiptDelivery =
+	(typeof CONTEXT_RECEIPT_DELIVERIES)[number];
+
+/** How sure the plane is the runtime loaded the source: `seeded` = composed
+ * into the seed string (instructions/prompt/resume digest); `referenced` =
+ * delivered as launch config (MCP servers); `unknown` = future sources whose
+ * delivery the node cannot vouch for. */
+export const CONTEXT_RECEIPT_CONFIDENCES = [
+	"seeded",
+	"referenced",
+	"unknown",
+] as const;
+export type ContextReceiptConfidence =
+	(typeof CONTEXT_RECEIPT_CONFIDENCES)[number];
+
+/** One context source, as metadata only (NEVR-624): sizes and a 12-char
+ * SHA-256 prefix identify WHAT reached the runtime without carrying it — no
+ * content field, no MCP commands/URLs/env. Decode at the ingest seam is
+ * CONSTRUCTING (scope-roots (b)-line idiom): body-supplied excess keys are
+ * dropped before `store.start()` runs, so a content field cannot round-trip
+ * even if a caller adds one. Pinned by the metadata-only negative control in
+ * tests/bun/context-receipt.test.ts. */
+export const ContextReceiptRow = Schema.Struct({
+	kind: Schema.Literals([...CONTEXT_RECEIPT_KINDS]),
+	name: Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(256))),
+	bytes: Schema.Int.pipe(
+		Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isFinite()),
+	),
+	sha256: Schema.String.pipe(Schema.check(Schema.isPattern(/^[0-9a-f]{12}$/))),
+	delivery: Schema.Literals([...CONTEXT_RECEIPT_DELIVERIES]),
+	confidence: Schema.Literals([...CONTEXT_RECEIPT_CONFIDENCES]),
+});
+export type ContextReceiptRow = typeof ContextReceiptRow.Type;
+
 export const Start = Schema.Struct({
 	attempt: Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0))),
 	nativeSessionId: Schema.optional(
 		Schema.String.pipe(Schema.check(Schema.isMaxLength(256))),
+	),
+	/** Per-attempt context receipt (NEVR-624, Multica #10426 pattern):
+	 * one row per context source the node composed for this attempt —
+	 * METADATA ONLY (kind, name, size, 12-char SHA-256 prefix, delivery,
+	 * confidence). Absent = a node that predates receipts. */
+	contextReceipt: Schema.optional(
+		Schema.Array(ContextReceiptRow).pipe(Schema.check(Schema.isMaxLength(64))),
 	),
 });
 export const Item = Schema.Struct({

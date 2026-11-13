@@ -306,6 +306,56 @@ try {
 		400,
 	);
 	pass("socket-tenant-context-denial");
+	// Base-URL clients use <origin>/v1; the org comes from the credential.
+	const runsBeforeCatalog = (
+		await owner`SELECT count(*)::int AS n FROM gw_run`
+	)[0].n;
+	const catalog = await fetch(`${base}/v1/models`, { headers });
+	assert.equal(catalog.status, 200);
+	assert.deepEqual(await catalog.json(), {
+		object: "list",
+		data: [{ id: "local-fixture", object: "model", owned_by: "local-fixture" }],
+	});
+	assert.equal((await fetch(`${base}/v1/models`)).status, 401);
+	const toolOnly = await app.store
+		.createAgent("operator", ["mcp:status"])
+		.then((id) => app.store.issue("operator", id));
+	assert.equal(
+		(
+			await fetch(`${base}/v1/models`, {
+				headers: { authorization: `Bearer ${toolOnly.raw}` },
+			})
+		).status,
+		403,
+	);
+	assert.equal(
+		(await fetch(`${base}/v1/models`, { method: "POST", headers, body: "{}" }))
+			.status,
+		404,
+	);
+	assert.equal(
+		(await owner`SELECT count(*)::int AS n FROM gw_run`)[0].n,
+		runsBeforeCatalog,
+	);
+	pass("socket-models-catalog-authorized-and-admits-nothing");
+	const unscoped = await fetch(`${base}/v1/chat/completions`, {
+		method: "POST",
+		headers: { ...headers, "x-stellarc-org": "beta" },
+		body: JSON.stringify({
+			model: "local-fixture",
+			stream: true,
+			messages: [],
+		}),
+	});
+	assert.equal(unscoped.status, 200);
+	assert.match(await unscoped.text(), /fixture-3/);
+	const unscopedRun = unscoped.headers.get("x-stellarc-run-id");
+	if (typeof unscopedRun !== "string") throw new Error("run id missing");
+	const [unscopedRow] =
+		await owner`SELECT org,outcome FROM gw_run WHERE id=${unscopedRun}`;
+	assert.equal(unscopedRow.org, "alpha");
+	assert.equal(unscopedRow.outcome, "completed");
+	pass("socket-unscoped-chat-path-takes-org-from-credential");
 	let mcpSession = "";
 	const rpc = async (value: unknown, bearer = raw.raw) => {
 		const response = await fetch(`${base}/mcp`, {

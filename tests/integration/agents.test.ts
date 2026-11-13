@@ -268,6 +268,11 @@ test("A3 end to end: task → node daemon → ACP agent → transcript + complet
 		"agents:node-hello", // the daemon's own hello on connect
 		"agents:task-claimed",
 		"agents:task-started",
+		// Context receipt (NEVR-624): instructions + prompt + the kaneo MCP
+		// server, one event per source, same transaction as task-started.
+		"agents:context-receipt",
+		"agents:context-receipt",
+		"agents:context-receipt",
 		"agents:task-finished",
 	]);
 	expect(events[5].actor).toMatch(/^node:node_/);

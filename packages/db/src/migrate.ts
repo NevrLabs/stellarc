@@ -18,6 +18,10 @@ const MIGRATIONS = [
 		version: "0008_stellarc_domain",
 		file: "../migrations/0008_stellarc_domain.sql",
 	},
+	{
+		version: "0009_context_receipt",
+		file: "../migrations/0009_context_receipt.sql",
+	},
 ] as const;
 
 /** Owner-only provisioning; the runtime principal must already exist. */

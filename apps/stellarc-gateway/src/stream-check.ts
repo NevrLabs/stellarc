@@ -142,6 +142,17 @@ let disposed = false;
 try {
 	const agent = await app.store.createAgent("operator", ["llm:stream"]);
 	const key = await app.store.issue("operator", agent);
+	const catalog = await app.handler(
+		new Request(`${origin}/v1/models`, {
+			headers: { authorization: `Bearer ${key.raw}` },
+		}),
+	);
+	assert.equal(catalog.status, 200);
+	assert.deepEqual(await catalog.json(), {
+		object: "list",
+		data: [{ id: "glm-5.3", object: "model", owned_by: "glm" }],
+	});
+	console.log("PASS models-catalog-lists-only-the-configured-route");
 	const response = await app.handler(
 		new Request(`${origin}/orgs/alpha/v1/chat/completions`, {
 			method: "POST",

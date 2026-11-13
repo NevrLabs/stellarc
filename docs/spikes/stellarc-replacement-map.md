@@ -100,6 +100,11 @@ contract in the next source revision, not by silently changing active inputs.
 Host/runtime execution is still pending; source review does not clear it.
 [Lifecycle council R8](stellarc-lifecycle-council-r8.md).
 
+Both R8 follow-ups are now in source: the `lifecycle-cancel-finish-rejects`
+regression in the provider-routing check, and the `abort` contract stated on
+`providerResponse`'s control. How the host handles a failed terminal write on
+the cancel path is described in `apps/stellarc-gateway/README.md`.
+
 ## Approval R6 executed delta
 Supervisor read the current decision/claim/report/recovery paths, matched final
 source hashes and read back remote receipts: initial six failing groups → four
@@ -329,6 +334,10 @@ Do not launch old path-pinned gate scripts.
   remain acceptance gaps. These vectors are specifications, not interoperability
   receipts; no provider permission, live traffic or deployment is inferred.
   [Client parity R1](stellarc-client-parity-r1.md).
+  Since then the gateway accepts `<origin>/v1/chat/completions` and
+  `GET /v1/models` with the org taken from the credential; the catalog lists the
+  one configured route. Codecs, account transport, Messages ingress and every
+  other favorite remain open.
 
 - Remote MCP council R2 delayed result: supervisor read module/report and matched
   both final source hashes. Error sanitization, bounds/header/URL guards and
