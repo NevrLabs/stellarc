@@ -105,7 +105,7 @@ try {
 	for (const path of [
 		"/auth/login",
 		"/api/auth/get-session",
-		"/api/auth/oauth2/callback/zitadel?code=bad&state=bad",
+		"/api/auth/callback/zitadel?code=bad&state=bad",
 	]) {
 		const response = await fetch(base + path, {
 			redirect: "manual",

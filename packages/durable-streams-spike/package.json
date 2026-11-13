@@ -10,6 +10,6 @@
 	},
 	"devDependencies": {
 		"@standard-schema/spec": "1.1.0",
-		"@tanstack/db": "1.0.0-rc.1.4"
+		"@tanstack/db": "1.0.0-rc.1.5"
 	}
 }

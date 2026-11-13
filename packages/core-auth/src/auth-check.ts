@@ -173,7 +173,7 @@ try {
 		assert.equal(u.searchParams.get("code_challenge_method"), "S256");
 		assert.equal(nonce, u.searchParams.get("code_challenge"));
 		return {
-			url: `${origin}/api/auth/oauth2/callback/zitadel?code=fixture&state=${u.searchParams.get("state")}&iss=${issuer}`,
+			url: `${origin}/api/auth/callback/zitadel?code=fixture&state=${u.searchParams.get("state")}&iss=${issuer}`,
 			cookie: r.headers
 				.getSetCookie()
 				.map((c) => c.split(";")[0])
