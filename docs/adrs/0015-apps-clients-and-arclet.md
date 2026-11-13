@@ -1,7 +1,7 @@
 # ADR 0015: Stellarc is a foundation of apps — server, daemon, one UI on three clients; arclet is a separate harness
 
-Status: **proposed** (2026-11-12; revised 2026-11-13 after design review R1, see
-*Review*).
+Status: **proposed** (2026-11-12; revised 2026-11-13 after design reviews R1 and
+R2, see *Review*).
 
 Operator direction, 2026-11-11/12: "we need to
 make our system a super-app like … each subsystem is an app (llmgw, mcpgw,
@@ -21,13 +21,16 @@ How this relates to earlier decisions:
 - **Amends ADR 0009 §Target platforms**: mobile was deferred there until "the
   owner re-charters it". The 2026-11-11 direction ("easy way of managing
   desktop+web and mobile app") is read here as that re-charter.
-- **Amends ADR 0014 §4**: drops "Expo later", the Expo persistence adapter and
-  the React Native charts note. Desktop and mobile are both Tauri 2, which is
-  also what ADR 0009 already ruled ("No second UI stack").
+- **Amends ADR 0014 §4**: drops "Expo later", the Expo persistence adapter, the
+  "Capacitor/Expo webviews" clause and the React Native charts note. Desktop
+  and mobile are both Tauri 2, which is also what ADR 0009 already ruled ("No
+  second UI stack").
 - **Takes over the unmerged ADR 0013 proposal** (PR #87, commit `00fe89d`) and
   retargets it from `apps/stellarc-ui` to `apps/web`.
-- **Charter**: adds one exception to D11, for the Gateway only, and uses "app"
-  more broadly than D2 does (both in §6). The rest of D1–D20 is unchanged.
+- **Charter** (D1–D19): three departures, all in §6. The Gateway is an
+  exception to D5, D6 and D11. "App" is used more broadly than in D2. An app
+  acting through a token is a kind of actor D12 does not list. The rest is
+  unchanged.
 
 Sections 1–4 record operator decisions. Sections 5–7 are proposals made to carry
 them out and are what review should challenge.
@@ -41,19 +44,18 @@ them out and are what review should challenge.
 | **app** | The unit a user sees, installs and switches on per org. A product word: it covers both a charter *plugin* (runs in the server) and a charter *app* (runs as its own service). | no manifest or registry yet |
 | **first-party app** | Shipped with Stellarc, or installed by the plane operator at deploy time. | `packages/agents`, boards, the Gateway |
 | **third-party app** | Added by a user or an org. | none yet |
-| **app token** | Short-lived credential the server mints for one app in one org, limited to the grants that org approved. | not built |
-| **apps domain** | One domain per deployment under which each third-party app UI gets its own hostname. | not built |
+| **app token** | Short-lived credential the server mints for one app in one org. Two kinds: a *frame token* also names the user, a *backend token* does not (§6). | not built |
+| **apps domain** | A separately registered domain, one per deployment, under which each third-party app gets its own hostname. Never a subdomain of the domain the shell or the API uses. | not built |
 | **Stellarc Gateway** | One app that owns all gateway work. | `apps/stellarc-gateway` |
 | **Model gateway / Tool gateway** | Subsystems of Stellarc Gateway. | `apps/llmgw`, `apps/toolgw` |
 | **harness** | Any local process that speaks ACP over stdio (ADR 0011). | daemon defaults: hermes, goose, claude-code, codex, gemini, opencode |
 | **arclet** | Stellarc's native agent harness. A separate product. | not in this repo |
 
-Documents written before 2026-11-11 use "arclet" for the node daemon: ADR 0002,
-0004 and 0007, the charter (topology line, D14, D18),
-`docs/transcript-schema-v2.md`, `docs/steal-reject-matrix.md` and
-`docs/spikes/auth-llmgw-maple.md`. Read those uses as "stellarc daemon". ADR
-0002 also calls the daemon Rust; the daemon that exists is the Bun/TypeScript
-one ADR 0011 built.
+These documents use "arclet" for the node daemon: ADR 0002, 0004 and 0007, the
+charter (topology line, D14, D18), `docs/transcript-schema-v2.md`,
+`docs/steal-reject-matrix.md` and `docs/spikes/auth-llmgw-maple.md`. Read those
+uses as "stellarc daemon". ADR 0002 also calls the daemon Rust; the daemon that
+exists is the Bun/TypeScript one ADR 0011 built.
 
 ## Decisions (operator)
 
@@ -160,18 +162,21 @@ and D8 says per-org custom code is an app. The charter's third venue,
 `isolate` (a sandbox the server owns), is not built and this ADR does not build
 it. If it is built later it becomes a second place for third-party code.
 
+First-party apps get no shortcut around grants. They declare capabilities in
+the same manifest, and an org's grant set is what activates them (D5, D8).
+
 `docs/primitives-v1.md` calls a board "an app, not a kind". ADR 0014 §1 built
 boards as server tables (`packages/db/migrations/0008_stellarc_domain.sql`). In
 this ADR's terms boards are a first-party app in the server.
 
 **How a service app is reached and authorized**
 
-- **Default: proxied (charter D11).** The server proxies the app under the
-  app's namespace and checks capabilities at that one point. The app's backend
-  calls Stellarc with an **app token**: minted by the server for one app in one
-  org, limited to the grants that org approved (D3), and short-lived. The
-  server refuses any app call whose token does not match a live activation row,
-  so switching an app off for an org takes effect on its next call.
+- **Default: proxied (charter D11).** The server answers for the app's hostname
+  under the apps domain and forwards to the app's service. It never serves an
+  app's HTTP responses from its own origin: HTML or script returned there would
+  run with the API's origin. An app's MCP tools are different. The server's MCP
+  surface relays them as data under the app's namespace and checks
+  capabilities there (D11).
 - **Exception, Gateway only.** The Gateway is reached at its own origin and is
   not proxied. D11 lets the gateway front the server but "never bypass its
   checks". Today the Gateway does not use the server's checks at all: it has
@@ -180,8 +185,35 @@ this ADR's terms boards are a first-party app in the server.
   authorizes each call against that store (`store.authorize` in
   `apps/stellarc-gateway/src/main.ts`). The server's authorization for its own
   domain routes currently refuses every request (`AuthzLive`,
-  `packages/domain/src/authz.ts`). Giving the two one identity is open (see
-  *Open*). No other app gets this exception.
+  `packages/domain/src/authz.ts`). This also makes the Gateway a privileged
+  built-in, which D5 does not allow outside the kernel, and gives Stellarc a
+  second MCP surface, where D6 and D11 give the kernel the only one. The
+  exception ends when the Gateway's per-call decisions are made against the
+  server's grants; one shared sign-in is not enough (see *Open*). No other app
+  gets this exception.
+
+**App tokens**
+
+Two kinds, both minted by the server and short-lived:
+
+| | Frame token | Backend token |
+|---|---|---|
+| Names | app, org and user | app and org |
+| Allows | Only what both the user's own rights and the org's grants to the app allow (D3). | The org's grants to the app. |
+| Obtained by | The shell, for the signed-in user. Handed to the frame over the bridge. | The app's service, in exchange for a client credential registered at install. The server keeps a hash or an external-store reference, never the value (D16). |
+| Logged as | actor: the app, on behalf of the user | actor: the app |
+
+On every call the server checks the token's audience and expiry, the org's
+activation row, and the grants as they are now, not as they were when the token
+was minted. Switching an app off or narrowing its grants takes effect on its
+next call.
+
+D12 lists humans, agents and workflows as actors. An app acting through a token
+is a fourth kind, added here. `core-auth` already implements this shape for an
+agent acting on behalf of a person (`gw_delegation`: actor, subject, audience,
+actions, expiry, narrowing only; `packages/core-auth/src/store.ts`). App tokens
+are that shape with an app as the actor, not a second model. Only the Gateway
+uses `core-auth` today; the server does not import it.
 
 **App UI**
 
@@ -192,33 +224,70 @@ this ADR's terms boards are a first-party app in the server.
 
 Third-party UI installs at runtime: the operator's direction is that apps are
 "plug and play". It is built last (step 5), when the first third-party app
-exists. Four rules hold when it is built:
+exists. Step 5 opens with its own ADR and security review before any code.
+These rules bind it:
 
-1. **Origin.** The server serves each third-party UI on a hostname of its own
-   under one apps domain (`<app-id>.<apps-domain>`). Never the shell's origin or
-   the API's, and never a path under either: a frame that shares the shell's
-   origin can read the user's session. One apps domain also lets the desktop
-   shell name a single `frame-src` pattern at build time while apps are still
-   added at runtime.
-2. **Bridge.** One `MessageChannel` per frame. The shell hands over the port
-   only after it has checked the frame's `event.origin` and `event.source`
-   against the app's registry entry.
-3. **Credential.** The frame receives the app token over the bridge. Never the
+1. **Origin and site.** Each third-party app gets a hostname of its own under
+   the apps domain (`<app-id>.<apps-domain>`), and the server answers for it.
+   - The apps domain is registered separately. It is never a subdomain of the
+     domain the shell or the API uses, and never a path under either. A
+     subdomain is a different origin but the same site: the browser would
+     still send the user's same-site cookies with the app's requests, and the
+     app could set cookies for the parent domain.
+   - The legacy sign-in can scope its cookie to a parent domain
+     (`COOKIE_DOMAIN`, `packages/kaneo-legacy/src/auth.ts`). No session cookie
+     may be scoped to a domain that contains the apps domain.
+   - On app hostnames the server removes `Cookie` from requests and
+     `Set-Cookie` from responses, and adds no credential of its own.
+   - Sibling apps share the apps domain, so script in one app can still set a
+     cookie that script in another can read. Apps must not rely on cookies.
+     Putting the apps domain on the Public Suffix List removes this; that is
+     optional, and slow for a self-hosted deployment.
+   - One apps domain also lets the desktop shell name a single `frame-src`
+     pattern at build time while apps are still added at runtime.
+2. **Frame.**
+   - The frame's `sandbox` allows scripts, forms and the frame's own origin.
+     It never allows top-level navigation or popups that escape the sandbox.
+   - The frame's `allow` list (camera, microphone, location and the like) is
+     empty unless the org granted that capability.
+   - App hostnames send `frame-ancestors` naming only the shell's origins, so
+     no other site can frame an app and pose as the shell.
+3. **Bridge.** One `MessageChannel` per frame load.
+   - The shell hands over the port only after it has checked the frame's
+     `event.origin` and `event.source` against the app's registry entry. It
+     posts the port to that registered origin, never to `"*"`.
+   - When the frame reloads, the shell closes the old port and makes a new
+     channel.
+   - The app accepts a port only from a shell origin: the web origin, and the
+     origins the Tauri webview uses (`tauri://localhost`,
+     `http://tauri.localhost`; platform knowledge).
+4. **Credential.** The frame receives a frame token over the bridge. Never the
    user's session and never a cookie. Safari and iOS webviews partition or
    block third-party cookies inside an iframe (platform knowledge, not tested
    here), so a cookie design would behave differently per client.
-4. **Desktop and mobile shell.** `desktop/tauri.conf.json` sets
+5. **Desktop and mobile shell.** `desktop/tauri.conf.json` sets
    `default-src 'self'` with no `frame-src`, so the desktop app blocks every
-   such frame today. Step 5 adds `frame-src` for the apps domain. Tauri exposes
-   its commands only to bundled code unless a capability lists a remote URL
-   (Tauri docs, *Capabilities → Remote API Access*). No capability may list the
-   apps domain. This matters because the shell loads `tauri-plugin-shell`
-   (`desktop/src/lib.rs`).
+   such frame today. Step 5 adds `frame-src` for the apps domain.
+   - Tauri's documentation says its API is "only accessible to bundled code"
+     unless a capability lists remote URLs (*Capabilities → Remote API
+     Access*). It does not say how a remote iframe inside the main webview is
+     treated.
+   - No capability may carry a `remote` entry. Today there is no capability
+     file and the shell registers no commands of its own; it does load
+     `tauri-plugin-shell` (`desktop/src/lib.rs`).
+   - The main webview must refuse navigation away from the bundled UI, so a
+     frame cannot replace the shell with a remote page inside the app's
+     window. The shell has no such guard today.
+
+Not verified, and owed by step 5's ADR: how Tauri treats a command call from a
+remote iframe; whether `frame-ancestors` accepts the Tauri webview origins; how
+Safari and iOS webviews treat cookies in the frame.
 
 The iframe is the only form that installs at runtime on all three clients. It
 costs a narrower integration (the frame gets what the bridge exposes and
-nothing else) and a wildcard DNS record and certificate for the apps domain on
-every deployment that allows third-party apps, self-hosted ones included.
+nothing else) and a second registered domain, with a wildcard DNS record and
+certificate, on every deployment that allows third-party apps, self-hosted
+ones included.
 
 ### 7. Where arclet runs
 
@@ -289,8 +358,9 @@ Solid lines exist in source. Dotted lines are targets.
 | Daemon → harness | A fixed environment: `PATH`, `HOME`, `TMPDIR`, `LANG` and the harness spec's own `env`. Never the node token. | daemon (`harnessEnv`, `apps/stellarc-node/src/runner.ts`) | Built |
 | Harness → Gateway | Scoped Gateway credential | Gateway, `store.authorize` on every call | Gateway side built. The daemon neither mints nor passes a Gateway credential; an operator can only put one in the harness spec's `env` by hand. |
 | Gateway → server | Shared identity; audit into the server's event log | server | Not built. The Gateway audits to `gw_audit` and exports over OpenTelemetry (`packages/core-auth/src/audit.ts`). |
-| App service → server | App token | server, against the activation row | Not built |
-| Third-party frame → shell | Bridge port, app token | shell | Not built |
+| Server → app service | The forwarded request, without `Cookie`. No user session and no server credential. | app service | Not built |
+| App service → server | Backend token, or a frame token passed on by the frame | server: audience, expiry, activation row, current grants | Not built |
+| Third-party frame → shell | Bridge port, frame token | shell | Not built |
 
 **Where provider and tool credentials live**
 
@@ -319,6 +389,7 @@ Reaching the target needs the harness → Gateway edge first.
 | Third-party code in the server process | Charter D2: venue `main` is full trust. |
 | Third-party UI loaded as code into the shell (module federation) | Runs untrusted code in the shell's origin with the user's session. |
 | Third-party UI under a path on the server's or the shell's origin | Same origin as the shell or the API, so the same exposure as above. |
+| Apps domain as a subdomain of the shell's or the API's domain | Same site: the user's same-site cookies travel with the app's requests, and the app can set cookies for the parent domain. |
 | arclet as a module of the server | Puts an agent loop in the control plane (charter D4). |
 
 ## Open
@@ -329,34 +400,42 @@ Reaching the target needs the harness → Gateway edge first.
   operator's OK.
 - **One org identity.** The server's `organization.id`, the free-text `org` on
   events and on the agents tables, and the Gateway's `gw_principal.org` are
-  three identifiers with no constraint linking them. Step 1 cannot register the
-  Gateway per org without a mapping.
-- **One human identity** across the server and the Gateway. The D11 exception
-  in §6 ends when this exists.
+  three identifiers with no constraint linking them. Step 1 starts by choosing
+  one key and recording how the other two map to it.
+- **Gateway under the server's grants.** One human identity across the server
+  and the Gateway, and the Gateway's per-call decisions made against the
+  server's grants. The exception in §6 ends only with the second.
+- **Mobile.** This ADR reads the 2026-11-11 direction as putting mobile back in
+  scope (ADR 0009 had deferred it). The operator confirms or corrects that
+  reading.
 - **Partition journal (D15) and duplicate suppression (D18)** are daemon duties
   and are not built.
 - **MCP `env` values in the server database** contradict D16.
 
 ## Sequence
 
-1. App manifest type, registry table and per-org activation rows; list apps
-   from the server; register `agents` and the Gateway as the first two entries.
-2. Activation check at dispatch for apps that run in the server.
+1. Choose one org key and record how the other org identifiers map to it (see
+   *Open*). Then the app manifest type, registry table and per-org activation
+   rows; list apps from the server; register `agents` and the Gateway as the
+   first two entries.
+2. Activation and grant check at dispatch for apps that run in the server.
 3. Drive `apps/web` navigation from the registry instead of the fixed route map
    (`apps/web/src/components/shell/nav.ts`).
 4. Point `desktop/` at `apps/web` once `apps/web` reads real data (ADR 0014
    step 5, NEVR-434), then generate the Android and iOS projects.
-5. Third-party apps: apps domain, app token, iframe host and message bridge.
-   Built when the first third-party app exists.
+5. Third-party apps, opening with their own ADR and security review: apps
+   domain, app tokens, iframe host and message bridge. Built when the first
+   third-party app exists.
 
 ## Consequences
 
-- "arclet" in documents written before 2026-11-11 now reads as "stellarc
+- "arclet" in the documents listed under the glossary now reads as "stellarc
   daemon"; those documents are not edited.
-- Mobile is back in scope (ADR 0009 had deferred it).
+- Mobile is back in scope (ADR 0009 had deferred it), once the operator
+  confirms that reading (*Open*).
 - `apps/stellarc-ui` stays the shipped desktop bundle until step 4.
-- A deployment that allows third-party apps needs a wildcard DNS record and
-  certificate for its apps domain.
+- A deployment that allows third-party apps needs a second registered domain,
+  with a wildcard DNS record and certificate, as its apps domain.
 - Nothing in Stellarc depends on arclet existing: any ACP harness fills the
   same slot.
 
@@ -398,3 +477,22 @@ Changed by the author, not raised in review:
   is closed as yes and built last. Nothing before step 5 depends on it.
 - Sequence reordered: registry first, desktop switch after `apps/web` reads
   real data.
+
+R2: independent read-only delta review of `d9ce8f7`, 2026-11-13. Verdict:
+changes required. It found 15 of the 17 R1 findings closed and two partly
+closed (M4, S8), and raised 10 new findings (N), 3 must and 7 should. The full
+report is a comment on PR #256. All 10 are applied; they also close M4 (N1–N5)
+and S8 (N7).
+
+| Finding | Severity | Applied as | Where |
+|---|---|---|---|
+| N1 a subdomain of the shell's domain is a separate origin but the same site | Must | Apps domain is registered separately; no session cookie scoped over it; the server removes `Cookie` and `Set-Cookie` on app hostnames; the sibling-cookie residue is stated. The review also proposed removing `Authorization`; not applied, because the browser never sends that header on its own and it is how a frame token reaches the app's own service | glossary, §6 rule 1, Rejected |
+| N2 app token names no user; backend credential unnamed; grants not rechecked | Must | Frame token and backend token; client credential kept by hash or reference; grants checked on every call; reuses the `core-auth` delegation shape | glossary, §6 |
+| N3 proxying under a namespace on the API's origin | Must | App HTTP is served only on the app's hostname; MCP tools are relayed as data | §6 |
+| N4 bridge checked from one side only | Should | Frame rule added; bridge rule covers target origin, reload and the app's own check | §6 rules 2–3 |
+| N5 Tauri statement does not cover iframes | Should | Quoted as written; the iframe case listed as not verified; no `remote` entries; navigation guard | §6 rule 5 |
+| N6 other charter departures not named | Should | D5 and D6 named under the Gateway exception; the D12 addition named; first-party apps go through the same grants; charter cited as D1–D19 | header, §6 |
+| N7 step 1 needs the org mapping that Open says is missing | Should | Step 1 starts with the org key | Sequence, Open |
+| N8 mobile stated as settled | Should | Listed as a reading the operator confirms | Open, Consequences |
+| N9 a shared sign-in does not end the D11 exception | Should | Ends when the Gateway decides against the server's grants | §6, Open |
+| N10 ADR 0014 clause missed; a listed document postdates 2026-11-11; no server → app row | Should | Clause added; the date test dropped in favour of the list; row added | header, glossary, §7 |
