@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import type {
+	ContextReceiptRow,
 	FailureCode,
 	Item,
 	ItemKind,
@@ -27,7 +29,10 @@ export interface HarnessSpec {
 }
 
 export interface RunHooks {
-	readonly onStart: (nativeSessionId: string) => Promise<void>;
+	readonly onStart: (
+		nativeSessionId: string,
+		contextReceipt: ReadonlyArray<ContextReceiptRow>,
+	) => Promise<void>;
 	readonly onItems: (items: ReadonlyArray<Item>) => Promise<void>;
 	/** Latest plane state: cancelled flag plus, exactly once, the operator
 	 * verdict on a parked permission request. */
@@ -321,6 +326,74 @@ Your previous attempt (attempt ${resume.fromAttempt}) was interrupted by a platf
 	return `${header}\n${lines.join("\n")}`;
 }
 
+// ── per-attempt context receipt (NEVR-624) ──────────────────────────────────
+
+/** 12-char SHA-256 prefix: enough to tell two receipts apart (change
+ * detection), never enough to reconstruct content — the receipt's privacy
+ * shape is metadata only, Multica #10426 pattern. */
+const sha12 = (value: string) =>
+	createHash("sha256").update(value).digest("hex").slice(0, 12);
+
+/** Compose the metadata-only receipt of what this attempt received
+ * (NEVR-624): one row per context source the node composes — the three seed
+ * strings (instructions, resume digest, prompt — embedded verbatim in the
+ * wire prompt, so delivery 'inline', confidence 'seeded') and one row per
+ * MCP server (handed to newSession as launch config, so 'reference' /
+ * 'referenced'). Sizes and hashes cover EXACTLY what the node already
+ * composes — no file reads, no harness internals, no ACP changes (those
+ * sources wait on NEVR-309). The MCP row's hash is over the launch config
+ * MINUS env — name/command/args only, so two attempts are comparable.
+ * Env is deliberately excluded: it is credential material, and a 48-bit
+ * prefix of a hash over a low-entropy env value is offline-brute-forceable;
+ * receipts ship to the org log and the UI, which is broader visibility than
+ * the agent record that already stores the full config. The config itself
+ * never leaves the row. Pure — unit-tested directly. */
+export function contextReceipt(task: TaskDescriptor): ContextReceiptRow[] {
+	const rows: ContextReceiptRow[] = [];
+	const seeded = (
+		kind: ContextReceiptRow["kind"],
+		name: string,
+		value: string,
+	) =>
+		rows.push({
+			kind,
+			name,
+			bytes: Buffer.byteLength(value),
+			sha256: sha12(value),
+			delivery: "inline",
+			confidence: "seeded",
+		});
+	if (task.agent.instructions)
+		seeded("instructions", "instructions", task.agent.instructions);
+	if (task.resume) {
+		const digest = renderResumeDigest(task.resume);
+		seeded(
+			"resume-digest",
+			`resume:attempt-${task.resume.fromAttempt}`,
+			digest,
+		);
+	}
+	seeded("prompt", "prompt", task.prompt);
+	for (const s of task.agent.mcpServers) {
+		// Canonical launch config WITHOUT env (see the doc comment above):
+		// secret material must not enter even a hash prefix this public.
+		const config = JSON.stringify({
+			name: s.name,
+			command: s.command,
+			args: s.args,
+		});
+		rows.push({
+			kind: "mcp-server",
+			name: s.name,
+			bytes: Buffer.byteLength(config),
+			sha256: sha12(config),
+			delivery: "reference",
+			confidence: "referenced",
+		});
+	}
+	return rows;
+}
+
 /** Environment a harness child is born with: an explicit allowlist, never the
  * node's own `process.env` — STELLARC_NODE_TOKEN and every other STELLARC_*
  * var must be unreachable from the harness and its MCP descendants
@@ -542,7 +615,11 @@ export async function runTask(
 				})),
 			});
 			sessionId = session.sessionId;
-			await hooks.onStart(session.sessionId);
+			// Receipt rides the start report (NEVR-624): composed here, pure over
+			// the descriptor — these are exactly the values the seed composition
+			// below embeds and the config newSession just consumed, so the same
+			// round trip that marks the attempt running records what it received.
+			await hooks.onStart(session.sessionId, contextReceipt(task));
 			if (task.agent.model) {
 				// BYO agents choose their own model; we only *request* one when the
 				// harness advertises a model selector (ACP config options).

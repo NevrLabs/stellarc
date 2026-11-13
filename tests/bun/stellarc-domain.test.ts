@@ -282,7 +282,7 @@ function comparable(value: unknown): unknown {
 	return value;
 }
 
-test("migrates a disposable PostgreSQL from zero through 0008", async () => {
+test("migrates a disposable PostgreSQL from zero through 0009", async () => {
 	const versions = await sql<{ version: string; checksum: string }[]>`
 		SELECT version, checksum FROM stellarc_migration ORDER BY version`;
 	expect(versions.map((v) => v.version)).toEqual([
@@ -294,6 +294,7 @@ test("migrates a disposable PostgreSQL from zero through 0008", async () => {
 		"0006_permissions",
 		"0007_resumed_from",
 		"0008_stellarc_domain",
+		"0009_context_receipt",
 	]);
 	for (const v of versions) expect(v.checksum).toMatch(/^[0-9a-f]{64}$/);
 });
