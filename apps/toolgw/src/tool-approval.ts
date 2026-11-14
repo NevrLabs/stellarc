@@ -369,8 +369,7 @@ export function createToolApprovals(
 				if (!row || row.org !== org) throw new Denied(404, "not_found");
 				const [decider] =
 					await tx`SELECT kind FROM gw_principal WHERE id=${human} AND org=${org} AND enabled=true`;
-				if (!decider || decider.kind !== "human")
-					throw new Denied(403, "human_required");
+				if (decider?.kind !== "human") throw new Denied(403, "human_required");
 				// N1: expiry authority is the DB clock, not the app clock.
 				if (row.state === "expired" || row.live !== true) {
 					if (row.state === "pending" || row.state === "approved")

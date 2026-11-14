@@ -1,15 +1,21 @@
 {
-  "name": "@stellarc/gateway",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "bun src/main.ts",
-    "test": "bun ../../packages/core-auth/src/auth-check.ts",
-    "test:store": "bun ../../packages/core-auth/src/store-check.ts",
-    "test:http": "bun src/http-check.ts",
-    "test:audit": "bun ../../packages/core-auth/src/audit-check.ts",
-    "test:stream": "bun src/stream-check.ts",
-    "build": "bun build src/main.ts --target bun --outdir dist && cp src/console.html src/console.css src/console.js dist/ && bun src/artifact-check.ts"
-  },
-  "dependencies": { "better-auth": "1.6.25", "jose": "6.2.12", "pg": "8.22.0", "postgres": "3.4.7", "effect": "4.1.4" }
+	"name": "@stellarc/gateway",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "bun src/main.ts",
+		"test": "bun ../../packages/core-auth/src/auth-check.ts",
+		"test:store": "bun ../../packages/core-auth/src/store-check.ts",
+		"test:http": "bun src/http-check.ts",
+		"test:audit": "bun ../../packages/core-auth/src/audit-check.ts",
+		"test:stream": "bun src/stream-check.ts",
+		"build": "bun build src/main.ts --target bun --outdir dist && cp src/console.html src/console.css src/console.js dist/ && bun src/artifact-check.ts"
+	},
+	"dependencies": {
+		"better-auth": "1.7.23",
+		"jose": "6.2.17",
+		"pg": "8.23.1",
+		"postgres": "4.1.1",
+		"effect": "4.1.4"
+	}
 }

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Effect, Metric } from "effect";
-import type { Sql, TransactionSql } from "postgres";
+import type { ISql, Sql, TransactionSql } from "postgres";
 import {
 	type AgentsError,
 	BadRequest,
@@ -782,7 +782,7 @@ interface GateRow {
  * are exhausted inside their window, most specific first. Run inside the
  * caller's transaction so enforcement is consistent with the claim write. */
 async function exhaustedBudgets(
-	exec: Sql,
+	exec: ISql,
 	org: string,
 	agentId: string,
 ): Promise<GateRow[]> {

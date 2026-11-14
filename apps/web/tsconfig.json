@@ -17,7 +17,6 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"types": ["vite/client"],
-		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"]
 		}

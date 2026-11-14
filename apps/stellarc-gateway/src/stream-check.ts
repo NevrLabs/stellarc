@@ -117,7 +117,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 	if (holdHeaders) {
 		enterHeaders();
 		return new Promise<Response>((_, reject) => {
-			if (!init || !init.signal) throw new Error("init signal missing");
+			if (!init?.signal) throw new Error("init signal missing");
 			init.signal.addEventListener(
 				"abort",
 				() => {

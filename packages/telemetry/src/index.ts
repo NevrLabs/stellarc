@@ -137,9 +137,9 @@ export const TelemetryLive = (serviceName: string) => {
 		metricReader: new PeriodicExportingMetricReader({
 			exporter: new OTLPMetricExporter({ url: `${base}/v1/metrics` }),
 		}),
-		logRecordProcessor: new BatchLogRecordProcessor(
-			new OTLPLogExporter({ url: `${base}/v1/logs` }),
-		),
+		logRecordProcessor: new BatchLogRecordProcessor({
+			exporter: new OTLPLogExporter({ url: `${base}/v1/logs` }),
+		}),
 	});
 };
 export const TelemetryTest = () => {
@@ -150,7 +150,7 @@ export const TelemetryTest = () => {
 		exporter: metrics,
 		exportIntervalMillis: 60000,
 	});
-	const logProcessor = new SimpleLogRecordProcessor(logs);
+	const logProcessor = new SimpleLogRecordProcessor({ exporter: logs });
 	const layer = sdkLayer({
 		resource: resource("stellarc-test"),
 		spanProcessor: new SimpleSpanProcessor(spans),

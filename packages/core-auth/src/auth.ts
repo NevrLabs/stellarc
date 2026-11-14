@@ -66,8 +66,9 @@ export function gatewayAuth(config: {
 				clientSecret: config.clientSecret,
 				authorizationUrl: config.authorizationEndpoint,
 				tokenUrl: config.tokenEndpoint,
-				issuer: config.issuer,
-				requireIssuerValidation: false,
+				// better-auth 1.7 dropped issuer/requireIssuerValidation from
+				// GenericOAuthConfig; identity is validated locally below via
+				// validateAuthorizationCode + the S256-bound nonce instead.
 				scopes: ["openid"],
 				pkce: true,
 				authentication: "basic",
@@ -212,8 +213,11 @@ export function gatewayAuth(config: {
 				request.headers.get("sec-fetch-site") === "cross-site"
 			)
 				return new Response("denied", { status: 403 });
+			// better-auth 1.7 folded genericOAuth providers into core: the plugin's
+			// POST /sign-in/oauth2 (providerId) endpoint is gone and providers are
+			// first-class social ones — sign in via POST /sign-in/social (provider).
 			const response = await auth.handler(
-				new Request(`${config.origin}/api/auth/sign-in/oauth2`, {
+				new Request(`${config.origin}/api/auth/sign-in/social`, {
 					method: "POST",
 					headers: {
 						origin: config.origin,
@@ -221,7 +225,7 @@ export function gatewayAuth(config: {
 						cookie: request.headers.get("cookie") ?? "",
 					},
 					body: JSON.stringify({
-						providerId: "zitadel",
+						provider: "zitadel",
 						callbackURL: config.origin,
 						disableRedirect: true,
 					}),
@@ -248,7 +252,7 @@ export function gatewayAuth(config: {
 		const allowed =
 			(request.method === "GET" &&
 				(url.pathname === "/api/auth/get-session" ||
-					url.pathname === "/api/auth/oauth2/callback/zitadel")) ||
+					url.pathname === "/api/auth/callback/zitadel")) ||
 			(request.method === "POST" &&
 				url.pathname === "/api/auth/sign-out" &&
 				request.headers.get("origin") === config.origin);

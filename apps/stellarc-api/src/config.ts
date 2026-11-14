@@ -10,8 +10,7 @@ const isPostgresUrl = Schema.makeFilter(
 	(value: string) => {
 		try {
 			const url = new URL(value);
-			return ["postgres:", "postgresql:"].includes(url.protocol) &&
-				!!url.hostname
+			return ["postgres:", "postgresql:"].includes(url.protocol) && url.hostname
 				? undefined
 				: "DATABASE_URL must be a PostgreSQL URL";
 		} catch {

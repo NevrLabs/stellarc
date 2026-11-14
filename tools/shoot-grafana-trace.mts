@@ -39,13 +39,13 @@ try {
 	];
 	await page.waitForFunction(
 		(names: string[]) => {
-			const text = document.body.innerText;
+			const text = document.body.textContent;
 			return names.filter((name) => text.includes(name)).length >= 3;
 		},
 		wanted,
 		{ timeout: 45_000 },
 	);
-	const text = await page.evaluate(() => document.body.innerText);
+	const text = await page.evaluate(() => document.body.textContent);
 	const found = wanted.filter((name) => text.includes(name));
 	// "Sign in" appears in the header even with anonymous Admin enabled, so it
 	// is not a login-wall marker; span presence above is the real gate.

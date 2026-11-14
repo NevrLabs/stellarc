@@ -304,6 +304,11 @@ export const teamTable = pgTable(
       (): AnyPgColumn => teamTable.id,
       { onDelete: "set null" },
     ),
+    /*
+      better-auth 1.7 organization plugin: denormalized member count kept
+      by the plugin on membership changes (schema check requires it).
+    */
+    memberCount: integer("member_count").notNull().default(0),
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").$onUpdate(
       () => /* @__PURE__ */ new Date(),
@@ -322,6 +327,11 @@ export const teamMemberTable = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => userTable.id, { onDelete: "cascade" }),
+    /*
+      better-auth 1.7 organization plugin: optional stable membership key
+      (e.g. synced from an external IdP); unique when present.
+    */
+    membershipKey: text("membership_key").unique(),
     createdAt: timestamp("created_at"),
   },
   (table) => [
