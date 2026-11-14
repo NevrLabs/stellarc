@@ -65,7 +65,6 @@ jobs:
 
   ui-typecheck-budget:
     runs-on: ubuntu-22.04
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -94,7 +93,10 @@ jobs:
               sys.exit('Compiler failed without a usable diagnostic report')
           if count > budget:
               sys.exit('UI typecheck budget increased')
-          sys.exit(status)
+          # Budget respected: never re-export the compiler's exit code —
+          # tsc exits 2 whenever any known legacy diagnostic exists, which
+          # is the normal, budgeted state of this tree.
+          sys.exit(0)
           PY
       - uses: actions/upload-artifact@v4
         if: always()
