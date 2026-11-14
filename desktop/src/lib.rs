@@ -11,6 +11,13 @@
 //! the Linux launch smoke greps them. Never log tokens, credential-bearing
 //! URLs, or PII.
 //!
+//! NEVR-657 (Multica #10566 law): a log seam must survive a dead sink. When
+//! nothing read the app's output — a launcher or terminal already gone, common
+//! for a GUI launch on Linux — the first write to a broken pipe must not kill
+//! the process. `eprintln!` panics if the write fails, so every seam write
+//! rides [`write_seam_line_checked`]: best-effort, a dropped line is
+//! acceptable, a killed process is not.
+//!
 //! NSH #1865 (NEVR-632): a packaged app's panics are written to its log file —
 //! the failure is observable, never swallowed by the GUI (a packaged Windows
 //! app has no console, so without a hook the panic prints nowhere).
@@ -18,7 +25,7 @@
 //! seam and, once setup has resolved the app's log dir, into the persistent
 //! log file under it. The hook records, never swallows.
 
-use std::io::Write as _;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -51,9 +58,25 @@ fn seam_line(event: &str) -> String {
     format!("service.name=stellarc-desktop event={event}")
 }
 
-/// Emit one structured startup line to stderr.
+/// Emit one structured startup line to stderr. Checked seam write: on a dead
+/// stderr sink the line is dropped and the caller keeps running (NEVR-657).
 fn log_event(event: &str) {
-    eprintln!("{}", seam_line(event));
+    write_seam_line_checked(&mut std::io::stderr().lock(), &seam_line(event));
+}
+
+/// The one checked seam write every seam line rides (NEVR-657, Multica #10566
+/// law): write `line` plus one trailing newline — the exact bytes `eprintln!`
+/// emitted, so the Linux launch-smoke grep contract and the hook's
+/// "both outputs stay byte-identical" invariant hold by construction — and
+/// survive a dead sink. `eprintln!` panics if the write fails (std: "Panics
+/// if writing to io::stderr fails"; Rust ignores SIGPIPE, so a broken pipe
+/// surfaces as `Err(EPIPE)`, not a signal), which killed the app at the very
+/// first log line in #10566. Here a failed write drops this one line and
+/// returns. Generic over the writer (not hard-wired to stderr) so a unit
+/// test can prove the no-panic contract with a failing writer. Best-effort
+/// by design: the `let _` is the law, not an oversight — never "fix" it.
+fn write_seam_line_checked(writer: &mut dyn Write, line: &str) {
+    let _ = writeln!(writer, "{line}");
 }
 
 /// Open the log file for appending, creating it if needed.
@@ -94,14 +117,24 @@ fn panic_record(info: &std::panic::PanicHookInfo<'_>) -> String {
 /// and fails the process with the default non-zero exit — nothing here catches
 /// or cancels it. The record always rides the stderr seam (what dev builds and
 /// the Linux launch smoke see) and, once the app has resolved its log dir, is
-/// appended to the persistent log file. File IO is best-effort: a panic hook
-/// must never panic itself.
+/// appended to the persistent log file. All IO is best-effort: a panic hook
+/// must never panic itself, so its writes ride [`write_seam_line_checked`] —
+/// on a dead sink the record is dropped, not the process (NEVR-657).
 fn panic_hook(info: &std::panic::PanicHookInfo<'_>) {
     let line = seam_line(&format!("panic {}", panic_record(info)));
-    eprintln!("{line}");
+    emit_panic_record_line(&mut std::io::stderr().lock(), &line);
+}
+
+/// The panic hook's write half, split out so the dead-sink law is testable
+/// without owning the process's stderr: record `line` on the stderr seam,
+/// then append it to the persistent log file. Both writes are checked —
+/// inside a panic hook, a write failure must drop the record, never panic
+/// (a panic-in-panic is an abort).
+fn emit_panic_record_line(stderr: &mut dyn Write, line: &str) {
+    write_seam_line_checked(stderr, line);
     if let Some(Some(path)) = PANIC_LOG_FILE.get() {
         if let Ok(mut file) = open_log_file(path) {
-            let _ = writeln!(file, "{line}");
+            write_seam_line_checked(&mut file, line);
         }
     }
 }
@@ -194,6 +227,62 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A sink whose every write fails — the in-process stand-in for a dead
+    /// stderr pipe. A real EPIPE cannot be constructed safely inside a cargo
+    /// test (the harness owns the process's stderr), but it needs none: what
+    /// must be proven is the helper's behavior on `Err`, whatever produced it.
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "failing writer: dead-sink stand-in (EPIPE)",
+            ))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "failing writer: dead-sink stand-in (EPIPE)",
+            ))
+        }
+    }
+
+    /// NEVR-657 acceptance 3 — byte identity: the checked helper emits exactly
+    /// the bytes the old `eprintln!` did — one seam line, one trailing
+    /// newline — so the Linux launch-smoke grep contract is unchanged.
+    /// Negative control: make the helper emit anything else (drop the
+    /// newline, alter the line) and this test goes red.
+    #[test]
+    fn seam_write_emits_eprintln_identical_bytes() {
+        let mut sink = Vec::new();
+        write_seam_line_checked(&mut sink, &seam_line("startup"));
+        assert_eq!(
+            String::from_utf8(sink).expect("seam line is utf-8"),
+            "service.name=stellarc-desktop event=startup\n"
+        );
+    }
+
+    /// NEVR-657 acceptance 4 — the dead-sink law (Multica #10566): a seam
+    /// write to a failing writer must drop the line and return normally,
+    /// never panic. `eprintln!` panics here — and a panic inside the panic
+    /// hook is an abort. Covers both seam consumers: the helper itself, and
+    /// the panic hook's write half ([`emit_panic_record_line`]).
+    /// Negative control: restore a panicking write inside the helper
+    /// (`.expect("stderr")` or a plain `eprintln!`) and this test goes red.
+    #[test]
+    fn seam_writes_survive_a_failing_writer() {
+        let mut failing = FailingWriter;
+        write_seam_line_checked(&mut failing, &seam_line("startup"));
+        emit_panic_record_line(
+            &mut failing,
+            &seam_line("panic message=\"boom\" location=unknown"),
+        );
+        // Both calls returned — that is the whole assertion. The hook-path
+        // call may or may not find a sink file set by its sibling test; the
+        // file half is already checked, so it cannot panic either way.
+    }
 
     /// NEVR-632 acceptance 5 — prove hook → file: a panicking thread's record
     /// lands in the sink file, riding the seam line format. Negative control:
