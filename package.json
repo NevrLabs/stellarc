@@ -78,7 +78,7 @@
 		"@biomejs/biome": "2.6.7",
 		"@durable-streams/client": "0.2.7",
 		"@durable-streams/state": "0.3.2",
-		"@playwright/test": "1.65.0",
+		"@playwright/test": "1.65.1",
 		"@standard-schema/spec": "1.1.0",
 		"@types/bcryptjs": "^3.0.0",
 		"@types/bun": "1.4.4",
