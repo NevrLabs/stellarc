@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import type { Sql } from "postgres";
+import { requireAppAccess } from "../../apps/src/access";
 import {
 	type AgentsError,
 	BadRequest,
@@ -178,6 +179,14 @@ export function agentsHttp(
 				request.headers.get("authorization") ?? undefined,
 			);
 			yield* Effect.annotateCurrentSpan({ "stellarc.org": org });
+			// Task observation, cancellation and denial remain available to drain.
+			// Execution gates live in the winning store transactions.
+			if (["nodes", "agents", "budgets"].includes(kind))
+				yield* Effect.tryPromise({
+					try: () => requireAppAccess(sql, org, "agents"),
+					catch: (cause) =>
+						isAgentsError(cause) ? cause : new Error("App access check failed"),
+				});
 			if (kind === "nodes" && !id) {
 				if (m === "POST") {
 					const b = yield* body(CreateNode, request);

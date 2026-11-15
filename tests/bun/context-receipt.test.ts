@@ -18,6 +18,7 @@ import {
 	type ContextReceiptView,
 	projectContextReceipts,
 } from "../../packages/agents/src/store";
+import { activateApp, installApps } from "../../packages/apps/src/index";
 import { migrate } from "../../packages/db/src/migrate";
 import { disposablePostgres } from "../helpers/postgres";
 
@@ -66,6 +67,8 @@ async function plane() {
 	const db = await disposablePostgres();
 	resources.push(db.close);
 	await migrate(db.sql);
+	await installApps(db.sql);
+	await activateApp(db.sql, "acme", "operator", "agents", ["session:drive"]);
 	const agents = agentsHttp(db.sql, {
 		operatorAuth: staticOperatorAuth(OPERATOR),
 	});

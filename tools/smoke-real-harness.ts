@@ -6,12 +6,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PlaneClient, runNode } from "../apps/stellarc-node/src/main";
 import { agentsHttp, staticOperatorAuth } from "../packages/agents/src/index";
+import { activateApp, installApps } from "../packages/apps/src/index";
 import { migrate } from "../packages/db/src/migrate";
 import { disposablePostgres } from "../tests/helpers/postgres";
 
 const [harness = "hermes", ...cmd] = process.argv.slice(2);
 const db = await disposablePostgres();
 await migrate(db.sql);
+await installApps(db.sql);
+await activateApp(db.sql, "demo", "operator", "agents", ["session:drive"]);
 const agents = agentsHttp(db.sql, { operatorAuth: staticOperatorAuth("op") });
 const server = Bun.serve({
 	port: 0,
