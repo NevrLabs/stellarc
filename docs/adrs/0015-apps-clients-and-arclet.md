@@ -41,7 +41,7 @@ them out and are what review should challenge.
 |---|---|---|
 | **stellarc server** | The control plane: identity, event log, API, app registry. | `apps/stellarc-api` |
 | **stellarc daemon** | Per-machine connector. Holds harness binaries and credentials, claims tasks, drives harnesses over ACP. | `apps/stellarc-node` (Bun/TypeScript) |
-| **app** | The unit a user sees, installs and switches on per org. A product word: it covers both a charter *plugin* (runs in the server) and a charter *app* (runs as its own service). | no manifest or registry yet |
+| **app** | The unit a user sees, installs and switches on per org. A product word: it covers both a charter *plugin* (runs in the server) and a charter *app* (runs as its own service). | `packages/apps`: manifest, registry and per-org activation. No check at dispatch yet. |
 | **first-party app** | Shipped with Stellarc, or installed by the plane operator at deploy time. | `packages/agents`, boards, the Gateway |
 | **third-party app** | Added by a user or an org. | none yet |
 | **app token** | Short-lived credential the server mints for one app in one org. Two kinds: a *frame token* also names the user, a *backend token* does not (§6). | not built |
@@ -408,10 +408,22 @@ Reaching the target needs the harness → Gateway edge first.
   and "MCP GATEWAY" (`apps/stellarc-gateway/src/console.html`). Renaming them to
   Model gateway and Tool gateway is a visible change and waits for the
   operator's OK.
-- **One org identity.** The server's `organization.id`, the free-text `org` on
-  events and on the agents tables, and the Gateway's `gw_principal.org` are
-  three identifiers with no constraint linking them. Step 1 starts by choosing
-  one key and recording how the other two map to it.
+- **One org identity.** Chosen in step 1: the org key is `organization.id`.
+  The free-text `org` on events and on the agents and app tables, and the
+  Gateway's `gw_principal.org`, carry that id. An org that already exists under
+  a free-text string keeps that string as its `organization.id` when identity
+  first writes its row, so no log row is rewritten (D10). An id has to pass the
+  server's check (`ORG` in `packages/agents/src/http.ts`: letters, digits, `_`
+  and `-`, starting with a letter or digit, at most 128 characters). The ids
+  the legacy Kaneo mount creates do: better-auth's default generator gives 32
+  characters from `a-z`, `A-Z` and `0-9`. The Gateway's own check
+  (`^[a-z0-9-]{1,64}$`, `packages/core-auth/src/store.ts`) is lower-case only
+  and refuses those ids, so it has to be widened before the Gateway can carry
+  the org key. Still open, because nothing enforces any of this: the
+  `organization` table from `0002_identity.sql` has no writer in the server,
+  the operator token is accepted for any org string, and the Gateway
+  bootstraps the org `personal`
+  (`packages/core-auth/src/migrate.ts`).
 - **Gateway under the server's grants.** One human identity across the server
   and the Gateway, and the Gateway's per-call decisions made against the
   server's grants. The exception in §6 ends only with the second.
@@ -427,7 +439,7 @@ Reaching the target needs the harness → Gateway edge first.
 1. Choose one org key and record how the other org identifiers map to it (see
    *Open*). Then the app manifest type, registry table and per-org activation
    rows; list apps from the server; register `agents` and the Gateway as the
-   first two entries.
+   first two entries. Built: `packages/apps`, migration `0010_app_registry`.
 2. Activation and grant check at dispatch for apps that run in the server.
 3. Drive `apps/web` navigation from the registry instead of the fixed route map
    (`apps/web/src/components/shell/nav.ts`).

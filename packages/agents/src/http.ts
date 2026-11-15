@@ -48,7 +48,7 @@ export const staticOperatorAuth =
 			);
 		if (
 			!token ||
-			given.length !== token.length ||
+			Buffer.byteLength(given) !== Buffer.byteLength(token) ||
 			!timingSafeEqual(Buffer.from(given), Buffer.from(token))
 		)
 			return Effect.fail(new Forbidden({ message: "Access denied" }));
@@ -64,7 +64,7 @@ const json = (status: number, body: unknown) =>
 		},
 	});
 
-const ORG = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
+export const ORG = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
 
 export interface AgentsHttp {
 	readonly matches: (request: Request) => boolean;
