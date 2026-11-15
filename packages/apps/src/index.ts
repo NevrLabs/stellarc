@@ -24,28 +24,31 @@ import { appendEvents, PLUGIN, runTxn } from "../../agents/src/store";
 const NAMESPACE = "apps";
 
 /** `<area>:<verb>`. `model:call` is never grantable (charter D4), so it cannot
- * be asked for either. */
+ * be asked for either. The whole `model` area is refused, so a later check
+ * that matches by area cannot be sidestepped with a near-miss name. */
 const Capability = Schema.String.pipe(
 	Schema.check(
-		Schema.isPattern(
-			/^(?!model:call$)[a-z][a-z0-9-]{0,62}:[a-z][a-z0-9-]{0,62}$/,
-		),
+		Schema.isPattern(/^(?!model:)[a-z][a-z0-9-]{0,62}:[a-z][a-z0-9-]{0,62}$/),
 	),
+);
+const Capabilities = Schema.Array(Capability).pipe(
+	Schema.check(Schema.isMaxLength(64)),
 );
 
 export const AppManifest = Schema.Struct({
-	/** Also the app's event namespace: its events are `<id>:<type>` (D10).
-	 * Manifests are compiled in today; an install path that accepts outside
-	 * manifests must reserve the kernel namespaces first. */
+	/** Also the app's event namespace: its events are `<id>:<type>` (D10). The
+	 * namespaces the server itself writes are not available as an id. */
 	id: Schema.String.pipe(
-		Schema.check(Schema.isPattern(/^[a-z][a-z0-9-]{0,62}$/)),
+		Schema.check(
+			Schema.isPattern(/^(?!(apps|foundation|identity)$)[a-z][a-z0-9-]{0,62}$/),
+		),
 	),
 	name: Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(64))),
 	/** `server`: inside the server process, first-party only. `service`: its
 	 * own process, the only place for third-party code (D2). */
 	runs: Schema.Literals(["server", "service"]),
 	/** What the app asks for. An org ratifies a subset when it activates. */
-	capabilities: Schema.Array(Capability),
+	capabilities: Capabilities,
 });
 export type AppManifest = typeof AppManifest.Type;
 
@@ -62,18 +65,53 @@ export const FIRST_PARTY: ReadonlyArray<AppManifest> = [
 ];
 
 /** Write the manifests into the registry. Runs at every boot: unchanged rows
- * are left alone, a changed manifest replaces the stored one. An invalid
- * manifest throws, so the server does not start with it. */
+ * are left alone, a changed manifest replaces the stored one. Every manifest
+ * is checked before any is written; an invalid one throws, so the server does
+ * not start with it.
+ *
+ * A capability a manifest stops asking for is removed from each org's grant,
+ * on that org's log with the actor `plane`. If the manifest asks for it again
+ * later, the org has to ratify it again (D3).
+ *
+ * ponytail: an app missing from the list stays installed. Add a retired
+ * marker before the first app is renamed or removed. */
 export async function installApps(
 	sql: Sql,
 	manifests: ReadonlyArray<unknown> = FIRST_PARTY,
 ) {
-	for (const raw of manifests) {
-		const manifest = Schema.decodeUnknownSync(AppManifest)(raw);
-		await sql`INSERT INTO app(id, manifest) VALUES (${manifest.id}, ${sql.json(manifest as never)})
-      ON CONFLICT (id) DO UPDATE SET manifest = EXCLUDED.manifest, updated_at = now()
-      WHERE app.manifest IS DISTINCT FROM EXCLUDED.manifest`;
-	}
+	const decoded = manifests.map((raw) =>
+		Schema.decodeUnknownSync(AppManifest)(raw),
+	);
+	for (const manifest of decoded)
+		await runTxn(sql, "apps.install", async (tx) => {
+			const [written] = await tx`
+        INSERT INTO app(id, manifest) VALUES (${manifest.id}, ${tx.json(manifest as never)})
+        ON CONFLICT (id) DO UPDATE SET manifest = EXCLUDED.manifest, updated_at = now()
+          WHERE app.manifest IS DISTINCT FROM EXCLUDED.manifest
+        RETURNING id`;
+			if (!written) return;
+			const asked = manifest.capabilities as never;
+			const narrowed = await tx<{ org: string; capabilities: string[] }[]>`
+        UPDATE app_activation v SET capabilities = (
+          SELECT coalesce(jsonb_agg(c ORDER BY c COLLATE "C"), '[]'::jsonb)
+          FROM jsonb_array_elements_text(v.capabilities) c
+          WHERE ${tx.json(asked)}::jsonb ? c)
+        WHERE v.app_id = ${manifest.id} AND NOT v.capabilities <@ ${tx.json(asked)}::jsonb
+        RETURNING v.org, v.capabilities`;
+			for (const row of [...narrowed].sort((a, b) => (a.org < b.org ? -1 : 1)))
+				await appendEvents(
+					tx,
+					row.org,
+					"plane",
+					[
+						{
+							type: "activated",
+							payload: { appId: manifest.id, capabilities: row.capabilities },
+						},
+					],
+					NAMESPACE,
+				);
+		});
 }
 
 export interface AppView extends AppManifest {
@@ -108,12 +146,12 @@ export function activateApp(
 	const granted = [...new Set(capabilities)].sort();
 	return runTxn(sql, "apps.activate", async (tx) => {
 		const [app] = await tx<{ manifest: AppManifest }[]>`
-      SELECT manifest FROM app WHERE id = ${appId}`;
+      SELECT manifest FROM app WHERE id = ${appId} FOR SHARE`;
 		if (!app) throw new NotFound({ message: "No such app" });
 		const extra = granted.filter((c) => !app.manifest.capabilities.includes(c));
 		if (extra.length > 0)
 			throw new BadRequest({
-				message: `The app does not ask for: ${extra.join(", ")}`,
+				message: `The app does not ask for: ${extra.join(", ")}`.slice(0, 500),
 			});
 		const [changed] = await tx`
       INSERT INTO app_activation(org, app_id, capabilities, activated_by)
@@ -141,6 +179,8 @@ export function deactivateApp(
 	appId: string,
 ) {
 	return runTxn(sql, "apps.deactivate", async (tx) => {
+		const [app] = await tx`SELECT 1 FROM app WHERE id = ${appId}`;
+		if (!app) throw new NotFound({ message: "No such app" });
 		const [gone] = await tx`
       DELETE FROM app_activation WHERE org = ${org} AND app_id = ${appId} RETURNING 1`;
 		if (gone)
@@ -155,7 +195,7 @@ export function deactivateApp(
 	});
 }
 
-const Activate = Schema.Struct({ capabilities: Schema.Array(Capability) });
+const Activate = Schema.Struct({ capabilities: Capabilities });
 
 const json = (status: number, body: unknown) =>
 	Response.json(body, { status, headers: { "cache-control": "no-store" } });

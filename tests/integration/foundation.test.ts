@@ -1001,6 +1001,10 @@ test("T18 production API is fail-closed and never mounts fixture routes", async 
 			);
 			expect(response.status).toBe(status);
 		}
+		// The app registry is mounted behind operator auth (ADR 0015 step 1).
+		expect(
+			(await fetch(`http://localhost:${port}/orgs/prod/v1/apps`)).status,
+		).toBe(401);
 		child.kill("SIGTERM");
 		expect(await child.exited).toBe(0);
 	} finally {

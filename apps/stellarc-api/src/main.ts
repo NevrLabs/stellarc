@@ -114,13 +114,19 @@ export const api = Effect.gen(function* () {
 		try: async () => {
 			await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${STELLARC_SCHEMA}"`);
 			await migrate(sql);
-			await installApps(sql);
 		},
 		catch: (cause) =>
 			new Error(
 				`migration failed: ${cause instanceof Error ? cause.message : String(cause)}`,
 			),
 	}).pipe(Effect.withSpan("stellarc.migrate"));
+	yield* Effect.tryPromise({
+		try: () => installApps(sql),
+		catch: (cause) =>
+			new Error(
+				`app install failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+			),
+	}).pipe(Effect.withSpan("stellarc.apps.install"));
 	const telemetry = TelemetryLive("stellarc-api");
 	const memoMap = yield* Layer.makeMemoMap;
 	const http = yield* Effect.acquireRelease(

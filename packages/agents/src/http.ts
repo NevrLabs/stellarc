@@ -48,7 +48,7 @@ export const staticOperatorAuth =
 			);
 		if (
 			!token ||
-			given.length !== token.length ||
+			Buffer.byteLength(given) !== Buffer.byteLength(token) ||
 			!timingSafeEqual(Buffer.from(given), Buffer.from(token))
 		)
 			return Effect.fail(new Forbidden({ message: "Access denied" }));

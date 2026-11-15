@@ -2,8 +2,10 @@
 -- this plane: one row per manifest, written at boot from the first-party list
 -- (charter D8: install is plane-wide). `app_activation` is which orgs switched
 -- an app on and the capabilities each org ratified for it (D3); the read side
--- never returns more than the manifest currently asks for. Every change is
--- also appended to the org log as apps:activated / apps:deactivated (D10, D12).
+-- never returns more than the manifest currently asks for. Every change to an
+-- org's grant is also appended to that org's log as apps:activated /
+-- apps:deactivated (D10, D12): by its actor when the org acts, by `plane` when
+-- a manifest stops asking for a capability the org had ratified.
 -- `org` is the org key, organization.id (ADR 0015, "One org identity"). Like
 -- event.org it is not a foreign key until identity writes organization rows.
 CREATE TABLE app (

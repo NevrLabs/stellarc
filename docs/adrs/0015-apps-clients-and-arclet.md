@@ -413,11 +413,16 @@ Reaching the target needs the harness → Gateway edge first.
   Gateway's `gw_principal.org`, carry that id. An org that already exists under
   a free-text string keeps that string as its `organization.id` when identity
   first writes its row, so no log row is rewritten (D10). An id has to pass the
-  narrower of the two existing checks, the Gateway's (`^[a-z0-9-]{1,64}$`); the
-  ids the legacy Kaneo mount mints (cuid2) do. Still open, because nothing
-  enforces any of this: the `organization` table from `0002_identity.sql` has
-  no writer in the server, the operator token is accepted for any org string,
-  and the Gateway bootstraps the org `personal`
+  server's check (`ORG` in `packages/agents/src/http.ts`: letters, digits, `_`
+  and `-`, starting with a letter or digit, at most 128 characters). The ids
+  the legacy Kaneo mount creates do: better-auth's default generator gives 32
+  characters from `a-z`, `A-Z` and `0-9`. The Gateway's own check
+  (`^[a-z0-9-]{1,64}$`, `packages/core-auth/src/store.ts`) is lower-case only
+  and refuses those ids, so it has to be widened before the Gateway can carry
+  the org key. Still open, because nothing enforces any of this: the
+  `organization` table from `0002_identity.sql` has no writer in the server,
+  the operator token is accepted for any org string, and the Gateway
+  bootstraps the org `personal`
   (`packages/core-auth/src/migrate.ts`).
 - **Gateway under the server's grants.** One human identity across the server
   and the Gateway, and the Gateway's per-call decisions made against the
