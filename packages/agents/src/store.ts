@@ -250,7 +250,7 @@ export const hashToken = (token: string) =>
  * healed org is healed for every writer; it must adopt this same heal if it
  * ever goes live. packages/durable-streams-spike is a spike — deliberately
  * not healed here. */
-async function appendEvents(
+export async function appendEvents(
 	tx: TransactionSql,
 	org: string,
 	actor: string,
@@ -259,6 +259,8 @@ async function appendEvents(
 		payload: Record<string, unknown>;
 		actor?: string;
 	}>,
+	/** Owning namespace of the events (D10); the app registry passes its own. */
+	namespace: string = PLUGIN,
 ) {
 	if (events.length === 0) return;
 	await tx`INSERT INTO org_event_counter(org) VALUES (${org}) ON CONFLICT DO NOTHING`;
@@ -269,7 +271,7 @@ async function appendEvents(
 	for (const event of events) {
 		seq += 1n;
 		await tx`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
-      VALUES (${org},${seq.toString()},${`${PLUGIN}:${event.type}`},${event.actor ?? actor},${tx.json(event.payload as never)},1,${txn.txid})`;
+      VALUES (${org},${seq.toString()},${`${namespace}:${event.type}`},${event.actor ?? actor},${tx.json(event.payload as never)},1,${txn.txid})`;
 	}
 }
 
@@ -301,7 +303,7 @@ async function healEventCounters(sql: Sql) {
  * body is safe to re-run: the first transaction rolled back completely, so
  * it sees the same database (plus the heal). A second consecutive collision
  * becomes a typed Conflict — never a loop. */
-async function runTxn<A>(
+export async function runTxn<A>(
 	sql: Sql,
 	name: string,
 	body: (tx: TransactionSql) => Promise<A>,

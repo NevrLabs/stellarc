@@ -64,7 +64,7 @@ const json = (status: number, body: unknown) =>
 		},
 	});
 
-const ORG = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
+export const ORG = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
 
 export interface AgentsHttp {
 	readonly matches: (request: Request) => boolean;

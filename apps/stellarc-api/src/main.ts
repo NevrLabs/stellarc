@@ -16,6 +16,7 @@ import {
 	agentsHttp,
 	staticOperatorAuth,
 } from "../../../packages/agents/src/index";
+import { appsHttp, installApps } from "../../../packages/apps/src/index";
 import { SqlLive } from "../../../packages/db/src/index";
 import { migrate } from "../../../packages/db/src/migrate";
 import { Authz, AuthzLive } from "../../../packages/domain/src/authz";
@@ -113,6 +114,7 @@ export const api = Effect.gen(function* () {
 		try: async () => {
 			await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${STELLARC_SCHEMA}"`);
 			await migrate(sql);
+			await installApps(sql);
 		},
 		catch: (cause) =>
 			new Error(
@@ -134,15 +136,14 @@ export const api = Effect.gen(function* () {
 		),
 		(http) => Effect.promise(() => http.dispose()),
 	);
+	const operatorAuth = staticOperatorAuth(process.env.STELLARC_OPERATOR_TOKEN);
 	const agents = yield* Effect.acquireRelease(
-		Effect.sync(() =>
-			agentsHttp(sql, {
-				operatorAuth: staticOperatorAuth(process.env.STELLARC_OPERATOR_TOKEN),
-				telemetry,
-				memoMap,
-			}),
-		),
+		Effect.sync(() => agentsHttp(sql, { operatorAuth, telemetry, memoMap })),
 		(agents) => Effect.promise(() => agents.dispose()),
+	);
+	const apps = yield* Effect.acquireRelease(
+		Effect.sync(() => appsHttp(sql, { operatorAuth, telemetry, memoMap })),
+		(apps) => Effect.promise(() => apps.dispose()),
 	);
 	// The Kaneo domain (legacy migrations, seeds, plugins, scheduler) can take
 	// tens of seconds on a fresh database. It boots in a scoped background
@@ -229,6 +230,7 @@ export const api = Effect.gen(function* () {
 				websocket: bunWebsocket,
 				fetch: (request, server) => {
 					if (agents.matches(request)) return agents.handler(request);
+					if (apps.matches(request)) return apps.handler(request);
 					const path = new URL(request.url).pathname;
 					// Only Kaneo's own surface (/api/*) is routed to the domain;
 					// everything else stays with the fail-closed foundation API.
