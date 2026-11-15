@@ -5,7 +5,9 @@ import { Forbidden } from "../../agents/src/errors";
  * lock is held through the winning transition. Take it before task/event
  * locks: deactivate and manifest narrowing lock activation before appending.
  * The manifest join is deliberately unlocked; install narrows the activation
- * in the same transaction. A stale manifest can refuse, never add a grant. */
+ * in the same transaction. A stale manifest can refuse, never add a grant.
+ * ponytail: no bounded deactivation latency under concurrent admissions;
+ * add a per-org admission fence if a bounded stop becomes a requirement. */
 export async function requireAppAccess(
 	sql: Sql | TransactionSql,
 	org: string,

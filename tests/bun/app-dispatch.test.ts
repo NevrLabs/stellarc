@@ -4,12 +4,12 @@ import {
 	agentsHttp,
 	staticOperatorAuth,
 } from "../../packages/agents/src/index";
+import { requireAppAccess } from "../../packages/apps/src/access";
 import {
 	activateApp,
 	deactivateApp,
 	installApps,
 } from "../../packages/apps/src/index";
-import { requireAppAccess } from "../../packages/apps/src/access";
 import { migrate } from "../../packages/db/src/migrate";
 import { disposablePostgres } from "../helpers/postgres";
 
@@ -72,7 +72,18 @@ async function plane() {
 					prompt: "fixture",
 				}),
 			);
-		return { node, agent, create };
+		const nodeCall = (path: string, body: unknown) =>
+			http.handler(
+				new Request(`http://plane/v1/node/${path}`, {
+					method: "POST",
+					headers: {
+						authorization: `Bearer ${registered.token}`,
+						"content-type": "application/json",
+					},
+					body: JSON.stringify(body),
+				}),
+			);
+		return { node, agent, create, nodeCall };
 	};
 	return { db, http, call, on, off, setup };
 }
@@ -92,7 +103,7 @@ test("dispatch fails closed per org; task observation remains available; executi
 		(await p.call("tasks", "POST", { agentId: agent.id, prompt: "no grant" }))
 			.status,
 	).toBe(403);
-	await expect(create()).rejects.toThrow();
+	await expect(create()).rejects.toMatchObject({ _tag: "Forbidden" });
 	await p.on();
 	const task = await create();
 	await p.off();
@@ -102,15 +113,25 @@ test("dispatch fails closed per org; task observation remains available; executi
 
 test("disable blocks claims, starts and permission grants but permits reporting, denial, finishing and lease cleanup", async () => {
 	const p = await plane();
-	const { node, create } = await p.setup();
+	const { node, create, nodeCall } = await p.setup();
 	const store = p.http.store;
 	const first = await create();
 	await Effect.runPromise(store.claim(node, 0));
 	await p.off();
+	for (const [path, body] of [
+		["claim", { waitMs: 0 }],
+		[`tasks/${first.id}/start`, { attempt: 1 }],
+	] as const) {
+		const response = await nodeCall(path, body);
+		expect(response.status).toBe(403);
+		expect(await response.json()).toMatchObject({ _tag: "Forbidden" });
+	}
 	await expect(
 		Effect.runPromise(store.start(node, first.id, 1)),
-	).rejects.toThrow();
-	await expect(Effect.runPromise(store.claim(node, 0))).rejects.toThrow();
+	).rejects.toMatchObject({ _tag: "Forbidden" });
+	await expect(Effect.runPromise(store.claim(node, 0))).rejects.toMatchObject({
+		_tag: "Forbidden",
+	});
 	await Effect.runPromise(store.hello(node, "disabled", ["fake"]));
 	await Effect.runPromise(
 		store.appendItems(node, first.id, 1, [
@@ -148,7 +169,7 @@ test("disable blocks claims, starts and permission grants but permits reporting,
 				decision: "grant",
 			}),
 		),
-	).rejects.toThrow();
+	).rejects.toMatchObject({ _tag: "Forbidden" });
 	await Effect.runPromise(store.heartbeat(node, second.id, 1));
 	expect(
 		(
@@ -163,13 +184,18 @@ test("disable blocks claims, starts and permission grants but permits reporting,
 	await p.db
 		.sql`UPDATE agent_task SET lease_until=now()-interval '1 second' WHERE id=${expired.id}`;
 	await p.off();
-	await expect(Effect.runPromise(store.claim(node, 0))).rejects.toThrow();
+	await expect(Effect.runPromise(store.claim(node, 0))).rejects.toMatchObject({
+		_tag: "Forbidden",
+	});
 	const [row] = await p.db
 		.sql`SELECT status, attempt FROM agent_task WHERE id=${expired.id}`;
 	expect(row).toMatchObject({ status: "queued", attempt: 1 });
 });
 
-async function waitForLock(p: Awaited<ReturnType<typeof plane>>, fragment: string) {
+async function waitForLock(
+	p: Awaited<ReturnType<typeof plane>>,
+	fragment: string,
+) {
 	const until = Date.now() + 5000;
 	while (Date.now() < until) {
 		const [row] = await p.db.sql`
@@ -185,11 +211,17 @@ async function waitForLock(p: Awaited<ReturnType<typeof plane>>, fragment: strin
 // The test controls database locks, not wall-clock race timing.
 test("a waiting admission re-evaluates a narrowed grant, and deactivate waits for admitted work to commit", async () => {
 	const p = await plane();
-	await p.on();
+	const { node, create } = await p.setup();
+	const task = await create();
+	await Effect.runPromise(p.http.store.claim(node, 0));
 	let release = () => {};
 	let locked = () => {};
-	const ready = new Promise<void>((resolve) => { locked = resolve; });
-	const held = new Promise<void>((resolve) => { release = resolve; });
+	const ready = new Promise<void>((resolve) => {
+		locked = resolve;
+	});
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
 	const writer = p.db.sql.begin(async (tx) => {
 		await tx`SELECT 1 FROM app_activation WHERE org='acme' AND app_id='agents' FOR UPDATE`;
 		locked();
@@ -198,21 +230,33 @@ test("a waiting admission re-evaluates a narrowed grant, and deactivate waits fo
 	});
 	await ready;
 	// Attach rejection handling immediately, before releasing the writer.
-	const admission = p.db.sql.begin((tx) => requireAppAccess(tx, "acme", "agents", "session:drive"))
-		.then(() => "admitted", () => "refused");
+	const admission = Effect.runPromise(
+		p.http.store.start(node, task.id, 1),
+	).then(
+		() => "admitted",
+		(error: unknown) => error,
+	);
 	try {
 		await waitForLock(p, "FROM app_activation v");
+		// Admission must not hold the task lock while waiting for activation.
+		await p.db.sql.begin(async (tx) => {
+			await tx`SELECT 1 FROM agent_task WHERE id=${task.id} FOR UPDATE NOWAIT`;
+		});
 	} finally {
 		release();
 		await writer;
 	}
-	expect(await admission).toBe("refused");
+	expect(await admission).toMatchObject({ _tag: "Forbidden" });
 
 	await p.on();
 	let leave = () => {};
 	let entered = () => {};
-	const inside = new Promise<void>((resolve) => { entered = resolve; });
-	const hold = new Promise<void>((resolve) => { leave = resolve; });
+	const inside = new Promise<void>((resolve) => {
+		entered = resolve;
+	});
+	const hold = new Promise<void>((resolve) => {
+		leave = resolve;
+	});
 	const reader = p.db.sql.begin(async (tx) => {
 		await requireAppAccess(tx, "acme", "agents", "session:drive");
 		entered();
@@ -227,28 +271,36 @@ test("a waiting admission re-evaluates a narrowed grant, and deactivate waits fo
 		await reader;
 	}
 	await disabling;
-	await expect(requireAppAccess(p.db.sql, "acme", "agents", "session:drive")).rejects.toThrow();
+	await expect(
+		requireAppAccess(p.db.sql, "acme", "agents", "session:drive"),
+	).rejects.toMatchObject({ _tag: "Forbidden" });
 });
 
 test("a long-poll claim rechecks access after disable rather than admitting later queued work", async () => {
 	const p = await plane();
 	const { node, create } = await p.setup();
 	const queued = await create();
-	await p.db.sql`UPDATE agent_task SET status='completed' WHERE id=${queued.id}`;
+	await p.db
+		.sql`UPDATE agent_task SET status='completed' WHERE id=${queued.id}`;
 	// No task candidate: observe the first pass by its node liveness update.
 	await p.db.sql`UPDATE agent_node SET last_seen_at=NULL WHERE id=${node.id}`;
-	const polling = Effect.runPromise(p.http.store.claim(node, 3000))
-		.then(() => "admitted", () => "refused");
+	const polling = Effect.runPromise(p.http.store.claim(node, 3000)).then(
+		() => "admitted",
+		(error: unknown) => error,
+	);
 	const until = Date.now() + 2000;
 	for (;;) {
-		const [seen] = await p.db.sql`SELECT last_seen_at FROM agent_node WHERE id=${node.id}`;
+		const [seen] = await p.db
+			.sql`SELECT last_seen_at FROM agent_node WHERE id=${node.id}`;
 		if (seen.last_seen_at !== null) break;
-		if (Date.now() > until) throw new Error("claim never entered its first pass");
+		if (Date.now() > until)
+			throw new Error("claim never entered its first pass");
 		await new Promise((resolve) => setTimeout(resolve, 10));
 	}
 	await p.off();
 	await p.db.sql`UPDATE agent_task SET status='queued' WHERE id=${queued.id}`;
-	expect(await polling).toBe("refused");
-	const [row] = await p.db.sql`SELECT status, attempt FROM agent_task WHERE id=${queued.id}`;
+	expect(await polling).toMatchObject({ _tag: "Forbidden" });
+	const [row] = await p.db
+		.sql`SELECT status, attempt FROM agent_task WHERE id=${queued.id}`;
 	expect(row).toMatchObject({ status: "queued", attempt: 0 });
 });

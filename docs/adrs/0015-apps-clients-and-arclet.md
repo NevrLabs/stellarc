@@ -441,8 +441,9 @@ Reaching the target needs the harness → Gateway edge first.
    rows; list apps from the server; register `agents` and the Gateway as the
    first two entries. Built: `packages/apps`, migration `0010_app_registry`.
 2. Activation and grant check at dispatch for apps that run in the server.
-   Built for Agents: nodes, agents and budgets require activation after
-   operator authentication. Task creation, claim, start and permission grant
+   Built for Agents: nodes, agents and budgets check activation after
+   operator authentication, at dispatch (not locked through config writes).
+   Task creation, claim, start and permission grant
    require activation plus `session:drive` in the winning transaction. Task
    reads, cancel, permission deny and node reporting remain available with
    their existing authentication. The reaper runs before the claim gate.
@@ -452,7 +453,8 @@ Reaching the target needs the harness → Gateway edge first.
    refused, but may already have launched a harness and opened an MCP session.
    A refused start consumes its claimed attempt and may exhaust retries.
    The static operator token still has plane-wide authority: this is app-grant
-   enforcement, not user identity/grant integration. Gateway remains excepted.
+   enforcement, not user identity/grant integration. The token holder can
+   reactivate any org through the registry. Gateway remains excepted.
    **Rollout:** activate existing orgs with `session:drive` through step 1's
    registry routes before deploying step 2. No implicit grants or backfill.
 3. Drive `apps/web` navigation from the registry instead of the fixed route map

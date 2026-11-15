@@ -26,7 +26,7 @@ import {
 	Start,
 	UpdateBudget,
 } from "./protocol";
-import { AgentStore, type NodeRow } from "./store";
+import { AgentStore, type NodeRow, PLUGIN } from "./store";
 
 /** Resolves the operator principal for an org, or fails. Identity (STL-15) will
  * replace the default static-token resolver; the seam is this function. */
@@ -183,7 +183,7 @@ export function agentsHttp(
 			// Execution gates live in the winning store transactions.
 			if (["nodes", "agents", "budgets"].includes(kind))
 				yield* Effect.tryPromise({
-					try: () => requireAppAccess(sql, org, "agents"),
+					try: () => requireAppAccess(sql, org, PLUGIN),
 					catch: (cause) =>
 						isAgentsError(cause) ? cause : new Error("App access check failed"),
 				});
