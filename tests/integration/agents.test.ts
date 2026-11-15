@@ -2574,3 +2574,258 @@ test("NEVR-565 E4 the allocation law is pinned in store.ts, naming the second al
 	);
 	expect(src).toContain("packages/domain/src/index.ts:128");
 });
+
+// ── provider rate/capacity throttling (NEVR-670; law Multica #10677) ────────
+
+/** Kiro's real envelope: a generic JSON-RPC -32603 whose `data` carries the
+ * provider's fixed throttle phrase (plus a Retry-After hint when the
+ * provider answers pacing). */
+const THROTTLED_MESSAGE =
+	"session/prompt: Internal error (code=-32603, data=The request was throttled by the service because you have sent too many requests. Retry-After: 42)";
+
+test("RL1 a classified throttle parks the task: no requeue, no claim, no attempt burn, park event with backoff + Retry-After", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "echo x",
+		maxAttempts: 3,
+	});
+	const client = new PlaneClient(p.url, token);
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	// Attempt 1 streams one real item, then the harness throws the wrapped
+	// throttle error — the runner classifies it (unit-pinned) and the node
+	// reports the new code with the raw cause preserved.
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-rl1",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "message",
+				body: {
+					role: "assistant",
+					content: [{ type: "text", text: "working on it" }],
+				},
+				occurredAt: new Date().toISOString(),
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.provider_rate_limited",
+		failureMessage: THROTTLED_MESSAGE,
+	});
+
+	// Parked, not requeued: same attempt, failure_code set, a real park time.
+	const parked = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(parked.task.status).toBe("provider_rate_limited");
+	expect(parked.task.attempt).toBe(1); // no attempt burn
+	expect(parked.task.failureCode).toBe("platform.provider_rate_limited");
+	expect(parked.task.failureMessage).toBe(THROTTLED_MESSAGE); // raw cause kept
+	expect(parked.task.parkedUntil).toBeTruthy();
+	// The parked_until honors the parsed Retry-After (42s), not the schedule.
+	const parkedFor = await p.db.sql<{ seconds: number }[]>`
+    SELECT EXTRACT(EPOCH FROM (parked_until - now()))::int AS seconds
+    FROM agent_task WHERE id=${t.body.id}`;
+	expect(parkedFor[0].seconds).toBeGreaterThan(30);
+	expect(parkedFor[0].seconds).toBeLessThanOrEqual(42);
+
+	// While parked: excluded from claims entirely (the claim loop's reap
+	// finds nothing to unpark — the window has not passed).
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	expect((await p.op("GET", `tasks/${t.body.id}`)).body.task.attempt).toBe(1);
+
+	// Events: the park is a task_parked (mirroring the budget lane's shape)
+	// with the backoff seconds and the parsed Retry-After; no requeue event.
+	const [park] = await p.db.sql<
+		{ plugin_type: string; actor: string; payload: Record<string, unknown> }[]
+	>`SELECT plugin_type, actor, payload FROM event WHERE org='acme' AND plugin_type='agents:task_parked'`;
+	expect(park).toBeDefined();
+	expect(park.actor).toMatch(/^node:node_/);
+	expect(park.payload).toMatchObject({
+		id: t.body.id,
+		attempt: 1,
+		reason: "provider_rate_limited",
+		failureCode: "platform.provider_rate_limited",
+		backoffSeconds: 42,
+		retryAfterSeconds: 42,
+	});
+	const requeued = await p.db.sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task-requeued'`;
+	expect(requeued[0].n).toBe(0);
+});
+
+test("RL2 the backoff window passing requeues with reason provider_rate_backoff, and the next claim resumes the transcript chain", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "echo x",
+		maxAttempts: 3,
+	});
+	const client = new PlaneClient(p.url, token);
+	// Attempt 1: stream one item, then throttle → parked.
+	const c1 = await claim(client);
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-rl2",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [
+			{
+				seq: 0,
+				kind: "message",
+				body: {
+					role: "assistant",
+					content: [{ type: "text", text: "mid-throttle work" }],
+				},
+				occurredAt: new Date().toISOString(),
+			},
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.provider_rate_limited",
+		failureMessage: THROTTLED_MESSAGE,
+	});
+	expect((await p.op("GET", `tasks/${t.body.id}`)).body.task.status).toBe(
+		"provider_rate_limited",
+	);
+
+	// Time passes (the same state the 42s window elapsing produces): the
+	// next claim's reapExpired unparks first, then claims — one attempt
+	// increment for one real prompt, and the throttle's transcript replays.
+	await p.db
+		.sql`UPDATE agent_task SET parked_until = now() - interval '1 second' WHERE id=${t.body.id}`;
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	const resume = c2.task.resume;
+	expect(resume).toBeDefined();
+	expect(resume?.fromAttempt).toBe(1);
+	expect(resume?.failureCode).toBe("platform.provider_rate_limited");
+	expect(resume?.items.map((i: { kind: string }) => i.kind)).toEqual([
+		"message",
+	]);
+	// The unpark event names the lane's reason and keeps the failure code.
+	const [unpark] = await p.db.sql<
+		{ plugin_type: string; actor: string; payload: Record<string, unknown> }[]
+	>`SELECT plugin_type, actor, payload FROM event WHERE org='acme' AND plugin_type='agents:task-requeued'`;
+	expect(unpark.actor).toBe("plane");
+	expect(unpark.payload).toMatchObject({
+		id: t.body.id,
+		attempt: 1,
+		reason: "provider_rate_backoff",
+		failureCode: "platform.provider_rate_limited",
+	});
+	// The requeued row is a plain queued row again: no stale park time.
+	expect(
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.parkedUntil,
+	).toBeNull();
+
+	// The post-backoff attempt can complete.
+	const done = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c2.task,
+	);
+	expect(done.outcome).toBe("completed");
+	expect((await p.op("GET", `tasks/${t.body.id}`)).body.task.status).toBe(
+		"completed",
+	);
+});
+
+test("RL3 the attempt cap stays the terminal bound: a throttle at attempt >= max_attempts finishes failed, never parks forever", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "echo x",
+		maxAttempts: 2,
+	});
+	const client = new PlaneClient(p.url, token);
+	// Attempt 1: throttle → park; window passes; claim → attempt 2.
+	const c1 = await claim(client);
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.provider_rate_limited",
+		failureMessage: THROTTLED_MESSAGE,
+	});
+	expect((await p.op("GET", `tasks/${t.body.id}`)).body.task.status).toBe(
+		"provider_rate_limited",
+	);
+	await p.db
+		.sql`UPDATE agent_task SET parked_until = now() - interval '1 second' WHERE id=${t.body.id}`;
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	// Attempt 2 throttles again — attempt == max_attempts, so the finish
+	// path fails the task with the throttle code instead of parking.
+	await client.call(`tasks/${c2.task.id}/finish`, {
+		attempt: 2,
+		outcome: "failed",
+		failureCode: "platform.provider_rate_limited",
+		failureMessage: THROTTLED_MESSAGE,
+	});
+	const after = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(after.task.status).toBe("failed");
+	expect(after.task.attempt).toBe(2);
+	expect(after.task.failureCode).toBe("platform.provider_rate_limited");
+	expect(after.task.parkedUntil).toBeNull();
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	// The terminal write is a task-finished, not a second park.
+	const parks = await p.db.sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task_parked'`;
+	expect(parks[0].n).toBe(1);
+});
+
+test("RL4 protocol_error pacing unchanged: immediate requeue under the attempt cap, never parked", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "echo x",
+		maxAttempts: 3,
+	});
+	const client = new PlaneClient(p.url, token);
+	const c1 = await claim(client);
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.protocol_error",
+		failureMessage: "malformed session update",
+	});
+	// Immediate requeue — claimable right away, no park row, no backoff.
+	const mid = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(mid.task.status).toBe("queued");
+	expect(mid.task.parkedUntil).toBeNull();
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	// And the cold-start retry (no resume for protocol_error, R2's law)
+	// completes normally.
+	const done = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c2.task,
+	);
+	expect(done.outcome).toBe("completed");
+});
