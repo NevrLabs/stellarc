@@ -333,6 +333,28 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 			},
 		};
 	}
+	if (verb === "dual-scope") {
+		// CodeBuddy-shaped dual record (NEVR-686; Multica #10703 / MUL-9312
+		// law): the terminal result carries BOTH scopes in one record —
+		// modelUsage (29,844 = this execution) and usage (59,665 = the
+		// session). No mid-run usage_update: the disagreement the plane must
+		// survive lives entirely in the terminal record. A naive consumer
+		// takes the bigger session number and silently overwrites the
+		// execution-scoped stream; the guarded upsert must not.
+		return {
+			stopReason: "end_turn",
+			usage: {
+				totalTokens: 59665,
+				inputTokens: 50000,
+				outputTokens: 9665,
+			},
+			modelUsage: {
+				totalTokens: 29844,
+				inputTokens: 25000,
+				outputTokens: 4844,
+			},
+		};
+	}
 	await ctx.client.notify(acp.CLIENT_METHODS.session_update, {
 		sessionId: p.sessionId,
 		update: {

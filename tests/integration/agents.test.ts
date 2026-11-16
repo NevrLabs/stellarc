@@ -755,6 +755,400 @@ test("U2 getTask returns one usage row per attempt, ordered by attempt (retry pa
 	expect(a2.costCurrency).toBe("USD");
 });
 
+// ── usage-scope honesty on resume (NEVR-686; Multica #10703 law) ────────────
+
+/** Store-level usage item, shaped like the node's stream write. */
+const usageItemAt = (seq: number, body: Record<string, unknown>) => ({
+	seq,
+	kind: "usage" as const,
+	body,
+	occurredAt: new Date().toISOString(),
+});
+
+/** The resumed_from marker the node emits as a resumed attempt's first
+ * item — the per-attempt chain link the budget's chain rule walks. */
+const resumedFromAt = (from: number) => ({
+	seq: 0,
+	kind: "resumed_from" as const,
+	body: { resumedFromAttempt: from },
+	occurredAt: new Date().toISOString(),
+});
+
+test("S1 a CodeBuddy dual record: execution-scoped stream stands, the session-scoped finish cannot overwrite it (usage_anomaly)", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "dual-scope",
+	});
+	const c = await claim(client);
+	const done = await executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	expect(done.outcome).toBe("completed");
+
+	// The attempt keeps the per-execution totals (29,844), not the
+	// session-cumulative finish numbers (59,665) — and the row records the
+	// scope it was claimed under.
+	const [row] = (await p.db.sql`
+    SELECT tokens_total::text AS tokens_total, tokens_in::text AS tokens_in, tokens_out::text AS tokens_out, scope
+    FROM agent_task_usage WHERE task_id=${t.body.id} AND attempt=1`) as {
+		tokens_total: string;
+		tokens_in: string;
+		tokens_out: string;
+		scope: string | null;
+	}[];
+	expect(Number(row.tokens_total)).toBe(29844);
+	expect(Number(row.tokens_in)).toBe(25000);
+	expect(Number(row.tokens_out)).toBe(4844);
+	expect(row.scope).toBe("execution");
+
+	// Exactly one scope-disagreement event, naming both scopes.
+	const anomalies = (await p.db.sql`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:usage_anomaly'`) as Array<{
+		payload: {
+			taskId: string;
+			attempt: number;
+			kind: string;
+			recordedScope: string;
+			reportedScope: string;
+		};
+	}>;
+	expect(anomalies).toHaveLength(1);
+	expect(anomalies[0].payload).toMatchObject({
+		taskId: t.body.id,
+		attempt: 1,
+		kind: "scope_mismatch",
+		recordedScope: "execution",
+		reportedScope: "session",
+	});
+
+	// The read path serves the attempt's scope with the surviving totals.
+	const view = (await p.op("GET", `tasks/${t.body.id}`)).body;
+	expect(view.usage).toHaveLength(1);
+	expect(view.usage[0].scope).toBe("execution");
+	expect(view.usage[0].tokensTotal).toBe(29844);
+});
+
+/** Drives one resume chain store-level: attempt 1 reports `first` usage
+ * items then dies with a resumable platform fault; attempt 2 resumes and
+ * reports `second`. Returns the task id. */
+async function driveChain(
+	p: Awaited<ReturnType<typeof plane>>,
+	client: PlaneClient,
+	agentId: string,
+	first: Array<Record<string, unknown>>,
+	second: Array<Record<string, unknown>>,
+) {
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "chain",
+		maxAttempts: 2,
+	});
+	const c1 = await claim(client);
+	expect(c1.task.attempt).toBe(1);
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 1,
+		nativeSessionId: "sess-chain",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: first.map((body, i) => usageItemAt(i, body)),
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.lease_expired",
+		failureMessage: "node went dark",
+	});
+	const c2 = await claim(client);
+	expect(c2.task.attempt).toBe(2);
+	expect(c2.task.resume?.fromAttempt).toBe(1);
+	await client.call(`tasks/${c1.task.id}/start`, {
+		attempt: 2,
+		nativeSessionId: "sess-chain-2",
+	});
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 2,
+		items: [
+			resumedFromAt(1),
+			...second.map((body, i) => usageItemAt(i + 1, body)),
+		],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 2,
+		outcome: "completed",
+	});
+	return t.body.id as string;
+}
+
+test("S2 carried-over counter: chain budget usage is the final raw counter (900), not the row sum (1400)", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	// Attempt 1's session counter ends at raw 500; attempt 2's first report
+	// (650) is >= that — the counter carried the history over.
+	await driveChain(
+		p,
+		client,
+		agentId,
+		[{ tokensTotal: 400 }, { tokensTotal: 500 }],
+		[{ tokensTotal: 650 }, { tokensTotal: 900 }],
+	);
+	// Ceiling under the chain usage but over either single row: only the
+	// double-counting sum would clear 850.
+	const b = await p.op("POST", "budgets", {
+		scope: "agent",
+		agentId,
+		window: "daily",
+		ceilingTokens: 850,
+	});
+	expect(b.status).toBe(201);
+	await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	// attempt 2 completed; the parked task is the NEW one — find it by status
+	const rows = await p.db
+		.sql`SELECT id FROM agent_task WHERE org='acme' AND status='budget_exhausted'`;
+	expect(rows).toHaveLength(1);
+	const view = (await p.op("GET", `tasks/${rows[0].id}`)).body;
+	expect(view.task.parked).toMatchObject({
+		budgetId: b.body.id,
+		consumedTokens: 900,
+	});
+});
+
+test("S3 restarted counter: chain budget usage is the row sum (800), the two clean shapes stay distinct", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	// Attempt 2's first report (100) is below attempt 1's last raw counter
+	// (500) — the harness session restarted its counter, so rows sum.
+	const id = await driveChain(
+		p,
+		client,
+		agentId,
+		[{ tokensTotal: 400 }, { tokensTotal: 500 }],
+		[{ tokensTotal: 100 }, { tokensTotal: 300 }],
+	);
+	const b = await p.op("POST", "budgets", {
+		scope: "agent",
+		agentId,
+		window: "daily",
+		ceilingTokens: 750,
+	});
+	expect(b.status).toBe(201);
+	await p.op("POST", "tasks", { agentId, prompt: "echo x" });
+	expect(await client.call("claim", { waitMs: 0 })).toBeNull();
+	const rows = await p.db
+		.sql`SELECT id FROM agent_task WHERE org='acme' AND status='budget_exhausted'`;
+	expect(rows).toHaveLength(1);
+	const view = (await p.op("GET", `tasks/${rows[0].id}`)).body;
+	expect(view.task.parked).toMatchObject({
+		budgetId: b.body.id,
+		consumedTokens: 800,
+	});
+	expect(id).toBeTruthy();
+});
+
+test("S4 same-scope report that would shrink a stored cumulative field: stored value stands, usage_anomaly names it", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", { agentId, prompt: "regress" });
+	await claim(client);
+	await client.call(`tasks/${t.body.id}/start`, { attempt: 1 });
+	await client.call(`tasks/${t.body.id}/items`, {
+		attempt: 1,
+		items: [usageItemAt(0, { tokensTotal: 900, tokensIn: 700 })],
+	});
+	await client.call(`tasks/${t.body.id}/items`, {
+		attempt: 1,
+		items: [usageItemAt(1, { tokensTotal: 500 })],
+	});
+	const [row] = (await p.db.sql`
+    SELECT tokens_total::text AS tokens_total, tokens_in::text AS tokens_in
+    FROM agent_task_usage WHERE task_id=${t.body.id} AND attempt=1`) as {
+		tokens_total: string;
+		tokens_in: string;
+	}[];
+	expect(Number(row.tokens_total)).toBe(900); // unchanged, not 500
+	expect(Number(row.tokens_in)).toBe(700); // untouched field kept
+	const anomalies = (await p.db.sql`
+    SELECT payload FROM event WHERE org='acme' AND plugin_type='agents:usage_anomaly'`) as Array<{
+		payload: {
+			kind: string;
+			fields: Array<{ field: string; stored: number; reported: number }>;
+		};
+	}>;
+	expect(anomalies).toHaveLength(1);
+	expect(anomalies[0].payload.kind).toBe("shrink");
+	expect(anomalies[0].payload.fields).toEqual([
+		{ field: "tokensTotal", stored: 900, reported: 500 },
+	]);
+	await client.call(`tasks/${t.body.id}/finish`, {
+		attempt: 1,
+		outcome: "completed",
+	});
+});
+
+test("S5 resumed session-scoped attempt without a baseline: raw values stored, exactly ONE usage_scope_ambiguous", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	// Two session-scoped reports on the resumed attempt: the honesty event
+	// fires once for the attempt, not once per report.
+	const id = await driveChain(
+		p,
+		client,
+		agentId,
+		[{ tokensTotal: 500 }],
+		[{ tokensTotal: 650 }, { tokensTotal: 900 }],
+	);
+	const [row] = (await p.db.sql`
+    SELECT tokens_total::text AS tokens_total, scope, scope_ambiguous_at IS NOT NULL AS flagged
+    FROM agent_task_usage WHERE task_id=${id} AND attempt=2`) as {
+		tokens_total: string;
+		scope: string | null;
+		flagged: boolean;
+	}[];
+	expect(Number(row.tokens_total)).toBe(900); // raw, never normalized by a guess
+	expect(row.scope).toBeNull(); // absent = session
+	expect(row.flagged).toBe(true);
+	const ambiguous = await p.db.sql`
+    SELECT count(*)::int AS c FROM event WHERE org='acme' AND plugin_type='agents:usage_scope_ambiguous'`;
+	expect(ambiguous[0].c).toBe(1);
+	const anomalies = await p.db.sql`
+    SELECT count(*)::int AS c FROM event WHERE org='acme' AND plugin_type='agents:usage_anomaly'`;
+	expect(anomalies[0].c).toBe(0);
+});
+
+test("S6 execution-scoped reports on a resumed attempt: raw pass-through, no normalization, no ambiguity event", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const id = await driveChain(
+		p,
+		client,
+		agentId,
+		[{ tokensTotal: 500 }],
+		[{ tokensTotal: 1200, scope: "execution" }],
+	);
+	const [row] = (await p.db.sql`
+    SELECT tokens_total::text AS tokens_total, scope, raw_first_tokens_total, scope_ambiguous_at
+    FROM agent_task_usage WHERE task_id=${id} AND attempt=2`) as {
+		tokens_total: string;
+		scope: string | null;
+		raw_first_tokens_total: string | null;
+		scope_ambiguous_at: Date | null;
+	}[];
+	expect(Number(row.tokens_total)).toBe(1200); // pass-through, untouched
+	expect(row.scope).toBe("execution");
+	expect(row.raw_first_tokens_total).toBeNull(); // never a chain-counter input
+	expect(row.scope_ambiguous_at).toBeNull(); // verifiable scope is not ambiguous
+	const ambiguous = await p.db.sql`
+    SELECT count(*)::int AS c FROM event WHERE org='acme' AND plugin_type='agents:usage_scope_ambiguous'`;
+	expect(ambiguous[0].c).toBe(0);
+	const anomalies = await p.db.sql`
+    SELECT count(*)::int AS c FROM event WHERE org='acme' AND plugin_type='agents:usage_anomaly'`;
+	expect(anomalies[0].c).toBe(0);
+});
+
+test("S7 captured baseline normalizes a resumed attempt's session reports; first write wins", async () => {
+	const p = await plane();
+	const { token, agentId } = await registerNodeAndAgent(p);
+	const client = new PlaneClient(p.url, token);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "baseline",
+		maxAttempts: 2,
+	});
+	const c1 = await claim(client);
+	await client.call(`tasks/${c1.task.id}/start`, { attempt: 1 });
+	await client.call(`tasks/${c1.task.id}/items`, {
+		attempt: 1,
+		items: [usageItemAt(0, { tokensTotal: 500 })],
+	});
+	await client.call(`tasks/${c1.task.id}/finish`, {
+		attempt: 1,
+		outcome: "failed",
+		failureCode: "platform.lease_expired",
+	});
+	const c2 = await claim(client);
+	expect(c2.task.resume?.fromAttempt).toBe(1);
+	const [n] = await p.db.sql`SELECT * FROM agent_node WHERE org='acme' LIMIT 1`;
+	const node = {
+		id: n.id as string,
+		org: n.org as string,
+		name: n.name as string,
+		harnesses: ["fake"],
+		version: (n.version ?? null) as string | null,
+		lastSeenAt: null,
+		createdAt: (n.created_at as Date).toISOString(),
+	};
+	// The pre-prompt signal the harness reported when attempt 2 began: the
+	// session counter already stood at 400.
+	const first = await Effect.runPromise(
+		p.store.recordUsageBaseline(node, t.body.id as string, 2, {
+			tokensTotal: 400,
+			tokensIn: null,
+			tokensOut: null,
+			thoughtTokens: null,
+			cachedReadTokens: null,
+			cachedWriteTokens: null,
+			contextTokens: null,
+			contextWindowSize: null,
+			costAmount: null,
+			costCurrency: null,
+		}),
+	);
+	expect(first).toEqual({ captured: true });
+	const again = await Effect.runPromise(
+		p.store.recordUsageBaseline(node, t.body.id as string, 2, {
+			tokensTotal: 999,
+			tokensIn: null,
+			tokensOut: null,
+			thoughtTokens: null,
+			cachedReadTokens: null,
+			cachedWriteTokens: null,
+			contextTokens: null,
+			contextWindowSize: null,
+			costAmount: null,
+			costCurrency: null,
+		}),
+	);
+	expect(again).toEqual({ captured: false }); // first write wins
+	await client.call(`tasks/${t.body.id}/items`, {
+		attempt: 2,
+		items: [
+			resumedFromAt(1),
+			usageItemAt(1, { tokensTotal: 650 }),
+			usageItemAt(2, { tokensTotal: 900 }),
+		],
+	});
+	const [row] = (await p.db.sql`
+    SELECT tokens_total::text AS tokens_total, raw_last_tokens_total::text AS raw_last, baseline
+    FROM agent_task_usage WHERE task_id=${t.body.id} AND attempt=2`) as {
+		tokens_total: string;
+		raw_last: string;
+		baseline: { tokensTotal: number } | null;
+	}[];
+	expect(Number(row.tokens_total)).toBe(500); // 900 − 400 baseline
+	expect(Number(row.raw_last)).toBe(900); // raw watermark kept for the chain rule
+	expect(row.baseline?.tokensTotal).toBe(400);
+	const ambiguous = await p.db.sql`
+    SELECT count(*)::int AS c FROM event WHERE org='acme' AND plugin_type='agents:usage_scope_ambiguous'`;
+	expect(ambiguous[0].c).toBe(0); // baseline captured → not ambiguous
+});
+
 // ── push attribution (NEVR-199) ─────────────────────────────────────────────
 
 test("P1 a run that pushes records one agents:task_pushed event per push, typed and queryable", async () => {
