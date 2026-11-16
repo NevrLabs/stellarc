@@ -26,6 +26,10 @@ const MIGRATIONS = [
 		version: "0010_app_registry",
 		file: "../migrations/0010_app_registry.sql",
 	},
+	{
+		version: "0011_usage_scope",
+		file: "../migrations/0011_usage_scope.sql",
+	},
 ] as const;
 
 /** Owner-only provisioning; the runtime principal must already exist. */

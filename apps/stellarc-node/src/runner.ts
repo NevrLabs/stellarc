@@ -137,6 +137,15 @@ export class TranscriptFolder {
 		this.push("approval", body);
 	}
 
+	/** Per-execution usage totals the adapter can verifiably attribute to
+	 * THIS execution (NEVR-686): the CodeBuddy dual record's `modelUsage`
+	 * half, written as a tagged usage item on the stream. Unlike the
+	 * usage_update mapping this carries token totals, not a context gauge. */
+	usage(body: Record<string, unknown>) {
+		this.close();
+		this.push("usage", body);
+	}
+
 	update(u: acp.SessionUpdate) {
 		switch (u.sessionUpdate) {
 			case "agent_message_chunk":
@@ -690,18 +699,46 @@ export async function runTask(
 			const uc = folder.sessionCost();
 			// ACP sdk 2.x dropped the unstable usage totals from the stable
 			// PromptResponse type; harnesses still send them on the wire.
-			const wireUsage = (
-				res as {
-					usage?: {
-						totalTokens: number;
-						inputTokens: number;
-						outputTokens: number;
-						thoughtTokens?: number;
-						cachedReadTokens?: number;
-						cachedWriteTokens?: number;
-					};
-				}
-			).usage;
+			const wire = res as {
+				usage?: {
+					totalTokens: number;
+					inputTokens: number;
+					outputTokens: number;
+					thoughtTokens?: number;
+					cachedReadTokens?: number;
+					cachedWriteTokens?: number;
+				};
+				/** CodeBuddy dual record (Multica #10703 law, NEVR-686): a
+				 * terminal result that carries BOTH scopes at once —
+				 * `modelUsage` is verifiably per-execution, `usage` is the
+				 * session-cumulative record. */
+				modelUsage?: {
+					totalTokens: number;
+					inputTokens: number;
+					outputTokens: number;
+					thoughtTokens?: number;
+					cachedReadTokens?: number;
+					cachedWriteTokens?: number;
+				};
+			};
+			const wireUsage = wire.usage;
+			const modelUsage = wire.modelUsage;
+			// The per-execution half is the usage attributable to THIS
+			// execution, so it enters through the item stream tagged
+			// `execution` — the only scope the adapter can verifiably claim
+			// (NEVR-686 (a)). It flushes before the finish report, so the
+			// store's disagreement guard — not the write order — decides what
+			// the attempt keeps when the session-scoped half arrives.
+			if (modelUsage)
+				folder.usage({
+					tokensTotal: modelUsage.totalTokens,
+					tokensIn: modelUsage.inputTokens,
+					tokensOut: modelUsage.outputTokens,
+					thoughtTokens: modelUsage.thoughtTokens ?? null,
+					cachedReadTokens: modelUsage.cachedReadTokens ?? null,
+					cachedWriteTokens: modelUsage.cachedWriteTokens ?? null,
+					scope: "execution",
+				});
 			const usage: Usage | undefined = wireUsage
 				? {
 						tokensTotal: wireUsage.totalTokens,
@@ -712,6 +749,10 @@ export async function runTask(
 						cachedWriteTokens: wireUsage.cachedWriteTokens ?? null,
 						costAmount: uc?.amount,
 						costCurrency: uc?.currency,
+						// In the dual record `usage` is verifiably the session
+						// half; a plain `usage`-only result stays untagged
+						// (absent = session, today's documented semantics).
+						...(modelUsage ? { scope: "session" as const } : {}),
 					}
 				: undefined;
 			const base = STOP[res.stopReason] ?? {

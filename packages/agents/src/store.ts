@@ -121,8 +121,10 @@ export interface ContextReceiptView extends ContextReceiptRow {
 }
 /** Harness-reported usage for one attempt, as the read path serves it
  * (NEVR-243): the COALESCE-merged finals from agent_task_usage — cumulative
- * within the attempt (last report wins, never summed), absent stays null
- * (the plane records what the harness reported, never invents). */
+ * within the attempt's claimed scope (last report wins, never summed), absent
+ * stays null (the plane records what the harness reported, never invents).
+ * `scope` is what the adapter verifiably claimed for those counters
+ * (NEVR-686); served as `session` when absent — the documented default. */
 export interface UsageRow {
 	readonly attempt: number;
 	readonly tokensTotal: number | null;
@@ -135,6 +137,7 @@ export interface UsageRow {
 	readonly contextWindowSize: number | null;
 	readonly costAmount: number | null;
 	readonly costCurrency: string | null;
+	readonly scope: UsageScope;
 }
 export interface BudgetRow {
 	readonly id: string;
@@ -345,7 +348,20 @@ const txn = <A>(
 
 // ── usage capture ───────────────────────────────────────────────────────────
 
-/** Nullable numeric fields the usage table stores; absent → null. */
+/** What the adapter contract verifiably says about a report's counters
+ * (NEVR-686; Multica #10703 law). Absent = `session` — today's documented
+ * semantics, so every report the adapter cannot verify keeps today's
+ * behavior. `execution` is claimed only where the adapter verifiably reports
+ * per-execution totals; a shrinking counter is NEVER reclassified as
+ * `execution` (that is the regression event, not a scope discovery). */
+export type UsageScope = "execution" | "session";
+
+const scopeOf = (v: unknown): UsageScope =>
+	v === "execution" ? "execution" : "session";
+
+/** Nullable numeric fields the usage table stores; absent → null. `scope`
+ * tags the report's counter semantics (not a number — it never counts as
+ * "carried something" on its own). */
 interface UsageInput {
 	tokensTotal: number | null;
 	tokensIn: number | null;
@@ -357,6 +373,7 @@ interface UsageInput {
 	contextWindowSize: number | null;
 	costAmount: number | null;
 	costCurrency: string | null;
+	scope: UsageScope | null;
 }
 
 const numOf = (v: unknown): number | null =>
@@ -379,6 +396,7 @@ function parseUsageBody(body: unknown): UsageInput {
 		contextWindowSize: numOf(b.contextWindowSize),
 		costAmount: numOf(b.costAmount),
 		costCurrency: curOf(b.costCurrency),
+		scope: b.scope === "execution" || b.scope === "session" ? b.scope : null,
 	};
 }
 
@@ -393,13 +411,97 @@ const usageFromFinish = (u: Usage): UsageInput => ({
 	contextWindowSize: null,
 	costAmount: numOf(u.costAmount),
 	costCurrency: curOf(u.costCurrency),
+	scope: u.scope ?? null,
 });
 
-const hasAnyUsage = (u: UsageInput) => Object.values(u).some((v) => v != null);
+const hasAnyUsage = (u: UsageInput) =>
+	Object.entries(u).some(([k, v]) => k !== "scope" && v != null);
 
-/** Upsert one typed usage record for (task, attempt). Harness numbers are
- * cumulative for the session, so absent fields keep the stored value. Returns
- * the merged row, or null when the input carried nothing. */
+/** Cumulative counter fields: harness reports them as running totals, so a
+ * later same-scope report must never shrink them (guard, NEVR-686 (c)) and a
+ * captured baseline subtracts from them (normalization, NEVR-686 (b)).
+ * contextTokens/contextWindowSize are gauges — they may move either way. */
+const CUMULATIVE_FIELDS = [
+	"tokensTotal",
+	"tokensIn",
+	"tokensOut",
+	"thoughtTokens",
+	"cachedReadTokens",
+	"cachedWriteTokens",
+	"costAmount",
+] as const;
+
+/** Normalize a session-scoped report by the attempt's captured baseline: the
+ * attempt's own usage = report − baseline, clamped at zero (never negative,
+ * never guessed). Execution-scoped reports and absent baseline fields pass
+ * through untouched. Pure. */
+function normalizeUsage(
+	u: UsageInput,
+	baseline: Record<string, unknown> | null,
+): UsageInput {
+	if (u.scope === "execution" || !baseline) return u;
+	const out = { ...u };
+	for (const f of CUMULATIVE_FIELDS) {
+		const raw = u[f];
+		const base = numOf(baseline[f]);
+		if (raw == null || base == null) continue;
+		(out as Record<string, unknown>)[f] = Math.max(0, raw - base);
+	}
+	return out;
+}
+
+/** Org-log events the usage write path can append beside `usage_recorded`
+ * (NEVR-686 (b)/(c)/(d)): the plane says what it knows instead of silently
+ * guessing — every scope disagreement and every counter regression is an
+ * event, and the stored value stands. */
+type UsageWriteEvent = {
+	type: "usage_anomaly" | "usage_scope_ambiguous";
+	payload: Record<string, unknown>;
+};
+
+const usageAnomaly = (
+	taskId: string,
+	attempt: number,
+	detail:
+		| {
+				kind: "scope_mismatch";
+				recordedScope: UsageScope;
+				reportedScope: UsageScope;
+		  }
+		| {
+				kind: "shrink";
+				fields: Array<{ field: string; stored: number; reported: number }>;
+		  },
+): UsageWriteEvent => ({
+	type: "usage_anomaly",
+	payload: { taskId, attempt, ...detail },
+});
+
+const usageAmbiguous = (taskId: string, attempt: number): UsageWriteEvent => ({
+	type: "usage_scope_ambiguous",
+	payload: {
+		taskId,
+		attempt,
+		scope: "session",
+		reason: "resumed attempt, session-scoped report, no capturable baseline",
+	},
+});
+
+/** Upsert one typed usage record for (task, attempt), guarded (NEVR-686).
+ * Harness numbers are cumulative within their claimed scope, so absent fields
+ * keep the stored value. Guards, in order:
+ *  - scope mismatch vs the attempt's recorded stream → `usage_anomaly`, the
+ *    stored row stands untouched (a differently-scoped report never silently
+ *    overwrites what a consistent scope already recorded — the Multica #10703
+ *    law, applied at our write path);
+ *  - same scope but a normalized report would shrink a stored cumulative
+ *    field → that field keeps the stored value and `usage_anomaly` names it;
+ *  - a resumed session-scoped attempt with no captured baseline emits exactly
+ *    ONE `usage_scope_ambiguous` (scope_ambiguous_at is the once-guard) and
+ *    stores raw values.
+ * Session-scoped reports also maintain the raw first/last counter watermarks
+ * the budget's chain rule reads. Returns the row (post-guard stored state)
+ * plus the anomaly events for the caller to append. */
 async function upsertUsage(
 	tx: TransactionSql,
 	org: string,
@@ -408,30 +510,150 @@ async function upsertUsage(
 	attempt: number,
 	u: UsageInput,
 	occurredAt: Date,
-) {
-	if (!hasAnyUsage(u)) return null;
+	resumed: boolean,
+): Promise<{ row: Row | null; events: UsageWriteEvent[] }> {
+	if (!hasAnyUsage(u)) return { row: null, events: [] };
+	const events: UsageWriteEvent[] = [];
+	const [existing] = await tx`
+    SELECT * FROM agent_task_usage WHERE task_id=${taskId} AND attempt=${attempt}`;
+	const scopeIn: UsageScope = u.scope ?? "session";
+	// Raw session counters feed the budget's chain rule; execution totals are
+	// per-execution numbers and never enter a cumulative-counter comparison.
+	const sessionRaw = scopeIn === "session";
+	const rawFirstTokens = sessionRaw ? u.tokensTotal : null;
+	const rawLastTokens = sessionRaw ? u.tokensTotal : null;
+	const rawFirstCost = sessionRaw ? u.costAmount : null;
+	const rawLastCost = sessionRaw ? u.costAmount : null;
+
+	if (existing) {
+		const scopeRow = scopeOf(existing.scope);
+		if (scopeIn !== scopeRow) {
+			events.push(
+				usageAnomaly(taskId, attempt, {
+					kind: "scope_mismatch",
+					recordedScope: scopeRow,
+					reportedScope: scopeIn,
+				}),
+			);
+			return { row: existing, events };
+		}
+		const baseline = (existing.baseline ?? null) as Record<
+			string,
+			unknown
+		> | null;
+		const norm = normalizeUsage(u, baseline);
+		// Shrink guard (normalized comparison): a field that would regress
+		// keeps the stored value — expressed by nulling it so the COALESCE
+		// update leaves the column alone.
+		const shrunk: Array<{ field: string; stored: number; reported: number }> =
+			[];
+		for (const f of CUMULATIVE_FIELDS) {
+			const reported = norm[f];
+			if (reported == null) continue;
+			// pg returns bigint/numeric columns as strings — coerce like the
+			// read path (`num`), unlike the lenient harness-input `numOf`.
+			const stored = num(existing[USAGE_COLUMN[f]]);
+			if (stored != null && reported < stored) {
+				shrunk.push({ field: f, stored, reported });
+				(norm as unknown as Record<string, unknown>)[f] = null;
+			}
+		}
+		if (shrunk.length > 0)
+			events.push(
+				usageAnomaly(taskId, attempt, { kind: "shrink", fields: shrunk }),
+			);
+		const ambiguous =
+			resumed &&
+			scopeIn === "session" &&
+			baseline == null &&
+			existing.scope_ambiguous_at == null;
+		if (ambiguous) events.push(usageAmbiguous(taskId, attempt));
+		const [row] = await tx`
+      UPDATE agent_task_usage SET
+        tokens_total = COALESCE(${norm.tokensTotal}, agent_task_usage.tokens_total),
+        tokens_in = COALESCE(${norm.tokensIn}, agent_task_usage.tokens_in),
+        tokens_out = COALESCE(${norm.tokensOut}, agent_task_usage.tokens_out),
+        thought_tokens = COALESCE(${norm.thoughtTokens}, agent_task_usage.thought_tokens),
+        cached_read_tokens = COALESCE(${norm.cachedReadTokens}, agent_task_usage.cached_read_tokens),
+        cached_write_tokens = COALESCE(${norm.cachedWriteTokens}, agent_task_usage.cached_write_tokens),
+        context_tokens = COALESCE(${norm.contextTokens}, agent_task_usage.context_tokens),
+        context_window_size = COALESCE(${norm.contextWindowSize}, agent_task_usage.context_window_size),
+        cost_amount = COALESCE(${norm.costAmount}, agent_task_usage.cost_amount),
+        cost_currency = COALESCE(${norm.costCurrency}, agent_task_usage.cost_currency),
+        raw_first_tokens_total = COALESCE(agent_task_usage.raw_first_tokens_total, ${rawFirstTokens}::bigint),
+        raw_last_tokens_total = CASE WHEN ${rawLastTokens}::bigint IS NULL THEN agent_task_usage.raw_last_tokens_total
+          ELSE GREATEST(COALESCE(agent_task_usage.raw_last_tokens_total, ${rawLastTokens}::bigint), ${rawLastTokens}::bigint) END,
+        raw_first_cost_amount = COALESCE(agent_task_usage.raw_first_cost_amount, ${rawFirstCost}::numeric),
+        raw_last_cost_amount = CASE WHEN ${rawLastCost}::numeric IS NULL THEN agent_task_usage.raw_last_cost_amount
+          ELSE GREATEST(COALESCE(agent_task_usage.raw_last_cost_amount, ${rawLastCost}::numeric), ${rawLastCost}::numeric) END,
+        scope_ambiguous_at = COALESCE(agent_task_usage.scope_ambiguous_at, ${ambiguous ? occurredAt : null}),
+        occurred_at = ${occurredAt},
+        updated_at = now()
+      WHERE task_id=${taskId} AND attempt=${attempt}
+      RETURNING *`;
+		return { row, events };
+	}
+
+	const ambiguous = resumed && scopeIn === "session";
+	if (ambiguous) events.push(usageAmbiguous(taskId, attempt));
 	const [row] = await tx`
     INSERT INTO agent_task_usage(org,task_id,agent_id,attempt,tokens_total,tokens_in,tokens_out,
       thought_tokens,cached_read_tokens,cached_write_tokens,context_tokens,context_window_size,
-      cost_amount,cost_currency,occurred_at)
+      cost_amount,cost_currency,scope,raw_first_tokens_total,raw_last_tokens_total,
+      raw_first_cost_amount,raw_last_cost_amount,scope_ambiguous_at,occurred_at)
     VALUES (${org},${taskId},${agentId},${attempt},${u.tokensTotal},${u.tokensIn},${u.tokensOut},
       ${u.thoughtTokens},${u.cachedReadTokens},${u.cachedWriteTokens},${u.contextTokens},${u.contextWindowSize},
-      ${u.costAmount},${u.costCurrency},${occurredAt})
-    ON CONFLICT (task_id, attempt) DO UPDATE SET
-      tokens_total = COALESCE(EXCLUDED.tokens_total, agent_task_usage.tokens_total),
-      tokens_in = COALESCE(EXCLUDED.tokens_in, agent_task_usage.tokens_in),
-      tokens_out = COALESCE(EXCLUDED.tokens_out, agent_task_usage.tokens_out),
-      thought_tokens = COALESCE(EXCLUDED.thought_tokens, agent_task_usage.thought_tokens),
-      cached_read_tokens = COALESCE(EXCLUDED.cached_read_tokens, agent_task_usage.cached_read_tokens),
-      cached_write_tokens = COALESCE(EXCLUDED.cached_write_tokens, agent_task_usage.cached_write_tokens),
-      context_tokens = COALESCE(EXCLUDED.context_tokens, agent_task_usage.context_tokens),
-      context_window_size = COALESCE(EXCLUDED.context_window_size, agent_task_usage.context_window_size),
-      cost_amount = COALESCE(EXCLUDED.cost_amount, agent_task_usage.cost_amount),
-      cost_currency = COALESCE(EXCLUDED.cost_currency, agent_task_usage.cost_currency),
-      occurred_at = EXCLUDED.occurred_at,
-      updated_at = now()
+      ${u.costAmount},${u.costCurrency},${u.scope === "execution" ? "execution" : null},
+      ${rawFirstTokens},${rawLastTokens},${rawFirstCost},${rawLastCost},
+      ${ambiguous ? occurredAt : null},${occurredAt})
     RETURNING *`;
-	return row;
+	return { row, events };
+}
+
+/** Column names for the cumulative fields (guard comparisons read the raw
+ * row, whose bigint/numeric columns arrive as strings). */
+const USAGE_COLUMN: Record<(typeof CUMULATIVE_FIELDS)[number], string> = {
+	tokensTotal: "tokens_total",
+	tokensIn: "tokens_in",
+	tokensOut: "tokens_out",
+	thoughtTokens: "thought_tokens",
+	cachedReadTokens: "cached_read_tokens",
+	cachedWriteTokens: "cached_write_tokens",
+	costAmount: "cost_amount",
+};
+
+/** Capture a session-cumulative baseline for one attempt (NEVR-686 (b)):
+ * called at attempt start when the harness offers a pre-prompt usage signal.
+ * First write wins — the baseline is what the harness reported when the
+ * attempt began, never a later re-read. Creates the attempt's usage row if
+ * no report has landed yet. */
+async function writeUsageBaseline(
+	tx: TransactionSql,
+	org: string,
+	taskId: string,
+	agentId: string,
+	attempt: number,
+	baseline: UsageInput,
+) {
+	const payload = {
+		tokensTotal: baseline.tokensTotal,
+		tokensIn: baseline.tokensIn,
+		tokensOut: baseline.tokensOut,
+		thoughtTokens: baseline.thoughtTokens,
+		cachedReadTokens: baseline.cachedReadTokens,
+		cachedWriteTokens: baseline.cachedWriteTokens,
+		costAmount: baseline.costAmount,
+		costCurrency: baseline.costCurrency,
+	};
+	const [row] = await tx`
+    INSERT INTO agent_task_usage(org,task_id,agent_id,attempt,baseline,occurred_at)
+    VALUES (${org},${taskId},${agentId},${attempt},${tx.json(payload as never)},now())
+    ON CONFLICT (task_id, attempt) DO UPDATE SET
+      baseline = EXCLUDED.baseline,
+      updated_at = now()
+    WHERE agent_task_usage.baseline IS NULL
+    RETURNING *`;
+	return row ?? null;
 }
 
 const usageEvent = (taskId: string, attempt: number, r: Row | null) =>
@@ -464,7 +686,7 @@ const num = (v: unknown): number | null => {
 async function usageRows(sql: Sql, taskId: string): Promise<UsageRow[]> {
 	const rows = await sql`
     SELECT attempt,tokens_total,tokens_in,tokens_out,thought_tokens,cached_read_tokens,cached_write_tokens,
-      context_tokens,context_window_size,cost_amount,cost_currency
+      context_tokens,context_window_size,cost_amount,cost_currency,scope
     FROM agent_task_usage WHERE task_id=${taskId} ORDER BY attempt`;
 	return rows.map((r: Row) => ({
 		attempt: r.attempt,
@@ -478,6 +700,7 @@ async function usageRows(sql: Sql, taskId: string): Promise<UsageRow[]> {
 		contextWindowSize: num(r.context_window_size),
 		costAmount: num(r.cost_amount),
 		costCurrency: r.cost_currency ?? null,
+		scope: scopeOf(r.scope),
 	}));
 }
 
@@ -782,7 +1005,27 @@ interface GateRow {
 
 /** Applicable budgets for an agent (org + agent-principal + node scopes) that
  * are exhausted inside their window, most specific first. Run inside the
- * caller's transaction so enforcement is consistent with the claim write. */
+ * caller's transaction so enforcement is consistent with the claim write.
+ *
+ * The usage sum is CHAIN-AWARE (NEVR-686 (e), Multica #10703 law): a resumed
+ * attempt whose harness session carried the cumulative counter over already
+ * contains the prior attempts' history, so summing attempt rows would
+ * double-count. The rule is derived from our own observations — the raw
+ * first/last counter watermarks each attempt's row maintains — never from
+ * harness cooperation:
+ *   - continuation: attempt N's first raw counter >= attempt N−1's last
+ *     (both session-scoped) → the counter already contains the history, the
+ *     CHAIN's usage is the final raw counter (a superseded attempt
+ *     contributes 0, its successor carries the total);
+ *   - restart: lower, or either side unscoped/unobserved → the counter began
+ *     again → Σ per-attempt stored values (today's behavior — pre-migration
+ *     rows have NULL watermarks and land here).
+ * Tokens and cost are decided independently (a link continues each counter
+ * only when both rows carry that counter in the budget's currency). The
+ * window filter and last-report occurred_at bucketing are untouched; the
+ * residual — a restart that coincidentally exceeds the prior attempt's last
+ * raw counter reads as continuation — stays visible through the
+ * usage_scope_ambiguous event. */
 async function exhaustedBudgets(
 	exec: ISql,
 	org: string,
@@ -804,17 +1047,58 @@ async function exhaustedBudgets(
     FROM agent_budget b
     CROSS JOIN target t
     LEFT JOIN LATERAL (
-      SELECT SUM(u.tokens_total) AS tokens,
-             SUM(u.cost_amount) FILTER (WHERE u.cost_currency = b.ceiling_cost_currency) AS cost
-      FROM agent_task_usage u
-      WHERE u.org = b.org
-        AND u.occurred_at >= (CASE b."window"
-          WHEN 'daily' THEN date_trunc('day', now())
-          WHEN 'weekly' THEN date_trunc('week', now())
-          ELSE date_trunc('month', now()) END)
-        AND ((b.scope = 'org')
-          OR (b.scope = 'agent' AND u.agent_id = b.agent_id)
-          OR (b.scope = 'node' AND u.agent_id IN (SELECT id FROM agent WHERE node_id = b.node_id)))
+      WITH in_window AS (
+        SELECT u.task_id, u.attempt, u.agent_id, u.tokens_total, u.cost_amount, u.cost_currency, u.scope,
+          u.raw_first_tokens_total, u.raw_last_tokens_total, u.raw_first_cost_amount, u.raw_last_cost_amount,
+          (SELECT (i.body->>'resumedFromAttempt')::int FROM agent_task_item i
+            WHERE i.task_id = u.task_id AND i.attempt = u.attempt AND i.kind = 'resumed_from'
+              AND i.body->>'resumedFromAttempt' ~ '^[0-9]+$'
+            LIMIT 1) AS prior_attempt
+        FROM agent_task_usage u
+        WHERE u.org = b.org
+          AND u.occurred_at >= (CASE b."window"
+            WHEN 'daily' THEN date_trunc('day', now())
+            WHEN 'weekly' THEN date_trunc('week', now())
+            ELSE date_trunc('month', now()) END)
+          AND ((b.scope = 'org')
+            OR (b.scope = 'agent' AND u.agent_id = b.agent_id)
+            OR (b.scope = 'node' AND u.agent_id IN (SELECT id FROM agent WHERE node_id = b.node_id)))
+      ),
+      marked AS (
+        SELECT w.*,
+          (w.prior_attempt IS NOT NULL
+            AND COALESCE(w.scope, 'session') = 'session'
+            AND COALESCE(p.scope, 'session') = 'session'
+            AND w.raw_first_tokens_total IS NOT NULL
+            AND p.raw_last_tokens_total IS NOT NULL
+            AND w.raw_first_tokens_total >= p.raw_last_tokens_total) AS cont_tokens,
+          (w.prior_attempt IS NOT NULL
+            AND COALESCE(w.scope, 'session') = 'session'
+            AND COALESCE(p.scope, 'session') = 'session'
+            AND b.ceiling_cost_currency IS NOT NULL
+            AND w.cost_currency = b.ceiling_cost_currency
+            AND p.cost_currency = b.ceiling_cost_currency
+            AND w.raw_first_cost_amount IS NOT NULL
+            AND p.raw_last_cost_amount IS NOT NULL
+            AND w.raw_first_cost_amount >= p.raw_last_cost_amount) AS cont_cost
+        FROM in_window w
+        LEFT JOIN in_window p ON p.task_id = w.task_id AND p.attempt = w.prior_attempt
+      )
+      SELECT
+        COALESCE(SUM(CASE
+          WHEN EXISTS (SELECT 1 FROM marked nx
+            WHERE nx.task_id = marked.task_id AND nx.prior_attempt = marked.attempt AND nx.cont_tokens)
+            THEN 0
+          WHEN marked.cont_tokens THEN COALESCE(marked.raw_last_tokens_total, 0)
+          ELSE COALESCE(marked.tokens_total, 0) END), 0) AS tokens,
+        COALESCE(SUM(CASE
+          WHEN marked.cost_currency IS DISTINCT FROM b.ceiling_cost_currency THEN 0
+          WHEN EXISTS (SELECT 1 FROM marked nx
+            WHERE nx.task_id = marked.task_id AND nx.prior_attempt = marked.attempt AND nx.cont_cost)
+            THEN 0
+          WHEN marked.cont_cost THEN COALESCE(marked.raw_last_cost_amount, 0)
+          ELSE COALESCE(marked.cost_amount, 0) END), 0) AS cost
+      FROM marked
     ) u ON true
     WHERE b.org = ${org} AND b.archived_at IS NULL
       AND ((b.scope = 'org')
@@ -1628,6 +1912,40 @@ export class AgentStore {
 		});
 	}
 
+	/** Capture one attempt's session-cumulative baseline (NEVR-686 (b)):
+	 * the usage signal a harness reports at attempt start, before this
+	 * attempt's own work moves the counters. Session-scoped reports on the
+	 * attempt then normalize by subtraction; without a baseline a resumed
+	 * attempt emits exactly one `usage_scope_ambiguous` instead. First write
+	 * wins. No producer on the ACP wire today — initialize/session_new carry
+	 * no usage — so the runner calls this only when a pre-prompt usage signal
+	 * exists; the store is ready for the harness that offers one. */
+	recordUsageBaseline(
+		n: NodeRow,
+		id: string,
+		attempt: number,
+		baseline: Omit<UsageInput, "scope">,
+	) {
+		return txn(this.sql, "recordUsageBaseline", async (tx) => {
+			const row = await this.owned(tx, n, id, attempt);
+			if (
+				row.status !== "claimed" &&
+				row.status !== "running" &&
+				row.status !== "needs_permission"
+			)
+				throw new Conflict({ message: `Task is ${row.status}` });
+			const written = await writeUsageBaseline(
+				tx,
+				n.org,
+				id,
+				row.agent_id,
+				attempt,
+				{ ...baseline, scope: null },
+			);
+			return { captured: written != null };
+		});
+	}
+
 	appendItems(
 		n: NodeRow,
 		id: string,
@@ -1643,18 +1961,21 @@ export class AgentStore {
 			)
 				throw new Conflict({ message: `Task is ${row.status}` });
 			let inserted = 0;
-			const usageEvents = [];
+			const usageEvents: Array<{
+				type: string;
+				payload: Record<string, unknown>;
+			}> = [];
 			for (const item of items) {
 				const at = new Date(item.occurredAt);
 				if (Number.isNaN(at.getTime()))
 					throw new BadRequest({ message: "Invalid occurredAt" });
 				const res =
 					await tx`INSERT INTO agent_task_item(org,task_id,attempt,seq,kind,body,occurred_at)
-          VALUES (${n.org},${id},${attempt},${item.seq},${item.kind},${tx.json((item.body ?? null) as never)},${at})
-          ON CONFLICT DO NOTHING`;
+						VALUES (${n.org},${id},${attempt},${item.seq},${item.kind},${tx.json((item.body ?? null) as never)},${at})
+						ON CONFLICT DO NOTHING`;
 				inserted += res.count;
 				if (item.kind === "usage") {
-					const merged = await upsertUsage(
+					const { row: merged, events } = await upsertUsage(
 						tx,
 						n.org,
 						id,
@@ -1662,9 +1983,11 @@ export class AgentStore {
 						attempt,
 						parseUsageBody(item.body),
 						at,
+						row.resumed_from_attempt != null,
 					);
 					const event = usageEvent(id, attempt, merged);
 					if (event) usageEvents.push(event);
+					usageEvents.push(...events);
 				}
 			}
 			await appendEvents(tx, n.org, `node:${n.id}`, usageEvents);
@@ -1721,7 +2044,7 @@ export class AgentStore {
 				actor?: string;
 			}> = [...pushEvents];
 			if (input.usage) {
-				const merged = await upsertUsage(
+				const { row: merged, events: usageGuardEvents } = await upsertUsage(
 					tx,
 					n.org,
 					id,
@@ -1729,9 +2052,11 @@ export class AgentStore {
 					input.attempt,
 					usageFromFinish(input.usage),
 					new Date(),
+					row.resumed_from_attempt != null,
 				);
 				const event = usageEvent(id, input.attempt, merged);
 				if (event) events.push(event);
+				events.push(...usageGuardEvents);
 			}
 			const retry =
 				input.outcome === "failed" &&
