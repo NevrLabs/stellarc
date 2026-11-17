@@ -3,12 +3,12 @@ import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
+import { classifyPermission } from "../../../packages/agents/src/policy";
 import type {
 	ContextReceiptRow,
 	FailureCode,
 	Item,
 	ItemKind,
-	PermissionPolicy,
 	PermissionRequestReport,
 	ResumeItem,
 	TaskDescriptor,
@@ -204,29 +204,17 @@ export class TranscriptFolder {
 	}
 }
 
-/** Glob-style tool-pattern match for permission policies. `*` spans within a
- * dot-separated segment (`mcp:github.list_*`), `?` one char; no cross-segment
- * wildcard — an allowlist entry names the tool it allows, not a prefix. */
-function toolMatches(pattern: string, tool: string): boolean {
-	const re = new RegExp(
-		`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === "*" ? "[^.]*" : c === "?" ? "[^.]" : `\\${c}`))}$`,
-	);
-	return re.test(tool);
-}
-
-/** Does the agent's policy auto-approve this permission request? A null
- * policy preserves the legacy behaviour exactly: everything auto-allowed. */
-export function policyAllows(
-	policy: PermissionPolicy | null | undefined,
-	toolName: string | null,
-): boolean {
-	if (!policy) return true;
-	if (!toolName) return false;
-	return policy.autoAllow.some((p) => toolMatches(p, toolName));
-}
+// The glob grammar and the ask > autoAllow > null-legacy classification live
+// in packages/agents/src/policy (NEVR-701) so the node's per-request
+// evaluation and the plane's registration-time conflict check share one
+// canonical implementation.
 
 /** Legacy answer for policy-less agents (and allowlisted requests): prefer
- * allow_once, then allow_always; otherwise cancel the tool call. */
+ * allow_once, then allow_always; otherwise cancel the tool call. A request
+ * that parked because its options carry NO allow kind also settles cancelled
+ * here on a grant — the protocol's no-selection settle (NEVR-701): never
+ * select a reject-kind option on a grant, that would misattribute the
+ * operator's choice in the harness's own log. */
 function pickPermission(
 	options: ReadonlyArray<acp.PermissionOption>,
 ): acp.RequestPermissionResponse {
@@ -473,12 +461,6 @@ export async function runTask(
 				toolCallId: p.toolCall.toolCallId,
 			} as acp.SessionUpdate);
 			const toolName = p.toolCall.name ?? null;
-			if (policyAllows(task.agent.permissionPolicy, toolName))
-				return pickPermission(p.options);
-			// Not allowlisted: park. Write the approval transcript item
-			// (options + RESOLVED argument values — Factory v0.237 lesson),
-			// tell the plane, and hold the session open until a verdict
-			// arrives on the heartbeat.
 			const report: PermissionRequestReport = {
 				sessionId: p.sessionId,
 				toolCallId: p.toolCall.toolCallId,
@@ -490,6 +472,42 @@ export async function runTask(
 					kind: o.kind,
 				})),
 			};
+			// Ask > autoAllow > null-legacy (NEVR-701, Paseo #9927 law): a
+			// tool matching the ask class parks unconditionally, even under
+			// the null-policy allow-all and even when an autoAllow glob also
+			// matches — an explicit ask requirement survives every broad
+			// auto-accept default.
+			const cls = classifyPermission(task.agent.permissionPolicy, toolName);
+			const allowOption =
+				p.options.find((o) => o.kind === "allow_once") ??
+				p.options.find((o) => o.kind === "allow_always");
+			// Policy-answered (autoAllow match or null-policy legacy) AND the
+			// harness actually offered an allow kind: answer now, but leave
+			// the audit item in the trail — a policy answer must be
+			// distinguishable from a park (same settle shape the plane's
+			// resolvePermission writes). A request whose options carry NO
+			// allow kind cannot be policy-answered at all: it parks below
+			// instead of the legacy silent `cancelled` — the operator sees
+			// the offered options and decides.
+			if (cls === "auto" && allowOption) {
+				folder.approval({
+					request: {
+						...report,
+						arguments: p.toolCall.rawInput ?? null,
+					},
+					status: "auto_allowed",
+					decidedAt: new Date().toISOString(),
+					decidedBy: "policy",
+				});
+				await flush(true).catch((e) =>
+					hooks.log?.(`approval flush failed: ${e}`),
+				);
+				return pickPermission(p.options);
+			}
+			// Not policy-answered: park. Write the approval transcript item
+			// (options + RESOLVED argument values — Factory v0.237 lesson),
+			// tell the plane, and hold the session open until a verdict
+			// arrives on the heartbeat.
 			// Concurrent permission requests serialize on parkGate
 			// (NEVR-212 defect 1): ACP harnesses may issue parallel tool
 			// calls, and two parks in flight would race the plane's
