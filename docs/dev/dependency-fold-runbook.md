@@ -37,6 +37,7 @@ is half of how the collision reached `dev`.
 3. **Same-day.** Fold, verify, PR, review, merge in one day. Aged folds
    are how law 2 gets violated.
 4. **CI in the known-good shape** before asking for merge.
+5. **Pins-current advisory green or triaged in-PR** before asking for merge (the `pins-current` PR job, NEVR-724).
 
 Clean executions: #217 (wry 0.57.0→0.57.1, NEVR-536) and #233
 (wry 0.57.1→0.57.2, NEVR-574). The npm form is the same law
