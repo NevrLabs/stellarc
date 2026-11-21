@@ -1997,9 +1997,7 @@ test("P13 reject-only wire answers at the harness seam (NEVR-701): deny selects 
 	expect(grantedStatuses).toEqual(["pending", "granted"]);
 	const grantedResult = granted.items.find((i) => i.kind === "tool_result");
 	expect(grantedResult).toBeDefined();
-	expect(
-		((grantedResult as Item).body as { output: unknown }).output,
-	).toEqual({
+	expect(((grantedResult as Item).body as { output: unknown }).output).toEqual({
 		picked: "none",
 	});
 	const grantedMsg = granted.items
