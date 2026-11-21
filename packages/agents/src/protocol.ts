@@ -19,6 +19,12 @@ export const FAILURE_CODES = [
 	"platform.protocol_error",
 	"platform.lease_expired",
 	"platform.node_error",
+	/** Transient provider-side rate/capacity throttle (NEVR-670, Multica
+	 * #10677 law): named for the semantics — retry later without burning —
+	 * not the provider's wording; "overloaded"/"capacity" markers classify
+	 * here too. Parked, not requeued: no attempt burn while the provider
+	 * recovers. */
+	"platform.provider_rate_limited",
 	"agent_error.refusal",
 	"agent_error.max_tokens",
 	"agent_error.max_turn_requests",
@@ -28,6 +34,105 @@ export const FAILURE_CODES = [
 export const FailureCode = Schema.Literals([...FAILURE_CODES]);
 export type FailureCode = typeof FailureCode.Type;
 export const isRetryable = (code: FailureCode) => code.startsWith("platform.");
+
+// ── provider rate/capacity classification (NEVR-670; law Multica #10677) ────
+
+/** HTTP-ish status tokens that name provider throttling. Matched ONLY in
+ * context — never as bare substrings: "totalTokens: 4290" inside an error
+ * message must not classify (NEVR-671 rework: the earlier digit-only
+ * boundary let "runner.ts:429:12", "took 529ms", "abc429", "v1.429.0" and
+ * "/items/429/x" through — stack lines, durations, ids and versions are
+ * common in wrapped causes, and a false positive mislabels a real
+ * protocol_error as a parked, resumable throttle). */
+export const PROVIDER_CAPACITY_TOKENS = ["429", "529"] as const;
+
+/** Token matchers, precompiled from PROVIDER_CAPACITY_TOKENS:
+ * 1. HTTP context — the token sits right after http/status/error/code
+ *    ("HTTP 429", "status code=429", "Error: 529", "code 429: Too Many
+ *    Requests"), or
+ * 2. standalone — delimited by anything that is not a word char, dot,
+ *    colon, slash or hyphen ("429 Too Many Requests", a bare "429").
+ * Everything glued to `. : / -` or other word chars stays unclassified. */
+const PROVIDER_CAPACITY_TOKEN_PATTERNS: readonly RegExp[] =
+	PROVIDER_CAPACITY_TOKENS.flatMap((t) => [
+		new RegExp(`\\b(?:http|status|error|code)[\\s:=]*${t}\\b`, "i"),
+		new RegExp(`(?:^|[^\\w.:/-])${t}(?=$|[^\\w.:/-])`, "i"),
+	]);
+
+/** Fixed phrases that name provider rate/capacity throttling, matched whole,
+ * case-insensitive. Providers wrap throttling in generic envelopes (Kiro:
+ * JSON-RPC -32603 "Internal error" with the real cause in `data` — "The
+ * request was throttled by the service"), so the label the plane acts on is
+ * derived from the provider's own full fixed phrase, never a bare keyword —
+ * the cannot-over-trigger rule from the Multica #10677 precedent applied to
+ * our own classifier. Pure string-in/string-out: any consumer (today the
+ * runner's catch path) shares one table, no provider-specific code. */
+export const PROVIDER_CAPACITY_PHRASES = [
+	"rate limit",
+	"overloaded",
+	"at capacity",
+	"over capacity",
+	"capacity exceeded",
+	"request was throttled by the service",
+] as const;
+
+/** Does a wrapped error message name transient provider-side rate/capacity
+ * throttling? Pure, shared, and deliberately narrow: true means the fault is
+ * the provider's, not the agent's and not permanent. */
+export function classifyProviderCapacity(message: string): boolean {
+	if (PROVIDER_CAPACITY_TOKEN_PATTERNS.some((re) => re.test(message)))
+		return true;
+	const haystack = message.toLowerCase();
+	return PROVIDER_CAPACITY_PHRASES.some((p) => haystack.includes(p));
+}
+
+/** First backoff step for a parked rate-limited task, and the cap. */
+export const PROVIDER_RATE_BACKOFF_BASE_SECONDS = 30;
+export const PROVIDER_RATE_BACKOFF_CAP_SECONDS = 600;
+
+/** Escalating backoff per park: 30s doubling to a 10-minute cap. Each park
+ * follows exactly one attempt (park → unpark → claim increments), so the
+ * attempt number IS the park index within a throttle streak; non-throttle
+ * attempts in between only ever escalate faster, never past the cap. */
+export function providerRateBackoffSeconds(
+	attempt: number,
+	retryAfterSeconds: number | null,
+): number {
+	if (retryAfterSeconds != null)
+		return Math.max(
+			0,
+			Math.min(retryAfterSeconds, PROVIDER_RATE_BACKOFF_CAP_SECONDS),
+		);
+	const stepped =
+		PROVIDER_RATE_BACKOFF_BASE_SECONDS * 2 ** Math.max(0, attempt - 1);
+	return Math.min(stepped, PROVIDER_RATE_BACKOFF_CAP_SECONDS);
+}
+
+/** Parse a `Retry-After` hint (seconds or HTTP-date) out of a wrapped error
+ * message, in seconds; null when absent or unparseable. Tolerant of the
+ * header-ish spellings that ride inside wrapped error text
+ * ("Retry-After: 42", "retry_after=42", "Retry-After: Wed, 21 Oct 2026
+ * 07:28:00 GMT" — the date form contains commas, so the value runs to the
+ * line's end). Strict on malformed values ("42x" is no hint at all): an
+ * unparseable hint falls back to the escalating schedule. A past HTTP-date
+ * means "retry now" — 0, not null, because the provider DID answer the
+ * pacing question. */
+export function parseRetryAfterSeconds(
+	message: string,
+	now: number = Date.now(),
+): number | null {
+	const m = message.match(/retry[-_ ]?after\s*[:=]?\s*([^\n\r]+)/i);
+	if (!m) return null;
+	const raw = m[1]
+		.trim()
+		.replace(/^["']+/, "")
+		.replace(/[",;)\]]+$/, "")
+		.trim();
+	if (/^\d+$/.test(raw)) return Number(raw);
+	const at = Date.parse(raw);
+	if (Number.isNaN(at)) return null;
+	return Math.max(0, Math.round((at - now) / 1000));
+}
 
 export const ITEM_KINDS = [
 	"message",
@@ -444,5 +549,12 @@ export const TASK_STATUSES = [
 	 * and holds the native session open; an operator grant resumes the same
 	 * attempt in place, a deny fails with agent_error.permission_denied. */
 	"needs_permission",
+	/** Parked by provider-side rate/capacity throttling (NEVR-670): excluded
+	 * from claims, no attempt burn, failure_code kept
+	 * ('platform.provider_rate_limited') so the resume gate can read it after
+	 * the time-based unpark (reapExpired requeues once parked_until passes).
+	 * The attempt cap stays the terminal bound: at attempt >= max_attempts
+	 * the throttle finishes the task failed instead of parking. */
+	"provider_rate_limited",
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

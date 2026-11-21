@@ -28,6 +28,8 @@ import {
 	type PermissionPark,
 	type PermissionPolicy,
 	type Push,
+	parseRetryAfterSeconds,
+	providerRateBackoffSeconds,
 	RESUME_ITEM_RENDER_CAP,
 	type ResumeItem,
 	type TaskDescriptor,
@@ -92,6 +94,9 @@ export interface TaskRow {
 	/** Operator verdict on a permission park: 'granted' until the heartbeat
 	 * delivers it (then cleared), 'denied' terminal. Null otherwise. */
 	readonly permissionDecision: "granted" | "denied" | null;
+	/** Earliest requeue time while parked in provider_rate_limited
+	 * (NEVR-670); null unless parked (or left over until the next write). */
+	readonly parkedUntil: string | null;
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	/** Present only while parked in budget_exhausted. */
@@ -206,6 +211,7 @@ const task = (r: Row): TaskRow => ({
 	nativeSessionId: r.native_session_id ?? null,
 	resumedFromAttempt: r.resumed_from_attempt ?? null,
 	permissionDecision: r.permission_decision ?? null,
+	parkedUntil: iso(r.parked_until),
 	createdAt: iso(r.created_at) as string,
 	updatedAt: iso(r.updated_at) as string,
 });
@@ -697,6 +703,12 @@ async function recordAttemptPushes(
  *   rework defect the chain exists to prevent.
  * - platform.node_error — node-side fault; every item was seam-validated
  *   before it persisted.
+ * - platform.provider_rate_limited — transient provider capacity (NEVR-670;
+ *   law Multica #10677): proven provider-side by the shared classifier from
+ *   the wrapped cause, so the protocol_error hold-out rationale (unproven
+ *   wrapped cause) does not apply. A throttle mid-conversation resumes the
+ *   transcript chain on the post-backoff attempt: the parked row keeps this
+ *   failure_code through unpark so the claim gate below can read it.
  * - platform.protocol_error — HELD OUT: a harness violating the protocol
  *   mid-stream deserves one real case as evidence before admission, and
  *   the attribution race already moves most exits to harness_exited.
@@ -709,6 +721,7 @@ export const RESUMABLE_FAILURE_CODES: ReadonlySet<string> = new Set([
 	"platform.harness_exited",
 	"platform.harness_unavailable",
 	"platform.node_error",
+	"platform.provider_rate_limited",
 ]);
 
 /** Kinds the resume payload can carry. usage/config are plane bookkeeping and
@@ -1293,6 +1306,28 @@ export class AgentStore {
 				await tx`SELECT DISTINCT org FROM agent_task WHERE status = 'budget_exhausted'`;
 			for (const { org } of orgs)
 				await unparkPassing(tx, org, "budget_window_reset", "plane");
+			// Time-based unpark for rate-limited tasks (NEVR-670): once the
+			// backoff window passes, requeue — keeping failure_code so the
+			// resume gate at claim can read it (the claim UPDATE clears it
+			// after reading, as with every requeue). parked_until is cleared so
+			// a later non-throttle write never sees a stale park time.
+			const unblocked =
+				await tx`SELECT id, org, attempt, failure_code FROM agent_task
+			WHERE status = 'provider_rate_limited' AND parked_until <= now() FOR UPDATE SKIP LOCKED`;
+			for (const r of unblocked) {
+				await tx`UPDATE agent_task SET status='queued', lease_until=NULL, parked_until=NULL, updated_at=now() WHERE id=${r.id}`;
+				await appendEvents(tx, r.org, "plane", [
+					{
+						type: "task-requeued",
+						payload: {
+							id: r.id,
+							attempt: r.attempt,
+							reason: "provider_rate_backoff",
+							failureCode: r.failure_code,
+						},
+					},
+				]);
+			}
 			return expired.length;
 		});
 	}
@@ -1738,21 +1773,62 @@ export class AgentStore {
 				input.failureCode !== undefined &&
 				isRetryable(input.failureCode) &&
 				row.attempt < row.max_attempts;
-			const status = retry ? "queued" : input.outcome;
+			// Park lane for provider throttling (NEVR-670): no attempt burn via
+			// the proven budget-park mechanism, not an in-attempt sleep — the
+			// node loop never sleeps, and while parked the task is excluded from
+			// claims entirely. Backoff is time-based from parked_until: 30s
+			// doubling to a 10-minute cap per park, honoring a parseable
+			// Retry-After from the wrapped cause (capped the same). The attempt
+			// cap stays the terminal bound: at attempt >= max_attempts the
+			// throttle finishes the task failed with this code instead.
+			const ratePark =
+				input.outcome === "failed" &&
+				input.failureCode === "platform.provider_rate_limited" &&
+				row.attempt < row.max_attempts;
+			const backoffSeconds = ratePark
+				? providerRateBackoffSeconds(
+						row.attempt,
+						parseRetryAfterSeconds(input.failureMessage ?? ""),
+					)
+				: null;
+			const status = ratePark
+				? "provider_rate_limited"
+				: retry
+					? "queued"
+					: input.outcome;
 			const [u] =
 				await tx`UPDATE agent_task SET status=${status}, lease_until=NULL,
-        stop_reason=${input.stopReason ?? null}, failure_code=${input.failureCode ?? null},
-        failure_message=${input.failureMessage ?? null}, permission_decision=NULL, updated_at=now() WHERE id=${id} RETURNING *`;
-			events.push({
-				type: retry ? "task-requeued" : "task-finished",
-				payload: {
-					id,
-					attempt: input.attempt,
-					outcome: input.outcome,
-					stopReason: input.stopReason ?? null,
-					failureCode: input.failureCode ?? null,
-				},
-			});
+			stop_reason=${input.stopReason ?? null}, failure_code=${input.failureCode ?? null},
+			failure_message=${input.failureMessage ?? null}, permission_decision=NULL,
+			parked_until=${backoffSeconds != null ? tx`now() + ${`${backoffSeconds} seconds`}::interval` : tx`NULL::timestamptz`},
+			updated_at=now() WHERE id=${id} RETURNING *`;
+			events.push(
+				ratePark
+					? {
+							type: "task_parked",
+							payload: {
+								id,
+								attempt: input.attempt,
+								reason: "provider_rate_limited",
+								failureCode: input.failureCode ?? null,
+								backoffSeconds,
+								retryAfterSeconds: parseRetryAfterSeconds(
+									input.failureMessage ?? "",
+								),
+								parkedUntil: iso(u.parked_until),
+							},
+						}
+					: {
+							type: retry ? "task-requeued" : "task-finished",
+							payload: {
+								id,
+								attempt: input.attempt,
+								outcome: input.outcome,
+								stopReason: input.stopReason ?? null,
+								failureCode: input.failureCode ?? null,
+							},
+						},
+			);
 			await appendEvents(tx, n.org, `node:${n.id}`, events);
 			return task(u);
 		}).pipe(
