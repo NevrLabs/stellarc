@@ -4,7 +4,7 @@
 // "spend" | "chain" | "push <bare-repo-path>". Git identity comes from the
 // harness environment: the agent is the committer (attribution target, NEVR-199).
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 
@@ -224,6 +224,17 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 					],
 				},
 			);
+			// NEVR-309: persist the exact RequestPermissionResponse outcome we
+			// received. The deny-path response is invisible in the stored
+			// transcript (the plane settles the row on deny; later item flushes
+			// 409), so the parity test reads this side-channel file instead.
+			const seen = JSON.parse(
+				existsSync("perm-seen.json")
+					? readFileSync("perm-seen.json", "utf8")
+					: "[]",
+			) as unknown[];
+			seen.push(perm.outcome);
+			writeFileSync("perm-seen.json", JSON.stringify(seen));
 			const picked =
 				perm.outcome.outcome === "selected" ? perm.outcome.optionId : "none";
 			await ctx.client.notify(acp.CLIENT_METHODS.session_update, {

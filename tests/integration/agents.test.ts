@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1201,6 +1201,24 @@ test("P2 non-allowlisted request parks in needs_permission: approval item with r
 	expect(deniedBody.status).toBe("denied");
 	expect(deniedBody.decidedAt).toBeTruthy();
 	expect(deniedBody.decidedBy).toBe("operator");
+	// NEVR-309 parity pin (deny): the verdict's wire shape is invisible in
+	// the stored transcript — the plane settles the row on deny, so the
+	// node's later item flushes 409 against the terminal row. The fake
+	// agent therefore persists the exact RequestPermissionResponse outcome
+	// it received to perm-seen.json in its workdir: deny must be "selected"
+	// carrying the reject_once optionId — never a bare rejected/cancelled
+	// outcome (a 2.x migration regression would read exactly that way).
+	const seenPath = join(
+		cfg.workRoot,
+		"acme",
+		"scoped",
+		t.body.id,
+		"perm-seen.json",
+	);
+	await waitFor(async () => (existsSync(seenPath) ? true : undefined));
+	expect(JSON.parse(readFileSync(seenPath, "utf8")) as unknown[]).toEqual([
+		{ outcome: "selected", optionId: "no" },
+	]);
 	// Second decision attempt conflicts.
 	expect(
 		(await p.op("POST", `tasks/${t.body.id}/permission`, { decision: "grant" }))
@@ -1271,6 +1289,20 @@ test("P3 grant resumes the same attempt and native session", async () => {
 		(i: { kind: string }) => i.kind === "tool_result",
 	);
 	expect(toolResult.body.output).toEqual({ picked: "yes" });
+	// NEVR-309 parity pin (grant): the harness observed the pre-2.x wire
+	// shape — "selected" carrying the allow_once optionId (see P2 for why
+	// the side-channel file, not the transcript, is the observable).
+	const seenPath = join(
+		cfg.workRoot,
+		"acme",
+		"scoped",
+		t.body.id,
+		"perm-seen.json",
+	);
+	await waitFor(async () => (existsSync(seenPath) ? true : undefined));
+	expect(JSON.parse(readFileSync(seenPath, "utf8")) as unknown[]).toEqual([
+		{ outcome: "selected", optionId: "yes" },
+	]);
 	const events = await p.db.sql<{ plugin_type: string; actor: string }[]>`
     SELECT plugin_type, actor FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
 	expect(events.map((e) => e.plugin_type)).toEqual([
