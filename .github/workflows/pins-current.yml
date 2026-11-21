@@ -1,0 +1,81 @@
+# NEVR-724 — pins-current advisory job.
+#
+# Reports pin-vs-npm-latest deltas as a PR comment on any PR that touches a
+# package.json or bun.lock. Advisory by construction: every step exits 0 and
+# registry/comment failures degrade to warnings, so deliberate holds
+# (effect-suite lockstep timing, hotkeys riders) stay possible — the job
+# reports, the executor decides. Standalone file: ci.yml / desktop.yml are
+# untouched on purpose (zero blast radius).
+#
+# The paths filter covers the dependency manifests plus the script and this
+# workflow itself, so the advisory also runs on its own PRs — it validates
+# itself wherever it changes, and docs-only pushes skip it.
+name: pins-current
+
+on:
+  pull_request:
+    paths:
+      - "**/package.json"
+      - "bun.lock"
+      - "scripts/pins-current.ts"
+      - ".github/workflows/pins-current.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pins-current-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pins-current:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The PR head, not the merge ref: report the pins the PR
+          # actually carries, unmixed with a moved base.
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Compute pin deltas (advisory — always exit 0)
+        run: bun scripts/pins-current.ts
+      - name: Post or update the PR comment (advisory — never fails)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          marker="<!-- pins-current -->"
+          body_file="${RUNNER_TEMP}/pins-current-comment.md"
+          if [ ! -f "$body_file" ]; then
+            echo "::warning::pins-current produced no comment body"
+            exit 0
+          fi
+          api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments"
+          req() {
+            curl -fsS \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$@"
+          }
+          payload="$(jq -n --rawfile body "$body_file" '{body: $body}')"
+          # Upsert by marker: update our previous comment if present,
+          # otherwise create it. Any failure is a warning, never a job
+          # failure — the step summary still carries the table.
+          comment_id="$(
+            req "$api" \
+              | jq -r "map(select(.body | contains(\"$marker\")))[0].id // empty" \
+              || true
+          )"
+          if [ -n "$comment_id" ]; then
+            req -X PATCH --data "$payload" "${api}/${comment_id}" >/dev/null \
+              || echo "::warning::pins-current: failed to update PR comment"
+          else
+            req -X POST --data "$payload" "$api" >/dev/null \
+              || echo "::warning::pins-current: failed to post PR comment"
+          fi
