@@ -37,10 +37,27 @@ export const isRetryable = (code: FailureCode) => code.startsWith("platform.");
 
 // ── provider rate/capacity classification (NEVR-670; law Multica #10677) ────
 
-/** HTTP-ish status tokens that name provider throttling. Matched as BOUNDED
- * tokens (word boundaries), never substrings: "totalTokens: 4290" inside an
- * error message must not classify. */
+/** HTTP-ish status tokens that name provider throttling. Matched ONLY in
+ * context — never as bare substrings: "totalTokens: 4290" inside an error
+ * message must not classify (NEVR-671 rework: the earlier digit-only
+ * boundary let "runner.ts:429:12", "took 529ms", "abc429", "v1.429.0" and
+ * "/items/429/x" through — stack lines, durations, ids and versions are
+ * common in wrapped causes, and a false positive mislabels a real
+ * protocol_error as a parked, resumable throttle). */
 export const PROVIDER_CAPACITY_TOKENS = ["429", "529"] as const;
+
+/** Token matchers, precompiled from PROVIDER_CAPACITY_TOKENS:
+ * 1. HTTP context — the token sits right after http/status/error/code
+ *    ("HTTP 429", "status code=429", "Error: 529", "code 429: Too Many
+ *    Requests"), or
+ * 2. standalone — delimited by anything that is not a word char, dot,
+ *    colon, slash or hyphen ("429 Too Many Requests", a bare "429").
+ * Everything glued to `. : / -` or other word chars stays unclassified. */
+const PROVIDER_CAPACITY_TOKEN_PATTERNS: readonly RegExp[] =
+	PROVIDER_CAPACITY_TOKENS.flatMap((t) => [
+		new RegExp(`\\b(?:http|status|error|code)[\\s:=]*${t}\\b`, "i"),
+		new RegExp(`(?:^|[^\\w.:/-])${t}(?=$|[^\\w.:/-])`, "i"),
+	]);
 
 /** Fixed phrases that name provider rate/capacity throttling, matched whole,
  * case-insensitive. Providers wrap throttling in generic envelopes (Kiro:
@@ -53,7 +70,9 @@ export const PROVIDER_CAPACITY_TOKENS = ["429", "529"] as const;
 export const PROVIDER_CAPACITY_PHRASES = [
 	"rate limit",
 	"overloaded",
-	"capacity",
+	"at capacity",
+	"over capacity",
+	"capacity exceeded",
 	"request was throttled by the service",
 ] as const;
 
@@ -61,13 +80,9 @@ export const PROVIDER_CAPACITY_PHRASES = [
  * throttling? Pure, shared, and deliberately narrow: true means the fault is
  * the provider's, not the agent's and not permanent. */
 export function classifyProviderCapacity(message: string): boolean {
-	const haystack = message.toLowerCase();
-	if (
-		PROVIDER_CAPACITY_TOKENS.some((t) =>
-			new RegExp(`(^|[^0-9])${t}([^0-9]|$)`).test(haystack),
-		)
-	)
+	if (PROVIDER_CAPACITY_TOKEN_PATTERNS.some((re) => re.test(message)))
 		return true;
+	const haystack = message.toLowerCase();
 	return PROVIDER_CAPACITY_PHRASES.some((p) => haystack.includes(p));
 }
 

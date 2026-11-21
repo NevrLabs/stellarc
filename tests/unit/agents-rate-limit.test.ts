@@ -81,7 +81,7 @@ test("plain JS errors and object throws keep the protocol_error bin and message 
 	// The classifier sees the stringified data too: a capacity phrase buried
 	// in a structured data blob still classifies.
 	expect(
-		thrownFailure(acpError("x", { detail: "capacity" }), "").failureCode,
+		thrownFailure(acpError("x", { detail: "at capacity" }), "").failureCode,
 	).toBe("platform.provider_rate_limited");
 });
 
@@ -102,17 +102,28 @@ test("an unknown stop reason still maps to agent_error.prompt_failed — the tab
 
 // ── bounded tokens, full phrases (acceptance 5) ─────────────────────────────
 
-test("429/529 match as bounded tokens: 4290 does NOT classify, HTTP 429 and error 529 do", () => {
+test("429/529 match only in context: token counts, stack lines, durations, ids and versions never classify", () => {
 	// The exact over-trigger Multica's law forbids: a token count inside an
 	// error message must never look like the HTTP status.
 	expect(classifyProviderCapacity("…totalTokens: 4290, input: 900…")).toBe(
 		false,
 	);
 	expect(classifyProviderCapacity("credits used: 1429 of 5000")).toBe(false);
+	// NEVR-671 rework negatives: digit-only boundaries let all of these
+	// through — stack-trace lines, durations, ids, versions, URL paths.
+	expect(classifyProviderCapacity("at runner.ts:429:12 in prompt")).toBe(false);
+	expect(classifyProviderCapacity("took 529ms")).toBe(false);
+	expect(classifyProviderCapacity("id=abc429")).toBe(false);
+	expect(classifyProviderCapacity("v1.429.0")).toBe(false);
+	expect(classifyProviderCapacity("/api/v2/items/429/x")).toBe(false);
+	expect(classifyProviderCapacity("took 5291ms")).toBe(false);
+	// Real provider spellings still classify: HTTP context or standalone.
 	expect(classifyProviderCapacity("HTTP 429 Too Many Requests")).toBe(true);
 	expect(classifyProviderCapacity("error 529 from upstream")).toBe(true);
 	expect(classifyProviderCapacity("429")).toBe(true);
-	expect(classifyProviderCapacity("took 5291ms")).toBe(false);
+	expect(classifyProviderCapacity("429 Too Many Requests")).toBe(true);
+	expect(classifyProviderCapacity("status code=429 quota exceeded")).toBe(true);
+	expect(classifyProviderCapacity("Error: 429")).toBe(true);
 });
 
 test("word/phrase markers match full-phrase, case-insensitive", () => {
@@ -121,11 +132,18 @@ test("word/phrase markers match full-phrase, case-insensitive", () => {
 		true,
 	);
 	expect(classifyProviderCapacity("The server is Overloaded")).toBe(true);
-	expect(classifyProviderCapacity("insufficient CAPACITY")).toBe(true);
+	expect(classifyProviderCapacity("service is AT CAPACITY, retry later")).toBe(
+		true,
+	);
+	expect(classifyProviderCapacity("provider is over capacity")).toBe(true);
+	expect(classifyProviderCapacity("upstream CAPACITY EXCEEDED")).toBe(true);
 	expect(
 		classifyProviderCapacity("The request was throttled by the service."),
 	).toBe(true);
-	// Generic envelopes without a capacity phrase stay unclassified.
+	// Generic envelopes without a capacity phrase stay unclassified —
+	// including bare "capacity" mentions that are not throttling (NEVR-671
+	// defect 2: "insufficient disk capacity" is not a provider throttle).
+	expect(classifyProviderCapacity("insufficient disk CAPACITY")).toBe(false);
 	expect(classifyProviderCapacity("Internal error")).toBe(false);
 	expect(classifyProviderCapacity("connection reset by peer")).toBe(false);
 	expect(classifyProviderCapacity("tool timed out after 30s")).toBe(false);
@@ -136,7 +154,9 @@ test("the marker table is exactly the shared table — no provider-specific code
 	expect([...PROVIDER_CAPACITY_PHRASES]).toEqual([
 		"rate limit",
 		"overloaded",
-		"capacity",
+		"at capacity",
+		"over capacity",
+		"capacity exceeded",
 		"request was throttled by the service",
 	]);
 });
