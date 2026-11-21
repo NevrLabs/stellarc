@@ -190,6 +190,13 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 		// Permission-parking harness (NEVR-198): requests permission with
 		// a resolved (non-template) argument; a grant must continue the
 		// SAME session to completion, a reject must end the turn.
+		// Modifiers (NEVR-701): `tool=<name>` overrides the requested tool
+		// name (default "deploy"); `reject-only` offers ONLY reject-kind
+		// options — the request shape that must park instead of a silent
+		// cancelled, whatever the policy would have answered.
+		const toolTok = rest.find((t) => t.startsWith("tool="));
+		const tool = toolTok ? toolTok.slice(5) : "deploy";
+		const rejectOnly = rest.includes("reject-only");
 		const ask = async (toolCallId: string, toolName: string) => {
 			await ctx.client.notify(acp.CLIENT_METHODS.session_update, {
 				sessionId: p.sessionId,
@@ -213,15 +220,24 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 						name: toolName,
 						rawInput: { target: "prod", force: true },
 					},
-					options: [
-						{ optionId: "yes", name: "Allow", kind: "allow_once" },
-						{
-							optionId: "always",
-							name: "Always allow",
-							kind: "allow_always",
-						},
-						{ optionId: "no", name: "Reject", kind: "reject_once" },
-					],
+					options: rejectOnly
+						? [
+								{ optionId: "no", name: "Reject", kind: "reject_once" },
+								{
+									optionId: "never",
+									name: "Always reject",
+									kind: "reject_always",
+								},
+							]
+						: [
+								{ optionId: "yes", name: "Allow", kind: "allow_once" },
+								{
+									optionId: "always",
+									name: "Always allow",
+									kind: "allow_always",
+								},
+								{ optionId: "no", name: "Reject", kind: "reject_once" },
+							],
 				},
 			);
 			const picked =
@@ -237,7 +253,7 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 			});
 			return picked;
 		};
-		if (rest[0] === "twice") {
+		if (rest.includes("twice")) {
 			// Two sequential parked requests (NEVR-201 defect 1): each
 			// needs its own verdict — one grant must not approve the
 			// second, and neither may leak into the other.
@@ -246,7 +262,7 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 			await say(`picked:${first},${second}`);
 			return { stopReason: "end_turn" };
 		}
-		if (rest[0] === "parallel") {
+		if (rest.includes("parallel")) {
 			// Two CONCURRENT requests (NEVR-212 defect 1): the harness
 			// issues both without awaiting either — the node must
 			// serialize the parks, decide each individually, and
@@ -258,7 +274,7 @@ app.onRequest(acp.AGENT_METHODS.session_prompt, async (ctx) => {
 			await say(`picked:${a},${b}`);
 			return { stopReason: "end_turn" };
 		}
-		const picked = await ask("call-park", "deploy");
+		const picked = await ask("call-park", tool);
 		if (picked !== "yes" && picked !== "always") {
 			await say(`rejected:${picked}`);
 			return { stopReason: "end_turn" };

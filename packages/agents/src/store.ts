@@ -9,6 +9,7 @@ import {
 	NotFound,
 	Unauthenticated,
 } from "./errors";
+import { policyOverlap } from "./policy";
 import {
 	type BudgetScope,
 	type BudgetWindow,
@@ -943,6 +944,18 @@ export class AgentStore {
 				await tx`SELECT 1 FROM agent WHERE org=${org} AND name=${input.name}`;
 			if (dup)
 				throw new Conflict({ message: `Agent "${input.name}" already exists` });
+			// Policy write-path validation (NEVR-701): an ask/autoAllow glob overlap
+			// on the same tool is a config error, so it is rejected HERE — at the
+			// only write path — not per-request in the runner (too late to be a
+			// config error). A null policy (no policy at all) is the documented
+			// bypass mode and registers cleanly.
+			const clash = input.permissionPolicy
+				? policyOverlap(input.permissionPolicy)
+				: null;
+			if (clash)
+				throw new Conflict({
+					message: `permissionPolicy: ask pattern "${clash.ask}" overlaps autoAllow pattern "${clash.autoAllow}" — a tool matching both would have to park and auto-approve at once; make the patterns disjoint`,
+				});
 			const id = newId("agt");
 			const [row] =
 				await tx`INSERT INTO agent(id,org,name,node_id,harness,model,instructions,mcp_servers,permission_policy,created_by)
