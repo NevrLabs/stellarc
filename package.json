@@ -48,7 +48,7 @@
 		"@oslojs/encoding": "1.1.0",
 		"@paralleldrive/cuid2": "3.3.0",
 		"@react-email/components": "1.0.12",
-		"@sentry/node": "11.15.0",
+		"@sentry/node": "11.16.0",
 		"@tanstack/db": "1.0.0-rc.1.5",
 		"@tanstack/electric-db-collection": "1.0.0-rc.1.5",
 		"@types/node": "26.6.6",
