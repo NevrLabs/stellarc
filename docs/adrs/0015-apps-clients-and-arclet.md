@@ -41,7 +41,7 @@ them out and are what review should challenge.
 |---|---|---|
 | **stellarc server** | The control plane: identity, event log, API, app registry. | `apps/stellarc-api` |
 | **stellarc daemon** | Per-machine connector. Holds harness binaries and credentials, claims tasks, drives harnesses over ACP. | `apps/stellarc-node` (Bun/TypeScript) |
-| **app** | The unit a user sees, installs and switches on per org. A product word: it covers both a charter *plugin* (runs in the server) and a charter *app* (runs as its own service). | `packages/apps`: manifest, registry and per-org activation. No check at dispatch yet. |
+| **app** | The unit a user sees, installs and switches on per org. A product word: it covers both a charter *plugin* (runs in the server) and a charter *app* (runs as its own service). | `packages/apps`: manifest, registry and per-org activation. Agents dispatch checks activation and admission grants. |
 | **first-party app** | Shipped with Stellarc, or installed by the plane operator at deploy time. | `packages/agents`, boards, the Gateway |
 | **third-party app** | Added by a user or an org. | none yet |
 | **app token** | Short-lived credential the server mints for one app in one org. Two kinds: a *frame token* also names the user, a *backend token* does not (§6). | not built |
@@ -141,9 +141,9 @@ plane-wide and activation is per org (charter D8, D3).
 
 | New piece | Why what exists does not cover it |
 |---|---|
-| Manifest type | Nothing declares an app today. |
-| Registry table and per-org activation rows | There is no record of which apps are installed or active. |
-| Activation check at dispatch | The server imports `agentsHttp` directly and matches it before any other route, behind one static operator token for every org (`apps/stellarc-api/src/main.ts`). No org can switch it off. |
+| Manifest type | `AppManifest` in `packages/apps` declares id, venue and requested capabilities. |
+| Registry table and per-org activation rows | `app` and `app_activation` record installation and org ratification (`0010_app_registry`). |
+| Activation check at dispatch | Agents checks org activation after operator auth; task admission also checks `session:drive` in its transaction. Drain/reporting stays available. The static operator token still spans every org. |
 | Per-app ownership of migrations | Migrations are one ordered, checksummed list (`packages/db/src/migrate.ts`). The agents tables are spread over `0003`–`0007` and `0009`. |
 
 **Where an app runs**
@@ -441,6 +441,22 @@ Reaching the target needs the harness → Gateway edge first.
    rows; list apps from the server; register `agents` and the Gateway as the
    first two entries. Built: `packages/apps`, migration `0010_app_registry`.
 2. Activation and grant check at dispatch for apps that run in the server.
+   Built for Agents: nodes, agents and budgets check activation after
+   operator authentication, at dispatch (not locked through config writes).
+   Task creation, claim, start and permission grant
+   require activation plus `session:drive` in the winning transaction. Task
+   reads, cancel, permission deny and node reporting remain available with
+   their existing authentication. The reaper runs before the claim gate.
+   Disable stops admission, not execution: running work can drain indefinitely;
+   cancel is the execution stop. A claim committed before disable may deliver
+   its descriptor afterward; an honest daemon sends no prompt if start is
+   refused, but may already have launched a harness and opened an MCP session.
+   A refused start consumes its claimed attempt and may exhaust retries.
+   The static operator token still has plane-wide authority: this is app-grant
+   enforcement, not user identity/grant integration. The token holder can
+   reactivate any org through the registry. Gateway remains excepted.
+   **Rollout:** activate existing orgs with `session:drive` through step 1's
+   registry routes before deploying step 2. No implicit grants or backfill.
 3. Drive `apps/web` navigation from the registry instead of the fixed route map
    (`apps/web/src/components/shell/nav.ts`).
 4. Point `desktop/` at `apps/web` once `apps/web` reads real data (ADR 0014

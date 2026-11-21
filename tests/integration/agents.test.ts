@@ -21,6 +21,7 @@ import {
 	staticOperatorAuth,
 } from "../../packages/agents/src/index";
 import type { TaskDescriptor } from "../../packages/agents/src/protocol";
+import { activateApp, installApps } from "../../packages/apps/src/index";
 import { migrate } from "../../packages/db/src/migrate";
 import { disposablePostgres } from "../helpers/postgres";
 
@@ -39,6 +40,8 @@ async function plane(leaseMs = 60_000) {
 	const db = await disposablePostgres();
 	resources.push(db.close);
 	await migrate(db.sql);
+	await installApps(db.sql);
+	await activateApp(db.sql, "acme", "operator", "agents", ["session:drive"]);
 	const agents = agentsHttp(db.sql, {
 		operatorAuth: staticOperatorAuth(OPERATOR),
 		leaseMs,
@@ -261,6 +264,7 @@ test("A3 end to end: task → node daemon → ACP agent → transcript + complet
 	const events = await p.db.sql<{ plugin_type: string; actor: string }[]>`
     SELECT plugin_type, actor FROM event WHERE org='acme' ORDER BY seq`;
 	expect(events.map((e) => e.plugin_type)).toEqual([
+		"apps:activated",
 		"agents:node-registered",
 		"agents:node-hello",
 		"agents:agent-created",
@@ -275,7 +279,9 @@ test("A3 end to end: task → node daemon → ACP agent → transcript + complet
 		"agents:context-receipt",
 		"agents:task-finished",
 	]);
-	expect(events[5].actor).toMatch(/^node:node_/);
+	expect(
+		events.find((e) => e.plugin_type === "agents:task-claimed")?.actor,
+	).toMatch(/^node:node_/);
 });
 
 test("A4 agent refusal is agent_error and is NOT retried", async () => {
@@ -2482,11 +2488,11 @@ function instrumentSql(
 test("NEVR-565 E1 a counter drifted below MAX(event.seq) heals on collision: the next append recovers, seq > MAX, no duplicate PK", async () => {
 	const p = await plane();
 	await registerNodeAndAgent(p);
-	// Three events so far (node-registered, node-hello, agent-created): the
-	// counter sits at 3. Drift: rows 4..6 exist above it. Pre-fix this is the
+	// Activation plus node-registered, node-hello and agent-created put the
+	// counter at 4. Drift: rows 5..7 exist above it. Pre-fix this is the
 	// permanent outage — every append collides on the taken seqs, the rollback
 	// un-bumps the counter, and the next append is handed the same seqs again.
-	await seedDriftAboveCounter(p.db.sql, "acme", 4, 6);
+	await seedDriftAboveCounter(p.db.sql, "acme", 5, 7);
 	const n = await p.op("POST", "nodes", { name: "healed" });
 	expect(n.status).toBe(201);
 	const events = await p.db.sql<{ seq: string; plugin_type: string }[]>`
@@ -2495,10 +2501,10 @@ test("NEVR-565 E1 a counter drifted below MAX(event.seq) heals on collision: the
 	// guarantees no duplicate landed, and the counter now agrees with it.
 	const last = events.at(-1);
 	expect(last?.plugin_type).toBe("agents:node-registered");
-	expect(Number(last?.seq)).toBe(7); // healed to MAX=6, then allocated 7
+	expect(Number(last?.seq)).toBe(8); // healed to MAX=7, then allocated 8
 	const [counter] = await p.db.sql<{ seq: string }[]>`
 		SELECT seq::text FROM org_event_counter WHERE org='acme'`;
-	expect(Number(counter.seq)).toBe(7);
+	expect(Number(counter.seq)).toBe(8);
 	// The next append stays healthy — the heal was once, not a new regime.
 	const again = await p.op("POST", "nodes", { name: "healed-2" });
 	expect(again.status).toBe(201);
@@ -2506,22 +2512,22 @@ test("NEVR-565 E1 a counter drifted below MAX(event.seq) heals on collision: the
 		await p.db.sql<{ seq: string }[]>`
 			SELECT seq::text FROM event WHERE org='acme' ORDER BY seq`
 	).map((r) => Number(r.seq));
-	expect(seqs).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+	expect(seqs).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 });
 
 test("NEVR-565 E2 a second consecutive collision after heal-and-retry surfaces a typed AgentsError, never a loop", async () => {
 	const p = await plane();
 	await registerNodeAndAgent(p);
-	await seedDriftAboveCounter(p.db.sql, "acme", 4, 5); // counter 3, MAX 5
+	await seedDriftAboveCounter(p.db.sql, "acme", 5, 6); // counter 4, MAX 6
 	// Deterministic stand-in for the concurrent writer that takes the seq the
-	// retry will allocate: occupy MAX+1 = 6 just before begin #2 (the retry).
+	// retry will allocate: occupy MAX+1 = 7 just before begin #2 (the retry).
 	const { sql, statements, begins } = instrumentSql(
 		p.db.sql,
 		async (attempt) => {
 			if (attempt === 2)
 				await p.db
 					.sql`INSERT INTO event(org,seq,plugin_type,actor,payload,schema_version,txid)
-				VALUES ('acme', 6, 'agents:race-writer', 'operator', ${p.db.sql.json({ taken: true })}, 1,
+				VALUES ('acme', 7, 'agents:race-writer', 'operator', ${p.db.sql.json({ taken: true })}, 1,
 				pg_current_xact_id()::text::bigint)`;
 		},
 	);

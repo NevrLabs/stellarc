@@ -13,8 +13,8 @@ import { appendEvents, PLUGIN, runTxn } from "../../agents/src/store";
 /** App registry (ADR 0015 §6, sequence step 1): what is installed on this
  * plane and which orgs switched it on. Install is plane-wide, activation is
  * per org (charter D8); an activation carries the capabilities the org
- * ratified, never more than the manifest asks for (D3). Nothing checks
- * activation at dispatch yet — that is step 2.
+ * ratified, never more than the manifest asks for (D3). The agents dispatch
+ * and admission paths check activation through the leaf access module.
  *
  * ponytail: operator auth, the org check and the event append (with its
  * collision heal) are borrowed from packages/agents, where the server's only
