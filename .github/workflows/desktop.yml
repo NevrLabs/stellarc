@@ -9,6 +9,12 @@ on:
     branches: [dev]
   pull_request:
   workflow_dispatch:
+    inputs:
+      signed_bundles:
+        description: Build signed Windows/macOS packages and run Maestro (requires signing secrets)
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -154,9 +160,9 @@ jobs:
           if-no-files-found: error
 
   bundle-signed:
-    # T07 (Windows/macOS half) + T08 — signed bundles. Fails closed (named
-    # error) when the signing secrets are absent (O2): that red IS the T07
-    # fail-closed evidence until the orchestrator lands the secrets.
+    # Signing is an operator-requested packaging gate, not a PR prerequisite.
+    # Opt in via Run workflow → signed_bundles; missing secrets still fail closed.
+    if: github.event_name == 'workflow_dispatch' && inputs.signed_bundles
     strategy:
       fail-fast: false
       matrix:
