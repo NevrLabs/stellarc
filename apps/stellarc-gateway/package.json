@@ -13,9 +13,9 @@
 	},
 	"dependencies": {
 		"better-auth": "1.7.27",
-		"jose": "6.2.17",
+		"jose": "6.2.18",
 		"pg": "8.23.1",
 		"postgres": "4.1.1",
-		"effect": "4.1.4"
+		"effect": "4.1.5"
 	}
 }

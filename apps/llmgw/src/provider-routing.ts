@@ -210,7 +210,9 @@ export async function providerResponse(
 	let bytes = 0;
 	let finishing: Promise<void> | undefined;
 	let cleaning: Promise<void> | undefined;
-	let reading: Promise<ReadableStreamReadResult<Uint8Array>> | undefined;
+	// bun-types' done-result carries `value?: undefined` while the DOM global
+	// requires it, so the pending-read promise is typed from the reader itself.
+	let reading: ReturnType<typeof reader.read> | undefined;
 	let notified = false;
 	const finish = (outcome: "completed" | "cancelled" | "failed") =>
 		(finishing ??= control.finish?.(outcome) ?? Promise.resolve());
