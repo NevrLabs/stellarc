@@ -89,7 +89,11 @@ jobs:
           print(summary)
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
               target.write(summary)
-          if status not in (0, 2) or (status == 2 and count == 0):
+          # TS7 (typescript 7.x native compiler) exits 1 — not 2 — when the
+          # program emits diagnostics; tsc 5 exited 2. Both are usable
+          # reports. Any other exit, or a non-zero exit with zero parsed
+          # diagnostics, means the report cannot be trusted.
+          if status not in (0, 1, 2) or (status in (1, 2) and count == 0):
               sys.exit('Compiler failed without a usable diagnostic report')
           if count > budget:
               sys.exit('UI typecheck budget increased')
