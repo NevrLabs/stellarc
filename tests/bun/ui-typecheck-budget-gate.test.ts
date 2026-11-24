@@ -52,14 +52,9 @@ function runGate(status: number, diagnostics: number, budget: number) {
 	const dir = mkdtempSync(join(tmpdir(), "ui-budget-gate-"));
 	mkdirSync(join(dir, ".forge"));
 	const log = Array.from({ length: diagnostics }, (_, i) => {
-		const code = [
-			"TS2339",
-			"TS7053",
-			"TS7006",
-			"TS6133",
-			"TS2322",
-			"TS18046",
-		][i % 6];
+		const code = ["TS2339", "TS7053", "TS7006", "TS6133", "TS2322", "TS18046"][
+			i % 6
+		];
 		return `src/file${i}.ts(1,1): error ${code}: synthetic diagnostic ${i}`;
 	}).join("\n");
 	writeFileSync(join(dir, "ui-typecheck.log"), `${log}\n`);
@@ -81,7 +76,10 @@ function runGate(status: number, diagnostics: number, budget: number) {
 
 test("NEVR-799 gate contract: TS7 exit 1 with diagnostics is a usable report", () => {
 	const r = runGate(1, 3, 5);
-	expect(r.status, "TS7 exit code 1 must be accepted when diagnostics parse").toBe(0);
+	expect(
+		r.status,
+		"TS7 exit code 1 must be accepted when diagnostics parse",
+	).toBe(0);
 	expect(r.summary).toContain("compiler exit: 1");
 });
 
