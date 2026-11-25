@@ -1,18 +1,28 @@
 /**
- * NEVR-724 — pins-current advisory.
+ * NEVR-724 / NEVR-824 — pins-current advisory.
  *
- * Reads every package.json in the tree (root + workspace packages, discovered
- * by walking — nothing hardcoded), takes the exact version pins (skipping
- * `workspace:*`, ranges and other non-registry specs), fetches each package's
- * `dist-tags.latest` from registry.npmjs.org (batched, cached per run), and
- * emits a `package | pinned | npm latest | delta` table to stdout — plus
- * `$GITHUB_STEP_SUMMARY` and a PR-comment body file when running in CI.
+ * npm half (NEVR-724): reads every package.json in the tree (root + workspace
+ * packages, discovered by walking — nothing hardcoded), takes the exact
+ * version pins (skipping `workspace:*`, ranges and other non-registry specs),
+ * fetches each package's `dist-tags.latest` from registry.npmjs.org (batched,
+ * cached per run), and emits a `package | pinned | npm latest | delta` table
+ * to stdout — plus `$GITHUB_STEP_SUMMARY` and a PR-comment body file when
+ * running in CI.
+ *
+ * crates.io half (NEVR-824): discovers every Cargo.lock in the tree (same
+ * walk, nothing hardcoded), parses the `[[package]]` name/version pairs —
+ * registry-sourced crates only, so path/git deps and the workspace's own
+ * crates stay out — fetches each crate's `max_stable_version` from the
+ * crates.io API (batched, cached per run, `User-Agent` set: crates.io 403s
+ * blank user agents), and emits a `crate | pinned | max_stable | delta`
+ * table into the same advisory outputs.
  *
  * Advisory by construction: a stale pin is information, not a failure. The
  * script always exits 0; registry fetch failures degrade to a warning row
- * (`⚠ fetch failed` / delta `unknown`), never an error. Deliberate holds
- * (effect-suite lockstep timing, hotkeys riders) stay possible — the job
- * reports, the executor decides.
+ * (`⚠ fetch failed` / delta `unknown`), never an error, and a tree with no
+ * Cargo.lock degrades to a no-op note on the crates.io half. Deliberate
+ * holds (effect-suite lockstep timing, hotkeys riders) stay possible — the
+ * job reports, the executor decides.
  *
  * Zero dependencies: bun + node stdlib only, so CI needs no `bun install`.
  */
@@ -50,6 +60,7 @@ const SKIP_DIRS = new Set([
 ]);
 
 const REGISTRY = "https://registry.npmjs.org/";
+const CRATES_API = "https://crates.io/api/v1/crates/";
 const CONCURRENCY = 8;
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -154,14 +165,12 @@ export function pinsFromManifest(manifest: unknown): Pin[] {
 	return pins;
 }
 
-/** Union the pins of many manifests, deduped, deterministically sorted. */
-export function collectPins(
-	manifests: Array<{ path: string; manifest: unknown }>,
-): Pin[] {
+/** Union pin lists, deduped, deterministically sorted. */
+function unionPins(lists: Pin[][]): Pin[] {
 	const seen = new Set<string>();
 	const pins: Pin[] = [];
-	for (const { manifest } of manifests) {
-		for (const pin of pinsFromManifest(manifest)) {
+	for (const list of lists) {
+		for (const pin of list) {
 			const key = `${pin.name}@${pin.version}`;
 			if (!seen.has(key)) {
 				seen.add(key);
@@ -173,6 +182,81 @@ export function collectPins(
 		(a, b) =>
 			a.name.localeCompare(b.name) || compareSemver(a.version, b.version),
 	);
+}
+
+/** Union the pins of many manifests, deduped, deterministically sorted. */
+export function collectPins(
+	manifests: Array<{ path: string; manifest: unknown }>,
+): Pin[] {
+	return unionPins(manifests.map(({ manifest }) => pinsFromManifest(manifest)));
+}
+
+/**
+ * Cargo `source` values that mark a package as resolved from crates.io.
+ * Path and git dependencies (and third-party registries) carry no crates.io
+ * max_stable and stay out of the advisory — notably the workspace's own
+ * crates, whose names could collide with unrelated crates.io names.
+ */
+const CRATES_IO_SOURCES = new Set([
+	"registry+https://github.com/rust-lang/crates.io-index",
+	"sparse+https://index.crates.io/",
+]);
+
+/** True when a Cargo.lock `source` value is the crates.io registry. */
+export function isCratesIoSource(source: string): boolean {
+	return CRATES_IO_SOURCES.has(source);
+}
+
+/** A `key = "value"` line inside a Cargo.lock stanza. */
+const CARGO_KEYVAL_RE = /^([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"$/;
+
+/**
+ * Parse the `[[package]]` stanzas of one Cargo.lock into exact pins. Cargo
+ * lockfiles pin exact versions by construction, so there is no range
+ * filtering; only registry-sourced stanzas count, and the semver check just
+ * guards against a malformed stanza ever crashing the advisory.
+ */
+export function pinsFromCargoLock(text: string): Pin[] {
+	const pins: Pin[] = [];
+	let name: string | undefined;
+	let version: string | undefined;
+	let source: string | undefined;
+	const flush = () => {
+		if (
+			name !== undefined &&
+			version !== undefined &&
+			source !== undefined &&
+			isCratesIoSource(source) &&
+			isExactPin(version)
+		) {
+			pins.push({ name, version });
+		}
+		name = undefined;
+		version = undefined;
+		source = undefined;
+	};
+	for (const raw of text.split("\n")) {
+		const line = raw.trim();
+		if (line === "[[package]]") {
+			flush();
+			continue;
+		}
+		const match = CARGO_KEYVAL_RE.exec(line);
+		if (!match) continue;
+		const [, key, value] = match;
+		if (key === "name") name = value;
+		else if (key === "version") version = value;
+		else if (key === "source") source = value;
+	}
+	flush();
+	return pins;
+}
+
+/** Union the registry pins of many Cargo.locks, deduped, sorted. */
+export function collectCargoPins(
+	locks: Array<{ path: string; text: string }>,
+): Pin[] {
+	return unionPins(locks.map(({ text }) => pinsFromCargoLock(text)));
 }
 
 /**
@@ -195,6 +279,30 @@ export function latestFromPackument(text: string): string | undefined {
 		if (typeof latest === "string") return latest;
 	}
 	return typeof record.version === "string" ? record.version : undefined;
+}
+
+/**
+ * Read `max_stable_version` out of a crates.io API response. Accepts the
+ * documented nested form (`{"crate":{"max_stable_version":"…"}}`) and a flat
+ * `{"max_stable_version":"…"}` spelling; undefined when neither parses.
+ */
+export function maxStableFromCrateResponse(text: string): string | undefined {
+	let doc: unknown;
+	try {
+		doc = JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+	if (typeof doc !== "object" || doc === null) return undefined;
+	const record = doc as Record<string, unknown>;
+	const crate = record.crate;
+	if (typeof crate === "object" && crate !== null) {
+		const max = (crate as Record<string, unknown>).max_stable_version;
+		if (typeof max === "string") return max;
+	}
+	return typeof record.max_stable_version === "string"
+		? record.max_stable_version
+		: undefined;
 }
 
 /**
@@ -245,6 +353,42 @@ export function formatTable(rows: Row[]): string {
 	return lines.join("\n");
 }
 
+/** Render rows as the markdown `crate | pinned | max_stable | delta` table. */
+export function formatCargoTable(rows: Row[]): string {
+	const lines = [
+		"| crate | pinned | max_stable | delta |",
+		"| --- | --- | --- | --- |",
+	];
+	for (const row of rows) {
+		const maxStable = row.latest ?? "⚠ fetch failed";
+		lines.push(`| ${row.name} | ${row.pinned} | ${maxStable} | ${row.delta} |`);
+	}
+	return lines.join("\n");
+}
+
+/** The no-op note emitted when the tree carries no Cargo.lock at all. */
+export const NO_CARGO_LOCK_NOTE =
+	"No Cargo.lock in tree — crates.io half skipped (no-op).";
+
+/**
+ * Render the crates.io half of the advisory: section header, table (or the
+ * no-op note when the tree has no Cargo.lock), and the stats line.
+ */
+export function renderCargoSummary(lockCount: number, rows: Row[]): string {
+	const stale = rows.filter((r) => r.delta === "stale").length;
+	const unknown = rows.filter((r) => r.delta === "unknown").length;
+	if (lockCount === 0) {
+		return ["### crates.io pins", "", NO_CARGO_LOCK_NOTE].join("\n");
+	}
+	return [
+		"### crates.io pins",
+		"",
+		formatCargoTable(rows),
+		"",
+		`${rows.length} crates.io pins across ${lockCount} Cargo.lock files · ${stale} stale · ${unknown} unresolved`,
+	].join("\n");
+}
+
 /** Walk the tree from `root`, collecting every package.json path. */
 export function discoverPackageJsons(root: string): string[] {
 	const found: string[] = [];
@@ -253,6 +397,22 @@ export function discoverPackageJsons(root: string): string[] {
 			if (entry.isDirectory()) {
 				if (!SKIP_DIRS.has(entry.name)) walk(join(dir, entry.name));
 			} else if (entry.name === "package.json") {
+				found.push(join(dir, entry.name));
+			}
+		}
+	};
+	walk(root);
+	return found.sort();
+}
+
+/** Walk the tree from `root`, collecting every Cargo.lock path. */
+export function discoverCargoLocks(root: string): string[] {
+	const found: string[] = [];
+	const walk = (dir: string) => {
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			if (entry.isDirectory()) {
+				if (!SKIP_DIRS.has(entry.name)) walk(join(dir, entry.name));
+			} else if (entry.name === "Cargo.lock") {
 				found.push(join(dir, entry.name));
 			}
 		}
@@ -283,9 +443,10 @@ async function fetchLatest(name: string): Promise<string | undefined> {
 	return undefined;
 }
 
-/** Batched (pool of CONCURRENCY) registry lookup, cached per run. */
-async function fetchAll(
+/** Batched (pool of CONCURRENCY) lookup, deduped, cached per run. */
+async function resolvePooled(
 	names: string[],
+	resolve: (name: string) => Promise<string | undefined>,
 ): Promise<Map<string, string | undefined>> {
 	const cache = new Map<string, string | undefined>();
 	const queue = [...new Set(names)];
@@ -293,13 +454,44 @@ async function fetchAll(
 	const worker = async () => {
 		while (cursor < queue.length) {
 			const name = queue[cursor++];
-			cache.set(name, await fetchLatest(name));
+			cache.set(name, await resolve(name));
 		}
 	};
 	await Promise.all(
 		Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker),
 	);
 	return cache;
+}
+
+/** Batched npm `dist-tags.latest` lookups, cached per run. */
+function fetchAll(names: string[]): Promise<Map<string, string | undefined>> {
+	return resolvePooled(names, fetchLatest);
+}
+
+async function fetchMaxStable(name: string): Promise<string | undefined> {
+	try {
+		const res = await fetch(`${CRATES_API}${encodeURIComponent(name)}`, {
+			headers: {
+				// crates.io 403s blank user agents, and its policy asks
+				// clients to identify themselves.
+				"User-Agent":
+					"stellarc-pins-current (advisory CI job; NevrLabs/stellarc)",
+				accept: "application/json",
+			},
+			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+		});
+		if (!res.ok) return undefined;
+		return maxStableFromCrateResponse(await res.text());
+	} catch {
+		return undefined; // warning row, never an error
+	}
+}
+
+/** Batched crates.io `max_stable_version` lookups, cached per run. */
+function fetchAllMaxStable(
+	names: string[],
+): Promise<Map<string, string | undefined>> {
+	return resolvePooled(names, fetchMaxStable);
 }
 
 function readJson(path: string): unknown {
@@ -311,8 +503,19 @@ function readJson(path: string): unknown {
 	}
 }
 
+function readText(path: string): string | undefined {
+	try {
+		return readFileSync(path, "utf8");
+	} catch (err) {
+		console.warn(`pins-current: skipping unreadable ${path}: ${err}`);
+		return undefined;
+	}
+}
+
 async function main(): Promise<void> {
 	const root = process.cwd();
+
+	// npm half (NEVR-724) — behavior and output unchanged.
 	const files = discoverPackageJsons(root);
 	const pins = collectPins(
 		files.map((path) => ({ path, manifest: readJson(path) })),
@@ -321,7 +524,22 @@ async function main(): Promise<void> {
 	const rows = computeRows(pins, (name) => cache.get(name));
 	const table = formatTable(rows);
 
+	// crates.io half (NEVR-824) — same semantics: exact registry pins,
+	// batched + cached lookups, warning rows on fetch failures, exit 0.
+	const locks = discoverCargoLocks(root);
+	const cargoPins = collectCargoPins(
+		locks.flatMap((path) => {
+			const text = readText(path);
+			return text === undefined ? [] : [{ path, text }];
+		}),
+	);
+	const cargoCache = await fetchAllMaxStable(cargoPins.map((pin) => pin.name));
+	const cargoRows = computeRows(cargoPins, (name) => cargoCache.get(name));
+
 	console.log(table);
+	console.log(
+		locks.length === 0 ? NO_CARGO_LOCK_NOTE : formatCargoTable(cargoRows),
+	);
 
 	const stale = rows.filter((r) => r.delta === "stale").length;
 	const unknown = rows.filter((r) => r.delta === "unknown").length;
@@ -331,6 +549,8 @@ async function main(): Promise<void> {
 		table,
 		"",
 		`${rows.length} exact pins across ${files.length} package.json files · ${stale} stale · ${unknown} unresolved`,
+		"",
+		renderCargoSummary(locks.length, cargoRows),
 		"",
 		"> Advisory only — stale pins never fail this job; deliberate holds are the executor's call (NEVR-724).",
 		"",

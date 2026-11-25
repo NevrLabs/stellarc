@@ -1,7 +1,8 @@
-# NEVR-724 — pins-current advisory job.
+# NEVR-724 / NEVR-824 — pins-current advisory job.
 #
-# Reports pin-vs-npm-latest deltas as a PR comment on any PR that touches a
-# package.json or bun.lock. Advisory by construction: every step exits 0 and
+# Reports pin-vs-npm-latest and pin-vs-crates.io-max_stable deltas as a PR
+# comment on any PR that touches a package.json, bun.lock, or Cargo.lock.
+# Advisory by construction: every step exits 0 and
 # registry/comment failures degrade to warnings, so deliberate holds
 # (effect-suite lockstep timing, hotkeys riders) stay possible — the job
 # reports, the executor decides. Standalone file: ci.yml / desktop.yml are
@@ -17,6 +18,7 @@ on:
     paths:
       - "**/package.json"
       - "bun.lock"
+      - "**/Cargo.lock"
       - "scripts/pins-current.ts"
       - ".github/workflows/pins-current.yml"
 
