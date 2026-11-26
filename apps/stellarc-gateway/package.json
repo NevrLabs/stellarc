@@ -12,10 +12,10 @@
 		"build": "bun build src/main.ts --target bun --outdir dist && cp src/console.html src/console.css src/console.js dist/ && bun src/artifact-check.ts"
 	},
 	"dependencies": {
-		"better-auth": "1.7.27",
+		"better-auth": "1.7.28",
 		"jose": "6.2.18",
 		"pg": "8.23.1",
 		"postgres": "4.1.1",
-		"effect": "4.1.5"
+		"effect": "4.1.6"
 	}
 }
