@@ -7,50 +7,101 @@ activation contracts.
 
 ## Operator decisions
 
-- **Drizzle is required** as Stellarc's ORM. Future Stellarc-managed apps
-  will need live schema changes (PostgreSQL data definition language, DDL).
+- **Drizzle is required for new Stellarc-owned persistence.** Future
+  Stellarc-managed apps will need live schema changes (PostgreSQL data
+  definition language, DDL).
+- **Keep Effect and Bun** on the server.
 - **Keep the current frontend.** Use React and the existing TanStack stack
   in `apps/web`. Foldkit is deferred; no pilot or migration in this change.
 
-## Adoption
+## Proposed adoption
 
-Effect and Bun stay. Use Drizzle table definitions and typed queries for new
-Stellarc-owned persistence. Migrate existing stores when changing them, not
-in a repo-wide rewrite. Keep explicit parameterized SQL where locking,
-leases or event ordering are clearer in SQL. When a mutation and an event
-must commit atomically, they must use the same physical transaction; do not
-call a separate pool or transaction from inside it. Keep Effect schemas at
-wire boundaries; a Drizzle row type is not runtime input validation.
+Use Drizzle table definitions and typed queries for new stores. Adopt it
+incrementally in existing stores when a change adds or materially reshapes
+persistence; routine fixes and in-flight changes do not require conversion.
+Keep Effect schemas at wire boundaries and explicit parameterized SQL where
+clearer for locking, leases or event ordering.
 
-Keep the existing checksum-registered migration runner and SQL files. Do not
-add a second migration ledger or use `drizzle-kit push` against deployed
-schemas. This decision neither replaces `@effect/sql-pg` nor requires a
-Drizzle prerelease. Start with an isolated store on the pinned adapter. The
-[0.45.4 postgres.js adapter][driver] changes client parsers and serializers
-when initialized; do not wrap a client shared with existing stores without
-proving their value mappings stay intact. Its [query implementation][session]
-can attach SQL and parameters to tracing spans; verify those attributes are
-not exported before adopting it in a production path.
+Start with the existing [Drizzle–Effect bridge][bridge], already used by
+[native Kaneo][kaneo-kernel]. Run its queries as Effects through the same
+`SqlClient` under `SqlClient.withTransaction`; do not await a builder outside
+that transaction context. This follows [ADR 0010's database boundary][otel]
+and keeps `@effect/sql-pg`. Verify that production spans export neither SQL
+text nor parameter values. The postgres.js adapter below is a fixture only,
+not an exception to ADR 0010 or a production adapter choice.
 
-## Live DDL is a separate delivery
+For the foundation database, keep the [checksum-registered SQL ledger][ledger].
+Do not add another ledger for that database, alter applied migrations, or use
+`drizzle-kit push` against deployed schemas. Leave the existing Kaneo and
+Gateway migration mechanisms unchanged. For each new store, run its typed
+queries against the SQL-migrated schema in CI to catch mapping drift.
 
-Drizzle supplies schema/query primitives, not a managed-app migration
-system. No runtime DDL privilege or API is added here. Before the first
-managed app needs it, specify a server-owned path for validated, versioned
-changes scoped to that app's storage. Separate the schema-change authority
-from the ordinary serving role. Accept declared schema changes, not app-
-supplied SQL. Define serialization, drift detection, durable audit, and
-failure recovery before enabling it. Prove cross-app and cross-org refusal,
-unchanged schema on failure, and recovery on a disposable PostgreSQL first.
+## Proposed live DDL scope
 
-## First executable check
+Here, a *Stellarc-managed app* means an out-of-process service in
+[ADR 0015's terms][apps] for which Stellarc manages storage. The target is
+that app's own database under [charter D9][charter], not the foundation
+schema shared by in-process plugins or a database managed by the app itself.
+This definition does not settle how org data is laid out inside an app DB.
+
+Today [`stellarc-api`][api] creates the foundation schema and runs migrations
+with the same PostgreSQL client it hands to the serving handlers. Before
+live DDL ships, separate the server's owner/migration role from its serving
+role. Prove the effective serving role cannot perform DDL or assume the owner
+role. Use a separate, app-scoped migration identity for app schema changes;
+verify cross-app and cross-org refusal, durable audit, rollback and recovery
+on disposable PostgreSQL before enabling it.
+
+Drizzle provides schema and query primitives, not this migration system.
+Accept validated, versioned declarations rather than app-supplied SQL.
+This ADR adds no runtime DDL API, role privileges or deployment changes.
+
+## Open before implementation
+
+- **First event-emitting store:** the store owner must prove a typed mutation
+  and its event append share one physical transaction, including rollback when
+  either fails and preservation of JSONB payloads, sequence and transaction ID.
+  The current [append helper][append] takes a postgres.js `TransactionSql`
+  and uses `tx.json`; it cannot join an Effect transaction by calling it with
+  a separate client. Qualify the append on the same `SqlClient` before the
+  first conversion. Do not wrap the existing pool in the fixture adapter:
+  it replaces parsers and serializers, including JSONB, so the existing
+  `tx.json` behavior cannot be assumed to survive.
+- **Live DDL design:** define tenant layout, authority, serialization, drift
+  detection and recovery before any managed-app rollout.
+
+## Executable evidence
 
 [`drizzle-schema.test.ts`](../../tests/bun/drizzle-schema.test.ts) exercises
-the pinned `drizzle-orm/postgres-js` on disposable PostgreSQL. A schema
-creation, table alteration and typed insert commit together. A second
-transaction rolls back both an added column and a row. This proves the
-adapter transaction primitive only, not a production role, dynamic schema
-planner, migration runner, native Effect adapter or live rollout.
+Drizzle 0.45.4 with postgres.js 4.1.1 on an isolated disposable database as its
+bootstrap superuser. It observes schema creation, table alteration and typed
+inserts after commit. The discriminating assertion is that a later `ALTER`
+and insert both disappear after an intentional abort. It covers text columns,
+not rollback of schema creation, remapped types, Effect transaction sharing,
+production role enforcement or live migration. The [fixture adapter][driver]
+changes its private client's type mappings. Its [query span code][session]
+has SQL and parameter attributes, but [the pinned tracer][tracer] has no OTel
+binding; recheck on upgrades.
 
+## Review
+
+| Finding | Author disposition |
+| --- | --- |
+| R1.1 — Role split | Identified current boot/serve behavior and gated live DDL on the role split. |
+| R1.2 — Managed-app meaning | Scoped the proposal to a dedicated database for a Stellarc-managed service app. |
+| R1.3 — Adapter and events | Reused the Effect bridge, retained ADR 0010 and gated the first event-emitting conversion. |
+| R1.4 — Decision scope | Separated decisions, proposals and open implementation gates; excluded incidental conversions. |
+| R1.5 — Migration ledger | Scoped the checksum ledger to foundation and required CI queries against the migrated schema. |
+| R1.6 — Evidence bounds | Narrowed the fixture claim and documented the pin and tracing limits; PR body tracks CI separately. |
+
+[bridge]: ../../packages/drizzle-effect/src/index.ts
+[kaneo-kernel]: ../../packages/kaneo/src/kernel.ts
+[otel]: 0010-opentelemetry-native.md#mandatory-instrumentation-per-module-enforced-by-review
+[ledger]: ../../packages/db/src/migrate.ts
+[apps]: 0015-apps-clients-and-arclet.md#6-what-an-app-is
+[charter]: ../v2-charter.md#events--storage
+[api]: ../../apps/stellarc-api/src/main.ts
+[append]: ../../packages/agents/src/store.ts
 [driver]: https://cdn.jsdelivr.net/npm/drizzle-orm@0.45.4/postgres-js/driver.js
 [session]: https://cdn.jsdelivr.net/npm/drizzle-orm@0.45.4/postgres-js/session.js
+[tracer]: https://cdn.jsdelivr.net/npm/drizzle-orm@0.45.4/tracing.js
