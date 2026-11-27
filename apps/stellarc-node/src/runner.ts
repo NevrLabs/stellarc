@@ -15,7 +15,10 @@ import type {
 	TaskResume,
 	Usage,
 } from "../../../packages/agents/src/protocol";
-import { RESUME_ITEM_RENDER_CAP } from "../../../packages/agents/src/protocol";
+import {
+	classifyProviderCapacity,
+	RESUME_ITEM_RENDER_CAP,
+} from "../../../packages/agents/src/protocol";
 
 // Re-exported for the unit tests: the canonical constant lives in the agents
 // package so the plane's replay budget and this renderer cannot drift apart.
@@ -80,6 +83,61 @@ const STOP: Record<string, RunOutcome> = {
 		failureCode: "agent_error.max_turn_requests",
 	},
 };
+
+/** The wrapped cause a thrown error carries: its message plus, when the ACP
+ * SDK attached one, the JSON-RPC `data` blob — Kiro reports throttling as a
+ * bare "Internal error" -32603 whose real cause ("The request was throttled
+ * by the service", any Retry-After) rides in `data` (NEVR-670; Multica
+ * #10677 precedent: classify from the provider's full fixed phrase, never a
+ * bare keyword). Pure — unit-tested directly. */
+export function thrownCause(error: unknown): string {
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "object" && error !== null
+				? JSON.stringify(error)
+				: String(error);
+	const data =
+		error instanceof Error && "data" in error && error.data != null
+			? typeof error.data === "string"
+				? error.data
+				: JSON.stringify(error.data)
+			: "";
+	return data ? `${message} ${data}` : message;
+}
+
+/** Catch-path outcome for a thrown ACP/JS error (NEVR-670): a provider
+ * rate/capacity throttle classifies `platform.provider_rate_limited` —
+ * transient provider capacity, parked with backoff by the plane, never the
+ * agent's fault — everything else keeps the generic
+ * `platform.protocol_error` bin. The raw cause + stderr tail stay the
+ * failureMessage, exactly the pre-classification shape. Pure — the catch
+ * block below runs exactly this. */
+export function thrownFailure(error: unknown, stderrTail: string): RunOutcome {
+	const cause = thrownCause(error);
+	return {
+		outcome: "failed",
+		failureCode: classifyProviderCapacity(cause)
+			? "platform.provider_rate_limited"
+			: "platform.protocol_error",
+		failureMessage: `${cause} ${stderrTail.slice(-500)}`.trim().slice(0, 4000),
+	};
+}
+
+/** Stop-reason table outcome: a mapped reason keeps its typed outcome; an
+ * unknown one is the agent's failure to produce a stop — never retried
+ * (agent_error.*), and deliberately NOT classified: this path has no thrown
+ * cause to classify, only the catch path does (NEVR-670 precision fix d).
+ * Pure — unit-tested directly. */
+export function stopOutcome(stopReason: string): RunOutcome {
+	return (
+		STOP[stopReason] ?? {
+			outcome: "failed" as const,
+			stopReason,
+			failureCode: "agent_error.prompt_failed" as FailureCode,
+		}
+	);
+}
 
 /** Folds ACP session/update notifications into transcript items (D22): parts
  * are transport-only, so consecutive message/thought chunks coalesce into one
@@ -714,26 +772,13 @@ export async function runTask(
 						costCurrency: uc?.currency,
 					}
 				: undefined;
-			const base = STOP[res.stopReason] ?? {
-				outcome: "failed" as const,
-				stopReason: res.stopReason,
-				failureCode: "agent_error.prompt_failed" as FailureCode,
-			};
+			const base = stopOutcome(res.stopReason);
 			return usage ? { ...base, usage } : base;
 		} catch (error) {
-			const message =
-				error instanceof Error
-					? error.message
-					: typeof error === "object"
-						? JSON.stringify(error)
-						: String(error);
-			return {
-				outcome: "failed",
-				failureCode: "platform.protocol_error",
-				failureMessage: `${message} ${stderrTail.slice(-500)}`
-					.trim()
-					.slice(0, 4000),
-			};
+			// Classification runs ONLY here, where the wrapped cause exists
+			// (NEVR-670): the stop-reason table path above has no cause to
+			// classify, so its unknown-stop fallback stays prompt_failed.
+			return thrownFailure(error, stderrTail);
 		}
 	})();
 

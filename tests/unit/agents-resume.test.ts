@@ -181,11 +181,16 @@ test("resumable failure codes are exactly the transcript-safe platform codes —
 	// mechanism cannot have corrupted the RECORDED transcript. Every item
 	// body is Schema-decoded at the ingest seam before insert, so platform
 	// faults truncate at worst — they cannot corrupt what persisted.
+	// platform.provider_rate_limited joined in NEVR-670: the fault is
+	// external and provider-side, PROVEN by the shared classifier from the
+	// wrapped cause — the protocol_error hold-out rationale (unproven
+	// wrapped cause) does not apply.
 	expect([...RESUMABLE_FAILURE_CODES].sort()).toEqual([
 		"platform.harness_exited",
 		"platform.harness_unavailable",
 		"platform.lease_expired",
 		"platform.node_error",
+		"platform.provider_rate_limited",
 	]);
 	// Held out pending one real case with evidence: a harness violating the
 	// protocol mid-stream (the attribution race moves most exits to
