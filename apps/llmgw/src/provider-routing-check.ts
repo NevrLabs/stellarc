@@ -480,11 +480,11 @@ async function fetchLifecycleChecks() {
 				const reader = getReader();
 				const read = reader.read.bind(reader);
 				let reads = 0;
-				reader.read = () => {
+				reader.read = (() => {
 					const work = read();
 					if (++reads === 2) pendingRead.release();
 					return work;
-				};
+				}) as typeof reader.read;
 				return reader;
 			}) as typeof body.getReader;
 			const result = await providerResponse(upstream, "chat", true, {
