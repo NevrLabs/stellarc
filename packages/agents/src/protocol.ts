@@ -317,6 +317,13 @@ export const Usage = Schema.Struct({
 			Schema.check(Schema.isPattern(/^[A-Z]{3}$/), Schema.isMaxLength(3)),
 		),
 	),
+	/** What the adapter contract verifiably says about the counters this
+	 * report carries (NEVR-686; Multica #10703 law). Absent = `session`
+	 * (cumulative for the harness session — today's documented semantics);
+	 * `execution` is claimed only where the adapter verifiably reports
+	 * per-execution totals (the CodeBuddy dual record's modelUsage half).
+	 * Scope is claimed, never inferred from the numbers themselves. */
+	scope: Schema.optional(Schema.Literals(["execution", "session"])),
 });
 export type Usage = typeof Usage.Type;
 
