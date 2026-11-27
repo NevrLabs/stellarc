@@ -64,14 +64,26 @@ export const McpServer = Schema.Struct({
 });
 export type McpServer = typeof McpServer.Type;
 
-/** Agent-level permission policy (NEVR-198). `autoAllow` holds glob-style
- * tool patterns (`read`, `grep`, `mcp:github.list_*`) that the node may
- * auto-approve without a human. A null policy preserves the legacy behaviour
- * exactly: every `session/request_permission` answered allow_once. */
+/** Agent-level permission policy (NEVR-198, NEVR-701). `autoAllow` holds
+ * glob-style tool patterns (`read`, `grep`, `mcp:github.list_*`) that the node
+ * may auto-approve without a human. `ask` holds patterns that must ALWAYS
+ * park for a human verdict — ask outranks autoAllow and the null-policy
+ * legacy alike (Paseo #9927 law: an explicit ask requirement survives every
+ * broad auto-accept default). Registration rejects an ask/autoAllow overlap
+ * on the same tool. A null policy preserves the legacy behaviour exactly:
+ * every `session/request_permission` answered allow_once. */
 export const PermissionPolicy = Schema.Struct({
 	autoAllow: Schema.Array(
 		Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(256))),
 	).pipe(Schema.check(Schema.isMaxLength(256))),
+	ask: Schema.Array(
+		Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(256))),
+	).pipe(
+		Schema.check(Schema.isMaxLength(256)),
+		// Decoding default so policies stored before the ask class (and
+		// registration bodies that omit it) decode with ask = [].
+		Schema.withDecodingDefaultType(Effect.sync(() => [] as Array<string>)),
+	),
 });
 export type PermissionPolicy = typeof PermissionPolicy.Type;
 

@@ -20,7 +20,7 @@ import {
 	agentsHttp,
 	staticOperatorAuth,
 } from "../../packages/agents/src/index";
-import type { TaskDescriptor } from "../../packages/agents/src/protocol";
+import type { Item, TaskDescriptor } from "../../packages/agents/src/protocol";
 import { migrate } from "../../packages/db/src/migrate";
 import { disposablePostgres } from "../helpers/postgres";
 
@@ -242,11 +242,15 @@ test("A3 end to end: task → node daemon → ACP agent → transcript + complet
 	expect(done.task.stopReason).toBe("end_turn");
 	expect(done.task.nativeSessionId).toMatch(/^fake-/);
 	const kinds = done.items.map((i: { kind: string }) => i.kind);
+	// NEVR-701: the null-policy auto-allow now leaves its audit item between
+	// the tool_call and its result — an auto-answer is distinguishable from
+	// a park in the trail.
 	expect(kinds).toEqual([
 		"config",
 		"message",
 		"thinking",
 		"tool_call",
+		"approval",
 		"tool_result",
 		"message",
 	]);
@@ -255,9 +259,13 @@ test("A3 end to end: task → node daemon → ACP agent → transcript + complet
 	const user = done.items[1].body;
 	expect(user.role).toBe("user");
 	expect(user.content[0].text).toContain("You are terse.");
-	expect(done.items[4].body.output).toEqual({ permission: "yes" });
+	expect(done.items[4].body).toMatchObject({
+		status: "auto_allowed",
+		decidedBy: "policy",
+	});
+	expect(done.items[5].body.output).toEqual({ permission: "yes" });
 	// Chunks coalesce: one assistant item, not one per chunk.
-	expect(done.items[5].body.content[0].text).toBe("Hello, world");
+	expect(done.items[6].body.content[0].text).toBe("Hello, world");
 	const events = await p.db.sql<{ plugin_type: string; actor: string }[]>`
     SELECT plugin_type, actor FROM event WHERE org='acme' ORDER BY seq`;
 	expect(events.map((e) => e.plugin_type)).toEqual([
@@ -1008,7 +1016,7 @@ test("P6 plane-side redaction: a node that reports a credential-bearing remote g
 /** registerNodeAndAgent variant that takes a permissionPolicy. */
 async function registerNodeAndPolicyAgent(
 	p: Awaited<ReturnType<typeof plane>>,
-	permissionPolicy: { autoAllow: string[] } | undefined,
+	permissionPolicy: { autoAllow: string[]; ask?: string[] } | undefined,
 ) {
 	const n = await p.op("POST", "nodes", { name: "laptop" });
 	expect(n.status).toBe(201);
@@ -1307,10 +1315,19 @@ test("P4 allowlisted tool auto-approves with no plane round-trip", async () => {
 	expect(done.outcome).toBe("completed");
 	const r = await p.op("GET", `tasks/${t.body.id}`);
 	expect(r.body.task.status).toBe("completed");
-	// No park, no approval item, no permission events.
-	expect(
-		r.body.items.filter((i: { kind: string }) => i.kind === "approval"),
-	).toHaveLength(0);
+	// No park and no permission events — but the auto-allow is AUDITED
+	// (NEVR-701): one approval item, settled by the policy itself, so a
+	// policy answer is distinguishable from a park in the trail.
+	const autoItems = r.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(autoItems).toHaveLength(1);
+	expect(autoItems[0].body).toMatchObject({
+		status: "auto_allowed",
+		decidedBy: "policy",
+	});
+	expect(autoItems[0].body.decidedAt).toBeTruthy();
+	expect(autoItems[0].body.request.toolName).toBe("deploy");
 	const events = await p.db.sql<{ plugin_type: string }[]>`
     SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%'`;
 	expect(events).toHaveLength(0);
@@ -1344,9 +1361,22 @@ test("P5 negative control: no policy → legacy behaviour, everything auto-allow
 	expect(done.outcome).toBe("completed");
 	const r = await p.op("GET", `tasks/${t.body.id}`);
 	expect(r.body.task.status).toBe("completed");
-	expect(
-		r.body.items.filter((i: { kind: string }) => i.kind === "approval"),
-	).toHaveLength(0);
+	// Legacy answers are byte-compatible (still allow_once, still no park,
+	// no permission events) except the new audit item (NEVR-701): the
+	// null-policy auto-allow is recorded with decidedBy "policy".
+	const autoItems = r.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(autoItems).toHaveLength(1);
+	expect(autoItems[0].body).toMatchObject({
+		status: "auto_allowed",
+		decidedBy: "policy",
+	});
+	expect(autoItems[0].body.decidedAt).toBeTruthy();
+	const toolResult = r.body.items.find(
+		(i: { kind: string }) => i.kind === "tool_result",
+	);
+	expect(toolResult.body.output).toEqual({ picked: "yes" });
 	const events = await p.db.sql<{ plugin_type: string }[]>`
     SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%'`;
 	expect(events).toHaveLength(0);
@@ -1637,6 +1667,348 @@ test("P8 two concurrent requests each park and are decided individually (NEVR-21
 	const requeues = await p.db.sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM event WHERE org='acme' AND plugin_type='agents:task_requeued'`;
 	expect(requeues[0].n).toBe(0);
+});
+
+test("P9 ask outranks autoAllow (Paseo #9927 law, NEVR-701): a tool matching both parks, never auto-answers", async () => {
+	const p = await plane(3000);
+	// Register a VALID policy (ask disjoint from autoAllow), then patch the
+	// stored row to the #9927 shape — ask and autoAllow globs that both match
+	// one tool. Registration rejects exactly this overlap (P10), but the
+	// runner must still evaluate ask FIRST for any policy that reaches it:
+	// rows written before the check, a future update path, or a manual fix.
+	// This is the defense-in-depth the law demands — the Paseo bug was an
+	// auto-accept default steamrolling an explicit ask requirement.
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		ask: ["mcp:github.create_*"],
+		autoAllow: ["mcp:github.list_*"],
+	});
+	await p.db
+		.sql`UPDATE agent SET permission_policy=${p.db.sql.json({ ask: ["mcp:github.create_*"], autoAllow: ["mcp:github.*"] })} WHERE id=${agentId}`;
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park tool=mcp:github.create_issue",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	// The request PARKS — task needs_permission, pending approval item,
+	// task_permission_requested event — despite the autoAllow glob also
+	// matching. NOT auto-answered: no auto_allowed item exists.
+	const parked = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "needs_permission" ? r.body : undefined;
+	});
+	const approvals = parked.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(approvals).toHaveLength(1);
+	expect(approvals[0].body.status).toBe("pending");
+	expect(approvals[0].body.request.toolName).toBe("mcp:github.create_issue");
+	// A grant settles it like any park: allow_once selected, run completes.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("completed");
+	expect(
+		after.body.items
+			.filter((i: { kind: string }) => i.kind === "approval")
+			.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted"]);
+	const msg = after.body.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("granted-and-ran"); // allow_once was selected
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+});
+
+test("P10 registration rejects an ask/autoAllow glob overlap naming both patterns; a null policy registers cleanly (NEVR-701)", async () => {
+	const p = await plane();
+	const n = await p.op("POST", "nodes", { name: "laptop" });
+	expect(n.status).toBe(201);
+	const client = new PlaneClient(p.url, n.body.token);
+	await client.call("hello", { version: "test", harnesses: ["fake"] });
+	const register = (permissionPolicy: unknown, name: string) =>
+		p.op("POST", "agents", {
+			name,
+			nodeId: n.body.node.id,
+			harness: "fake",
+			permissionPolicy,
+		});
+	// Glob intersection, not string equality: `mcp:github.*` overlaps
+	// `mcp:github.create_*` (both match mcp:github.create_issue) → 409
+	// naming BOTH patterns.
+	const overlap = await register(
+		{ ask: ["mcp:github.create_*"], autoAllow: ["mcp:github.*"] },
+		"overlap-glob",
+	);
+	expect(overlap.status).toBe(409);
+	expect(overlap.body._tag).toBe("Conflict");
+	expect(overlap.body.message).toContain("mcp:github.create_*");
+	expect(overlap.body.message).toContain("mcp:github.*");
+	// Exact string overlap too.
+	const same = await register(
+		{ ask: ["deploy"], autoAllow: ["deploy"] },
+		"overlap-exact",
+	);
+	expect(same.status).toBe(409);
+	expect(same.body.message).toContain("deploy");
+	// Disjoint globs register cleanly — the realistic scoped config.
+	const disjoint = await register(
+		{ ask: ["mcp:github.create_*"], autoAllow: ["mcp:github.list_*"] },
+		"disjoint",
+	);
+	expect(disjoint.status).toBe(201);
+	expect(disjoint.body.permissionPolicy).toEqual({
+		ask: ["mcp:github.create_*"],
+		autoAllow: ["mcp:github.list_*"],
+	});
+	// A null policy (no policy at all) is the documented bypass mode.
+	const bypass = await register(undefined, "bypass");
+	expect(bypass.status).toBe(201);
+	expect(bypass.body.permissionPolicy).toBeNull();
+});
+
+test("P11 reject-only options park instead of a silent cancelled (NEVR-701): deny selects the reject option", async () => {
+	const p = await plane(3000);
+	// NULL policy — the worst case today: the legacy path silently answered
+	// cancelled. The request must park so the operator sees the shape.
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, undefined);
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park reject-only",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	const parked = await waitFor(async () => {
+		const r = await p.op("GET", `tasks/${t.body.id}`);
+		return r.body.task.status === "needs_permission" ? r.body : undefined;
+	});
+	// Parked, and the offered options are visible to the operator — both
+	// reject kinds, no allow kind.
+	const approvals = parked.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(approvals).toHaveLength(1);
+	expect(approvals[0].body.status).toBe("pending");
+	expect(
+		approvals[0].body.request.options.map((o: { kind: string }) => o.kind),
+	).toEqual(["reject_once", "reject_always"]);
+	// Deny: the reject_once option is SELECTED (not a bare cancelled) — the
+	// harness log records the human's actual choice.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "deny",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("failed");
+	expect(after.body.task.failureCode).toBe("agent_error.permission_denied");
+	// NOTE: the harness's post-verdict transcript (its "rejected:<picked>"
+	// message and the tool_call_update carrying the selected option) cannot
+	// land here — the deny already failed the row, so the node's final flush
+	// 409s. The WIRE answer itself (deny selects reject_once) is proven at
+	// the harness seam in P13 below, on a direct run with stub hooks.
+	const settled = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(settled).toHaveLength(1);
+	expect(settled[0].body.status).toBe("denied");
+	expect(settled[0].body.decidedBy).toBe("operator");
+});
+
+test("P12 reject-only options parked, then granted (NEVR-701): outcome cancelled, never a reject option; the item records the operator's grant", async () => {
+	const p = await plane(3000);
+	// Allowlisted agent — the second silent-cancel site: today the
+	// auto-allow path answered cancelled without anyone seeing the request.
+	const { token, agentId } = await registerNodeAndPolicyAgent(p, {
+		autoAllow: ["deploy"],
+	});
+	const t = await p.op("POST", "tasks", {
+		agentId,
+		prompt: "perm-park reject-only",
+	});
+	const client = new PlaneClient(p.url, token);
+	const c = await claim(client);
+	const running = executeClaimed(
+		client,
+		{
+			server: p.url,
+			token,
+			workRoot: await workRoot(),
+			concurrency: 1,
+			harnesses: { fake: FAKE },
+		},
+		c.task,
+	);
+	await waitFor(async () =>
+		(await p.op("GET", `tasks/${t.body.id}`)).body.task.status ===
+		"needs_permission"
+			? true
+			: undefined,
+	);
+	// Grant on a request with no allow kind: the protocol's no-selection
+	// settle (cancelled) — selecting a reject option would misattribute the
+	// operator's choice in the harness's own log.
+	expect(
+		(
+			await p.op("POST", `tasks/${t.body.id}/permission`, {
+				decision: "grant",
+			})
+		).status,
+	).toBe(200);
+	const f = await running;
+	expect(f.outcome).toBe("completed");
+	const after = await p.op("GET", `tasks/${t.body.id}`);
+	expect(after.body.task.status).toBe("completed");
+	const msg = after.body.items
+		.filter((i: { kind: string }) => i.kind === "message")
+		.map(
+			(i: { body: { content: { text: string }[] } }) => i.body.content[0].text,
+		)
+		.join("");
+	expect(msg).toContain("rejected:none"); // cancelled outcome, no selection
+	// The approval pair records the OPERATOR's actual decision — granted —
+	// not a policy answer and not a phantom denial.
+	const approvals = after.body.items.filter(
+		(i: { kind: string }) => i.kind === "approval",
+	);
+	expect(
+		approvals.map((a: { body: { status: string } }) => a.body.status),
+	).toEqual(["pending", "granted"]);
+	const events = await p.db.sql<{ plugin_type: string }[]>`
+    SELECT plugin_type FROM event WHERE org='acme' AND plugin_type LIKE 'agents:task_permission%' ORDER BY seq`;
+	expect(events.map((e) => e.plugin_type)).toEqual([
+		"agents:task_permission_requested",
+		"agents:task_permission_granted",
+	]);
+});
+
+test("P13 reject-only wire answers at the harness seam (NEVR-701): deny selects reject_once, grant settles cancelled — never a reject option on a grant", async () => {
+	// A deny fails the plane row before the node can flush the harness's
+	// post-verdict transcript, so the WIRE answers are proven here instead:
+	// a direct runTask with stub hooks captures every item in-process. The
+	// agent is null-policy — the configuration whose silent `cancelled` this
+	// issue removes.
+	const root = await workRoot();
+	const run = async (verdict: "granted" | "denied") => {
+		const items: Item[] = [];
+		let parked = false;
+		const outcome = await runTask(
+			{
+				id: `t-p13-${verdict}`,
+				org: "acme",
+				attempt: 1,
+				prompt: "perm-park reject-only",
+				subjectRef: null,
+				leaseMs: 60_000,
+				agent: {
+					id: "agt_p13",
+					name: "scoped",
+					harness: "fake",
+					model: null,
+					instructions: "",
+					mcpServers: [],
+					permissionPolicy: null,
+				},
+			},
+			FAKE,
+			{
+				workdir: join(root, `p13-${verdict}`),
+				heartbeatMs: 100,
+				onStart: async () => {},
+				onItems: async (batch) => {
+					items.push(...batch);
+				},
+				heartbeat: async () => {
+					if (parked) {
+						parked = false;
+						return { cancelled: false, permission: verdict };
+					}
+					return { cancelled: false };
+				},
+				onPermissionRequest: async () => {
+					parked = true;
+				},
+			},
+		);
+		return { outcome, items };
+	};
+	// The reject-only request PARKS (never a silent answer)…
+	const denied = await run("denied");
+	expect(denied.outcome.outcome).toBe("completed");
+	const statuses = denied.items
+		.filter((i) => i.kind === "approval")
+		.map((i) => (i.body as { status: string }).status);
+	expect(statuses).toEqual(["pending", "denied"]);
+	// …and the deny VERDICT selects reject_once on the wire: the harness
+	// received optionId "no", not a cancelled outcome.
+	const deniedResult = denied.items.find((i) => i.kind === "tool_result");
+	expect(deniedResult).toBeDefined();
+	expect(((deniedResult as Item).body as { output: unknown }).output).toEqual({
+		picked: "no",
+	});
+	// A grant settles cancelled — the no-selection outcome — and NEVER
+	// selects a reject-kind option: the harness received no optionId.
+	const granted = await run("granted");
+	expect(granted.outcome.outcome).toBe("completed");
+	const grantedStatuses = granted.items
+		.filter((i) => i.kind === "approval")
+		.map((i) => (i.body as { status: string }).status);
+	expect(grantedStatuses).toEqual(["pending", "granted"]);
+	const grantedResult = granted.items.find((i) => i.kind === "tool_result");
+	expect(grantedResult).toBeDefined();
+	expect(((grantedResult as Item).body as { output: unknown }).output).toEqual({
+		picked: "none",
+	});
+	const grantedMsg = granted.items
+		.filter((i) => i.kind === "message")
+		.map(
+			(i) =>
+				((i.body as { content?: Array<{ text?: string }> }).content ?? [])[0]
+					?.text ?? "",
+		)
+		.join("");
+	expect(grantedMsg).toContain("rejected:none");
 });
 
 // ── attempt continuity (NEVR-415) ───────────────────────────────────────────
