@@ -75,7 +75,10 @@ jobs:
               || true
           )"
           if [ -n "$comment_id" ]; then
-            req -X PATCH --data "$payload" "${api}/${comment_id}" >/dev/null \
+            # Flat update endpoint: PATCH /repos/{owner}/{repo}/issues/comments/{id}.
+            # The nested /issues/{n}/comments/{id} form 404s — that URL shape is
+            # only valid for list (GET) and create (POST), which use $api above.
+            req -X PATCH --data "$payload" "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" >/dev/null \
               || echo "::warning::pins-current: failed to update PR comment"
           else
             req -X POST --data "$payload" "$api" >/dev/null \
