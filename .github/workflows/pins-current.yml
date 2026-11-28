@@ -1,7 +1,8 @@
-# NEVR-724 — pins-current advisory job.
+# NEVR-724 / NEVR-824 — pins-current advisory job.
 #
-# Reports pin-vs-npm-latest deltas as a PR comment on any PR that touches a
-# package.json or bun.lock. Advisory by construction: every step exits 0 and
+# Reports pin-vs-npm-latest and pin-vs-crates.io-max_stable deltas as a PR
+# comment on any PR that touches a package.json, bun.lock, or Cargo.lock.
+# Advisory by construction: every step exits 0 and
 # registry/comment failures degrade to warnings, so deliberate holds
 # (effect-suite lockstep timing, hotkeys riders) stay possible — the job
 # reports, the executor decides. Standalone file: ci.yml / desktop.yml are
@@ -17,6 +18,7 @@ on:
     paths:
       - "**/package.json"
       - "bun.lock"
+      - "**/Cargo.lock"
       - "scripts/pins-current.ts"
       - ".github/workflows/pins-current.yml"
 
@@ -73,7 +75,10 @@ jobs:
               || true
           )"
           if [ -n "$comment_id" ]; then
-            req -X PATCH --data "$payload" "${api}/${comment_id}" >/dev/null \
+            # Flat update endpoint: PATCH /repos/{owner}/{repo}/issues/comments/{id}.
+            # The nested /issues/{n}/comments/{id} form 404s — that URL shape is
+            # only valid for list (GET) and create (POST), which use $api above.
+            req -X PATCH --data "$payload" "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" >/dev/null \
               || echo "::warning::pins-current: failed to update PR comment"
           else
             req -X POST --data "$payload" "$api" >/dev/null \
