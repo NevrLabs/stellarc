@@ -1,9 +1,16 @@
 {
-	"jsPlugins": ["@shadcn/lint"],
+	"jsPlugins": [
+		"@shadcn/lint",
+		{ "name": "design-system", "specifier": "outtrue" }
+	],
 	"settings": {
 		"shadcn": {
 			"note": "NEVR-455 design-contract pass on apps/web (day-one, blocking, no budget). Contracts live here: tune allowlists and contracts, never delete rules. Owned components in src/components/ui style themselves; the override below exempts only that directory. NEVR-475 took the pass to zero exceptions: shell vocabulary (.tl-bar.cut, .mini, .search .k) is emitted from src/styles/app.css 1:1 with docs/design/shell/shell.css, Menu owns its trigger chrome via the variant prop, and the dead prototype hooks (lgroup/backlog/mc/ph) were deleted from markup. Keep it at zero: a new entry here is a recorded decision, never a convenience.",
 			"ui": "@/components/ui"
+		},
+		"design-system": {
+			"note": "NEVR-856 — outtrue 0.2.0 as the second design-system gate (TRIAL→ADOPT: the probe's 45 findings shrank to a recorded zero in the landing PR; every error names its fix). The recommended 15-rule set runs at error in the same lint:design pass as @shadcn/lint — outtrue covers the rule classes shadcn does not (rebuilt primitives, icon-button a11y, closed variants, duplicate primitives, template classnames, wrapper contracts). primitives = src/components/ui, so wrapped-libraries passes by construction: ui/menu.tsx lives inside the primitives folder and its @base-ui/react/menu import IS the wrapper contract — no allowlist entry exists or is needed. The three no-rebuilt-primitives overrides below are the recorded decisions for all 26 raw <button> sites (shell 14, board 9, home 3) — vocabulary chrome the mockup port owns, where Button's .btn/.ghost/.pri variants would restyle the port: (1) src/components/shell/** — the shell chrome is a 1:1 port of docs/design/shell/shell.css emitted from src/styles/app.css; the rail .v, tab-strip .tab-btn/.x/.tabs-more/.newtab, sidebar .row/.ib and header .search buttons ARE that port's vocabulary. (2) src/components/board/** — the board surfaces are the mockup port class-for-class: .ib icon buttons (add ticket, prev/next month, favorite), .vtab view tabs (role=tab), .x filter-chip close; Button is already used wherever the mockup chrome fits (New ticket, Filter, Display, Today, Triage with agent). (3) src/components/home/** — the .seg inbox filter is a native fieldset group (NEVR-505 a11y) in mockup vocabulary; its buttons carry no .btn chrome by design, and the toolbar's real CTA is already Button variant=primary. Each entry turns off ONLY no-rebuilt-primitives — every other rule (including no-template-classname) still fires on these surfaces. A new entry here is a recorded decision, never a convenience.",
+			"primitives": "src/components/ui"
 		}
 	},
 	"rules": {
@@ -17,7 +24,22 @@
 		"shadcn/no-arbitrary-values": ["error"],
 		"shadcn/no-inline-styles": ["error"],
 		"shadcn/no-unknown-classes": ["error"],
-		"shadcn/require-static-classes": ["error"]
+		"shadcn/require-static-classes": ["error"],
+		"design-system/classname-passthrough": ["error"],
+		"design-system/closed-variants": ["error"],
+		"design-system/icon-button-label": ["error"],
+		"design-system/known-tokens": ["error"],
+		"design-system/layout-only-classname": ["error"],
+		"design-system/no-duplicate-primitives": ["error"],
+		"design-system/no-important": ["error"],
+		"design-system/no-raw-values": ["error"],
+		"design-system/no-reach-in-selectors": ["error"],
+		"design-system/no-rebuilt-primitives": ["error"],
+		"design-system/no-template-classname": ["error"],
+		"design-system/one-way-imports": ["error"],
+		"design-system/prefer-shorthand": ["error"],
+		"design-system/primitive-naming": ["error"],
+		"design-system/wrapped-libraries": ["error"]
 	},
 	"overrides": [
 		{
@@ -25,6 +47,24 @@
 			"rules": {
 				"shadcn/no-restyle": "off",
 				"shadcn/no-arbitrary-values": "off"
+			}
+		},
+		{
+			"files": ["src/components/shell/**"],
+			"rules": {
+				"design-system/no-rebuilt-primitives": "off"
+			}
+		},
+		{
+			"files": ["src/components/board/**"],
+			"rules": {
+				"design-system/no-rebuilt-primitives": "off"
+			}
+		},
+		{
+			"files": ["src/components/home/**"],
+			"rules": {
+				"design-system/no-rebuilt-primitives": "off"
 			}
 		}
 	]

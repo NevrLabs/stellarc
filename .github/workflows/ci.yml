@@ -187,6 +187,19 @@ jobs:
   # milliseconds) guards the Tailwind worker on cold CI machines: without it a
   # slow theme build silently falls back to the bundled grammar and
   # no-unknown-classes degrades to checking less.
+  #
+  # NEVR-856 — outtrue 0.2.0 joined the same pass as the second design-system
+  # gate (TRIAL→ADOPT: the 45 probe findings shrank to a recorded zero in the
+  # landing PR). One config, one pass: .oxlintrc.json's jsPlugins block loads
+  # @shadcn/lint AND design-system (outtrue), so this job's existing
+  # `lint:design` step now checks both — outtrue's recommended 15-rule set
+  # covers the rule classes @shadcn/lint does not (rebuilt primitives,
+  # icon-button a11y, closed variants, duplicate primitives, template
+  # classnames, wrapper contracts). Recorded exceptions live in the
+  # settings.design-system note in .oxlintrc.json (the three
+  # no-rebuilt-primitives surfaces: shell/board/home mockup-vocabulary
+  # chrome); no baseline counts exist on the vehicle. Negative controls
+  # recorded in tests/bun/design-contracts.test.ts (NEVR-856 block).
   ui-design-contracts:
     runs-on: ubuntu-22.04
     env:

@@ -4,6 +4,7 @@ import { Ico } from "@/components/ui/icon";
 import { recentCollection } from "@/data/collections";
 import { useSidebarSections } from "@/data/queries";
 import type { Ref, ViewId } from "@/fixtures/data";
+import { cn } from "@/lib/cn";
 
 function SidebarRow({
 	view,
@@ -27,7 +28,7 @@ function SidebarRow({
 	return (
 		<button
 			type="button"
-			className={`row ${two ? "two" : ""} ${active ? "on" : ""}`}
+			className={cn("row", two && "two", active && "on")}
 			data-testid="side-row"
 			data-item={item.id}
 			onClick={() => {
@@ -36,7 +37,7 @@ function SidebarRow({
 			}}
 		>
 			{item.status ? (
-				<span className={`st ${item.status}`} />
+				<span className={cn("st", item.status)} />
 			) : item.icon ? (
 				<Ico n={item.icon} sm />
 			) : null}

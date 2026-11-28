@@ -6,6 +6,7 @@ import { ROUTE_OF } from "@/components/shell/nav";
 import { Ico } from "@/components/ui/icon";
 import { boardViewsCollection, sectionsCollection } from "@/data/collections";
 import type { BoardViewId, ViewId } from "@/fixtures/data";
+import { cn } from "@/lib/cn";
 import { closeTab, openTab, selectTab, tabsStore } from "@/state/tabs";
 
 export interface Target {
@@ -139,7 +140,7 @@ export function Tabs() {
 					return (
 						<li
 							key={tab.id}
-							className={`tab ${tab.id === activeId ? "on" : ""}`}
+							className={cn("tab", tab.id === activeId && "on")}
 							data-testid="tab"
 							title={title}
 						>
@@ -175,7 +176,7 @@ export function Tabs() {
 			</ul>
 			<button
 				type="button"
-				className={`tabs-more ${hidden > 0 ? "show" : ""}`}
+				className={cn("tabs-more", hidden > 0 && "show")}
 				data-testid="tabs-more"
 				title="All tabs"
 				onClick={() => {

@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Ico } from "@/components/ui/icon";
 import { useBoardTickets, useInbox } from "@/data/queries";
 import type { Ticket } from "@/fixtures/data";
+import { cn } from "@/lib/cn";
 
 export function InboxView() {
 	const inbox = useInbox() ?? [];
@@ -9,8 +10,8 @@ export function InboxView() {
 		<div className="inbox" data-testid="inbox-view">
 			{inbox.map((n) => (
 				<div className="it" key={n.id}>
-					<span className={`u ${n.unread ? "" : "no"}`} />
-					<span className={`mini ${n.agent ? "bot" : ""}`}>
+					<span className={cn("u", !n.unread && "no")} />
+					<span className={cn("mini", n.agent && "bot")}>
 						{n.agent ? <Ico n="bot" sm /> : n.who.slice(0, 2)}
 					</span>
 					<span className="txt">
@@ -43,7 +44,7 @@ function ListRowLite({ t }: { t: Ticket }) {
 					<Ico n="user" sm />
 				</span>
 			) : (
-				<span className={`av ${t.agent ? "bot" : ""}`}>{t.who[0]}</span>
+				<span className={cn("av", t.agent && "bot")}>{t.who[0]}</span>
 			)}
 		</div>
 	);
