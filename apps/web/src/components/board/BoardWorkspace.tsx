@@ -7,6 +7,7 @@ import {
 	useStatuses,
 } from "@/data/queries";
 import type { BoardViewId, Priority, StatusId, Ticket } from "@/fixtures/data";
+import { cn } from "@/lib/cn";
 import { fmtDate, isoOf } from "@/lib/format";
 import { PRIORITY_ICONS, PRIORITY_LABELS, STATUS_ICONS } from "@/lib/icons";
 
@@ -14,7 +15,7 @@ import { PRIORITY_ICONS, PRIORITY_LABELS, STATUS_ICONS } from "@/lib/icons";
 
 function Prio({ pri }: { pri: Priority }) {
 	return (
-		<span className={`prio prio-${pri}`} title={PRIORITY_LABELS[pri]}>
+		<span className={cn("prio", `prio-${pri}`)} title={PRIORITY_LABELS[pri]}>
 			<Ico n={PRIORITY_ICONS[pri]} sm />
 		</span>
 	);
@@ -41,7 +42,7 @@ function Who({ t }: { t: Ticket }) {
 
 function Sti({ s }: { s: StatusId }) {
 	return (
-		<span className={`sti sti-${s}`}>
+		<span className={cn("sti", `sti-${s}`)}>
 			<Ico n={STATUS_ICONS[s]} sm />
 		</span>
 	);
@@ -49,7 +50,7 @@ function Sti({ s }: { s: StatusId }) {
 
 function Card({ t }: { t: Ticket }) {
 	return (
-		<article className={`card ${t.live ? "is-live" : ""}`} data-key={t.key}>
+		<article className={cn("card", t.live && "is-live")} data-key={t.key}>
 			<div className="c1">
 				<span className="k">{t.key}</span>
 				<Who t={t} />
@@ -274,7 +275,7 @@ function BoardTimeline({ tickets }: { tickets: Ticket[] }) {
 						return (
 							<div
 								key={dayKey(i)}
-								className={`tl-d ${wk(d) ? "wk" : ""} ${i === today ? "today" : ""}`}
+								className={cn("tl-d", wk(d) && "wk", i === today && "today")}
 							>
 								<small>{"SMTWTFS"[d.getDay()]}</small>
 								<span>{d.getDate()}</span>
@@ -329,7 +330,7 @@ function BoardTimeline({ tickets }: { tickets: Ticket[] }) {
 						return (
 							<div
 								key={t.key}
-								className={`tl-bar ${t.live ? "is-live" : ""} ${a < 0 ? "cut" : ""}`}
+								className={cn("tl-bar", t.live && "is-live", a < 0 && "cut")}
 								style={
 									{ "--r": r, "--a": a2, "--b": b + 1 } as React.CSSProperties
 								}
@@ -389,13 +390,13 @@ function BoardCalendar({ tickets }: { tickets: Ticket[] }) {
 					return (
 						<div
 							key={iso}
-							className={`cal-c ${out ? "out" : ""} ${iso === today ? "today" : ""}`}
+							className={cn("cal-c", out && "out", iso === today && "today")}
 						>
 							<span className="cal-n">{d.getDate()}</span>
 							{due.map((t) => (
 								<div
 									key={t.key}
-									className={`cal-ev ${t.live ? "is-live" : ""}`}
+									className={cn("cal-ev", t.live && "is-live")}
 									title={t.key}
 								>
 									<Sti s={t.status} />
@@ -527,7 +528,7 @@ export function BoardWorkspace({
 						<button
 							key={v.id}
 							type="button"
-							className={`vtab ${v.id === bview ? "on" : ""}`}
+							className={cn("vtab", v.id === bview && "on")}
 							role="tab"
 							aria-selected={v.id === bview}
 							data-testid={`bview-${v.id}`}
@@ -541,7 +542,7 @@ export function BoardWorkspace({
 						<button
 							key={v.id}
 							type="button"
-							className={`vtab ${v.id === bview ? "on" : ""}`}
+							className={cn("vtab", v.id === bview && "on")}
 							role="tab"
 							aria-selected={v.id === bview}
 							data-testid={`bview-${v.id}`}

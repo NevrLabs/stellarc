@@ -105,7 +105,16 @@ test("NEVR-455 contracts: six rules at error severity, ui dir may style itself, 
 	expect(uiOverride, "component-directory override").toBeDefined();
 	expect(uiOverride?.rules?.["shadcn/no-restyle"]).toBe("off");
 	expect(uiOverride?.rules?.["shadcn/no-arbitrary-values"]).toBe("off");
-	expect(cfg.overrides?.length).toBe(1);
+	// NEVR-856 grew the block to four entries: this shadcn exemption plus
+	// three recorded no-rebuilt-primitives surfaces (pinned by the NEVR-856
+	// tests below). Exactly one entry may ever turn a shadcn rule off.
+	expect(cfg.overrides?.length).toBe(4);
+	expect(
+		cfg.overrides?.filter((o) =>
+			Object.keys(o.rules ?? {}).some((r) => r.startsWith("shadcn/")),
+		).length,
+		"only the ui exemption may ever silence a shadcn rule",
+	).toBe(1);
 	// Day-one blocking posture: no recorded debt budget may exist — the tree
 	// itself is the baseline, and any violation fails the pass.
 	expect(
@@ -359,6 +368,215 @@ test("NEVR-475 catch behaviour: un-exempted surfaces redden their exact rule", (
 		expect(output).toContain("px-[7px]");
 		expect(output).toContain("shadcn(no-restyle)");
 		expect(output).toContain('"org" is not allowed on <Button>');
+	} finally {
+		rmSync(probe, { force: true });
+	}
+});
+
+/**
+ * NEVR-856 — outtrue 0.2.0 as the second design-system gate (TRIAL→ADOPT).
+ *
+ * The scout's 45-finding probe (26 no-rebuilt-primitives + 19
+ * no-template-classname) shrank to a recorded zero in this PR: the 19
+ * template classnames became cn() compositions in code, and the 26 raw
+ * <button> sites are mockup-vocabulary chrome recorded as three scoped
+ * overrides in .oxlintrc.json. These tests pin that end state. Deleting the
+ * outtrue pin, the jsPlugin entry, the rule block, a recorded override, or
+ * reintroducing a baseline makes them red; a seeded raw <button> or
+ * template-literal className outside the recorded surfaces turns the exact
+ * outtrue rules red (catch behaviour below).
+ */
+
+const OUTTRUE_RECOMMENDED = join(
+	APP,
+	"node_modules",
+	"outtrue",
+	"configs",
+	"recommended.json",
+);
+
+const RECORDED_SURFACES = [
+	"src/components/shell/**",
+	"src/components/board/**",
+	"src/components/home/**",
+] as const;
+
+test("NEVR-856 wiring: outtrue exact-pin, both jsPlugins in one pass, primitives set", () => {
+	const pkg = readJson(join(APP, "package.json")) as {
+		scripts?: Record<string, string>;
+		dependencies?: Record<string, string>;
+		devDependencies?: Record<string, string>;
+	};
+	expect(
+		pkg.devDependencies?.outtrue,
+		"outtrue devDependency must stay exact-pinned at 0.2.0",
+	).toBe("0.2.0");
+	expect(
+		pkg.devDependencies?.oxlint,
+		"oxlint stays at the pinned runner (outtrue peers >=1.92; do not move it for this)",
+	).toBe("1.95.0");
+	// The second gate is dev-only tooling, like the first.
+	expect(
+		pkg.dependencies?.outtrue,
+		"outtrue must not leak into dependencies",
+	).toBeUndefined();
+	// One pass, two plugins: the same lint:design script runs both.
+	expect(pkg.scripts?.["lint:design"]).toBe(
+		"oxlint --config .oxlintrc.json --quiet src",
+	);
+
+	const cfg = readJson(CONFIG) as {
+		jsPlugins?: unknown[];
+		settings?: Record<string, Record<string, unknown>>;
+	};
+	expect(
+		cfg.jsPlugins?.includes("@shadcn/lint"),
+		"the @shadcn/lint entry must stay untouched",
+	).toBe(true);
+	expect(
+		cfg.jsPlugins?.find(
+			(p) =>
+				typeof p === "object" &&
+				p !== null &&
+				(p as { name?: string }).name === "design-system" &&
+				(p as { specifier?: string }).specifier === "outtrue",
+		),
+		"the design-system jsPlugin entry must stay beside @shadcn/lint",
+	).toBeDefined();
+	expect(
+		cfg.settings?.["design-system"]?.primitives,
+		"primitives must point at the real folder (an unset primitives path is the probe artifact NEVR-855 corrected)",
+	).toBe("src/components/ui");
+});
+
+test("NEVR-856 contracts: the recommended 15-rule set at error, rule-for-rule with outtrue's shipped config", () => {
+	const cfg = readJson(CONFIG) as {
+		rules?: Record<string, unknown>;
+	};
+	// Parity with the package's own recommended config — the set in
+	// .oxlintrc.json must be exactly the shipped recommended rules, no
+	// more (no all.json creep), no fewer (no quiet demotions).
+	const shipped = readJson(OUTTRUE_RECOMMENDED) as {
+		rules?: Record<string, string>;
+	};
+	const shippedRules = Object.keys(shipped.rules ?? {}).map((r) =>
+		r.replace(/^design-system\//, ""),
+	);
+	expect(shippedRules.length, "outtrue recommended set is 15 rules").toBe(15);
+	const configured = Object.keys(cfg.rules ?? {})
+		.filter((r) => r.startsWith("design-system/"))
+		.map((r) => r.replace(/^design-system\//, ""))
+		.sort();
+	expect(configured).toEqual([...shippedRules].sort());
+	for (const rule of shippedRules) {
+		const setting = cfg.rules?.[`design-system/${rule}`] as
+			| [string, ...unknown[]]
+			| string
+			| undefined;
+		const severity = Array.isArray(setting) ? setting[0] : setting;
+		expect(severity, `design-system/${rule} must be an error`).toBe("error");
+	}
+	// The shrink-to-zero pattern (NEVR-475 precedent): no baseline counts
+	// exist on the vehicle — outtrue ships a baseline mechanism and none of
+	// it is in use.
+	for (const setting of Object.values(cfg.rules ?? {})) {
+		const options = Array.isArray(setting)
+			? (setting[1] as Record<string, unknown> | undefined)
+			: undefined;
+		expect(
+			options?.baseline,
+			"no outtrue rule may carry baseline counts",
+		).toBeUndefined();
+	}
+});
+
+test("NEVR-856 recorded decisions: exactly three no-rebuilt-primitives surfaces, laws in the settings note", () => {
+	const cfg = readJson(CONFIG) as {
+		settings?: Record<string, Record<string, unknown>>;
+		overrides?: Array<{ files?: string[]; rules?: Record<string, string> }>;
+	};
+	const recorded = cfg.overrides?.filter((o) =>
+		Object.keys(o.rules ?? {}).includes("design-system/no-rebuilt-primitives"),
+	);
+	expect(recorded?.length, "exactly three recorded surfaces").toBe(3);
+	for (const surface of RECORDED_SURFACES) {
+		const entry = recorded?.find((o) => o.files?.includes(surface));
+		expect(entry, `the ${surface} override must exist`).toBeDefined();
+		expect(entry?.files, `${surface} must be the entry's only scope`).toEqual([
+			surface,
+		]);
+		expect(
+			entry?.rules,
+			`${surface} turns off ONLY no-rebuilt-primitives — every other rule (including no-template-classname) still fires there`,
+		).toEqual({ "design-system/no-rebuilt-primitives": "off" });
+	}
+	// The laws live in the config's own standard place: the settings note
+	// (oxlint rejects unknown keys inside override entries, so the recorded
+	// law text is the note, like the shadcn precedent). Every recorded
+	// surface must be named there, with the never-a-convenience law.
+	const note = String(cfg.settings?.["design-system"]?.note ?? "");
+	expect(
+		note.length,
+		"the design-system settings note must exist",
+	).toBeGreaterThan(0);
+	for (const surface of RECORDED_SURFACES) {
+		expect(note.includes(surface), `the note must name ${surface}`).toBe(true);
+	}
+	expect(
+		note.includes("recorded decision, never a convenience"),
+		"the note must carry the house law for new entries",
+	).toBe(true);
+});
+
+test("NEVR-856 catch behaviour: a seeded rebuilt primitive and template classname redden the pass", () => {
+	const probe = join(APP, "src", "design-contract-probe.test-fixture.tsx");
+	writeFileSync(
+		probe,
+		[
+			"export function DesignSystemProbe({ active }: { active: boolean }) {",
+			"\treturn (",
+			"\t\t<div>",
+			'\t\t\t<button type="button">seeded rebuilt primitive</button>',
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: seeds a JSX template-literal className on purpose
+			'\t\t\t<span className={`row ${active ? "on" : ""}`}>',
+			"\t\t\t\tseeded template classname",
+			"\t\t\t</span>",
+			"\t\t</div>",
+			"\t);",
+			"}",
+			"",
+		].join("\n"),
+	);
+	try {
+		// The probe sits at src/, outside every recorded surface, so both
+		// finding classes must fire with their remediation text.
+		const env = { ...process.env };
+		delete env.GITHUB_ACTIONS;
+		env.SHADCN_LINT_TAILWIND_TIMEOUT = "120000";
+		const result = spawnSync(
+			process.execPath,
+			[
+				join(APP, "node_modules", ".bin", "oxlint"),
+				"--config",
+				".oxlintrc.json",
+				"--quiet",
+				"src/design-contract-probe.test-fixture.tsx",
+			],
+			{ cwd: APP, encoding: "utf8", env, timeout: 180_000 },
+		);
+		const output = `${result.stdout}\n${result.stderr}`;
+		expect(
+			result.status,
+			`oxlint must fail on the seeded file:\n${output}`,
+		).not.toBe(0);
+		expect(output).toContain("design-system(no-rebuilt-primitives)");
+		expect(output).toContain(
+			"<button> rebuilds a primitive the design system already has. Use Button.",
+		);
+		expect(output).toContain("design-system(no-template-classname)");
+		expect(output).toContain(
+			"className is built with a template literal. Compose classes with cn().",
+		);
 	} finally {
 		rmSync(probe, { force: true });
 	}

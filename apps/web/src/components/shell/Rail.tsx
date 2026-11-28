@@ -2,6 +2,7 @@ import { useStore } from "@tanstack/react-store";
 import { useGo } from "@/components/shell/nav";
 import { Ico } from "@/components/ui/icon";
 import type { ViewId } from "@/fixtures/data";
+import { cn } from "@/lib/cn";
 import { hasFlag } from "@/lib/flags";
 import { themeStore, toggleTheme } from "@/state/theme";
 
@@ -13,7 +14,7 @@ export function Rail({ activeView }: { activeView: ViewId }) {
 		<nav className="rail" aria-label="Views">
 			<button
 				type="button"
-				className={`v ${activeView === "home" ? "on" : ""}`}
+				className={cn("v", activeView === "home" && "on")}
 				data-testid="rail-home"
 				aria-label="Home"
 				onClick={() => go({ view: "home", item: "inbox" })}
@@ -23,7 +24,7 @@ export function Rail({ activeView }: { activeView: ViewId }) {
 			</button>
 			<button
 				type="button"
-				className={`v ${activeView === "resources" ? "on" : ""}`}
+				className={cn("v", activeView === "resources" && "on")}
 				data-testid="rail-resources"
 				aria-label="Resources"
 				onClick={() => go({ view: "resources", item: "board-eng" })}
@@ -34,7 +35,7 @@ export function Rail({ activeView }: { activeView: ViewId }) {
 			{hasFlag("agents") && (
 				<button
 					type="button"
-					className={`v ${activeView === "agents" ? "on" : ""}`}
+					className={cn("v", activeView === "agents" && "on")}
 					data-testid="rail-agents"
 					aria-label="Agents"
 					onClick={() => go({ view: "agents", item: "s-229" })}
