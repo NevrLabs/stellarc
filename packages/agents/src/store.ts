@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Effect, Metric } from "effect";
 import type { ISql, Sql, TransactionSql } from "postgres";
+import { requireAppAccess } from "../../apps/src/access";
 import {
 	type AgentsError,
 	BadRequest,
@@ -1122,6 +1123,7 @@ export class AgentStore {
 	// ── tasks (operator side) ────────────────────────────────────────────────
 	createTask(org: string, actor: string, input: CreateTask) {
 		return txn(this.sql, "createTask", async (tx) => {
+			await requireAppAccess(tx, org, PLUGIN, "session:drive");
 			const [a] =
 				await tx`SELECT id FROM agent WHERE id=${input.agentId} AND org=${org} AND archived_at IS NULL`;
 			if (!a) throw new NotFound({ message: "Agent not found" });
@@ -1300,6 +1302,7 @@ export class AgentStore {
 	claimOnce(n: NodeRow) {
 		const leaseMs = this.leaseMs;
 		return txn(this.sql, "claim", async (tx) => {
+			await requireAppAccess(tx, n.org, PLUGIN, "session:drive");
 			await tx`UPDATE agent_node SET last_seen_at=now() WHERE id=${n.id}`;
 			// Park budget-blocked tasks (no attempt burn, no failure_code) and
 			// keep scanning; bound the work per call, the claim loop retries.
@@ -1494,6 +1497,7 @@ export class AgentStore {
 	) {
 		const leaseMs = this.leaseMs;
 		return txn(this.sql, "start", async (tx) => {
+			await requireAppAccess(tx, n.org, PLUGIN, "session:drive");
 			const row = await this.owned(tx, n, id, attempt);
 			if (row.status !== "claimed")
 				throw new Conflict({ message: `Task is ${row.status}` });
@@ -1592,6 +1596,8 @@ export class AgentStore {
 		input: PermissionDecision,
 	) {
 		return txn(this.sql, "resolvePermission", async (tx) => {
+			if (input.decision === "grant")
+				await requireAppAccess(tx, org, PLUGIN, "session:drive");
 			const [row] =
 				await tx`SELECT * FROM agent_task WHERE id=${id} AND org=${org} FOR UPDATE`;
 			if (!row) throw new NotFound({ message: "Task not found" });

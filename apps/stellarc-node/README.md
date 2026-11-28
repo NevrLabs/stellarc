@@ -5,6 +5,11 @@ agents you bound to this node, and drives your locally installed ACP agent.
 Your binaries and API keys never leave the machine.
 
 ```bash
+# 0. operator: ratify Agents for this org before registering nodes
+curl -XPOST $PLANE/orgs/$ORG/v1/apps/agents/activate \
+  -H "authorization: Bearer $OPERATOR" -H 'content-type: application/json' \
+  -d '{"capabilities":["session:drive"]}'
+
 # 1. operator: register a node (the token is shown once)
 curl -XPOST $PLANE/orgs/$ORG/v1/nodes -H "authorization: Bearer $OPERATOR" \
   -H 'content-type: application/json' -d '{"name":"my-laptop"}'
